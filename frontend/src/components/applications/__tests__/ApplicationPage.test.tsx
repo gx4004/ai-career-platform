@@ -7,7 +7,7 @@ import { ApplicationPage } from '../ApplicationPage'
 const api = vi.hoisted(() => ({
   getApplication: vi.fn(), updateApplication: vi.fn(), updateHistoryWorkspace: vi.fn(), deleteApplication: vi.fn(),
   prepareApplication: vi.fn(), saveApplicationAnswers: vi.fn(), markApplicationApplied: vi.fn(), autofillApplication: vi.fn(), getAutofillStatus: vi.fn(), cancelAutofill: vi.fn(),
-  createApplicationTask: vi.fn(), updateApplicationTask: vi.fn(), deleteApplicationTask: vi.fn(),
+  createApplicationTask: vi.fn(), updateApplicationTask: vi.fn(), deleteApplicationTask: vi.fn(), getApplicationDetails: vi.fn(),
   reviewApplication: vi.fn(), classifyApplicationGaps: vi.fn(), getApplicationGapResponse: vi.fn(),
 }))
 const flags = vi.hoisted(() => ({ autopilot: false }))
@@ -35,6 +35,10 @@ const saved = {
   },
   drafts: null, open_questions: [], answers: {}, tasks: [], events: [], snapshot: null,
 }
+const NO_DETAILS = {
+  full_name: '', email: '', phone: '', location: '', linkedin: '', website: '',
+  work_authorization: '', visa_sponsorship: '', notice_period: '', salary_expectation: '', relocation: '', is_default: true,
+}
 const drafts = {
   run_id: 'run-1', created_at: '2026-09-20T11:00:00Z',
   cover_letter: { body: 'Dear Northstar team, I would like to apply.', support: 'document', evidence_item_ids: [] },
@@ -61,6 +65,7 @@ describe('ApplicationPage', () => {
     vi.clearAllMocks()
     flags.autopilot = false
     api.getAutofillStatus.mockResolvedValue({ state: 'idle' })
+    api.getApplicationDetails.mockResolvedValue({ ...NO_DETAILS })
   })
 
   it('shows every section on one page under the shared header', async () => {
@@ -68,7 +73,8 @@ describe('ApplicationPage', () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Platform Engineer' })).toBeTruthy()
     expect(document.querySelector('.kit-page-header')).toBeTruthy()
-    expect(screen.getByText('82% when saved')).toBeTruthy()
+    expect(screen.getByRole('img', { name: '82% fit' })).toBeTruthy()
+    expect(screen.getByText(/when saved/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change stage, currently Saved' })).toBeTruthy()
     for (const title of ["What you're sending", 'Check your documents', 'Job description', 'Tasks', 'Notes', 'Activity', 'Details']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy()
@@ -268,5 +274,103 @@ describe('ApplicationPage', () => {
     fireEvent.change(screen.getByLabelText('New task'), { target: { value: 'Email Priya' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
     await waitFor(() => expect(api.createApplicationTask).toHaveBeenCalledWith('app-1', { title: 'Email Priya', deadline: null }))
+  })
+  it('sets, changes and clears the apply-by date from Details', async () => {
+    api.getApplication.mockResolvedValue({ ...saved, deadline: null })
+    api.updateApplication.mockResolvedValue({ ...saved, deadline: '2026-10-20T10:00:00Z' })
+    renderPage()
+    const field = await screen.findByLabelText('Apply by')
+    expect(screen.queryByRole('button', { name: 'Save date' })).toBeNull()
+
+    fireEvent.change(field, { target: { value: '2026-10-20' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save date' }))
+
+    await waitFor(() => expect(api.updateApplication).toHaveBeenCalledTimes(1))
+    const [id, payload] = api.updateApplication.mock.calls[0]
+    expect(id).toBe('app-1')
+    expect(new Date(payload.deadline).getFullYear()).toBe(2026)
+    expect(new Date(payload.deadline).getDate()).toBe(20)
+  })
+
+  it('clears a date that is already set', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    api.updateApplication.mockResolvedValue({ ...saved, deadline: null })
+    renderPage()
+    expect(await screen.findByLabelText('Apply by')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+
+    await waitFor(() => expect(api.updateApplication).toHaveBeenCalledWith('app-1', { deadline: null }))
+  })
+
+  it('marks a date inside a week in rose and offers no editor once applied', async () => {
+    const soon = new Date(Date.now() + 2 * 86_400_000).toISOString()
+    api.getApplication.mockResolvedValue({ ...saved, deadline: soon })
+    const { unmount } = renderPage()
+    expect(await screen.findByText('Due in 2 days')).toBeTruthy()
+    unmount()
+
+    api.getApplication.mockResolvedValue({ ...applied, deadline: soon })
+    renderPage()
+    await screen.findByRole('heading', { name: /You applied on/ })
+    expect(screen.queryByLabelText('Apply by')).toBeNull()
+  })
+
+  it('stamps an Applied seal after marking applied, with the sent summary and the next steps', async () => {
+    api.getApplication.mockResolvedValue(answered)
+    api.markApplicationApplied.mockResolvedValue(applied)
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Mark as applied/ }))
+    api.getApplication.mockResolvedValue(applied)
+
+    const heading = await screen.findByRole('heading', { name: /You applied on/ })
+    const panel = heading.closest('section') as HTMLElement
+    expect(within(panel).getByText('Application status')).toBeTruthy()
+    expect(panel.querySelector('.kit-seal')?.getAttribute('data-reveal')).toBe('stamp')
+    expect(within(panel).getByText('CV: Platform roles')).toBeTruthy()
+    expect(within(panel).getByText('1 answer')).toBeTruthy()
+    expect(within(panel).getByRole('link', { name: 'Prepare for interviews' }).getAttribute('href')).toBe('/interview')
+  })
+
+  it('does not replay the stamp on a revisit, and adds a follow-up task due in a week', async () => {
+    api.getApplication.mockResolvedValue(applied)
+    api.createApplicationTask.mockResolvedValue({ id: 't-9', title: 'Follow up on Platform Engineer', deadline: null, completed: false, created_at: '2026-09-21T10:00:00Z' })
+    renderPage()
+
+    const heading = await screen.findByRole('heading', { name: /You applied on/ })
+    expect((heading.closest('section') as HTMLElement).querySelector('.kit-seal')?.getAttribute('data-reveal')).toBe('none')
+    fireEvent.click(screen.getByRole('button', { name: /^Follow up in a week/ }))
+
+    await waitFor(() => expect(api.createApplicationTask).toHaveBeenCalledTimes(1))
+    const [id, payload] = api.createApplicationTask.mock.calls[0]
+    expect(id).toBe('app-1')
+    expect(payload.title).toBe('Follow up on Platform Engineer')
+    const days = (new Date(payload.deadline).getTime() - Date.now()) / 86_400_000
+    expect(days).toBeGreaterThan(6)
+    expect(days).toBeLessThan(8)
+  })
+
+  it('offers a standing answer from Account for a mandatory-stop question, and saves it on one click', async () => {
+    api.getApplication.mockResolvedValue(prepared)
+    api.getApplicationDetails.mockResolvedValue({ ...NO_DETAILS, salary_expectation: '€90k', is_default: false })
+    api.saveApplicationAnswers.mockResolvedValue(answered)
+    renderPage()
+
+    expect(await screen.findByText('From your details')).toBeTruthy()
+    expect(screen.getByText('€90k')).toBeTruthy()
+    // Offered, never filled in on its own.
+    expect((screen.getByLabelText(SALARY.question) as HTMLTextAreaElement).value).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: /Use your standing answer/ }))
+
+    await waitFor(() => expect(api.saveApplicationAnswers).toHaveBeenCalledWith('app-1', { 'q-salary': '€90k' }))
+  })
+
+  it('offers no standing answer when Account has none', async () => {
+    api.getApplication.mockResolvedValue(prepared)
+    renderPage()
+    await screen.findByLabelText(SALARY.question)
+    expect(screen.queryByText('From your details')).toBeNull()
   })
 })

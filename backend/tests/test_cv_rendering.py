@@ -86,7 +86,10 @@ def test_docx_and_pdf_are_byte_stable_and_validate_for_every_template(db, test_u
         assert evidence.reads_back == "pass"
         assert evidence.links == "pass"
         with fitz.open(stream=pdf, filetype="pdf") as parsed:
-            assert "Synthetic CV" in "".join(page.get_text() for page in parsed)
+            text = "".join(page.get_text() for page in parsed)
+            # The paper opens with the candidate's name, not the internal document name.
+            assert "Test User" in text
+            assert "Synthetic CV" not in text
             assert any(
                 link["uri"] == "https://example.com/work"
                 for page in parsed

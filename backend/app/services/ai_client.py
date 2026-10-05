@@ -2,7 +2,11 @@ import asyncio
 import json
 import logging
 import random
-from contextlib import suppress
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
+from typing import Any
+
+from fastapi import HTTPException
 
 from app.config import Settings, settings
 
@@ -11,6 +15,95 @@ logger = logging.getLogger(__name__)
 
 class ProviderConfigurationError(RuntimeError):
     """A provider configuration fault that cannot recover through request retries."""
+
+
+class LLMBusyError(HTTPException):
+    """No model slot freed up within the bounded wait: a friendly 503, never retried."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=503,
+            detail="The AI service is busy right now. Please try again in a moment.",
+            headers={"Retry-After": "15"},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Backpressure: a process-wide cap on in-flight provider calls
+# ---------------------------------------------------------------------------
+
+# (loop, capacity, semaphore). A semaphore belongs to one event loop, and the
+# capacity is a setting, so rebuild when either changes. Calls already holding a
+# slot release the semaphore they acquired.
+_slots: tuple[asyncio.AbstractEventLoop, int, asyncio.Semaphore] | None = None
+
+
+def _get_slots() -> asyncio.Semaphore:
+    global _slots
+    loop = asyncio.get_running_loop()
+    capacity = settings.LLM_MAX_CONCURRENT_CALLS
+    if _slots is None or _slots[0] is not loop or _slots[1] != capacity:
+        _slots = (loop, capacity, asyncio.Semaphore(capacity))
+    return _slots[2]
+
+
+@asynccontextmanager
+async def _model_slot() -> AsyncIterator[None]:
+    """Hold one provider slot for a single attempt (not across retry backoff)."""
+    slots = _get_slots()
+    try:
+        await asyncio.wait_for(slots.acquire(), timeout=settings.LLM_QUEUE_WAIT_SECONDS)
+    except TimeoutError:
+        logger.warning("LLM busy: no provider slot within %.1fs", settings.LLM_QUEUE_WAIT_SECONDS)
+        raise LLMBusyError() from None
+    try:
+        yield
+    finally:
+        slots.release()
+
+
+# ---------------------------------------------------------------------------
+# One provider client per process
+# ---------------------------------------------------------------------------
+
+# name -> (config key, client). A fresh genai client reloads credentials and
+# refreshes the OAuth token and opens new TLS connections on every call, so the
+# client is built lazily and reused; per-call timeouts stay on each request. The
+# key holds the settings the client was built from, so a changed setting builds a
+# new one.
+_clients: dict[str, tuple[tuple, Any]] = {}
+
+
+def _cached_client(name: str, key: tuple, build) -> Any:
+    entry = _clients.get(name)
+    if entry is not None and entry[0] == key:
+        return entry[1]
+    client = build()
+    _clients[name] = (key, client)
+    return client
+
+
+async def _discard_client(name: str, client: Any) -> None:
+    """Drop (and close) a client after a credential failure so the next call re-auths."""
+    entry = _clients.get(name)
+    if entry is not None and entry[1] is client:
+        del _clients[name]
+    if client is None:
+        return
+    async_client = getattr(client, "aio", None)
+    if async_client is not None:
+        with suppress(Exception):
+            await async_client.aclose()
+    with suppress(Exception):
+        result = client.close()
+        if asyncio.iscoroutine(result):
+            await result
+
+
+async def close_cached_clients() -> None:
+    """Close every cached provider client (process shutdown)."""
+    for name, (_key, client) in list(_clients.items()):
+        await _discard_client(name, client)
 
 
 # ---------------------------------------------------------------------------
@@ -79,16 +172,17 @@ async def complete_structured(
     logger.info("LLM request  provider=%s  model=%s", provider, model)
 
     async def _dispatch():
-        if provider == "vertex":
-            return await _call_vertex(system_prompt, user_prompt, model)
-        elif provider == "google":
-            return await _call_google_genai(system_prompt, user_prompt, model)
-        elif provider == "anthropic":
-            return await _call_anthropic(system_prompt, user_prompt, model)
-        elif provider == "fake":
-            return await _call_fake(system_prompt, user_prompt, model)
-        else:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+        async with _model_slot():
+            if provider == "vertex":
+                return await _call_vertex(system_prompt, user_prompt, model)
+            elif provider == "google":
+                return await _call_google_genai(system_prompt, user_prompt, model)
+            elif provider == "anthropic":
+                return await _call_anthropic(system_prompt, user_prompt, model)
+            elif provider == "fake":
+                return await _call_fake(system_prompt, user_prompt, model)
+            else:
+                raise ValueError(f"Unsupported LLM provider: {provider}")
 
     result = await _with_retry(_dispatch)
     logger.info("LLM response provider=%s  model=%s  keys=%s", provider, model, list(result.keys()))
@@ -109,17 +203,19 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
     # supported Google Gen AI SDK against the stable Vertex API while preserving
     # Application Default Credentials and the existing project/location config.
     client = None
-    async_client = None
     try:
-        client = genai.Client(
-            vertexai=True,
-            project=settings.VERTEX_PROJECT_ID,
-            location=settings.VERTEX_LOCATION,
-            http_options={"api_version": "v1"},
+        client = _cached_client(
+            "vertex",
+            (settings.VERTEX_PROJECT_ID, settings.VERTEX_LOCATION),
+            lambda: genai.Client(
+                vertexai=True,
+                project=settings.VERTEX_PROJECT_ID,
+                location=settings.VERTEX_LOCATION,
+                http_options={"api_version": "v1"},
+            ),
         )
-        async_client = client.aio
         response = await asyncio.wait_for(
-            async_client.models.generate_content(
+            client.aio.models.generate_content(
                 model=model_name or settings.LLM_MODEL,
                 contents=user_prompt,
                 config={
@@ -145,6 +241,7 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
             logger.error(
                 "Vertex AI permission denied for project=%s", settings.VERTEX_PROJECT_ID
             )
+            await _discard_client("vertex", client)
             raise ProviderConfigurationError(
                 "AI service configuration error. Please contact support."
             ) from None
@@ -152,6 +249,7 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     except auth_exceptions.GoogleAuthError as exc:
         logger.error("Vertex AI credentials unavailable error_type=%s", type(exc).__name__)
+        await _discard_client("vertex", client)
         raise ProviderConfigurationError(
             "AI service configuration error. Please contact support."
         ) from None
@@ -165,22 +263,28 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         # class used to cover these. Only the error type is logged.
         logger.error("Vertex AI transport failure error_type=%s", type(exc).__name__)
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
-    finally:
-        if async_client is not None:
-            with suppress(Exception):
-                await async_client.aclose()
-        if client is not None:
-            with suppress(Exception):
-                client.close()
 
     content = response.text
     return _safe_parse_json(content, "vertex")
 
 
+def _is_credential_failure(exc: Exception) -> bool:
+    from google.auth import exceptions as auth_exceptions
+    from google.genai import errors as genai_errors
+
+    if isinstance(exc, auth_exceptions.GoogleAuthError):
+        return True
+    return isinstance(exc, genai_errors.ClientError) and exc.code in {401, 403}
+
+
 async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
     from google import genai
 
-    client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+    client = _cached_client(
+        "google",
+        (settings.GOOGLE_API_KEY,),
+        lambda: genai.Client(api_key=settings.GOOGLE_API_KEY),
+    )
 
     try:
         response = await asyncio.wait_for(
@@ -204,6 +308,10 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
         ) from None
     except Exception as exc:
         logger.error("Google AI call failed error_type=%s", type(exc).__name__)
+        if _is_credential_failure(exc):
+            # Drop the client so the next attempt re-authenticates. Still a
+            # retryable RuntimeError: this provider's retry policy is unchanged.
+            await _discard_client("google", client)
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
 
     content = response.text
@@ -223,7 +331,11 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str 
     # provider (5s->10s->20s->40s + jitter); letting the SDK's own default
     # retries (2, on 429/5xx/connection errors) run underneath it would retry
     # the same transient failure twice, under two different backoff schedules.
-    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=0)
+    client = _cached_client(
+        "anthropic",
+        (settings.ANTHROPIC_API_KEY,),
+        lambda: anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=0),
+    )
     model = model_name or settings.LLM_MODEL or _ANTHROPIC_DEFAULT_MODEL
     # Vertex/Google get response_mime_type="application/json" as a hard
     # enforcement; the Messages API has no equivalent, so the JSON-only
@@ -253,6 +365,7 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str 
         # caught ahead of it. Same mapping as Vertex's 401/403 ClientError
         # branch — an unrecoverable config fault, never retried.
         logger.error("Anthropic auth/permission failure error_type=%s", type(exc).__name__)
+        await _discard_client("anthropic", client)
         raise ProviderConfigurationError(
             "AI service configuration error. Please contact support."
         ) from None
@@ -270,9 +383,6 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str 
     except Exception as exc:  # noqa: BLE001 — an unmapped SDK/transport failure
         logger.error("Anthropic transport failure error_type=%s", type(exc).__name__)
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
-    finally:
-        with suppress(Exception):
-            await client.close()
 
     content = "".join(
         block.text for block in response.content if getattr(block, "type", None) == "text"

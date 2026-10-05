@@ -23,6 +23,7 @@ export function CoverLetterToolPage() {
         <ToolPageLoading toolId="cover-letter" mutationDone={!mutation.isPending} />
       ) : (
         <ToolForm
+          toolId="cover-letter"
           label={`${tool.label} input form`}
           onSubmit={handleSubmit}
           submitLabel={tool.entryPointLabel}

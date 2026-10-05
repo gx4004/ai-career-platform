@@ -134,3 +134,174 @@ def test_a_deadline_due_today_stays_listed_after_its_noon_timestamp(client, auth
     assert [i.reason for i in todays_plan(db, user_id, now=afternoon).needs_action] == ["deadline"]
     next_day = afternoon + timedelta(days=1)
     assert todays_plan(db, user_id, now=next_day).needs_action == []
+
+
+# ── Best matches never offer a job that is already in the pipeline (D04) ──
+
+
+def _application(db, user_id, *, company, role, status="saved", **fields):
+    """An application with no link to a Discovery listing (pasted or seeded)."""
+    workspace = Workspace(
+        user_id=user_id, company=company, role=role, status=status, label=f"{role} - {company}", **fields
+    )
+    db.add(workspace)
+    db.commit()
+    return workspace
+
+
+def test_a_job_already_an_application_without_a_listing_link_is_not_offered_again(
+    client, auth_headers, test_user, db, discovery
+):
+    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.listing(title="Senior Backend Engineer, Platform", company="Northwind Labs", description=K8S)
+    discovery.listing(title="Platform Engineer", company="Acme", description=K8S + " Other.")
+    _application(
+        db,
+        test_user.id,
+        company="  northwind LABS ",
+        role="senior backend engineer,  platform",
+        status="interviewing",
+    )
+
+    titles = [m["title"] for m in _today(client, auth_headers)["best_matches"]]
+
+    assert titles == ["Platform Engineer"]
+
+
+def test_a_job_whose_apply_link_is_already_in_the_pipeline_is_not_offered_again(
+    client, auth_headers, test_user, db, discovery
+):
+    from app.models.campaign_listing import CampaignListing
+
+    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.listing(
+        title="Infra Lead", company="Initech", description=K8S, apply_url="https://jobs.example.com/apply/42"
+    )
+    discovery.listing(title="Platform Engineer", company="Acme", description=K8S + " Other.")
+    workspace = _application(db, test_user.id, company="Initech Corp", role="Head of Infra")
+    pasted = CampaignListing(
+        workspace_id=workspace.id,
+        title="Head of Infra",
+        company="Initech Corp",
+        description="Pasted.",
+        apply_url="https://jobs.example.com/apply/42/",
+    )
+    db.add(pasted)
+    db.commit()
+    workspace.current_listing_id = pasted.id
+    db.commit()
+
+    titles = [m["title"] for m in _today(client, auth_headers)["best_matches"]]
+
+    assert titles == ["Platform Engineer"]
+
+
+def test_other_owners_applications_do_not_hide_a_match(client, auth_headers, test_user, db, discovery):
+    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.listing(title="Platform Engineer", company="Acme", description=K8S)
+    other = discovery.user_headers("other2@example.com")
+    other_id = client.get("/api/v1/auth/me", headers=other).json()["id"]
+    _application(db, other_id, company="Acme", role="Platform Engineer")
+
+    assert [m["title"] for m in _today(client, auth_headers)["best_matches"]] == ["Platform Engineer"]
+
+
+def test_the_list_still_fills_up_after_skipping_many_pipeline_jobs(
+    client, auth_headers, test_user, db, discovery
+):
+    discovery.evidence(test_user.id, "Kubernetes")
+    for index in range(12):
+        discovery.listing(title=f"Role {index}", company=f"Co {index}", description=f"{K8S} Variant {index}.")
+        if index < 9:
+            _application(db, test_user.id, company=f"Co {index}", role=f"Role {index}")
+
+    assert len(_today(client, auth_headers)["best_matches"]) == 3
+
+
+def test_the_list_still_fills_up_when_one_application_hides_many_same_title_listings(
+    client, auth_headers, test_user, db, discovery
+):
+    discovery.evidence(test_user.id, "Kubernetes")
+    # Listed first, so the newer same-title postings outrank it on the tie-break.
+    discovery.listing(title="Data Engineer", company="Beta", description=K8S)
+    for index in range(8):
+        discovery.listing(
+            title="Platform Engineer",
+            company="Acme",
+            description=f"{K8S} Location {index}. Kubernetes Kubernetes platform.",
+        )
+    _application(db, test_user.id, company="Acme", role="Platform Engineer")
+
+    titles = [m["title"] for m in _today(client, auth_headers)["best_matches"]]
+
+    assert titles == ["Data Engineer"]
+
+
+# ── A cold process scores each listing once, however many first visitors arrive (DB-3) ──
+
+
+def _count_scoring(monkeypatch):
+    import time
+
+    from app.services import discovery_recommendations as recs
+
+    calls: list[str] = []
+    real = recs.score_listing
+
+    def counting(profile, listing):
+        calls.append(listing.id)
+        time.sleep(0.005)
+        return real(profile, listing)
+
+    monkeypatch.setattr(recs, "score_listing", counting)
+    recs._SCORE_CACHE.clear()
+    return calls
+
+
+def test_concurrent_cold_visitors_score_each_listing_once(test_user, db, discovery, monkeypatch):
+    # Unit-level on purpose: the test database is one shared sqlite connection, so
+    # real concurrent requests cannot run here. The profile and listings are real;
+    # only the scoring step is raced.
+    import threading
+
+    from app.models.discovered_listing import DiscoveredListing
+    from app.services import discovery_recommendations as recs
+
+    discovery.evidence(test_user.id, "Kubernetes")
+    for index in range(12):
+        discovery.listing(title=f"Role {index}", company=f"Co {index}", description=f"{K8S} Variant {index}.")
+    profile = recs.load_match_profile(db, test_user.id)
+    loaded = {row.id: row for row in db.query(DiscoveredListing).all()}
+    calls = _count_scoring(monkeypatch)
+    results: list[dict] = []
+
+    def visit():
+        results.append(recs._scores(None, profile, list(loaded), loaded=loaded))
+
+    threads = [threading.Thread(target=visit) for _ in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(results) == 6 and all(len(r) == 12 for r in results)
+    assert sorted(calls) == sorted(loaded)
+
+
+def test_owners_with_the_same_confirmed_items_share_the_scoring_work(
+    client, auth_headers, test_user, db, discovery, monkeypatch
+):
+    discovery.evidence(test_user.id, "Kubernetes")
+    twin = discovery.user_headers("twin@example.com")
+    twin_id = db.query(type(test_user)).filter_by(email="twin@example.com").one().id
+    discovery.evidence(twin_id, "Kubernetes")
+    for index in range(5):
+        discovery.listing(title=f"Role {index}", company=f"Co {index}", description=f"{K8S} Variant {index}.")
+    calls = _count_scoring(monkeypatch)
+
+    _today(client, auth_headers)
+    first_owner_calls = len(calls)
+    _today(client, twin)
+
+    assert first_owner_calls == 5
+    assert len(calls) == first_owner_calls

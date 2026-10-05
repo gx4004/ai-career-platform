@@ -284,4 +284,25 @@ describe('ToolRouteScreen', () => {
     expect(screen.queryByRole('button', { name: /Sign in to save runs/i })).toBeNull()
     expect(screen.queryByText(/Sign in to save runs/i)).toBeNull()
   })
+
+  it('marks the page with the tool tile and puts the form in one panel with one primary submit', () => {
+    const { container } = renderScreen('job-match')
+
+    expect(container.querySelector('.kit-page-header .kit-tool-tile')?.getAttribute('data-tone')).toBe('mint')
+    const form = screen.getByRole('form', { name: 'Job Match input form' })
+    // Nested stone panels (the resume row, the import card) are objects inside it, not a second form panel.
+    expect(form.querySelectorAll(':scope > .kit-panel-surface')).toHaveLength(1)
+    expect(form.querySelectorAll('.kit-button--primary')).toHaveLength(1)
+  })
+
+  it('says what a re-generate is using when the page was opened from one', async () => {
+    window.history.pushState({}, '', '/resume?parent_run_id=run-1&feedback=Focus%20on%20impact')
+    try {
+      renderScreen('resume')
+      expect(await screen.findByText('Focus on impact')).toBeTruthy()
+      expect(screen.getByText(/Re-generating with your feedback/)).toBeTruthy()
+    } finally {
+      window.history.pushState({}, '', '/')
+    }
+  })
 })

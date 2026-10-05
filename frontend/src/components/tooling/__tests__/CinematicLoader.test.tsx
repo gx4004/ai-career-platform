@@ -180,4 +180,43 @@ describe('CinematicLoader', () => {
     })
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull()
   })
+
+  it('shows the typical steps as a list for the eye only, so the one live region stays the only announcement', () => {
+    const { container } = render(<CinematicLoader toolId="resume" mutationDone={false} />)
+
+    const steps = container.querySelector('.cinematic-steps')
+    expect(steps?.getAttribute('aria-hidden')).toBe('true')
+    expect(steps?.querySelectorAll('li')).toHaveLength(5)
+    expect(steps?.querySelector('[data-state="current"]')?.textContent).toContain('Reading your resume')
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    const states = Array.from(steps!.querySelectorAll('li')).map((li) => li.getAttribute('data-state'))
+    expect(states).toEqual(['done', 'current', 'upcoming', 'upcoming', 'upcoming'])
+  })
+
+  it('fills the track by whole steps and only completes it when the run returns', () => {
+    const { container, rerender } = render(<CinematicLoader toolId="resume" mutationDone={false} />)
+    const track = () => screen.getByRole('progressbar') as HTMLElement
+    expect(track().style.getPropertyValue('--cin-total')).toBe('5')
+
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(track().style.getPropertyValue('--cin-filled')).toBe('4')
+
+    rerender(<CinematicLoader toolId="resume" mutationDone />)
+    act(() => {
+      vi.advanceTimersByTime(50)
+    })
+    expect(track().style.getPropertyValue('--cin-filled')).toBe('5')
+    expect(container.querySelectorAll('.cinematic-step[data-state="done"]')).toHaveLength(5)
+  })
+
+  it('marks the tool with its tile', () => {
+    const { container } = render(<CinematicLoader toolId="job-match" mutationDone={false} />)
+    expect(container.querySelector('.cinematic-tile')?.getAttribute('data-tone')).toBe('mint')
+  })
 })

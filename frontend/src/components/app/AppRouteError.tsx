@@ -38,6 +38,8 @@ export function AppRouteError({
     return (
       <AppStatePanel
         badge="Update required"
+        seal={{ value: 'New', label: 'Update available', tone: 'lilac' }}
+        role="status"
         title="The app was updated in the background"
         description="This page is using an older route bundle. Reload to fetch the latest version and retry your result."
         detail={error.message}

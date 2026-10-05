@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -44,6 +45,9 @@ from app.services.cv_documents import (
     get_document,
     list_documents,
     restore_variant,
+    serialize_document,
+    serialize_document_for_list,
+    serialize_variant,
     update_document,
 )
 from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR
@@ -65,6 +69,7 @@ from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 CV_TAILORING_MODEL_RUN_LIMIT = 10
 
 def _document_style(document: CvDocument) -> CvStyle:
@@ -124,7 +129,7 @@ def accept_reviewed_import(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return accept_import(db, current_user.id, body)
+    return serialize_document(accept_import(db, current_user.id, body))
 
 
 @router.get("/export", response_model=CvDocumentsExport)
@@ -139,7 +144,10 @@ def export_all(
 
 @router.get("", response_model=CvDocumentListResponse)
 def list_all(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return CvDocumentListResponse(items=list_documents(db, current_user.id))
+    # One unreadable document must not take the whole list (and CV Studio) down.
+    return CvDocumentListResponse(
+        items=[serialize_document_for_list(d) for d in list_documents(db, current_user.id)]
+    )
 
 
 @router.post("", response_model=CvDocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -149,7 +157,7 @@ def create(
     db: Session = Depends(get_db),
 ):
     try:
-        return create_document(db, current_user.id, body)
+        return serialize_document(create_document(db, current_user.id, body))
     except InvalidEvidenceReferenceError as error:
         _invalid_evidence(error)
 
@@ -193,7 +201,7 @@ def get_one(
     db: Session = Depends(get_db),
 ):
     try:
-        return get_document(db, document_id, current_user.id)
+        return serialize_document(get_document(db, document_id, current_user.id))
     except CvDocumentNotFoundError as error:
         _not_found(error)
 
@@ -274,7 +282,11 @@ def update(
     try:
         document = get_document(db, document_id, current_user.id)
         sections = None if body.sections is None else [item.model_dump() for item in body.sections]
-        return update_document(db, document, name=body.name, sections=sections, style=body.style)
+        return serialize_document(
+            update_document(
+                db, document, name=body.name, sections=sections, style=body.style, header=body.header
+            )
+        )
     except CvDocumentNotFoundError as error:
         _not_found(error)
     except InvalidEvidenceReferenceError as error:
@@ -361,7 +373,9 @@ def apply_tailoring_review(
             [change.model_dump(exclude_defaults=True) for change in body.changes],
         ):
             raise InvalidTailoringProposalError
-        return apply_tailoring(db, get_document(db, document_id, current_user.id), body)
+        return serialize_variant(
+            apply_tailoring(db, get_document(db, document_id, current_user.id), body)
+        )
     except CvDocumentNotFoundError as error:
         _not_found(error)
     except (InvalidEvidenceReferenceError, InvalidTailoringProposalError) as error:
@@ -407,11 +421,13 @@ def snapshot(
     db: Session = Depends(get_db),
 ):
     try:
-        return create_variant(
-            db,
-            get_document(db, document_id, current_user.id),
-            body.name,
-            body.target_role,
+        return serialize_variant(
+            create_variant(
+                db,
+                get_document(db, document_id, current_user.id),
+                body.name,
+                body.target_role,
+            )
         )
     except CvDocumentNotFoundError as error:
         _not_found(error)
@@ -427,6 +443,8 @@ def restore(
     db: Session = Depends(get_db),
 ):
     try:
-        return restore_variant(db, get_document(db, document_id, current_user.id), variant_id)
+        return serialize_document(
+            restore_variant(db, get_document(db, document_id, current_user.id), variant_id)
+        )
     except CvDocumentNotFoundError as error:
         _not_found(error)

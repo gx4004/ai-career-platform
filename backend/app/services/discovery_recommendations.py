@@ -9,8 +9,10 @@ on every request, so revoking or killing a source hides its listings at once
 
 Fit is deterministic keyword overlap with the owner's confirmed Evidence Profile
 items, kept as two separate signals that are never blended: **skills fit**
-(listing keywords the confirmed evidence covers, with the matched and missing
-ones) and **preference hits** (the owner's confirmed preference keywords the
+(the share of a listing's keywords the confirmed evidence covers, with the
+matched and missing ones; a listing naming fewer than four keywords is measured
+against four so one keyword never reads as 100%, and one naming none has no fit)
+and **preference hits** (the owner's confirmed preference keywords the
 listing mentions). Ranking uses skills fit; preference hits only break ties. A third signal,
 **similar applications** (the owner's own reply rate for the same kind of role
 and skills-fit bucket, #417), is shown apart and only breaks ties that skills
@@ -25,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -40,15 +43,18 @@ from app.models.discovered_listing import (
 from app.models.discovery_personalization import DiscoveryDismissedListing
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
+from app.models.workspace import Workspace
 from app.schemas.discovery_recommendations import (
     DiscoveryListingDetail,
     DiscoveryListingItem,
     DiscoveryListingPage,
+    FitConfidence,
+    HiddenListingItem,
+    HiddenListingPage,
 )
 from app.services.application_insights import NO_ODDS, OddsModel, odds_model
 from app.services.ats_providers import provider_for_endpoint
 from app.services.quality_signals import (
-    compute_match_score,
     extract_detected_skills,
     extract_job_keywords,
     keyword_present,
@@ -63,11 +69,23 @@ PREVIEW_CHARS = 240
 
 SearchSort = Literal["best_match", "newest"]
 
+# Skills fit is the share of a listing's keywords the owner's evidence covers,
+# but a listing that names fewer than FIT_MIN_KEYWORDS keywords is measured as if
+# it named that many: one covered keyword is 25%, never 100%. A listing that
+# names none has no fit at all (null), not a default.
+FIT_MIN_KEYWORDS = 4
+# How many keywords a fit rests on before it is called medium / high confidence.
+FIT_MEDIUM_KEYWORDS = FIT_MIN_KEYWORDS
+FIT_HIGH_KEYWORDS = 6
+HIDDEN_LISTINGS_LIMIT = 200
+
 
 @dataclass(frozen=True)
 class Match:
     # None when the owner has no confirmed evidence (not 0%: nothing to compare).
     skills_fit: int | None = None
+    # How many keywords the fit rests on; None whenever skills_fit is None.
+    fit_confidence: FitConfidence | None = None
     matched_skills: tuple[str, ...] = ()
     missing_skills: tuple[str, ...] = ()
     preference_hits: tuple[str, ...] = ()
@@ -99,6 +117,8 @@ class VisibleListing:
     attribution: DiscoveredListingAttribution
     # None when the owner has no confirmed items to score against.
     match: Match | None
+    # The owner's application for this listing, when they already added it.
+    application_id: str | None = None
 
     @property
     def listing_id(self) -> str:
@@ -146,7 +166,7 @@ def search_listings(
     else:
         page_ids = _newest_ids(db, matching, offset=offset, limit=limit)
 
-    visible_rows = _load_visible(db, page_ids, profile, now)
+    visible_rows = _load_visible(db, page_ids, profile, now, user_id=user_id)
     return DiscoveryListingPage(
         items=[listing_item(visible_rows[i], odds) for i in page_ids if i in visible_rows],
         total=total,
@@ -203,7 +223,9 @@ def visible_listing(
     )
     if is_visible is None:
         return None
-    return _load_visible(db, [listing_id], load_match_profile(db, user_id), now).get(listing_id)
+    return _load_visible(
+        db, [listing_id], load_match_profile(db, user_id), now, user_id=user_id
+    ).get(listing_id)
 
 
 def best_matches(
@@ -221,8 +243,12 @@ def best_matches(
     matching = select(DiscoveredListing.id).where(visible_listing_clause(db, user_id, now))
     odds = _odds_for(db, user_id, profile)
     page_ids = _best_match_page(db, profile, odds, matching, offset=0, limit=limit)
-    rows = _load_visible(db, page_ids, profile, now)
-    return [rows[listing_id] for listing_id in page_ids if listing_id in rows]
+    rows = _load_visible(db, page_ids, profile, now, user_id=user_id)
+    return [
+        rows[listing_id]
+        for listing_id in page_ids
+        if listing_id in rows and rows[listing_id].match.skills_fit is not None
+    ]
 
 
 def has_live_source(db: Session, now: datetime | None = None) -> bool:
@@ -238,15 +264,77 @@ def has_live_source(db: Session, now: datetime | None = None) -> bool:
 
 def visible_listing_clause(db: Session, user_id: str, now: datetime):
     """The one visibility rule, as a SQL condition on ``DiscoveredListing``."""
+    dismissed = select(DiscoveryDismissedListing.listing_id).where(
+        DiscoveryDismissedListing.user_id == user_id
+    )
+    return and_(_live_listing_clause(db, now), DiscoveredListing.id.not_in(dismissed))
+
+
+def _live_listing_clause(db: Session, now: datetime):
+    """The visibility rule without the owner's dismissals: a live, allowed source."""
     live_source = (
         select(DiscoveredListingAttribution.id)
         .join(DiscoverySource, DiscoveredListingAttribution.source_id == DiscoverySource.id)
         .where(DiscoveredListingAttribution.listing_id == DiscoveredListing.id, _live(db, now))
     )
-    dismissed = select(DiscoveryDismissedListing.listing_id).where(
-        DiscoveryDismissedListing.user_id == user_id
+    return exists(live_source)
+
+
+def is_live_listing(db: Session, listing_id: str, *, now: datetime | None = None) -> bool:
+    """True when a listing exists and a live, allowed source still carries it.
+
+    Ignores the owner's own dismissals, so hiding a listing twice stays valid
+    while a listing the owner could never see is not confirmed to exist.
+    """
+    now = now or datetime.now(UTC)
+    return (
+        db.scalar(
+            select(DiscoveredListing.id).where(
+                DiscoveredListing.id == listing_id, _live_listing_clause(db, now)
+            )
+        )
+        is not None
     )
-    return and_(exists(live_source), DiscoveredListing.id.not_in(dismissed))
+
+
+def hidden_listings(
+    db: Session, user_id: str, *, now: datetime | None = None
+) -> HiddenListingPage:
+    """The listings this owner has hidden, newest hidden first, so each can be restored.
+
+    A hidden listing whose source has since been revoked, killed or expired is
+    left out: governance still decides what the owner may see.
+    """
+    now = now or datetime.now(UTC)
+    rows = (
+        select(DiscoveredListing, DiscoveryDismissedListing.created_at)
+        .join(
+            DiscoveryDismissedListing,
+            DiscoveryDismissedListing.listing_id == DiscoveredListing.id,
+        )
+        .where(DiscoveryDismissedListing.user_id == user_id, _live_listing_clause(db, now))
+    )
+    total = db.scalar(select(func.count()).select_from(rows.subquery())) or 0
+    page = db.execute(
+        rows.order_by(DiscoveryDismissedListing.created_at.desc(), DiscoveredListing.id).limit(
+            HIDDEN_LISTINGS_LIMIT
+        )
+    ).all()
+    return HiddenListingPage(
+        items=[
+            HiddenListingItem(
+                listing_id=listing.id,
+                title=listing.title,
+                company=listing.company,
+                location=listing.location,
+                remote=listing.remote,
+                posted_at=listing.posted_at,
+                hidden_at=hidden_at,
+            )
+            for listing, hidden_at in page
+        ],
+        total=total,
+    )
 
 
 def load_match_profile(db: Session, user_id: str) -> MatchProfile:
@@ -268,7 +356,7 @@ def load_match_profile(db: Session, user_id: str) -> MatchProfile:
     ]
     fingerprint = hashlib.sha256(
         json.dumps(
-            [[item.id, item.kind, item.content] for item in items],
+            [[item.kind, item.content] for item in items],
             sort_keys=True,
             default=str,
         ).encode()
@@ -283,25 +371,49 @@ def load_match_profile(db: Session, user_id: str) -> MatchProfile:
 def score_listing(profile: MatchProfile, listing: DiscoveredListing) -> Match:
     """Skills fit and preference hits for one listing; the two are never combined."""
     skills_fit = None
+    confidence = None
     matched: list[str] = []
     missing: list[str] = []
     if profile.evidence_text is not None:
         for keyword in _listing_keywords(listing):
             covered = keyword_present(keyword, profile.evidence_text)
             (matched if covered else missing).append(keyword)
-        skills_fit = max(0, min(100, compute_match_score(matched, missing)))
+        skills_fit, confidence = _skills_fit(len(matched), len(matched) + len(missing))
 
     hits: list[str] = []
     if profile.preference_keywords:
-        listing_text = f"{listing.title}\n{listing.company}\n{listing.description}"
+        # The structured location and remote flag count as much as the prose:
+        # "remote" or "Berlin" are the most common preferences.
+        listing_text = "\n".join(
+            part
+            for part in (
+                listing.title,
+                listing.company,
+                listing.location,
+                "Remote" if listing.remote else None,
+                listing.description,
+            )
+            if part
+        )
         wanted = dict.fromkeys(k for item in profile.preference_keywords for k in item)
         hits = [k for k in wanted if keyword_present(k, listing_text)]
     return Match(
         skills_fit=skills_fit,
+        fit_confidence=confidence,
         matched_skills=tuple(matched),
         missing_skills=tuple(missing),
         preference_hits=tuple(hits),
     )
+
+
+def _skills_fit(matched: int, total: int) -> tuple[int | None, FitConfidence | None]:
+    """The share of keywords covered (0-100) and how many keywords it rests on."""
+    if total == 0:
+        return None, None
+    fit = round(100 * matched / max(total, FIT_MIN_KEYWORDS))
+    if total >= FIT_HIGH_KEYWORDS:
+        return fit, "high"
+    return fit, "medium" if total >= FIT_MEDIUM_KEYWORDS else "low"
 
 
 # ── Internals ──
@@ -372,7 +484,8 @@ def _best_match_page(
     position = {listing_id: index for index, listing_id in enumerate(head)}
     head.sort(
         key=lambda listing_id: (
-            -(scores[listing_id].skills_fit or 0),
+            # A listing with no fit (nothing to compare) ranks after a 0% fit.
+            -(fit if (fit := scores[listing_id].skills_fit) is not None else -1),
             -len(scores[listing_id].preference_hits),
             -odds.tiebreak_rate(titles.get(listing_id), scores[listing_id].skills_fit)
             if odds.segments
@@ -392,7 +505,12 @@ def _best_match_page(
 
 
 def _load_visible(
-    db: Session, listing_ids: list[str], profile: MatchProfile, now: datetime
+    db: Session,
+    listing_ids: list[str],
+    profile: MatchProfile,
+    now: datetime,
+    *,
+    user_id: str,
 ) -> dict[str, VisibleListing]:
     """The listings plus their freshest live attribution, in two statements."""
     if not listing_ids:
@@ -416,8 +534,17 @@ def _load_visible(
     ):
         freshest.setdefault(attribution.listing_id, attribution)
     scores = _scores(db, profile, list(listings), loaded=listings) if profile.has_items else {}
+    applications = dict(
+        db.execute(
+            select(Workspace.discovery_listing_id, Workspace.id).where(
+                Workspace.user_id == user_id, Workspace.discovery_listing_id.in_(listing_ids)
+            )
+        ).all()
+    )
     return {
-        listing_id: VisibleListing(listing, freshest[listing_id], scores.get(listing_id))
+        listing_id: VisibleListing(
+            listing, freshest[listing_id], scores.get(listing_id), applications.get(listing_id)
+        )
         for listing_id, listing in listings.items()
         if listing_id in freshest
     }
@@ -436,6 +563,8 @@ def listing_item(row: VisibleListing, odds: OddsModel = NO_ODDS) -> DiscoveryLis
         apply_url=listing.apply_url,
         department=listing.department,
         skills_fit=row.match.skills_fit if row.match else None,
+        fit_confidence=row.match.fit_confidence if row.match else None,
+        application_id=row.application_id,
         matched_skills=list(row.match.matched_skills) if row.match else [],
         missing_skills=list(row.match.missing_skills) if row.match else [],
         preference_hits=list(row.match.preference_hits) if row.match else [],
@@ -482,7 +611,12 @@ def _live(db: Session, now: datetime):
 # text (a canonical listing's text is its content hash), so they are cached per
 # profile fingerprint. Bounded to the most recently used profiles.
 _SCORE_CACHE: OrderedDict[str, dict[str, Match]] = OrderedDict()
-_SCORE_CACHE_PROFILES = 64
+_SCORE_CACHE_PROFILES = 128
+# Scoring a cold cache is seconds of CPU that holds the GIL. One caller per
+# profile computes while the others wait for its result instead of repeating it
+# (single-flight); warm lookups and other profiles never wait on it.
+_SCORE_GUARD = threading.Lock()
+_SCORE_LOCKS: dict[str, threading.Lock] = {}
 # Keyword extraction is the expensive step (~3 ms for a real ATS description)
 # and depends only on the listing text; shared across profiles.
 _KEYWORD_CACHE: dict[str, list[str]] = {}
@@ -496,22 +630,28 @@ def _scores(
     *,
     loaded: dict[str, DiscoveredListing] | None = None,
 ) -> dict[str, Match]:
-    cache = _SCORE_CACHE.get(profile.fingerprint)
-    if cache is None:
-        cache = _SCORE_CACHE[profile.fingerprint] = {}
-        while len(_SCORE_CACHE) > _SCORE_CACHE_PROFILES:
-            _SCORE_CACHE.popitem(last=False)
-    else:
-        _SCORE_CACHE.move_to_end(profile.fingerprint)
-    missing = [listing_id for listing_id in listing_ids if listing_id not in cache]
-    if missing:
-        listings = (
-            [loaded[listing_id] for listing_id in missing]
-            if loaded is not None
-            else db.scalars(select(DiscoveredListing).where(DiscoveredListing.id.in_(missing)))
-        )
-        for listing in listings:
-            cache[listing.id] = score_listing(profile, listing)
+    with _SCORE_GUARD:
+        cache = _SCORE_CACHE.get(profile.fingerprint)
+        if cache is None:
+            cache = _SCORE_CACHE[profile.fingerprint] = {}
+            while len(_SCORE_CACHE) > _SCORE_CACHE_PROFILES:
+                evicted, _ = _SCORE_CACHE.popitem(last=False)
+                _SCORE_LOCKS.pop(evicted, None)
+        else:
+            _SCORE_CACHE.move_to_end(profile.fingerprint)
+        if all(listing_id in cache for listing_id in listing_ids):
+            return {listing_id: cache[listing_id] for listing_id in listing_ids if listing_id in cache}
+        profile_lock = _SCORE_LOCKS.setdefault(profile.fingerprint, threading.Lock())
+    with profile_lock:
+        missing = [listing_id for listing_id in listing_ids if listing_id not in cache]
+        if missing:
+            listings = (
+                [loaded[listing_id] for listing_id in missing]
+                if loaded is not None
+                else db.scalars(select(DiscoveredListing).where(DiscoveredListing.id.in_(missing)))
+            )
+            for listing in listings:
+                cache[listing.id] = score_listing(profile, listing)
     return {listing_id: cache[listing_id] for listing_id in listing_ids if listing_id in cache}
 
 

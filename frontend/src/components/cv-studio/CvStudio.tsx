@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Download, FileSearch, FileUp, Layers, MoreHorizontal, Trash2 } from 'lucide-react'
+import { Download, FileUp, LayoutTemplate, Layers, MoreHorizontal, Sparkles, Trash2 } from 'lucide-react'
 import {
   Badge, Button, Cluster, ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
-  DropdownMenuTrigger, EmptyState, ErrorState, Input, MetaRow, Notice, Page, PageHeader, Select, Sheet, SheetBody,
-  SheetContent, SheetHeader, SheetTitle, Skeleton, Stack, Tabs, TabsContent, TabsList, TabsTrigger,
+  DropdownMenuTrigger, EmptyState, ErrorState, Input, Notice, Page, PageHeader, Select, Sheet, SheetBody,
+  SheetContent, SheetHeader, SheetTitle, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger,
 } from '#/components/kit'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { useSession } from '#/hooks/useSession'
@@ -13,19 +13,25 @@ import {
   deleteAllCvDocuments, deleteCvDocument, exportCvDocuments, fetchCvArtifactBlob, restoreCvVariant, snapshotCvVariant,
 } from '#/lib/api/client'
 import type { CvDocument, CvSection, CvStyle, CvVariant } from '#/lib/api/schemas'
-import { addSection, moveSection } from '#/lib/cv-studio/editor'
+import { addSection, moveSection, moveSectionTo } from '#/lib/cv-studio/editor'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
 import { CvAtsPanel, useCvQuality } from './CvAtsPanel'
 import { CvDesignPanel } from './CvDesignPanel'
+import { CvDesk } from './CvDesk'
+import { CvExportMoment, countPdfPages } from './CvExportMoment'
+import type { ExportMoment } from './CvExportMoment'
 import { CvImportDialog } from './CvImportDialog'
 import { CvOutline } from './CvOutline'
 import { CvPaper, ExactPdfDialog } from './CvPaperPreview'
+import { CvSaveStatus } from './CvSaveStatus'
 import { CvSectionEditor } from './CvSectionEditor'
 import { CvTailorDialog } from './CvTailorDialog'
+import { CvVersionPreviewDialog } from './CvVersionPreviewDialog'
 import { CvVersionsPanel } from './CvVersionsPanel'
+import type { VersionExport } from './CvVersionsPanel'
+import { VersionExportUnavailable, fetchVariantArtifactBlob } from './cvApi'
 import { LIST_KEY, useCvDraft } from './useCvDraft'
-import type { SaveState } from './useCvDraft'
 
 /** What the side panel shows: a studio tool, or the editor of the section clicked on the paper. */
 type Tool = 'sections' | 'design' | 'checks' | 'versions'
@@ -54,32 +60,32 @@ function download(blob: Blob, filename: string) {
 
 const safeFilename = (name: string) => name.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'cv'
 
-function SaveStatus({ state }: { state: SaveState }) {
-  return (
-    <span role="status" aria-live="polite" data-testid="save-status">
-      {state === 'saving' ? 'Saving…' : state === 'error' ? <Badge tone="danger" size="sm">Couldn’t save</Badge> : 'Saved'}
-    </span>
-  )
-}
-
-/** The studio's frame while the CV loads: the same bar, tools column and paper sheet, so nothing moves when it arrives. */
+/** The studio's frame while the CV loads: the same bar, tools column and desk, so nothing moves when it arrives. */
 function StudioSkeleton() {
   return (
     <Page width="full" className="cvs-page">
       <h1 className="kit-sr-only">CV Studio</h1>
       <div className="cvs-bar">
-        <Skeleton variant="block" width="18rem" height={32} label="Loading CV Studio" />
-        <Skeleton variant="block" width="16rem" height={32} />
+        <Skeleton variant="block" width="16rem" height={48} label="Loading CV Studio" />
+        <Skeleton variant="block" width="16rem" height={44} />
       </div>
       <div className="cvs-studio" aria-hidden="true">
         <div className="cvs-side">
-          <Stack gap={4} className="cvs-side__placeholder">
-            <Skeleton variant="block" width="100%" height={36} />
-            <div className="cvs-side__rows"><Skeleton variant="row" count={4} /></div>
-          </Stack>
+          <div className="cvs-side__tabs">
+            <Skeleton variant="block" width="5.5rem" height={44} />
+            <Skeleton variant="block" width="4.5rem" height={44} />
+            <Skeleton variant="block" width="6rem" height={44} />
+          </div>
+          <div className="cvs-side__frame">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="cvs-sec">
+                <div className="cvs-sec__head"><span /><Skeleton variant="block" width="9rem" height={18} /></div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="cvs-canvas">
-          <div className="cvs-canvas__bar"><span /><Skeleton variant="block" width="8rem" height={28} /></div>
+        <div className="cvs-desk">
+          <div className="cvs-desk__top"><Skeleton variant="block" width="13rem" height={40} /><Skeleton variant="block" width="8rem" height={24} /></div>
           <div className="cvs-paper-skeleton"><Skeleton lines={6} /></div>
         </div>
       </div>
@@ -92,8 +98,17 @@ export function CvStudio() {
   const authenticated = status === 'authenticated'
   const queryClient = useQueryClient()
   const [actionError, setActionError] = useState('')
-  const { listQuery, documentQuery, catalogQuery, documentId, draft, dirty, saveState, edit, open, replace, retrySave } = useCvDraft(authenticated)
-  const [notice, setNotice] = useState('')
+  const {
+    listQuery, documentQuery, catalogQuery, documentId, draft, dirty, saveState, edit, open, replace, retrySave,
+    conflict, lastSavedAt, lastCheckedAt, reloadNewer, keepMine,
+  } = useCvDraft(authenticated)
+  /** A line under the bar, with the version it is about when there is one (a freshly tailored version). */
+  const [notice, setNotice] = useState<{ text: string; variant?: CvVariant } | null>(null)
+  const [moment, setMoment] = useState<ExportMoment | null>(null)
+  const momentCount = useRef(0)
+  const [zoom, setZoom] = useState<'fit' | 'read'>('fit')
+  const [previewVariant, setPreviewVariant] = useState<CvVariant | null>(null)
+  const [versionExport, setVersionExport] = useState<VersionExport>(null)
   const [dialog, setDialog] = useState<'create' | 'import' | 'tailor' | 'pdf' | null>(null)
   const [tailorSeed, setTailorSeed] = useState<{ jobTitle: string; jobDescription: string } | null>(null)
   const autoOpenedTailorRef = useRef(false)
@@ -169,7 +184,7 @@ export function CvStudio() {
   const saveVersion = async (name: string) => !draft || dirty ? false : run('The version could not be saved.', async () => {
     await snapshotCvVariant(draft.id, name)
     await documentQuery.refetch()
-    setNotice(`Saved “${name}” to your versions.`)
+    setNotice({ text: `Saved “${name}” to your versions.` })
   })
 
   async function restoreVersion(variantId: string) {
@@ -177,7 +192,18 @@ export function CvStudio() {
     await run('The version could not be restored.', async () => {
       replace(await restoreCvVariant(draft.id, variantId))
       await documentQuery.refetch()
-      setNotice('Version restored. Your previous CV is kept in your versions.')
+      setNotice({ text: 'Version restored. Your previous CV is kept in your versions.' })
+    })
+  }
+
+  /** The moment an export lands: the page count comes from the file itself, the checks from this CV's last ATS run. */
+  async function celebrate(format: 'pdf' | 'docx', filename: string, blob: Blob) {
+    const checks = quality.data?.checks
+    momentCount.current += 1
+    setMoment({
+      id: momentCount.current, format, filename,
+      pages: format === 'pdf' ? await countPdfPages(blob) : null,
+      checks: checks && checks.length > 0 ? { passing: checks.filter((check) => check.passed).length, total: checks.length } : null,
     })
   }
 
@@ -194,9 +220,28 @@ export function CvStudio() {
       const blob = await fetchCvArtifactBlob(draft.id, format).catch(() => {
         throw new Error(`We couldn’t create the ${format.toUpperCase()} just now. Please try again.`)
       })
-      download(blob, `${safeFilename(draft.name)}.${format}`)
+      const filename = `${safeFilename(draft.name)}.${format}`
+      download(blob, filename)
+      await celebrate(format, filename, blob)
     })
     setExporting(null)
+  }
+
+  /** A saved version as a file, without touching the working CV. */
+  async function exportVersion(variant: CvVariant, format: 'pdf' | 'docx') {
+    if (!draft || versionExport) return
+    setVersionExport({ variantId: variant.id, format })
+    await run('The version could not be exported.', async () => {
+      const blob = await fetchVariantArtifactBlob(draft.id, variant.id, format).catch((error) => {
+        throw new Error(error instanceof VersionExportUnavailable
+          ? 'Exporting a saved version isn’t available on this server yet. Use it as your CV, then export that.'
+          : `We couldn’t create the ${format.toUpperCase()} just now. Please try again.`)
+      })
+      const filename = `${safeFilename(variant.name)}.${format}`
+      download(blob, filename)
+      await celebrate(format, filename, blob)
+    })
+    setVersionExport(null)
   }
 
   function openDocument(created: CvDocument) {
@@ -225,8 +270,12 @@ export function CvStudio() {
   }
 
   function handleTailorSaved(variant: CvVariant) {
-    setNotice(`Saved “${variant.name}” to your versions. Restore it whenever you want to use it.`)
+    setNotice({ text: `Saved “${variant.name}” to your versions.`, variant })
     void documentQuery.refetch()
+  }
+
+  async function reload() {
+    if (!(await reloadNewer())) setActionError('We couldn’t load the newer version just now. Your CV hasn’t changed.')
   }
 
   if (status === 'loading') return <StudioSkeleton />
@@ -304,31 +353,46 @@ export function CvStudio() {
   const chooseTool = (id: Tool) => { if (desktop) setPanel(id); else openPanel(id) }
   const phone = !desktop
 
-  const panelBody = activeSection ? (
+  const restoreFromPreview = (variant: CvVariant) => {
+    setPreviewVariant(null)
+    void restoreVersion(variant.id)
+  }
+
+  const sectionEditor = activeSection ? (
     <>
       {desktop ? <h2 className="kit-sr-only">{`Edit ${activeSection.title || 'section'}`}</h2> : null}
-      <CvSectionEditor key={activeSection.id} section={activeSection} onSections={editSections} onBack={() => openPanel('sections')} />
+      <CvSectionEditor key={activeSection.id} section={activeSection} onSections={editSections} onBack={() => openPanel('sections')} inline={desktop} />
     </>
-  ) : (
+  ) : null
+
+  const panelBody = activeSection && phone ? sectionEditor : (
     <>
-      {desktop ? <h2 className="kit-sr-only">{TOOL_TITLES[tool]}</h2> : null}
+      {desktop && !activeSection ? <h2 className="kit-sr-only">{TOOL_TITLES[tool]}</h2> : null}
       {tool === 'design' ? (
         <CvDesignPanel style={draft.style} catalog={catalog} onChange={editStyle} />
       ) : tool === 'checks' ? (
         <CvAtsPanel
           quality={quality} sections={draft.sections} onAddSection={addAndOpen}
           onShowSection={(sectionId) => editSections((sections) => sections.map((section) => section.id === sectionId ? { ...section, visible: true } : section))}
-          atsMode={draft.style.ats_mode} onTurnOnAtsMode={() => { editStyle({ ats_mode: true }); openPanel('design') }}
+          atsMode={draft.style.ats_mode} density={draft.style.density}
+          onTurnOnAtsMode={() => { editStyle({ ats_mode: true }); openPanel('design') }}
+          onCompactSpacing={() => editStyle({ density: 'compact' })}
+          onExportPdf={() => void exportFile('pdf')} exporting={exporting === 'pdf'} canExport={!dirty}
         />
       ) : tool === 'versions' ? (
-        <CvVersionsPanel variants={draft.variants} busy={dirty} onSave={saveVersion} onRestore={restoreVersion} />
+        <CvVersionsPanel
+          variants={draft.variants} currentSections={draft.sections} busy={dirty} exporting={versionExport}
+          onSave={saveVersion} onRestore={restoreVersion} onPreview={setPreviewVariant} onExport={(variant, format) => void exportVersion(variant, format)}
+        />
       ) : (
         <CvOutline
-          sections={draft.sections}
+          sections={draft.sections} activeId={activeSection?.id} editor={sectionEditor}
           onMove={(index, delta) => editSections((sections) => moveSection(sections, index, delta))}
+          onMoveTo={(from, to) => editSections((sections) => moveSectionTo(sections, from, to))}
           onToggle={(sectionId) => editSections((sections) => sections.map((section) => section.id === sectionId ? { ...section, visible: !section.visible } : section))}
           onAdd={addAndOpen}
           onOpen={(sectionId) => openPanel({ sectionId })}
+          onClose={() => setPanel('sections')}
         />
       )}
     </>
@@ -344,12 +408,12 @@ export function CvStudio() {
   )
 
   const tools = (
-    <Tabs value={tool} onValueChange={(next) => { if (desktop) setPanel(next as Tool) }} activationMode={desktop ? 'automatic' : 'manual'} className="cvs-tabs">
+    <Tabs variant={desktop ? 'folder' : 'plain'} value={tool} onValueChange={(next) => { if (desktop) setPanel(next as Tool) }} activationMode={desktop ? 'automatic' : 'manual'} className="cvs-tabs">
       <TabsList aria-label="Studio tools">
         {tab('sections')}
         {tab('design')}
         {tab('checks', checks && !checksPass ? (
-          <Badge size="sm" tone="warning">{failingChecks}{' '}<span className="kit-sr-only">to fix</span></Badge>
+          <Badge size="sm" tone="rose">{failingChecks}{' '}<span className="kit-sr-only">to fix</span></Badge>
         ) : null)}
         {tab('versions', null, draft.variants.length)}
       </TabsList>
@@ -361,12 +425,29 @@ export function CvStudio() {
             <SheetHeader>
               <SheetTitle>{activeSection ? `Edit ${activeSection.title || 'section'}` : TOOL_TITLES[tool]}</SheetTitle>
             </SheetHeader>
-            <SheetBody><TabsContent value={tool} tabIndex={-1}>{panelBody}</TabsContent></SheetBody>
+            <SheetBody><TabsContent value={tool} tabIndex={-1} className="cvs-panel cvs-panel--sheet">{panelBody}</TabsContent></SheetBody>
           </SheetContent>
         </Sheet>
       )}
     </Tabs>
   )
+
+  const newerNotice = conflict ? (
+    <Notice
+      tone="warning"
+      title={dirty ? 'This CV was saved somewhere else' : 'A newer version of this CV is available'}
+      action={(
+        <Cluster gap={2}>
+          <Button type="button" size="sm" variant="secondary" onClick={() => void reload()}>Reload newer version</Button>
+          {dirty ? <Button type="button" size="sm" variant="ghost" onClick={() => void keepMine()}>Keep my version</Button> : null}
+        </Cluster>
+      )}
+    >
+      {dirty
+        ? 'Another tab or device saved this CV after you opened it. Your latest edits here are not saved yet: reload the newer version, or keep yours and replace it.'
+        : 'Another tab or device saved this CV after you opened it. Reload it so your next edit builds on the latest version.'}
+    </Notice>
+  ) : null
 
   return (
     <Page width="full" className="cvs-page">
@@ -377,15 +458,18 @@ export function CvStudio() {
             className="cvs-bar__name" aria-label="Document name" value={draft.name} maxLength={120}
             onChange={(event) => edit((current) => ({ ...current, name: event.target.value }))}
           />
-          <MetaRow><SaveStatus state={saveState} />{templateName}</MetaRow>
+          <CvSaveStatus
+            state={saveState} savedAt={lastSavedAt ?? (Date.parse(draft.updated_at) || null)} checkedAt={lastCheckedAt} onRetry={retrySave}
+          />
+          {templateName ? <Badge tone="white" className="cvs-bar__template"><LayoutTemplate aria-hidden="true" />{templateName}</Badge> : null}
         </div>
         <div className="cvs-bar__actions">
           {documents.length > 1 ? (
-            <Select className="cvs-bar__select" aria-label="Your CVs" leading={`${documents.findIndex((item) => item.id === draft.id) + 1} of ${documents.length}`} value={draft.id} disabled={dirty} onChange={(event) => switchDocument(event.target.value)}>
+            <Select size="sm" className="cvs-bar__select" aria-label="Your CVs" leading={`${documents.findIndex((item) => item.id === draft.id) + 1} of ${documents.length}`} value={draft.id} disabled={dirty} onChange={(event) => switchDocument(event.target.value)}>
               {documents.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </Select>
           ) : null}
-          <Button type="button" variant="secondary" onClick={() => setDialog('tailor')}>Tailor to a job</Button>
+          <Button type="button" variant="secondary" className="cvs-bar__tailor" onClick={() => setDialog('tailor')}><Sparkles aria-hidden="true" /> Tailor to a job</Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button ref={menuTriggerRef} type="button" variant="secondary" iconOnly aria-label="More options"><MoreHorizontal aria-hidden="true" /></Button>
@@ -402,36 +486,52 @@ export function CvStudio() {
               <DropdownMenuItem destructive icon={<Trash2 />} disabled={dirty} onSelect={() => { setConfirmKind('all'); setConfirmOpen(true) }}>Delete all CVs</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button type="button" loading={exporting === 'pdf'} disabled={dirty} onClick={() => void exportFile('pdf')}><Download aria-hidden="true" /> Export PDF</Button>
+          <Button type="button" className="cvs-bar__export" loading={exporting === 'pdf'} disabled={dirty} onClick={() => void exportFile('pdf')}><Download aria-hidden="true" /> Export PDF</Button>
         </div>
       </header>
 
-      {actionError || notice || saveState === 'error' ? (
+      {actionError || notice || saveState === 'error' || conflict ? (
         <div className="cvs-notices">
+          {newerNotice}
           {saveState === 'error' ? (
             <Notice tone="danger" action={<Button type="button" size="sm" variant="secondary" onClick={retrySave}>Try again</Button>}>
               We couldn’t save your latest changes. Keep this page open and try again.
             </Notice>
           ) : null}
           {actionError ? <Notice tone="danger" onDismiss={() => setActionError('')}>{actionError}</Notice> : null}
-          {notice ? <Notice tone="success" onDismiss={() => setNotice('')}>{notice}</Notice> : null}
+          {notice ? (
+            <Notice
+              tone="success" onDismiss={() => setNotice(null)}
+              action={notice.variant ? (
+                <Cluster gap={2}>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => { setPreviewVariant(notice.variant ?? null); setNotice(null) }}>Preview</Button>
+                  <Button type="button" size="sm" variant="secondary" loading={versionExport?.variantId === notice.variant.id && versionExport.format === 'pdf'} onClick={() => notice.variant && void exportVersion(notice.variant, 'pdf')}>Export PDF</Button>
+                </Cluster>
+              ) : undefined}
+            >
+              {notice.text}
+            </Notice>
+          ) : null}
         </div>
       ) : null}
 
       <div className="cvs-studio">
         {desktop ? <aside className="cvs-side" aria-label="CV tools">{tools}</aside> : <div className="cvs-side">{tools}</div>}
 
-        <div className="cvs-canvas">
-          <div className="cvs-canvas__bar">
-            <span className="cvs-hint">{desktop ? 'Click a section to edit' : 'Tap a section to edit'}</span>
-            <Button type="button" variant="ghost" size="sm" disabled={dirty} onClick={() => setDialog('pdf')}><FileSearch aria-hidden="true" /> View exact PDF</Button>
-          </div>
+        <CvDesk phone={phone} zoom={zoom} onZoomChange={setZoom} pdfDisabled={dirty} onViewPdf={() => setDialog('pdf')}>
           <CvPaper
             name={draft.name} sections={draft.sections} style={draft.style} catalog={catalog}
             activeId={activeSection?.id} onEdit={(sectionId) => openPanel({ sectionId })}
           />
-        </div>
+        </CvDesk>
       </div>
+
+      {moment ? (
+        <CvExportMoment
+          moment={moment} raised={previewVariant !== null || dialog !== null} otherBusy={exporting === (moment.format === 'pdf' ? 'docx' : 'pdf')} onClose={() => setMoment(null)}
+          onDownloadOther={() => void exportFile(moment.format === 'pdf' ? 'docx' : 'pdf')}
+        />
+      ) : null}
 
       {startDialogs}
       <CvTailorDialog
@@ -440,6 +540,11 @@ export function CvStudio() {
         onGenerated={() => void documentQuery.refetch()} seed={tailorSeed}
       />
       <ExactPdfDialog open={dialog === 'pdf'} onOpenChange={closeDialog} documentId={draft.id} documentName={draft.name} revision={draft.updated_at} style={draft.style} templateName={templateName} />
+      <CvVersionPreviewDialog
+        variant={previewVariant} documentName={draft.name} style={draft.style} catalog={catalog} currentSections={draft.sections}
+        exporting={versionExport} canRestore={!dirty} error={actionError}
+        onOpenChange={(next) => { if (!next) setPreviewVariant(null) }} onExport={(variant, format) => void exportVersion(variant, format)} onRestore={restoreFromPreview}
+      />
       <ConfirmDialog
         open={confirmOpen} onOpenChange={setConfirmOpen} pending={deleting}
         title={confirmKind === 'all' ? 'Delete all your CVs?' : 'Delete this CV?'}

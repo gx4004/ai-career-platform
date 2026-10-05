@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Check, CircleAlert, ListPlus } from 'lucide-react'
@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Disclosure,
+  Highlight,
   KeyValue,
   List,
   Notice,
@@ -14,6 +15,7 @@ import {
   RowLeading,
   RowSubtitle,
   RowTitle,
+  ScoreBar,
   Section,
   Stack,
 } from '#/components/kit'
@@ -23,6 +25,7 @@ import type { GapClassification } from '#/lib/api/gapClassificationSchemas'
 import { GAP_KIND_LABELS, RESPONSE_KIND_LABELS, commercialRelationshipLabel } from '#/lib/development/plan'
 import { DEVELOPMENT_PLAN_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
+import { ApplicationPanel } from './ApplicationPanel'
 
 type Finding = Awaited<ReturnType<typeof reviewApplication>>['findings'][number]
 
@@ -35,21 +38,49 @@ const CHECKS: Array<{ category: Finding['category']; title: string; short: strin
   { category: 'document_defect', title: 'No placeholders or near-empty documents', short: 'no placeholders', detail: 'No leftover [Company] or TODO, and both documents have real content.' },
 ]
 
+const hiddenKey = (applicationId: string) => `cw:hidden-findings:${applicationId}`
+
+/** The findings the owner hid on this application. Finding ids are stable between runs, so a hide survives a reload. */
+function readHidden(applicationId: string): Set<string> {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(hiddenKey(applicationId)) ?? '[]') as unknown
+    return new Set(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeHidden(applicationId: string, ids: Set<string>) {
+  try {
+    window.localStorage.setItem(hiddenKey(applicationId), JSON.stringify([...ids]))
+  } catch {
+    // Storage blocked: the hide lasts for this visit only.
+  }
+}
+
 /** Rule-based content checks on what this application would send, plus next steps for gaps. */
 export function DocumentChecks({ applicationId }: { applicationId: string }) {
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  // Read after mount: the server render has no storage.
+  useEffect(() => setHidden(readHidden(applicationId)), [applicationId])
+  const hide = (id: string) =>
+    setHidden((current) => {
+      const next = new Set(current).add(id)
+      writeHidden(applicationId, next)
+      return next
+    })
   const classify = useMutation({ mutationFn: () => classifyApplicationGaps(applicationId) })
   const review = useMutation({
     mutationFn: () => reviewApplication(applicationId),
-    onSuccess: () => {
-      setHidden(new Set())
-      classify.reset()
-    },
+    onSuccess: () => classify.reset(),
   })
-  const findings = review.data?.findings.filter((item) => !hidden.has(item.id)) ?? []
+  const all = review.data?.findings ?? []
+  // Hiding a finding only tidies the list: the tally and the marks still count what the checks found.
+  const findings = all.filter((item) => !hidden.has(item.id))
+  const clear = CHECKS.filter((check) => !all.some((item) => item.category === check.category)).length
 
   return (
-    <Section
+    <ApplicationPanel
       title="Check your documents"
       description="Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you."
       actions={
@@ -65,9 +96,23 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
           </Notice>
         ) : null}
         {review.data ? (
-          <p className="camp-note" aria-live="polite">
-            {findings.length ? `${findings.length} thing${findings.length === 1 ? '' : 's'} to look at` : 'All clear. Nice work.'}
-          </p>
+          <>
+            <p className="camp-note" aria-live="polite">
+              {findings.length
+                ? `${findings.length} thing${findings.length === 1 ? '' : 's'} to look at`
+                : all.length
+                  ? 'You hid everything the checks found.'
+                  : 'These checks found nothing to fix.'}
+            </p>
+            {/* How much of the checklist is clear: a plain count of checks, not a quality score. */}
+            <ScoreBar
+              aria-label={`${clear} of ${CHECKS.length} checks clear`}
+              value={clear}
+              max={CHECKS.length}
+              valueLabel={`${clear}/${CHECKS.length}`}
+              tone="success"
+            />
+          </>
         ) : null}
         {findings.length > 0 ? (
           <Notice
@@ -90,7 +135,7 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
           <List aria-label="Document checks">
             {CHECKS.map((check) => {
               const matches = findings.filter((item) => item.category === check.category)
-              const state = matches.length ? 'warn' : 'pass'
+              const state = all.some((item) => item.category === check.category) ? 'warn' : 'pass'
               return (
                 <Row key={check.category} className={matches.length ? 'camp-check-row' : undefined}>
                   <RowLeading>
@@ -105,13 +150,14 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
                           <Card key={item.id} padding="sm">
                             <p className="camp-prose">{item.message}</p>
                             <p className="camp-note">Where: {where(item.locations)}</p>
+                            <Quotes locations={item.locations} />
                             <FindingNextStep
                               applicationId={applicationId}
                               classification={classify.data?.classifications.find((candidate) => candidate.finding_id === item.id)}
                               classificationComplete={classify.isSuccess}
                             />
                             <div>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => setHidden((current) => new Set(current).add(item.id))}>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => hide(item.id)}>
                                 Hide
                               </Button>
                             </div>
@@ -126,7 +172,31 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
           </List>
         )}
       </Stack>
-    </Section>
+    </ApplicationPanel>
+  )
+}
+
+/**
+ * The exact words a finding points at, highlighted, from the location the reviewer reports
+ * ("Cover letter:chars 20-45:Reduced migration time"). Nothing is shown when it has no quoted text.
+ */
+function Quotes({ locations }: { locations: string[] }) {
+  const quotes = locations
+    .map((location) => {
+      const [document, , ...rest] = location.split(':')
+      const text = rest.join(':').trim()
+      return text ? { document, text } : null
+    })
+    .filter((quote): quote is { document: string; text: string } => quote !== null)
+  if (quotes.length === 0) return null
+  return (
+    <ul className="camp-quotes" aria-label="The wording it points at">
+      {quotes.map((quote, index) => (
+        <li key={`${quote.document}:${index}`}>
+          <span className="camp-quotes__doc">{quote.document}</span> <Highlight>{quote.text}</Highlight>
+        </li>
+      ))}
+    </ul>
   )
 }
 

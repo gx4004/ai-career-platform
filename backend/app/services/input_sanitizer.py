@@ -16,21 +16,26 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# Line-anchored patterns use MULTILINE "^" plus [^\S\n]* (never \s*, which also
+# matches newlines): "(?:^|\n)\s*" retried a quadratic scan from every newline in
+# a run of blank lines, so a 50k-newline body froze the event loop for minutes.
+_LINE_START = re.IGNORECASE | re.MULTILINE
+
 INJECTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"(?:^|\n)\s*(?:system|assistant)\s*:", re.IGNORECASE),
+    re.compile(r"^[^\S\n]*(?:system|assistant)[^\S\n]*:", _LINE_START),
     re.compile(r"ignore (?:all |previous |above |prior )?instructions", re.IGNORECASE),
     re.compile(r"disregard (?:all |previous |above |prior )?instructions", re.IGNORECASE),
     re.compile(r"forget (?:all |previous |above |prior )?instructions", re.IGNORECASE),
     re.compile(r"you are now (?:a |an )?", re.IGNORECASE),
     re.compile(r"new (?:role|persona|identity|instructions?)\s*:", re.IGNORECASE),
-    re.compile(r"(?:^|\n)\s*ADMIN\s*:", re.IGNORECASE),
+    re.compile(r"^[^\S\n]*ADMIN[^\S\n]*:", _LINE_START),
     re.compile(r"return (?:a )?score (?:of )?\d+", re.IGNORECASE),
     re.compile(r"always (?:return|give|output) (?:a )?(?:score|rating) (?:of )?\d+", re.IGNORECASE),
     re.compile(r"override (?:the )?(?:score|rating|result)", re.IGNORECASE),
     # Additional patterns
-    re.compile(r"(?:^|\n)\s*\[INST\]", re.IGNORECASE),
+    re.compile(r"^[^\S\n]*\[INST\]", _LINE_START),
     re.compile(r"<\|(?:im_start|im_end|system|user|assistant)\|>", re.IGNORECASE),
-    re.compile(r"(?:^|\n)\s*<<SYS>>", re.IGNORECASE),
+    re.compile(r"^[^\S\n]*<<SYS>>", _LINE_START),
     re.compile(r"(?:pretend|act as if) you (?:are|have|were)", re.IGNORECASE),
     re.compile(r"(?:do not|don't) follow (?:your |the )?(?:rules|guidelines|instructions)", re.IGNORECASE),
 ]

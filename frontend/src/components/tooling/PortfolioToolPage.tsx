@@ -21,6 +21,7 @@ export function PortfolioToolPage() {
         <ToolPageLoading toolId="portfolio" mutationDone={!mutation.isPending} />
       ) : (
         <ToolForm
+          toolId="portfolio"
           label={`${tool.label} input form`}
           onSubmit={handleSubmit}
           submitLabel="Generate roadmap"

@@ -1,22 +1,32 @@
+import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Check, Clock, Compass, Plus } from 'lucide-react'
 import {
+  Badge,
   Button,
   EmptyState,
   ErrorState,
+  FitStamp,
   List,
   MetaRow,
   Notice,
   Row,
   RowActions,
   RowBody,
+  RowLeading,
   RowMeta,
   RowSubtitle,
   RowTitle,
-  ScoreBar,
   Section,
   Skeleton,
+  SkillPips,
+  Sticker,
+  StretchedLink,
+  type Tone,
 } from '#/components/kit'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
+import { DateStamp } from '#/components/dashboard/DateStamp'
 import { formatRunDate } from '#/components/dashboard/RunRow'
 import { useToday } from '#/hooks/useToday'
 import { adoptDiscoveryRecommendation } from '#/lib/api/client'
@@ -88,8 +98,9 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
   return (
     <Section
       title="Best matches to add"
+      count={plan.best_matches.length > 0 ? plan.best_matches.length : undefined}
       actions={
-        <Button asChild variant="ghost" size="sm">
+        <Button asChild variant="secondary" size="sm">
           <Link to="/discovery">Discover jobs</Link>
         </Button>
       }
@@ -121,12 +132,17 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
 
 function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; adding: boolean; onAdd: () => void }) {
   const fit = listing.skills_fit
-  const total = listing.matched_skills.length + listing.missing_skills.length
-  const sample = `${listing.matched_skills.length} of ${total} ${total === 1 ? 'skill' : 'skills'}`
+  const matched = listing.matched_skills.length
+  const total = matched + listing.missing_skills.length
+  const sample = `${matched} of ${total} ${total === 1 ? 'skill' : 'skills'}`
+  const isMobile = useBreakpoint() === 'mobile'
   return (
-    <Row>
+    <Row className="dash-match">
+      <RowLeading>
+        <FitStamp value={fit} size={isMobile ? 'sm' : 'md'} />
+      </RowLeading>
       <RowBody>
-        <RowTitle headingLevel={3} asChild>
+        <RowTitle size="lg" headingLevel={3} asChild>
           <a href={listing.source_url} target="_blank" rel="noopener noreferrer">
             {listing.title}
             <span className="kit-sr-only"> (opens the listing on {listing.source_name})</span>
@@ -137,23 +153,17 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
             <strong>{listing.company}</strong>
             {listing.location}
             {listing.remote && !/remote/i.test(listing.location ?? '') ? 'Remote' : null}
-            {fit !== null && total > 0 ? sample : null}
           </MetaRow>
         </RowSubtitle>
       </RowBody>
-      {fit === null ? null : (
+      {total > 0 ? (
         <RowMeta>
-          <ScoreBar
-            aria-label={`${fit}% skills fit, ${sample}`}
-            layout="inline"
-            size="sm"
-            value={fit}
-            valueLabel={`${fit}% fit`}
-            valueWidth="3.5rem"
-            lowTone="neutral"
-          />
+          <span className="dash-skills">
+            <span>{sample}</span>
+            <SkillPips matched={matched} total={total} aria-hidden="true" />
+          </span>
         </RowMeta>
-      )}
+      ) : null}
       <RowActions reveal={false}>
         <Button
           type="button"
@@ -163,6 +173,7 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
           loading={adding}
           aria-label={`Add ${listing.title} to applications`}
         >
+          <Plus aria-hidden />
           Add
         </Button>
       </RowActions>
@@ -174,6 +185,7 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
   if (!plan.has_sources) {
     return (
       <EmptyState
+        icon={<Compass aria-hidden />}
         title="No job boards yet"
         description="Once employer job boards are connected, the openings that fit you best show up here."
         action={
@@ -187,6 +199,7 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
   if (!plan.has_evidence) {
     return (
       <EmptyState
+        icon={<Compass aria-hidden />}
         title="Confirm your skills first"
         description="Once you confirm evidence in your profile, the jobs that fit your skills best appear here."
         action={
@@ -199,6 +212,7 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
   }
   return (
     <EmptyState
+      icon={<Compass aria-hidden />}
       title="You have seen every match"
       description="Every visible job is already in your applications or hidden. New openings appear daily."
       action={
@@ -210,6 +224,13 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
   )
 }
 
+/** Colour by meaning: Interviewing is the stage's tangerine, a deadline is time pressure (rose), waiting is lilac. */
+const ACTION_TONE: Record<TodayActionItem['reason'], Tone> = {
+  interview: 'tangerine',
+  deadline: 'rose',
+  no_reply: 'lilac',
+}
+
 function reasonText(item: TodayActionItem): string {
   if (item.reason === 'interview') return 'Interviewing: prepare for the next round'
   if (item.reason === 'deadline') return 'Deadline'
@@ -217,49 +238,113 @@ function reasonText(item: TodayActionItem): string {
   return `No reply yet? Applied ${days} ${days === 1 ? 'day' : 'days'} ago`
 }
 
+/** One thing that needs the user, as a sticker: what it is, which application, and the one move. */
+function ActionSticker({ item, now }: { item: TodayActionItem; now: Date }) {
+  const deadline = item.reason === 'deadline' && item.deadline ? new Date(item.deadline) : null
+  return (
+    <Sticker as="li" tone={ACTION_TONE[item.reason]} className="dash-act">
+      <div className="dash-act__main">
+        <Badge tone="white" dot={item.reason !== 'deadline'}>
+          {item.reason === 'deadline' ? <Clock aria-hidden className="dash-act__icon" /> : null}
+          {item.reason === 'interview' ? 'Interviewing' : item.reason === 'deadline' ? 'Deadline' : 'No reply'}
+        </Badge>
+        <h3 className="dash-act__title">
+          <StretchedLink asChild>
+            <Link to="/campaigns/$campaignId" params={{ campaignId: item.application_id }}>
+              {item.title}
+            </Link>
+          </StretchedLink>
+        </h3>
+        {item.company ? <p className="dash-act__company">{item.company}</p> : null}
+      </div>
+      <div className="dash-act__side">
+        {deadline && !Number.isNaN(deadline.getTime()) ? (
+          <DateStamp date={deadline} now={now} />
+        ) : item.reason === 'interview' ? (
+          <>
+            <p className="dash-act__todo">Prepare for the next round</p>
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/interview">Prep for the round</Link>
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="dash-act__todo">
+              {reasonText(item)}
+            </p>
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/campaigns/$campaignId" params={{ campaignId: item.application_id }}>
+                Open application
+              </Link>
+            </Button>
+          </>
+        )}
+      </div>
+    </Sticker>
+  )
+}
+
+/** The most that are drawn as stickers; the rest become rows (equal-height stickers need a short list). */
+const STICKER_LIMIT = 2
+
 function NeedsAction({ plan }: { plan: TodayPlan }) {
+  const [now] = useState(() => new Date())
+  const stickers = plan.needs_action.slice(0, STICKER_LIMIT)
+  const more = plan.needs_action.slice(STICKER_LIMIT)
   const hidden = plan.needs_action_total - plan.needs_action.length
   return (
     <Section
       title="Needs action"
+      count={plan.needs_action_total > 0 ? plan.needs_action_total : undefined}
+      countTone="rose"
       actions={
-        <Button asChild variant="ghost" size="sm">
+        <Button asChild variant="link" size="sm">
           <Link to="/campaigns">View all</Link>
         </Button>
       }
     >
       {plan.needs_action.length > 0 ? (
-        <List aria-label="Needs action">
-          {plan.needs_action.map((item) => (
-            <Row key={item.application_id}>
-              <RowBody>
-                <RowTitle headingLevel={3} asChild>
-                  <Link to="/campaigns/$campaignId" params={{ campaignId: item.application_id }}>
-                    {item.title}
-                  </Link>
-                </RowTitle>
-                <RowSubtitle>
-                  <MetaRow>
-                    {item.company ? <strong>{item.company}</strong> : null}
-                    {reasonText(item)}
-                  </MetaRow>
-                </RowSubtitle>
-              </RowBody>
-              {item.reason === 'deadline' && item.deadline ? <RowMeta>{formatRunDate(item.deadline)}</RowMeta> : null}
-            </Row>
-          ))}
-          {hidden > 0 ? (
-            <Row>
-              <RowBody>
-                <RowTitle asChild>
-                  <Link to="/campaigns">and {hidden} more in Applications</Link>
-                </RowTitle>
-              </RowBody>
-            </Row>
+        <div className="dash-needs">
+          <ul className="dash-actions" aria-label="Needs action">
+            {stickers.map((item) => (
+              <ActionSticker key={item.application_id} item={item} now={now} />
+            ))}
+          </ul>
+          {more.length > 0 || hidden > 0 ? (
+            <List aria-label="More that need action">
+              {more.map((item) => (
+                <Row key={item.application_id}>
+                  <RowBody>
+                    <RowTitle headingLevel={3} asChild>
+                      <Link to="/campaigns/$campaignId" params={{ campaignId: item.application_id }}>
+                        {item.title}
+                      </Link>
+                    </RowTitle>
+                    <RowSubtitle>
+                      <MetaRow>
+                        {item.company ? <strong>{item.company}</strong> : null}
+                        {reasonText(item)}
+                      </MetaRow>
+                    </RowSubtitle>
+                  </RowBody>
+                  {item.reason === 'deadline' && item.deadline ? <RowMeta>{formatRunDate(item.deadline)}</RowMeta> : null}
+                </Row>
+              ))}
+              {hidden > 0 ? (
+                <Row>
+                  <RowBody>
+                    <RowTitle asChild>
+                      <Link to="/campaigns">and {hidden} more in Applications</Link>
+                    </RowTitle>
+                  </RowBody>
+                </Row>
+              ) : null}
+            </List>
           ) : null}
-        </List>
+        </div>
       ) : (
         <EmptyState
+          icon={<Check aria-hidden />}
           title="Nothing needs you today"
           description="Interviews, close deadlines and applications waiting 21 days without a reply show up here."
         />

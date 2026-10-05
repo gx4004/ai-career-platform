@@ -12,6 +12,16 @@ USER = "Return JSON."
 
 
 @pytest.fixture(autouse=True)
+def _fresh_client_cache():
+    """Provider clients are cached per process; each test starts with none."""
+    import app.services.ai_client as mod
+
+    mod._clients.clear()
+    yield
+    mod._clients.clear()
+
+
+@pytest.fixture(autouse=True)
 def _no_retry_sleep_global(monkeypatch):
     """Make asyncio.sleep a no-op inside ai_client across the whole file.
 
@@ -122,7 +132,7 @@ async def test_vertex_configuration_failure_is_not_retried(monkeypatch):
 # ---------- Vertex Google Gen AI SDK integration ----------
 
 @pytest.mark.asyncio
-async def test_vertex_uses_google_genai_sdk_and_closes_clients(monkeypatch):
+async def test_vertex_uses_google_genai_sdk_and_keeps_the_client_open_for_reuse(monkeypatch):
     """Vertex generation must avoid the removed ``vertexai.generative_models`` API."""
     from google import genai
 
@@ -172,7 +182,8 @@ async def test_vertex_uses_google_genai_sdk_and_closes_clients(monkeypatch):
     assert calls[1][1]["model"] == "gemini-2.5-flash"
     assert calls[1][1]["contents"] == USER
     assert calls[1][1]["config"]["system_instruction"] == SYSTEM
-    assert [call[0] for call in calls[-2:]] == ["async-close", "close"]
+    # One client per process (LLM-5): a successful call must not close it.
+    assert [call[0] for call in calls] == ["client", "generate"]
 
 
 @pytest.mark.asyncio
@@ -439,7 +450,8 @@ async def test_anthropic_provider_called(monkeypatch):
     assert "Output only the JSON object" in call["system"]
     assert call["max_tokens"] == 16000
     assert call["messages"] == [{"role": "user", "content": USER}]
-    assert fake_client.closed is True
+    # The client is reused across calls (LLM-5), so a successful call leaves it open.
+    assert fake_client.closed is False
 
 
 @pytest.mark.asyncio
@@ -629,3 +641,130 @@ async def test_anthropic_concatenates_only_text_blocks(monkeypatch):
     result = await complete_structured(SYSTEM, USER)
 
     assert result == {"a": 1}
+
+
+# ---------- one client per process, rebuilt after a credential failure ----------
+
+
+class _GenaiClientDouble:
+    """A genai client whose first generate_content call fails with `first_error`."""
+
+    built: list["_GenaiClientDouble"]
+
+    def __init__(self, first_error: Exception | None):
+        self.first_error = first_error
+        self.closed = False
+        outer = self
+
+        class _Models:
+            async def generate_content(self, **_kwargs):
+                if outer.first_error is not None:
+                    error, outer.first_error = outer.first_error, None
+                    raise error
+                return type("R", (), {"text": '{"ok": true}'})()
+
+            def generate_content_sync(self, **_kwargs):
+                return type("R", (), {"text": '{"ok": true}'})()
+
+        class _Aio:
+            models = _Models()
+
+            async def aclose(self):
+                outer.closed = True
+
+        self.aio = _Aio()
+        self.models = _SyncModels(self)
+
+    def close(self):
+        self.closed = True
+
+
+class _SyncModels:
+    def __init__(self, owner):
+        self.owner = owner
+
+    def generate_content(self, **_kwargs):
+        if self.owner.first_error is not None:
+            error, self.owner.first_error = self.owner.first_error, None
+            raise error
+        return type("R", (), {"text": '{"ok": true}'})()
+
+
+@pytest.mark.asyncio
+async def test_vertex_client_is_rebuilt_after_a_permission_failure(monkeypatch):
+    from google import genai
+    from google.genai import errors as genai_errors
+
+    import app.services.ai_client as mod
+
+    monkeypatch.setattr(mod.settings, "VERTEX_PROJECT_ID", "rebuild-project")
+    built = []
+
+    def build(**_kwargs):
+        client = _GenaiClientDouble(
+            genai_errors.ClientError(403, {"error": {"message": "denied"}}) if not built else None
+        )
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(genai, "Client", build)
+    with pytest.raises(mod.ProviderConfigurationError):
+        await mod._call_vertex(SYSTEM, USER)
+    assert built[0].closed is True
+    assert await mod._call_vertex(SYSTEM, USER) == {"ok": True}
+    assert len(built) == 2
+
+
+@pytest.mark.asyncio
+async def test_google_client_is_rebuilt_after_a_permission_failure(monkeypatch):
+    from google import genai
+    from google.genai import errors as genai_errors
+
+    import app.services.ai_client as mod
+
+    monkeypatch.setattr(mod.settings, "GOOGLE_API_KEY", "key-rebuild")
+    built = []
+
+    def build(**_kwargs):
+        client = _GenaiClientDouble(
+            genai_errors.ClientError(403, {"error": {"message": "denied"}}) if not built else None
+        )
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(genai, "Client", build)
+    with pytest.raises(RuntimeError):
+        await mod._call_google_genai(SYSTEM, USER)
+    assert built[0].closed is True
+    assert await mod._call_google_genai(SYSTEM, USER) == {"ok": True}
+    assert len(built) == 2
+
+
+@pytest.mark.asyncio
+async def test_anthropic_client_is_rebuilt_after_an_auth_failure(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    import app.services.ai_client as mod
+
+    monkeypatch.setattr(mod.settings, "ANTHROPIC_API_KEY", "sk-ant-rebuild")
+    built = []
+
+    def build(**kwargs):
+        if not built:
+            client = _FakeAsyncAnthropic(
+                error=_anthropic_status_error(anthropic_sdk.AuthenticationError, 401)
+            )
+        else:
+            response = type(
+                "R", (), {"content": [type("B", (), {"type": "text", "text": '{"ok": true}'})()]}
+            )()
+            client = _FakeAsyncAnthropic(response=response)
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(anthropic_sdk, "AsyncAnthropic", build)
+    with pytest.raises(mod.ProviderConfigurationError):
+        await mod._call_anthropic(SYSTEM, USER)
+    assert built[0].closed is True
+    assert await mod._call_anthropic(SYSTEM, USER) == {"ok": True}
+    assert len(built) == 2

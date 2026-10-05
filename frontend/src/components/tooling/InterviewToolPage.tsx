@@ -24,6 +24,7 @@ export function InterviewToolPage() {
         <ToolPageLoading toolId="interview" mutationDone={!mutation.isPending} />
       ) : (
         <ToolForm
+          toolId="interview"
           label={`${tool.label} input form`}
           onSubmit={handleSubmit}
           submitLabel={tool.entryPointLabel}

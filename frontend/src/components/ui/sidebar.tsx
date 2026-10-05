@@ -41,10 +41,16 @@ function useSidebar() {
   return context
 }
 
+/** The same context, or null outside a provider (phones have no sidebar; the command palette still mounts there). */
+function useOptionalSidebar() {
+  return React.useContext(SidebarContext)
+}
+
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
+  railRoute = false,
   className,
   children,
   ...props
@@ -52,10 +58,22 @@ function SidebarProvider({
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /**
+   * A route that wants the icon rail (CV Studio). While true the sidebar is the rail unless the person
+   * expands it for this visit; the saved cookie preference is neither read nor written, so leaving the route
+   * brings back exactly the state they had.
+   */
+  railRoute?: boolean
 }) {
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen)
-  const open = openProp ?? internalOpen
+  const [railOpen, setRailOpen] = React.useState(false)
+  const preferredOpen = openProp ?? internalOpen
+  const open = railRoute ? railOpen : preferredOpen
   const setControlled = setOpenProp ?? setInternalOpen
+
+  React.useEffect(() => {
+    if (!railRoute) setRailOpen(false)
+  }, [railRoute])
 
   React.useEffect(() => {
     const stored = getSidebarOpenFromCookie()
@@ -64,10 +82,14 @@ function SidebarProvider({
 
   const setOpen = React.useCallback(
     (value: boolean) => {
+      if (railRoute) {
+        setRailOpen(value)
+        return
+      }
       setControlled(value)
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${value}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
-    [setControlled],
+    [railRoute, setControlled],
   )
 
   const toggleSidebar = React.useCallback(() => setOpen(!open), [open, setOpen])
@@ -129,10 +151,10 @@ function SidebarTrigger({ className, ...props }: Omit<React.ComponentProps<typeo
       <Button
         data-slot="sidebar-trigger"
         iconOnly
-        variant="ghost"
+        variant="secondary"
         size="sm"
         aria-label={label}
-        className={className}
+        className={cn('app-sidebar__trigger', className)}
         {...props}
         onClick={(event) => {
           props.onClick?.(event)
@@ -271,5 +293,6 @@ export {
   SidebarProvider,
   SidebarTooltip,
   SidebarTrigger,
+  useOptionalSidebar,
   useSidebar,
 }

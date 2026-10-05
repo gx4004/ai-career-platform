@@ -5,6 +5,7 @@ import { ErrorBoundary } from '#/components/app/ErrorBoundary'
 import { AppSidebar } from '#/components/app/AppSidebar'
 import { CommandPalette } from '#/components/app/CommandPalette'
 import { MobileNav } from '#/components/app/MobileNav'
+import { ServiceBanner } from '#/components/app/ServiceBanner'
 import { Topbar } from '#/components/app/Topbar'
 import { AuthDialog } from '#/components/auth/AuthDialog'
 import { Button, ToastProvider, TooltipProvider } from '#/components/kit'
@@ -14,6 +15,9 @@ import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { cn } from '#/lib/utils'
 
 const MAIN_ID = 'main-content'
+
+/** Routes that want the 76px icon rail instead of the full sidebar (CV Studio: the paper is the loudest object). */
+const RAIL_ROUTE_PREFIXES = ['/cv-studio']
 
 /** Whichever element is the page's main landmark: pages and the fallback wrapper do not all carry the id. */
 function focusMain(event: React.MouseEvent<HTMLAnchorElement>) {
@@ -84,14 +88,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const bp = useBreakpoint()
   const isShellless = isPublicRoute(pathname)
   const isMobile = bp === 'mobile'
+  const wantsRail = RAIL_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
   if (isShellless) {
     return (
       <TooltipProvider delayDuration={120}>
         <ToastProvider>
           <ErrorBoundary>
+            <ServiceBanner />
             {children}
-            <AuthDialog />
+            {/* /login is the sign-in form already: a session-expiry dialog on top would be a second, identical one. */}
+            {pathname === '/login' ? null : <AuthDialog />}
           </ErrorBoundary>
         </ToastProvider>
       </TooltipProvider>
@@ -106,6 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SkipLink />
           <div className="app-main app-main--mobile">
             <Topbar />
+            <ServiceBanner />
             <AppContent>{children}</AppContent>
           </div>
           <MobileNav />
@@ -120,13 +128,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider delayDuration={120}>
       <ToastProvider>
-        <SidebarProvider defaultOpen={bp === 'desktop'}>
+        <SidebarProvider defaultOpen={bp === 'desktop'} railRoute={wantsRail}>
           <SkipLink />
           <AppSidebar />
           <SidebarInset>
             {/* Desktop has no top bar: each page header is the top of the page,
                 and the account menu lives in the sidebar footer. */}
             <div className="app-main">
+              <ServiceBanner />
               <AppContent>{children}</AppContent>
             </div>
           </SidebarInset>

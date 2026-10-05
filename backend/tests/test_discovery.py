@@ -81,7 +81,8 @@ def test_best_match_ranks_confirmed_evidence_overlap_above_newer_listings(
     assert body["sort"] == "best_match" and body["has_evidence"] is True
     assert [item["title"] for item in body["items"]] == ["Platform Engineer", "Accountant"]
     best, other = body["items"]
-    assert best["skills_fit"] > other["skills_fit"]
+    # The accountant listing names no skills, so it has no fit to compare.
+    assert best["skills_fit"] > 0 and other["skills_fit"] is None
     assert "Kubernetes" in best["matched_skills"]
     assert _titles(client, auth_headers, sort="newest") == ["Accountant", "Platform Engineer"]
 
@@ -503,3 +504,295 @@ def test_adoption_is_idempotent_but_rechecks_visibility(client, auth_headers, db
     source.kill_switch = True
     db.commit()
     assert _adopt(client, auth_headers, listing.id).status_code == 404
+
+
+# ── Honest fit (discovery-D1) ──
+
+STACK = "Python, FastAPI, PostgreSQL, SQLAlchemy, Docker, AWS, CI/CD"
+BROAD = "Python FastAPI PostgreSQL Docker AWS Terraform Kubernetes"
+
+
+def _by_title(client, headers) -> dict[str, dict]:
+    items = client.get(LISTINGS, headers=headers).json()["items"]
+    return {item["title"]: item for item in items}
+
+
+def test_a_fit_built_on_one_keyword_never_reads_as_100_or_outranks_a_broad_match(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, STACK)
+    # Newer, one keyword, fully covered: the old formula called this 100%.
+    discovery.listing(
+        title="Security Engineer",
+        description="You will work with AWS every day with a friendly team.",
+        posted_days_ago=0,
+    )
+    discovery.listing(title="Backend Engineer", description=BROAD, posted_days_ago=6)
+
+    items = client.get(LISTINGS, headers=auth_headers).json()["items"]
+    by_title = {item["title"]: item for item in items}
+
+    assert by_title["Security Engineer"]["skills_fit"] < 100
+    assert by_title["Security Engineer"]["matched_skills"] == ["AWS"]
+    assert by_title["Backend Engineer"]["skills_fit"] > by_title["Security Engineer"]["skills_fit"]
+    assert [item["title"] for item in items] == ["Backend Engineer", "Security Engineer"]
+
+
+def test_zero_matched_skills_is_zero_percent_not_a_floor_of_25(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, STACK)
+    discovery.listing(title="Data Engineer", description="Terraform Kafka Redis Kubernetes")
+
+    item = _only(client, auth_headers)
+
+    assert item["matched_skills"] == [] and len(item["missing_skills"]) >= 3
+    assert item["skills_fit"] == 0
+
+
+def test_a_listing_with_no_extractable_skills_has_no_fit_rather_than_a_default(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, STACK)
+    discovery.listing(title="Recruiter", description="Support customers daily.", posted_days_ago=0)
+    discovery.listing(title="Backend Engineer", description=BROAD, posted_days_ago=6)
+
+    body = client.get(LISTINGS, headers=auth_headers).json()
+    by_title = {item["title"]: item for item in body["items"]}
+
+    recruiter = by_title["Recruiter"]
+    assert body["has_evidence"] is True
+    assert recruiter["skills_fit"] is None and recruiter["fit_confidence"] is None
+    assert recruiter["matched_skills"] == [] and recruiter["missing_skills"] == []
+    # Listings with a real fit come first; the one with nothing to compare is last.
+    assert [item["title"] for item in body["items"]] == ["Backend Engineer", "Recruiter"]
+
+
+def test_fit_confidence_reflects_how_many_keywords_the_fit_rests_on(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, STACK)
+    discovery.listing(title="One", description="Experience with AWS is needed here.")
+    discovery.listing(title="Many", description=BROAD)
+
+    by_title = _by_title(client, auth_headers)
+
+    assert by_title["One"]["fit_confidence"] == "low"
+    assert by_title["Many"]["fit_confidence"] == "high"
+    assert by_title["Many"]["skills_fit"] >= 70
+
+
+def test_dashboard_best_matches_skip_listings_with_no_fit(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, STACK)
+    discovery.listing(title="Recruiter", description="Support customers daily.", posted_days_ago=0)
+    discovery.listing(title="Backend Engineer", description=BROAD, posted_days_ago=6)
+
+    body = client.get("/api/v1/today", headers=auth_headers).json()
+
+    assert [item["title"] for item in body["best_matches"]] == ["Backend Engineer"]
+
+
+# ── Preference hits read location and remote (discovery-D3) ──
+
+
+def test_preferences_hit_the_listing_location_and_remote_flag(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, "remote", kind="preference")
+    discovery.evidence(test_user.id, "Berlin", kind="preference")
+    discovery.listing(
+        title="Data Analyst",
+        description="Analyse product usage for the whole company.",
+        location="Berlin, Germany",
+        remote=True,
+    )
+    discovery.listing(
+        title="Office Analyst",
+        description="Analyse product usage in our headquarters.",
+        location="Paris, France",
+        remote=False,
+    )
+
+    by_title = _by_title(client, auth_headers)
+
+    assert set(by_title["Data Analyst"]["preference_hits"]) == {"Remote", "Berlin"}
+    assert by_title["Office Analyst"]["preference_hits"] == []
+
+
+# ── Already added (discovery-D4) ──
+
+
+def test_listings_say_which_application_already_holds_them(
+    client, auth_headers, discovery
+):
+    added = discovery.listing(title="Added", description="Python and Docker for the platform.")
+    discovery.listing(title="Fresh", description="Python and Docker for the apps.")
+
+    assert [i["application_id"] for i in client.get(LISTINGS, headers=auth_headers).json()["items"]] == [None, None]
+    application = _adopt(client, auth_headers, added.id).json()
+
+    by_title = _by_title(client, auth_headers)
+    assert by_title["Added"]["application_id"] == application["id"]
+    assert by_title["Fresh"]["application_id"] is None
+    detail = client.get(f"{LISTINGS}/{added.id}", headers=auth_headers).json()
+    assert detail["application_id"] == application["id"]
+    other = discovery.user_headers("other@example.com")
+    assert client.get(f"{LISTINGS}/{added.id}", headers=other).json()["application_id"] is None
+
+
+def test_adopting_again_is_a_200_no_op_and_only_the_first_adoption_is_a_201(
+    client, auth_headers, db, discovery
+):
+    listing = discovery.listing()
+
+    first = _adopt(client, auth_headers, listing.id)
+    again = _adopt(client, auth_headers, listing.id)
+
+    assert first.status_code == 201 and again.status_code == 200
+    assert first.json()["id"] == again.json()["id"] and db.query(Workspace).count() == 1
+
+
+# ── Hidden jobs can be reviewed and restored (discovery-D2, D12) ──
+
+
+def test_hidden_jobs_are_listed_newest_hidden_first_and_can_be_restored(
+    client, auth_headers, discovery
+):
+    first = discovery.listing(title="First", company="Acme", location="Berlin", remote=True)
+    second = discovery.listing(title="Second", company="Globex", description="Another one.")
+    other = discovery.user_headers("other@example.com")
+    assert client.get(DISMISSALS, headers=auth_headers).json() == {"items": [], "total": 0}
+    client.post(DISMISSALS, json={"listing_id": first.id}, headers=auth_headers)
+    client.post(DISMISSALS, json={"listing_id": second.id}, headers=auth_headers)
+    client.post(DISMISSALS, json={"listing_id": first.id}, headers=other)
+
+    body = client.get(DISMISSALS, headers=auth_headers).json()
+
+    assert body["total"] == 2
+    assert [(i["title"], i["company"]) for i in body["items"]] == [
+        ("Second", "Globex"),
+        ("First", "Acme"),
+    ]
+    assert body["items"][1]["location"] == "Berlin" and body["items"][1]["remote"] is True
+    assert body["items"][0]["hidden_at"]
+    assert client.get(DISMISSALS).status_code == 401
+
+    assert client.delete(f"{DISMISSALS}/{second.id}", headers=auth_headers).status_code == 204
+    assert [i["title"] for i in client.get(DISMISSALS, headers=auth_headers).json()["items"]] == ["First"]
+    assert _titles(client, auth_headers) == ["Second"]
+
+
+def test_hidden_jobs_never_list_a_listing_whose_source_is_no_longer_allowed(
+    client, auth_headers, db, discovery
+):
+    source = discovery.source("revoked")
+    listing = discovery.listing(source, title="Gone")
+    client.post(DISMISSALS, json={"listing_id": listing.id}, headers=auth_headers)
+    source.kill_switch = True
+    db.commit()
+
+    assert client.get(DISMISSALS, headers=auth_headers).json()["items"] == []
+
+
+def test_hiding_a_listing_the_owner_cannot_see_is_a_404_but_hiding_twice_is_fine(
+    client, auth_headers, db, discovery
+):
+    source = discovery.source("killed")
+    hidden = discovery.listing(source, title="Not visible")
+    visible = discovery.listing(title="Visible")
+    source.kill_switch = True
+    db.commit()
+
+    assert client.post(DISMISSALS, json={"listing_id": hidden.id}, headers=auth_headers).status_code == 404
+    assert client.post(DISMISSALS, json={"listing_id": visible.id}, headers=auth_headers).status_code == 201
+    assert client.post(DISMISSALS, json={"listing_id": visible.id}, headers=auth_headers).status_code == 201
+
+
+# ── Deep match uses the live CV (discovery-D6) ──
+
+
+def _create_cv(client, headers, body: str, *, name: str = "My CV"):
+    section = {
+        "id": "section-summary",
+        "kind": "summary",
+        "title": "Summary",
+        "visible": True,
+        "position": 0,
+        "entries": [{"id": "entry-one", "evidence_item_id": None, "body": body, "position": 0}],
+    }
+    return section, client.post("/api/v1/cv-documents", json={"name": name, "sections": []}, headers=headers)
+
+
+def test_deep_match_uses_the_edits_of_a_cv_that_has_no_variant_snapshot(
+    client, auth_headers, mock_ai_result, monkeypatch, discovery
+):
+    mock_ai_result(MATCH_OUTPUT)
+    seen = {}
+
+    from app.services.job_matcher import match_job as real
+
+    async def spy(resume_text, job_description, **kwargs):
+        seen["resume"] = resume_text
+        return await real(resume_text, job_description, **kwargs)
+
+    monkeypatch.setattr("app.services.discovery_deep_match.match_job", spy)
+    listing = discovery.listing(description=K8S)
+    section, created = _create_cv(client, auth_headers, "")
+    assert created.status_code == 201, created.text
+    # A blank CV is a CV the owner has not written yet.
+    assert _deep(client, auth_headers, listing.id).status_code == 409
+
+    edited = client.patch(
+        f"/api/v1/cv-documents/{created.json()['id']}",
+        json={"sections": [{**section, "entries": [{**section["entries"][0], "body": "Operated Kubernetes clusters for four years."}]}]},
+        headers=auth_headers,
+    )
+    assert edited.status_code == 200, edited.text
+
+    response = _deep(client, auth_headers, listing.id)
+
+    assert response.status_code == 200, response.text
+    assert "Operated Kubernetes clusters" in seen["resume"]
+
+
+def test_deep_match_prefers_a_newer_edit_over_an_older_variant_snapshot(
+    client, auth_headers, db, mock_ai_result, monkeypatch, discovery
+):
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.cv_document import CvDocument, CvVariant
+
+    mock_ai_result(MATCH_OUTPUT)
+    seen = {}
+
+    from app.services.job_matcher import match_job as real
+
+    async def spy(resume_text, job_description, **kwargs):
+        seen["resume"] = resume_text
+        return await real(resume_text, job_description, **kwargs)
+
+    monkeypatch.setattr("app.services.discovery_deep_match.match_job", spy)
+    listing = discovery.listing(description=K8S)
+    section, created = _create_cv(client, auth_headers, "")
+    cv_id = created.json()["id"]
+    client.patch(
+        f"/api/v1/cv-documents/{cv_id}",
+        json={"sections": [{**section, "entries": [{**section["entries"][0], "body": "Old snapshot wording."}]}]},
+        headers=auth_headers,
+    )
+    client.post(f"/api/v1/cv-documents/{cv_id}/variants", json={"name": "Old"}, headers=auth_headers)
+    client.patch(
+        f"/api/v1/cv-documents/{cv_id}",
+        json={"sections": [{**section, "entries": [{**section["entries"][0], "body": "Fresh edit wording."}]}]},
+        headers=auth_headers,
+    )
+    # Make the order unambiguous: the snapshot is a day old, the edit is now.
+    db.query(CvVariant).update({CvVariant.created_at: datetime.now(UTC) - timedelta(days=1)})
+    db.query(CvDocument).update({CvDocument.updated_at: datetime.now(UTC)})
+    db.commit()
+
+    assert _deep(client, auth_headers, listing.id).status_code == 200
+
+    assert "Fresh edit wording." in seen["resume"] and "Old snapshot" not in seen["resume"]

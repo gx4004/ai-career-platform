@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ToolId } from '#/lib/tools/registry'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { NumberDisc, ToolTile } from '#/components/kit'
+import { tools, type ToolId } from '#/lib/tools/registry'
 import { trackTelemetry } from '#/lib/telemetry/client'
 
 type Stage = {
@@ -212,6 +213,10 @@ export function CinematicLoader({
     ? STATUS_READY
     : `Working on your results. Typical step: ${stage.label}.`
 
+  const tool = toolId ? tools[toolId] : undefined
+  // The bar fills by whole steps (never a percentage the client can not know); width is derived, not published to AT.
+  const trackStyle = { '--cin-filled': filledSteps, '--cin-total': totalStages } as CSSProperties
+
   return (
     <div
       className="cinematic-loader"
@@ -234,34 +239,47 @@ export function CinematicLoader({
         {announcement}
       </p>
 
-      <div className="cinematic-line" aria-hidden="true">
-        <span className="tool-spinner" />
-        {/* Decorative-only ellipsis (see the D-056 comment above): the
-            aria-live announcement never carries this. */}
-        <span className="cinematic-status">
-          {mutationDone ? (
-            STATUS_READY
-          ) : (
-            <>
-              <span className="cinematic-status__lead">{STATUS_WORKING}</span>{' '}
-              <span className="cinematic-status__step">{`${STEPS_FRAME_ONE}: ${stage.label}…`}</span>
-            </>
-          )}
-        </span>
+      <div className="cinematic-main">
+        <div className="cinematic-line" aria-hidden="true">
+          {tool ? <ToolTile tone={tool.tone} icon={tool.icon} size="lg" className="cinematic-tile" /> : null}
+          {/* Decorative-only ellipsis (see the D-056 comment above): the
+              aria-live announcement never carries this. */}
+          <span className="cinematic-status">
+            {mutationDone ? (
+              STATUS_READY
+            ) : (
+              <>
+                <span className="cinematic-status__lead">{STATUS_WORKING}</span>{' '}
+                <span className="cinematic-status__step">{`${STEPS_FRAME_ONE}: ${stage.label}…`}</span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/*
+          Indeterminate progressbar: `aria-valuenow` is deliberately omitted, which
+          is the ARIA-defined way to say "in progress, amount unknown". The width
+          below comes from the client-side stage timer, not from the server, so
+          publishing it as `aria-valuenow` would assert a completion ratio the
+          client cannot observe — exactly what D-056 forbids.
+        */}
+        <div className="cinematic-progress" role="progressbar" aria-label="Generating results" style={trackStyle}>
+          <span className="cinematic-progress__fill" />
+        </div>
       </div>
 
-      {/*
-        Indeterminate progressbar: `aria-valuenow` is deliberately omitted, which
-        is the ARIA-defined way to say "in progress, amount unknown". The width
-        below comes from the client-side stage timer, not from the server, so
-        publishing it as `aria-valuenow` would assert a completion ratio the
-        client cannot observe — exactly what D-056 forbids.
-      */}
-      <div className="cinematic-progress" role="progressbar" aria-label="Generating results">
-        {displayStages.map((s, i) => (
-          <span key={`${i}-${s.label}`} className="cinematic-progress__step" data-filled={i < filledSteps || undefined} />
-        ))}
-      </div>
+      {/* The same typical steps, as a list: a shape for the wait, never a status report (D-056). */}
+      <ol className="cinematic-steps" aria-hidden="true">
+        {displayStages.map((s, i) => {
+          const state = mutationDone || i < displayedStageIndex ? 'done' : i === displayedStageIndex ? 'current' : 'upcoming'
+          return (
+            <li key={`${i}-${s.label}`} className="cinematic-step" data-state={state}>
+              <NumberDisc n={i + 1} size="sm" tone={state === 'done' ? 'mint' : state === 'current' ? 'lemon' : 'white'} />
+              <span className="cinematic-step__label">{s.label}</span>
+            </li>
+          )
+        })}
+      </ol>
     </div>
   )
 }

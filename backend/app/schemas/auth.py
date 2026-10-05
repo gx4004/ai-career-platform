@@ -1,6 +1,12 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
 
 from app.schemas.validation import utf8_size
+
+# Addresses are compared case-insensitively everywhere; EmailStr alone only
+# lower-cases the domain, so a mobile keyboard's "Qa@..." would be a new person.
+NormalizedEmail = Annotated[EmailStr, AfterValidator(lambda value: value.strip().lower())]
 
 
 def _validate_bcrypt_password(value: str) -> str:
@@ -10,7 +16,7 @@ def _validate_bcrypt_password(value: str) -> str:
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     password: str
 
     @field_validator("password")
@@ -24,9 +30,10 @@ class LoginRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     password: str
-    full_name: str | None = None
+    # Bounded so a pasted paragraph cannot break the account menu layout.
+    full_name: str | None = Field(default=None, max_length=200)
     tos_accepted: bool  # Required field, no default
 
     @field_validator("password")
@@ -37,6 +44,13 @@ class RegisterRequest(BaseModel):
             raise ValueError("Password must be at least 8 characters")
         return _validate_bcrypt_password(v)
 
+    @field_validator("full_name")
+    @classmethod
+    def full_name_is_trimmed(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return v.strip() or None
+
     @field_validator("tos_accepted")
     @classmethod
     def tos_must_be_accepted(cls, v: bool) -> bool:
@@ -46,7 +60,7 @@ class RegisterRequest(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
 
 
 class PasswordResetConfirm(BaseModel):

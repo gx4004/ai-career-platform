@@ -2,9 +2,11 @@ import { Link, useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { authCopy } from '#/components/auth/auth-copy'
+import { AuthIntentNotice } from '#/components/auth/AuthIntentNotice'
 import { AuthSurface } from '#/components/auth/AuthSurface'
 import { AuthShell } from '#/components/auth/AuthShell'
-import { Button, Notice, PageHeader } from '#/components/kit'
+import { AuthStamp } from '#/components/auth/AuthStamp'
+import { Button, EmptyState, Notice, PageHeader } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 
 const OAUTH_ERROR_COPY: Record<string, string> = {
@@ -19,8 +21,11 @@ const OAUTH_ERROR_COPY: Record<string, string> = {
 }
 
 export function LoginPage() {
-  const { status } = useSession()
+  const { status, logout } = useSession()
   const router = useRouter()
+  // Set the moment an account is being created, so the page can celebrate it instead of reading "already signed in".
+  const [welcome, setWelcome] = useState(false)
+
   const [view, setView] = useState<'login' | 'register'>('login')
   const [resetting, setResetting] = useState(false)
   const [oauthErrorMessage, setOauthErrorMessage] = useState<string | null>(null)
@@ -40,16 +45,30 @@ export function LoginPage() {
   }, [])
 
   if (status === 'authenticated') {
-    return (
-      <AuthShell>
-        <PageHeader title="You're already signed in" lead="Head back to your dashboard to keep going." />
-        <div>
-          <Button asChild>
-            <Link to="/dashboard">Go to dashboard</Link>
-          </Button>
-        </div>
-      </AuthShell>
+    // Straight after signing up the same page stamps a seal: the account exists, and the next step is the dashboard.
+    const signedIn = (
+      <EmptyState
+        size="page"
+        headingLevel={1}
+        title="You're already signed in"
+        description={
+          welcome
+            ? 'Your account is ready. Your runs, favorites and CV drafts now stay with you.'
+            : 'Head back to your dashboard to keep going.'
+        }
+        action={
+          <div className="auth-actions">
+            <Button asChild>
+              <Link to="/dashboard">Go to dashboard</Link>
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void logout()}>
+              Sign out
+            </Button>
+          </div>
+        }
+      />
     )
+    return <AuthShell>{welcome ? <AuthStamp word="Hi!">{signedIn}</AuthStamp> : signedIn}</AuthShell>
   }
 
   const copy = authCopy(view, resetting)
@@ -77,9 +96,17 @@ export function LoginPage() {
         onViewChange={setView}
         resetting={resetting}
         onResettingChange={setResetting}
-        notice={oauthErrorMessage && !resetting ? <Notice tone="danger">{oauthErrorMessage}</Notice> : null}
+        onRegistering={setWelcome}
+        notice={
+          resetting ? null : (
+            <>
+              {oauthErrorMessage ? <Notice tone="danger">{oauthErrorMessage}</Notice> : null}
+              <AuthIntentNotice view={view} />
+            </>
+          )
+        }
       />
-      <Button asChild variant="ghost" className="auth-guest">
+      <Button asChild variant="link" className="auth-guest">
         <Link to="/dashboard">
           Continue as guest
           <ArrowRight aria-hidden />

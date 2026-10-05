@@ -14,6 +14,7 @@ const adoptRecommendation = vi.hoisted(() => vi.fn())
 const getListing = vi.hoisted(() => vi.fn())
 const startDeepMatch = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn())
+const hiddenJobs = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
   searchDiscoveryListings: searchListings,
@@ -24,8 +25,16 @@ vi.mock('#/lib/api/client', () => ({
   startDiscoveryDeepMatch: startDeepMatch,
 }))
 
+vi.mock('#/components/discovery/hiddenJobs', () => ({
+  hiddenJobsQuery: () => ({ queryKey: ['discovery', 'recommendations', 'hidden'], queryFn: hiddenJobs, retry: false }),
+}))
+
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to, params, ...rest }: { children: ReactNode; to: string; params?: Record<string, string> }) => (
+    <a href={params ? to.replace(/\$(\w+)/, (_match, key: string) => params[key]) : to} {...rest}>
+      {children}
+    </a>
+  ),
   useNavigate: () => navigate,
 }))
 
@@ -82,6 +91,8 @@ const openMenu = async (card: HTMLElement) => {
 beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear()
+  localStorage.clear()
+  hiddenJobs.mockResolvedValue({ items: [], total: 0 })
   dismissRecommendation.mockResolvedValue({ listing_id: 'listing-1', created_at: '2026-09-20T00:00:00Z' })
   undismissRecommendation.mockResolvedValue(undefined)
   adoptRecommendation.mockResolvedValue({ id: 'campaign-9' })
@@ -98,7 +109,11 @@ describe('DiscoveryPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Discover jobs' })).toBeTruthy()
     expect(within(card).queryByText(LISTING.preview)).toBeNull()
-    expect(within(card).getByLabelText('82% skills fit, 2 of 3 skills')).toBeTruthy()
+    expect(within(card).getByRole('img', { name: '82% fit' })).toBeTruthy()
+    expect(within(card).getByText('2 of 3 skills')).toBeTruthy()
+    // Why it fits, in one line: the skills matched and the ones missing.
+    expect(within(card).getByText('Kubernetes, Python')).toBeTruthy()
+    expect(within(card).getByText('Terraform')).toBeTruthy()
     expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
     expect(within(card).getByText('Remote')).toBeTruthy()
     expect(within(card).getByText('Posted 3 days ago')).toBeTruthy()
@@ -260,7 +275,7 @@ describe('DiscoveryPage', () => {
     renderPage(page({ items: [{ ...LISTING, similar_applications: similar }] }))
     const card = await findCard()
 
-    expect(within(card).getByLabelText(/82% skills fit/)).toBeTruthy()
+    expect(within(card).getByRole('img', { name: '82% fit' })).toBeTruthy()
     fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/2 of 6/).closest('dd')?.textContent).toContain('got a reply')
@@ -389,5 +404,92 @@ describe('DiscoveryPage', () => {
     renderPage(page({ items: [], total: 0, companies: [] }))
 
     expect(await screen.findByText('No jobs yet')).toBeTruthy()
+  })
+  it('flips the row to Added after adding, and links to the application instead of offering Add again', async () => {
+    renderPage()
+    const card = await findCard()
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Add to applications' }))
+
+    const link = await within(card).findByRole('link', { name: 'Open application for Platform Engineer' })
+    expect(link.getAttribute('href')).toBe('/campaigns/campaign-9')
+    expect(within(card).getByText('Added')).toBeTruthy()
+    expect(within(card).queryByRole('button', { name: 'Add to applications' })).toBeNull()
+  })
+
+  it('shows a job that is already an application as Added from the start', async () => {
+    renderPage(page({ items: [{ ...LISTING, application_id: 'app-4' }] }))
+    const card = await findCard()
+
+    expect(within(card).getByText('Added')).toBeTruthy()
+    expect(within(card).getByRole('link', { name: 'Open application for Platform Engineer' }).getAttribute('href')).toBe('/campaigns/app-4')
+    expect(within(card).queryByRole('button', { name: 'Add to applications' })).toBeNull()
+  })
+
+  it('sends one request when Add is clicked twice', async () => {
+    adoptRecommendation.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    const card = await findCard()
+    const add = within(card).getByRole('button', { name: 'Add to applications' })
+
+    fireEvent.click(add)
+    fireEvent.click(add)
+
+    await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledTimes(1))
+  })
+
+  it('marks a job posted today as new', async () => {
+    renderPage(page({ items: [{ ...LISTING, posted_at: new Date().toISOString() }] }))
+    const card = await findCard()
+
+    expect(within(card).getByText('New today')).toBeTruthy()
+    expect(within(card).queryByText('Posted today')).toBeNull()
+  })
+
+  it('lists the hidden jobs and restores one', async () => {
+    hiddenJobs.mockResolvedValue({
+      total: 1,
+      items: [{ listing_id: 'listing-7', title: 'Data Analyst', company: 'Harbor Health', location: 'Remote', remote: true, posted_at: null, hidden_at: '2026-10-02T09:00:00Z' }],
+    })
+    renderPage()
+    await findCard()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Hidden jobs, 1' }))
+
+    const sheet = await screen.findByRole('dialog', { name: 'Hidden jobs' })
+    expect(within(sheet).getByText('Data Analyst')).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Restore Data Analyst' }))
+
+    await waitFor(() => expect(undismissRecommendation).toHaveBeenCalledWith('listing-7'))
+  })
+
+  it('offers no hidden-jobs button while nothing is hidden', async () => {
+    renderPage()
+    await findCard()
+
+    expect(screen.queryByRole('button', { name: /^Hidden jobs/ })).toBeNull()
+  })
+
+  it('says why the list is empty after hiding the only job, and where to find it', async () => {
+    hiddenJobs.mockResolvedValue({
+      total: 1,
+      items: [{ listing_id: 'listing-1', title: 'Platform Engineer', company: 'Acme Systems', location: null, remote: null, posted_at: null, hidden_at: '2026-10-02T09:00:00Z' }],
+    })
+    renderPage(page({ items: [], total: 0 }))
+
+    expect(await screen.findByText('No jobs left to show')).toBeTruthy()
+    expect(screen.queryByText('No jobs match these filters')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Review hidden jobs' })).toBeTruthy()
+  })
+
+  it('explains fit scores once to a user without confirmed skills, and remembers the dismissal', async () => {
+    renderPage(page({ has_evidence: false, sort: 'newest', items: [{ ...LISTING, skills_fit: null, matched_skills: [], missing_skills: [], preference_hits: [] }] }))
+    await findCard()
+
+    expect(await screen.findByText('Add your skills to see fit scores')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+
+    expect(screen.queryByText('Add your skills to see fit scores')).toBeNull()
+    expect(localStorage.getItem('cw:discovery-skills-callout')).toBe('1')
   })
 })

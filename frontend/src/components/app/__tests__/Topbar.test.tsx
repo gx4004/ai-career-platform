@@ -80,11 +80,23 @@ describe('Topbar (phones)', () => {
     expect((await screen.findByRole('menuitem', { name: 'Admin' })).getAttribute('href')).toBe('/admin')
   })
 
-  it('leaves signing in to the tab bar for guests', () => {
+  it('leaves signing in to the tab bar for guests, who still get Search', () => {
     session.current = { status: 'guest', user: null, logout: vi.fn() }
     render(<Topbar />)
 
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Account menu/ })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+  })
+
+  it('opens the command palette from the Search button (phones have no ⌘K)', () => {
+    const opened = vi.fn()
+    window.addEventListener('cw:open-command-palette', opened)
+    render(<Topbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(opened).toHaveBeenCalledTimes(1)
+    window.removeEventListener('cw:open-command-palette', opened)
   })
 })

@@ -3,23 +3,18 @@ import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 
 const currentYear = new Date().getFullYear()
 
-export function LandingFooter() {
+/** A signed-in visitor already has an account, so the Product column drops "Sign in". */
+export function LandingFooter({ signedIn = false }: { signedIn?: boolean }) {
   return (
-    <footer
-      id="landing-footer"
-      className="lp-footer"
-      aria-labelledby="landing-footer-heading"
-    >
-      <div className="lp-container lp-footer-grid">
-        <div className="lp-footer-brand-col">
+    <footer id="landing-footer" className="lp-footer" aria-labelledby="landing-footer-heading">
+      <div className="lp-wrap lp-footer-grid">
+        <div>
           <Link to="/" aria-label="Career Workbench home" className="lp-footer-brand-link">
             <AppBrandLockup mode="full" />
           </Link>
           <p className="lp-footer-blurb">
-            The AI workspace for job seekers who want to move smarter, not harder. Precision career
-            architecture for the digital age.
+            The AI workspace for job seekers who want to move smarter, not harder.
           </p>
-          <p className="lp-footer-meta">Crafted for focused applicants. Built in Europe.</p>
         </div>
 
         <nav className="lp-footer-nav" aria-label="Footer">
@@ -30,7 +25,7 @@ export function LandingFooter() {
               <li><a href="#landing-journey">Workflow</a></li>
               <li><a href="#landing-tools">Tools</a></li>
               <li><a href="#landing-faq">FAQ</a></li>
-              <li><Link to="/login">Sign in</Link></li>
+              {signedIn ? null : <li><Link to="/login">Sign in</Link></li>}
             </ul>
           </div>
 
@@ -46,8 +41,8 @@ export function LandingFooter() {
         </nav>
       </div>
 
-      <div className="lp-container lp-footer-bottom">
-        <p className="lp-footer-copy">© {currentYear} Career Workbench. All rights reserved.</p>
+      <div className="lp-wrap lp-footer-bottom">
+        <p className="lp-footer-copy">&copy; {currentYear} Career Workbench. All rights reserved.</p>
       </div>
     </footer>
   )

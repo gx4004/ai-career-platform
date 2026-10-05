@@ -32,5 +32,6 @@ DISPOSABLE_DOMAINS: set[str] = {
 
 
 def is_disposable_email(email: str) -> bool:
-    domain = email.rsplit("@", 1)[-1].lower()
-    return domain in DISPOSABLE_DOMAINS
+    """True for a listed domain or any subdomain of one (a@x.mailinator.com)."""
+    labels = email.rsplit("@", 1)[-1].strip().strip(".").lower().split(".")
+    return any(".".join(labels[i:]) in DISPOSABLE_DOMAINS for i in range(len(labels)))

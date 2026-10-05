@@ -1,5 +1,6 @@
 /* ── Discover: layout hooks only ──
-   Everything visible (toolbar, rows, drawer, badges) is the kit. */
+   Everything visible (toolbar, rows, fit stamps, pips, badges, drawer) is the kit; the rows are the
+   dashboard's "match" rows. This file only places the few parts the kit has no slot for. */
 
 /* One class more than the kit's own filter-width rule, so the location field keeps a fixed width. */
 .kit-toolbar__filters > .kit-input.disc-location {
@@ -12,10 +13,103 @@
   pointer-events: none;
 }
 
+/* An inline Added or New today badge is taller than the 13px meta text; trimming its margins keeps every row the same height. */
+.disc-meta .kit-badge {
+  vertical-align: middle;
+  margin-block: -3px;
+}
+
+/* The first-run callout sits between the toolbar and the list, so it takes the list's width. */
+.disc-callout {
+  max-inline-size: 100%;
+}
+
+/* ── Rows: why it fits, in one line ── */
+
+/* "Matches Python, FastAPI · Missing Kubernetes": two short runs, each led by a bold word. */
+.disc-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s4);
+  margin: var(--s1) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  overflow-wrap: anywhere;
+}
+
+.disc-reasons strong {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+
+/* "8 of 8 skills" over its pips. */
+.disc-skills {
+  display: grid;
+  justify-items: start;
+  gap: var(--s1);
+  min-width: 7rem;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+}
+
+/* Added: the mint badge, the link to the application and the menu share one line. */
+.disc-row .kit-row__actions {
+  align-items: center;
+  justify-content: flex-end;
+  /* Add and "Open" differ in width; one width keeps the skills column and the buttons in line from row to row. */
+  min-inline-size: 8rem;
+}
+
+/* Phones: stamp and full-width title on top, the skills and Add on the line under it (the dashboard's match row). */
+@container kit-list (max-width: 31.9375rem) {
+  .kit-row.disc-row:has(> .kit-row__actions) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: var(--s3);
+    row-gap: var(--s2);
+  }
+
+  .kit-row.disc-row:has(> .kit-row__actions) > .kit-row__leading {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin-inline-end: 0;
+  }
+
+  .kit-row.disc-row:has(> .kit-row__actions) > .kit-row__body {
+    grid-column: 2 / -1;
+    grid-row: 1;
+  }
+
+  .kit-row.disc-row:has(> .kit-row__actions) > .kit-row__meta {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .kit-row.disc-row > .kit-row__actions {
+    grid-column: 3;
+    grid-row: 2;
+    margin-inline-start: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* No leading stamp (no skills yet): the title and the actions use the full width. */
+  .kit-row.disc-row:not(:has(> .kit-row__leading)):has(> .kit-row__actions) > .kit-row__body {
+    grid-column: 1 / -1;
+  }
+
+  .kit-row.disc-row:not(:has(> .kit-row__leading)):has(> .kit-row__actions) > .kit-row__meta {
+    grid-column: 1;
+  }
+}
+
+/* ── Drawer ── */
+
 /* Listing descriptions are third-party plain text: keep their line breaks. */
 .disc-description {
   max-width: 70ch;
-  color: var(--text-body);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: 1.6;
   white-space: pre-wrap;
@@ -24,9 +118,34 @@
 
 .disc-note {
   display: block;
-  color: var(--text-muted);
+  margin: 0;
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
+}
+
+/* The stamp beside the figure and the pips. */
+.disc-fit__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.disc-fit__text {
+  display: grid;
+  justify-items: start;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.disc-fit__figure {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-title);
+  letter-spacing: var(--ls-title);
 }
 
 /* In the drawer the facts have no hover tint to give them room, so they start at the column edge like the section title

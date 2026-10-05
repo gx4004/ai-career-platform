@@ -1,10 +1,16 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AccountPage } from '#/pages/account-page'
 
 const session = vi.hoisted(() => ({ value: {} as Record<string, unknown> }))
+const resetMock = vi.hoisted(() => vi.fn())
+
+vi.mock('#/lib/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/api/client')>()),
+  requestPasswordReset: resetMock,
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to, ...props }: { children: ReactNode; to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
@@ -35,12 +41,13 @@ function renderPage(overrides: Record<string, unknown>) {
 }
 
 describe('Account page', () => {
-  it('titles the page Account, with the email and name in the hero', () => {
+  it('titles the page Account, with the name and email in the Identity panel and a member-since sticker', () => {
     renderPage({})
     expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeTruthy()
-    // The header does not repeat the name and email; the editable Email field carries them.
-    expect(screen.queryByText('Ada Lovelace')).toBeNull()
-    expect(screen.getByText(/^Member since /)).toBeTruthy()
+    const identity = within(screen.getByRole('region', { name: 'Identity' }))
+    expect(identity.getByText('Ada Lovelace')).toBeTruthy()
+    expect(identity.getByText('ada@example.com')).toBeTruthy()
+    expect(identity.getByText(/^Member since /)).toBeTruthy()
   })
 
   it('omits the member-since chip when the date is missing', () => {
@@ -71,6 +78,22 @@ describe('Account page', () => {
   it('shows the member-since date with its year', () => {
     renderPage({})
     expect(screen.getByText(/^Member since .*2026$/)).toBeTruthy()
+  })
+
+  it('emails a password reset link to the account address', async () => {
+    resetMock.mockResolvedValue({ message: 'ok' })
+    renderPage({})
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a link' }))
+    await waitFor(() => expect(resetMock).toHaveBeenCalledWith({ email: 'ada@example.com' }))
+    expect(await screen.findByText(/a reset link is on its way/)).toBeTruthy()
+  })
+
+  it('has a Your data block with the export and both deletions', () => {
+    renderPage({})
+    const data = within(screen.getByRole('list', { name: 'Your data' }))
+    for (const name of ['Export data', 'Delete profile', 'Delete account']) {
+      expect(data.getByRole('button', { name })).toBeTruthy()
+    }
   })
 
   it('puts Sign out in a row like the settings rows', () => {

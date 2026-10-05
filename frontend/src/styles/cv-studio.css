@@ -28,16 +28,9 @@
   gap: 0;
 }
 
-/* On desktop the bar and the studio share exactly one screen: the panel and the paper scroll inside it. */
-@media (min-width: 1025px) {
-  .kit-page.cvs-page {
-    height: 100svh;
-  }
-}
-
 .cvs-hint {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
 }
@@ -46,290 +39,517 @@
   white-space: pre-wrap;
 }
 
-/* ── Header bar: name and state on the left, actions on the right ── */
+/* ── Top bar: name and state on the left, actions on the right ── */
 
 .cvs-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--surface-raised);
+  gap: var(--s3) var(--s4);
+  padding: var(--s4) var(--s8);
+  border-bottom: var(--bw) solid var(--ink);
+  background: var(--surface);
 }
 
 .cvs-bar__doc {
   display: flex;
-  flex: 1 1 24rem;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-4);
+  gap: var(--s2) var(--s4);
   min-width: 0;
 }
 
-.kit-input.cvs-bar__name {
-  flex: 1 1 12rem;
-  max-width: 20rem;
+/* The name is a headline you can type in: display type on the ground, an ink outline on hover and focus. */
+.cvs-bar .kit-input.cvs-bar__name {
+  --kit-control-h: 3rem;
+  --kit-control-bg: var(--ground);
+
+  flex: 0 1 16.25rem;
+  width: 16.25rem;
+  max-width: 100%;
+  border-color: transparent;
 }
 
-@media (max-width: 767px) {
-  .kit-input.cvs-bar__name {
-    max-width: none;
+.cvs-bar .kit-input.cvs-bar__name .kit-input__control {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: var(--fw-black);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+@media (hover: hover) {
+  .cvs-bar .kit-input.cvs-bar__name:hover {
+    border-color: var(--ink);
   }
+}
+
+.cvs-save-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.cvs-save {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  border-radius: var(--r-xs);
+  font-size: 0.875rem;
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+}
+
+.cvs-save:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--s1);
+}
+
+.cvs-save__text {
+  white-space: nowrap;
+}
+
+.cvs-save__disc {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.cvs-save__disc > svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  stroke-width: 3;
+}
+
+.cvs-save[data-state='saving'] .cvs-save__disc {
+  background: var(--stone);
+}
+
+.cvs-save[data-state='error'] .cvs-save__disc {
+  background: var(--rose);
+}
+
+.cvs-save[data-state='conflict'] .cvs-save__disc {
+  background: var(--lemon);
+}
+
+.cvs-save__disc--spin::after {
+  content: '';
+  width: 0.625rem;
+  height: 0.625rem;
+  box-sizing: border-box;
+  border: var(--bw) solid var(--ink);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: kit-spin 900ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cvs-save__disc--spin::after {
+    animation-duration: 2400ms;
+  }
+}
+
+.cvs-bar__template .kit-badge__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cvs-bar__template svg {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 .cvs-bar__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s3);
   min-width: 0;
+  margin-inline-start: auto;
 }
 
-.kit-select.cvs-bar__select {
+.cvs-bar .kit-select.cvs-bar__select {
   width: auto;
   max-width: 14rem;
-}
-
-/* On a phone the CV switcher takes a row of its own, so Tailor, the menu and Export stay one row. */
-@media (max-width: 767px) {
-  .kit-select.cvs-bar__select {
-    width: 100%;
-    max-width: none;
-  }
-
-  .cvs-bar__actions {
-    width: 100%;
-  }
 }
 
 .cvs-notices {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--surface-raised);
+  gap: var(--s2);
+  padding: var(--s4) var(--s8) 0;
+  background: var(--ground);
 }
 
-/* ── Studio: tools (tabs and panel) beside the paper canvas ── */
+/* ── Studio: tools (tabs and panel) beside the desk ── */
 
 .cvs-studio {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--surface-sunken);
+  display: grid;
+  grid-template-columns: clamp(24rem, 28vw, 25rem) minmax(0, 1fr);
+  gap: var(--s7);
+  align-items: start;
+  padding: var(--s7) var(--s8) var(--s8);
+  background: var(--ground);
 }
 
+/* The tools stay in view while the paper scrolls; a long editor scrolls inside the panel. */
 .cvs-side {
+  position: sticky;
+  top: var(--s5);
   min-width: 0;
-  background: var(--surface-raised);
 }
 
-.cvs-side__placeholder {
-  padding-inline: var(--space-4);
+.cvs-side__tabs {
+  display: flex;
+  gap: 2px;
+  padding-inline: var(--s2);
 }
 
-@media (max-width: 1024px) {
-  .cvs-side__rows {
-    display: none;
-  }
+.cvs-side__frame {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.kit-tabs.cvs-tabs {
+  max-height: calc(100svh - 6rem);
+  min-height: 0;
+}
+
+.cvs-tabs > .kit-tabs__list {
+  flex: none;
+  gap: 2px;
+  padding-inline: var(--s2);
+}
+
+/* Four tabs, a count and the failing-checks badge have to fit the column: the folder tabs tighten before they would scroll. */
+.cvs-tabs > .kit-tabs__list .kit-tabs__trigger {
+  padding-inline: var(--s2);
+}
+
+.kit-tabs__panel.cvs-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Inside the panel nothing lifts and nothing casts a shadow: the paper is the loudest object on the screen. */
+.cvs-panel .kit-button {
+  --kit-button-shadow: none;
+  --kit-button-shadow-hover: none;
+  --kit-button-lift: 0px;
+  --kit-button-press: 0px;
+  --kit-button-hover-bg: var(--lemon-soft);
+}
+
+/* A notice in the narrow column lets its action drop under the text. */
+.cvs-panel .kit-notice {
+  flex-wrap: wrap;
+}
+
+.cvs-panel .kit-notice__body {
+  flex: 1 1 12rem;
+}
+
+/* The sheet's panel is bare: the sheet is the frame. */
+.cvs-panel--sheet {
+  padding: 0;
 }
 
 /* The sheet of paper while the CV loads: A4, same width rule as the paper itself. */
 .cvs-paper-skeleton {
   box-sizing: border-box;
   width: 100%;
-  max-width: 210mm;
+  max-width: 740px;
   margin-inline: auto;
   aspect-ratio: 210 / 297;
-  padding: var(--space-8);
+  padding: var(--s8);
   border-radius: 3px;
-  background: var(--surface-raised);
-  box-shadow: 0 0 0 1px var(--border-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-paper);
 }
 
-.kit-tabs.cvs-tabs {
-  flex: 1 1 auto;
-  gap: var(--space-4);
-  min-height: 0;
+/* ── Section rows (Sections tab) ── */
+
+.cvs-outline {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.cvs-tabs > .kit-tabs__list {
-  flex: none;
-  gap: var(--space-4);
-  margin-inline: var(--space-4);
+.cvs-sec {
+  position: relative;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 
-@media (max-width: 400px) {
-  .cvs-tabs > .kit-tabs__list {
-    gap: var(--space-3);
+@media (hover: hover) {
+  .cvs-sec:not([data-open]):hover {
+    background: var(--lemon-soft);
   }
 }
 
-@media (max-width: 340px) {
-  .cvs-tabs > .kit-tabs__list {
-    gap: var(--space-2);
-  }
+.cvs-sec[data-over] {
+  background: var(--lemon-soft);
 }
 
-.kit-tabs__panel.cvs-panel {
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 0 var(--space-4) var(--space-8);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
+.cvs-sec[data-dragging] {
+  opacity: 0.5;
 }
 
-@media (min-width: 1025px) {
-  .cvs-studio {
-    display: grid;
-    grid-template-columns: clamp(20rem, 30vw, 24rem) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .cvs-side {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    border-right: 1px solid var(--border-soft);
-  }
-
-  .cvs-canvas {
-    overflow-y: auto;
-  }
+.cvs-sec:has(.cvs-sec__open:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--s1);
 }
 
-/* ── Canvas: the paper on a darker stage ── */
+.cvs-sec__head {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 3.5rem;
+  padding: var(--s2) var(--s4);
+}
 
-.cvs-canvas {
+.cvs-sec[data-open] .cvs-sec__head {
+  border-bottom: var(--bw) solid var(--ink);
+  border-radius: calc(var(--r-md) - var(--bw)) calc(var(--r-md) - var(--bw)) 0 0;
+  background: var(--lemon-soft);
+}
+
+.cvs-sec__grip {
+  display: inline-flex;
+  color: var(--ink-4);
+  cursor: grab;
+}
+
+.cvs-sec__grip > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cvs-sec__text {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
   min-width: 0;
-  padding: var(--space-4) var(--space-4) var(--space-8);
 }
 
-@media (min-width: 1025px) {
-  .cvs-canvas {
-    padding-inline: var(--space-6);
-  }
+.cvs-sec__name {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 1.0625rem;
+  font-weight: var(--fw-bold);
+  line-height: 1.25;
+  text-align: start;
+  overflow-wrap: anywhere;
 }
 
-/* On a phone the studio also fills one screen (below the top bar): the paper scrolls inside it and the
-   bar and tools stay in reach. The tab bar sits over the bottom, so the stage runs under it. */
-@media (max-width: 639px) {
-  .kit-page.cvs-page {
-    height: calc(100svh - 3.3125rem);
-  }
-
-  .cvs-canvas {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-block-end: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + var(--space-6));
-  }
+/* The name is the row's whole-row button: its box covers the row, the actions sit above it. */
+.cvs-sec__open {
+  cursor: pointer;
 }
 
-.cvs-canvas__bar {
+.cvs-sec__open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.cvs-sec__open:focus-visible {
+  outline: none;
+}
+
+.cvs-sec__count {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.cvs-sec[data-hidden] .cvs-sec__name {
+  color: var(--ink-3);
+}
+
+.cvs-sec__actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  max-width: 210mm;
-  margin-inline: auto;
+  gap: var(--s1);
 }
 
-.cvs-canvas .cvp {
-  width: 100%;
-  max-width: 210mm;
-  margin-inline: auto;
+/* The controls sit above the name's whole-row hit area. */
+.cvs-sec__actions > .kit-button,
+.cvs-sec__reveal {
+  position: relative;
+  z-index: 1;
 }
 
-/* ── Section editor (inside the panel or the sheet) ── */
+.cvs-sec__reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+/* Move and hide are secondary: shown on hover and while focus is inside the row, always on touch. */
+@media (hover: hover) and (pointer: fine) {
+  .cvs-sec__reveal {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 2.25rem;
+    padding-inline: var(--s2) var(--s1);
+    background: var(--lemon-soft);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-1) var(--ease-out);
+  }
+
+  /* A hidden section keeps its show button in view, so the moves sit one button further in. */
+  .cvs-sec[data-hidden] .cvs-sec__reveal {
+    inset-inline-end: 5.25rem;
+  }
+
+  .cvs-sec:hover .cvs-sec__reveal,
+  .cvs-sec:focus-within .cvs-sec__reveal {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.cvs-sec__chevron {
+  display: inline-flex;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.cvs-sec__chevron > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cvs-sec__editor {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+}
+
+/* On a phone the section's own sheet is the editor: no row around it. */
+@media (pointer: coarse) {
+  .cvs-sec__chevron {
+    display: none;
+  }
+}
+
+.kit-button.cvs-add {
+  --kit-button-bg: transparent;
+  --kit-button-radius: var(--r-md);
+  --kit-button-hover-bg: var(--mint-soft);
+
+  inline-size: 100%;
+  min-height: 3.25rem;
+  border-style: dashed;
+}
+
+/* ── Section editor (inside the open row or the sheet) ── */
+
+.cvs-entry {
+  padding: var(--s3);
+  border: var(--bw) solid var(--line);
+  border-radius: var(--r-md);
+}
 
 .cvs-entry__grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: var(--s3);
 }
 
 .cvs-field--full { grid-column: 1 / -1; }
-.cvs-field--third { grid-column: span 2; }
+.cvs-field--third { grid-column: span 3; }
+.cvs-field--location { grid-column: 1 / -1; }
 
-@media (max-width: 767px) {
-  .cvs-field--third { grid-column: span 3; }
-  .cvs-field--location { grid-column: 1 / -1; }
+.cvs-editor__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
 }
 
 .cvs-bullets {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .cvs-bullet {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--space-1);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cvs-bullet__tools {
   display: flex;
   align-items: center;
+  justify-self: end;
 }
 
-/* Move and remove are secondary: shown on hover and while focus is inside the bullet, always on touch (below the text, so the text keeps its width). */
+/* Move and remove are secondary: they appear over the corner of the text on hover and while focus is inside the bullet, always on touch (below the text). */
 @media (hover: hover) and (pointer: fine) {
   .cvs-bullet__tools {
+    position: absolute;
+    inset-block-start: var(--s1);
+    inset-inline-end: var(--s1);
+    padding-inline-start: var(--s1);
+    background: var(--focus-fill);
+    border-radius: var(--r-xs);
     opacity: 0;
-    transition: var(--transition-colors);
+    pointer-events: none;
+    transition: opacity var(--dur-1) var(--ease-out);
   }
 
   .cvs-bullet:hover .cvs-bullet__tools,
   .cvs-bullet:focus-within .cvs-bullet__tools {
     opacity: 1;
+    pointer-events: auto;
   }
 }
 
-@media (pointer: coarse), (max-width: 767px) {
-  .cvs-bullet {
-    grid-template-columns: minmax(0, 1fr);
-  }
+/* ── ATS check ── */
 
-  .cvs-bullet__tools {
-    justify-self: end;
-  }
+.cvs-check__why {
+  margin-top: var(--s1);
 }
 
-/* Sections list: a quiet chevron says a row opens; clicks on it fall through to the row's link. */
-.cvs-outline .kit-row__actions {
-  pointer-events: none;
-}
-
-.cvs-outline .kit-row__actions > :not(.cvs-row-chevron) {
-  pointer-events: auto;
-}
-
-.cvs-row-chevron {
-  display: inline-flex;
-  color: var(--text-muted);
-  pointer-events: none;
-}
-
-.cvs-row-chevron > svg {
-  width: 1rem;
-  height: 1rem;
+.cvs-check__fixes {
+  margin-top: var(--s2);
 }
 
 /* Loading rows as tall as a check with its two-line fix. */
@@ -337,18 +557,130 @@
   min-height: 3.75rem;
 }
 
-/* ── Versions and dialogs ── */
+/* ── Versions ── */
 
 .cvs-versions__form {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--s2);
 }
 
 .kit-field.cvs-versions__name {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+.cvs-versions {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cvs-version {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3) var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+/* A version made for a job is the thinking colour. */
+.cvs-version[data-tailored] {
+  background: var(--lilac-soft);
+}
+
+.cvs-version__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.cvs-version__name {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: var(--fw-bold);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.cvs-version__diff {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.cvs-version__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+/* ── Desk: the grey stage the paper lies on ── */
+
+.cvs-desk {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: calc(100svh - 8.5rem);
+  padding: var(--s7) var(--s7) var(--s8);
+  border-radius: var(--r-xl);
+  background: var(--desk);
+}
+
+.cvs-desk__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3) var(--s4);
+  width: 100%;
+  max-width: 740px;
+  margin: 0 auto var(--s6);
+}
+
+.cvs-desk .cvs-desk__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 0.875rem;
+  font-weight: var(--fw-bold);
+}
+
+.cvs-desk .cvs-desk__hint > svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+.cvs-desk__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.cvs-desk__page {
+  max-width: 740px;
+  margin-inline: auto;
+}
+
+.cvs-desk .cvp {
+  width: 100%;
+}
+
+/* The paper lies on the desk: a hairline and a soft shadow around the scaled sheet, never on the document itself. */
+.cvs-desk .cvp-frame,
+.cvs-preview .cvp-frame {
+  box-shadow: 0 0 0 1px rgb(var(--shadow-ink) / 0.1), var(--shadow-paper);
+}
+
+/* ── Dialogs ── */
 
 .kit-panel__footer.cvs-tailor__footer {
   align-items: flex-end;
@@ -360,21 +692,300 @@
   min-width: 0;
 }
 
+.cvs-create__body {
+  min-height: 16rem;
+}
+
 .cvs-import__body {
   min-height: 15rem;
 }
 
-.cvs-create__body {
-  min-height: 16rem;
+.cvs-review__head {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--lilac-soft);
+}
+
+.cvs-review__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+}
+
+.cvs-review__wide {
+  grid-column: 1 / -1;
+}
+
+.cvs-review__card {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.cvs-review__cardhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.cvs-review__cardtitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: var(--fw-bold);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.cvs-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
 }
 
 .cvs-pdf-frame {
   display: block;
   width: 100%;
   height: min(60dvh, 44rem);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--desk);
+}
+
+.cvs-preview {
+  padding: var(--s4);
+  border-radius: var(--r-lg);
+  background: var(--desk);
+}
+
+.cvs-preview__error {
+  margin-bottom: var(--s3);
+}
+
+/* ── Export moment: "your CV is ready" ── */
+
+.cvs-moment {
+  position: fixed;
+  right: var(--s6);
+  bottom: calc(var(--s6) + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-toast);
+  width: min(28rem, calc(100vw - var(--s4) * 2));
+  /* The hard shadow sits outside the box. */
+  padding: 0 var(--s2) var(--s2) 0;
+  pointer-events: none;
+}
+
+.cvs-moment[data-raised] {
+  top: var(--s6);
+  bottom: auto;
+}
+
+.cvs-moment__card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s4);
+  pointer-events: auto;
+}
+
+.cvs-moment__seal {
+  margin: 0;
+}
+
+.cvs-moment__text {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.cvs-moment__text > p {
+  margin: 0;
+}
+
+.cvs-moment__title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: var(--fw-black);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.cvs-moment__file {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.cvs-moment__facts {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.cvs-moment__actions {
+  margin-top: var(--s2);
+}
+
+.cvs-moment__close {
+  align-self: start;
+}
+
+/* Narrow desktops give the paper the room: tighter gutters, and the template's name (also in the Design tab) steps aside. */
+@media (min-width: 1025px) and (max-width: 1239px) {
+  .cvs-bar,
+  .cvs-notices {
+    padding-inline: var(--s5);
+  }
+
+  .cvs-studio {
+    gap: var(--s5);
+    padding-inline: var(--s5);
+  }
+
+  .cvs-desk {
+    padding-inline: var(--s5);
+  }
+
+  .cvs-bar .cvs-bar__template {
+    display: none;
+  }
+}
+
+/* ── Tablet and phone: one column, the tools open in a sheet ── */
+
+@media (max-width: 1024px) {
+  .cvs-bar {
+    padding: var(--s3) var(--s4);
+  }
+
+  .cvs-notices {
+    padding: var(--s3) var(--s4) 0;
+  }
+
+  .cvs-studio {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: stretch;
+    padding: 0;
+  }
+
+  /* The tool tabs stay in reach while the paper scrolls. */
+  .cvs-side {
+    z-index: var(--z-sticky);
+    top: 0;
+    padding: var(--s3) var(--s4) 0;
+    background: var(--ground);
+  }
+
+  .cvs-side__frame {
+    display: none;
+  }
+
+  .cvs-side__tabs {
+    padding-inline: 0;
+  }
+
+  .kit-tabs.cvs-tabs {
+    max-height: none;
+  }
+
+  .cvs-desk {
+    min-height: 0;
+    padding: var(--s4) var(--s4) var(--s8);
+    border-radius: 0;
+  }
+
+  .cvs-desk[data-zoom='read'] .cvs-desk__page {
+    max-width: none;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .cvs-desk[data-zoom='read'] .cvp {
+    width: 46rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .cvs-bar .kit-input.cvs-bar__name {
+    flex: 1 1 10rem;
+    width: auto;
+  }
+
+  .cvs-bar__doc {
+    flex-basis: 100%;
+    flex-wrap: nowrap;
+    gap: var(--s3);
+  }
+
+  .cvs-bar__actions {
+    flex: 1 1 100%;
+    margin-inline-start: 0;
+  }
+
+  .cvs-bar .kit-select.cvs-bar__select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .cvs-review__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The paper is the point on a phone; the template's name is in the Design tab. */
+@media (max-width: 639px) {
+  .cvs-bar .cvs-bar__template {
+    display: none;
+  }
+
+  .cvs-bar .cvs-bar__tailor,
+  .cvs-bar .cvs-bar__export {
+    --kit-button-px: var(--s3);
+
+    flex: 1 1 auto;
+  }
+
+  .cvs-bar .cvs-bar__tailor > svg {
+    display: none;
+  }
+
+  .cvs-side {
+    top: var(--kit-jump-offset, 70px);
+  }
+
+  .cvs-studio {
+    padding-bottom: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s7));
+  }
+
+  .cvs-moment {
+    right: var(--s4);
+    bottom: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s3));
+  }
+
+  .cvs-moment[data-raised] {
+    top: var(--s4);
+    bottom: auto;
+  }
+
+  .cvs-moment__card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .cvs-moment .cvs-moment__close {
+    position: absolute;
+    top: var(--s1);
+    right: var(--s1);
+  }
 }
 
 /* Paper (mirrors the server PDF renderer; see lib/cv-studio/preview.ts) */
@@ -493,46 +1104,67 @@
   color: var(--text-muted);
 }
 
-/* A section on the paper is the way into its editor */
+
+/* A section on the paper is the way into its editor. On-screen chrome only: none of it prints. */
 
 .cvp-section--editable {
   position: relative;
   border-radius: 2pt;
-  outline: 1.5px dashed transparent;
+  outline: 2px dashed transparent;
   outline-offset: 2.5mm;
   cursor: pointer;
-  transition: outline-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+  transition: outline-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
 }
 
-.cvp-section--editable:hover { outline-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-subtle); }
-.cvp-section--editable:focus-visible,
-.cvp-section--editable[aria-pressed='true'] { outline: 2px solid var(--accent); background: var(--accent-subtle); }
+.cvp-section--editable:hover,
+.cvp-section--editable[aria-pressed='true'] {
+  outline-color: var(--tangerine);
+  background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
+}
 
+.cvp-section--editable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
+}
+
+/* The tag sits on the dashed edge, clear of the title rule above. */
 .cvp-section--editable::after {
   content: 'Edit';
   position: absolute;
-  top: -2.5mm;
-  right: -2.5mm;
-  padding: 1pt 6pt;
-  border-radius: 999px;
-  font: 600 8pt/1.4 var(--font-sans);
-  background: var(--accent);
-  color: var(--accent-on);
+  top: -14px;
+  right: 16px;
+  padding: 1pt 7pt;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  color: var(--ink);
+  font: 700 9pt/1.4 var(--font-ui);
   opacity: 0;
-  transform: translateY(-50%);
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .cvp-section--editable:hover::after,
 .cvp-section--editable:focus-visible::after { opacity: 1; }
-.cvp-section--editable[aria-pressed='true']::after { content: 'Editing'; opacity: 1; }
+
+.cvp-section--editable[aria-pressed='true']::after {
+  content: 'Editing';
+  background: var(--tangerine);
+  opacity: 1;
+}
 
 @media print {
+  .cvp-section--editable { outline: none; background: none; }
+  .cvp-section--editable::after { content: none; }
+
   .cvs-bar,
   .cvs-side,
   .cvs-notices,
-  .cvs-canvas__bar { display: none; }
+  .cvs-desk__top,
+  .cvs-moment { display: none; }
 
   .kit-page.cvs-page { height: auto; }
-  .cvs-canvas { padding: 0; overflow: visible; }
+  .cvs-studio { display: block; padding: 0; background: none; }
+  .cvs-desk { min-height: 0; padding: 0; border-radius: 0; background: none; }
+  .cvs-desk__page { max-width: none; }
 }

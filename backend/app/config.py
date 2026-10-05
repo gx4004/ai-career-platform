@@ -30,6 +30,17 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = "development"
 
+    # Connection pool. DB_POOL_SIZE=0 keeps the environment default (20 in
+    # production, 5 otherwise). A request waits at most DB_POOL_TIMEOUT_SECONDS
+    # for a connection, so an exhausted pool fails fast instead of queueing for
+    # 30 s. DB_IDLE_IN_TRANSACTION_TIMEOUT_MS (PostgreSQL only, 0 = off) makes the
+    # server drop a session that sits idle inside a transaction, so a stuck
+    # request cannot pin a connection indefinitely; keep it above the LLM timeout.
+    DB_POOL_SIZE: int = Field(default=0, ge=0)
+    DB_MAX_OVERFLOW: int = Field(default=10, ge=0)
+    DB_POOL_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0)
+    DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int = Field(default=0, ge=0)
+
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True
     # Entry bound for the in-process result cache (LRU eviction at the bound).
@@ -40,6 +51,16 @@ class Settings(BaseSettings):
     # payloads).
     RESULT_CACHE_MAX_ENTRIES: int = Field(default=512, gt=0)
     BLENDED_SCORING_ENABLED: bool = True
+
+    # Model-call backpressure (process-local). At most LLM_MAX_CONCURRENT_CALLS
+    # provider calls are in flight; a call waits up to LLM_QUEUE_WAIT_SECONDS for
+    # a slot, then the request gets a friendly 503 "busy, try again". Not a retry
+    # knob: the documented retry/timeout policy is unchanged.
+    LLM_MAX_CONCURRENT_CALLS: int = Field(default=24, gt=0)
+    LLM_QUEUE_WAIT_SECONDS: float = Field(default=12.0, ge=0)
+    # Circuit breaker for anonymous (guest) model calls per UTC day, per process.
+    # Generous on purpose: it only exists to stop a runaway bill. 0 disables it.
+    ANONYMOUS_LLM_DAILY_LIMIT: int = Field(default=2000, ge=0)
 
     # Recurring employer-ATS ingestion (Greenhouse/Lever/Ashby public job-board
     # APIs, #323). Off by default so the always-on discovery routes never start a

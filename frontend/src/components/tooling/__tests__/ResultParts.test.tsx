@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { Lines, Prose, ReportSection, ResultList, SeverityBadge, sectionId } from '#/components/tooling/ResultParts'
+import { CheckDisc, Lines, Prose, ReportSection, ResultList, SeverityBadge, sectionId, verdictTone } from '#/components/tooling/ResultParts'
 
 describe('ResultParts', () => {
   it('renders one list for every report: number, title, detail, status', () => {
@@ -31,8 +31,28 @@ describe('ResultParts', () => {
       </>,
     )
     expect(screen.getByText('High').closest('.kit-badge')?.getAttribute('data-tone')).toBe('danger')
-    expect(screen.getByText('Low').closest('.kit-badge')?.getAttribute('data-tone')).toBe('neutral')
+    expect(screen.getByText('Low').closest('.kit-badge')?.getAttribute('data-tone')).toBe('lilac')
     expect(screen.getByText('Medium').closest('.kit-badge')?.getAttribute('data-tone')).toBe('warning')
+    expect(screen.getByText('High').closest('.kit-badge')?.getAttribute('data-severity')).toBe('high')
+  })
+
+  it('draws severity white on a lemon sticker, where a lemon badge would vanish', () => {
+    render(<SeverityBadge level="medium" onSticker />)
+    expect(screen.getByText('Medium').closest('.kit-badge')?.getAttribute('data-tone')).toBe('white')
+  })
+
+  it('colours a verdict by meaning: the words first, then the score', () => {
+    expect(verdictTone('Strong foundation', 77)).toBe('mint')
+    expect(verdictTone('borderline', 90)).toBe('lemon')
+    expect(verdictTone('stretch', 90)).toBe('rose')
+    expect(verdictTone('Promising but uneven', 82)).toBe('mint')
+    expect(verdictTone('Promising but uneven', 40)).toBe('rose')
+    expect(verdictTone('Something unknown')).toBe('white')
+  })
+
+  it('puts a tick in front of a row instead of its number', () => {
+    const { container } = render(<ResultList label="Strengths" items={[{ key: 'a', title: 'Clear', leading: <CheckDisc /> }]} />)
+    expect(container.querySelector('.kit-row__leading [data-tone="mint"]')).toBeTruthy()
   })
 
   it('gives a section an id from its title so the contents list can find it', () => {

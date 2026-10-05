@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Button,
@@ -7,17 +7,23 @@ import {
   Notice,
   Page,
   PageHeader,
+  Panel,
+  PanelBody,
   Row,
   RowBody,
+  RowLeading,
   RowMeta,
+  RowSubtitle,
   RowTitle,
   Section,
   Skeleton,
   Stack,
+  ToolTile,
 } from '#/components/kit'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
+import { rememberResume } from '#/components/tooling/sampleResume'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
 import { historyRunHref } from '#/lib/tools/historyToolLabel'
@@ -59,6 +65,8 @@ export function useToolPageState(toolId: ToolId) {
       focusFirstInvalidField()
       return
     }
+    // A resume pasted or carried in (not only an uploaded one) stays available to Evidence Profile import and the other tools.
+    rememberResume(String(draft.resumeText ?? ''))
     mutation.mutate({
       payload: config.buildPayload(draft),
       draft,
@@ -82,6 +90,31 @@ export function useToolPageState(toolId: ToolId) {
   }
 }
 
+/** The input form's height at submit, per tool: the working panel takes the same room, so the page does not jump while a run is in flight. */
+const formHeights: Partial<Record<ToolId, number>> = {}
+
+/** "Re-generating with your feedback" when this page was opened from a result's Re-generate. Read after mount: the server render has no query string. */
+function RegenerateNote() {
+  const [note, setNote] = useState<{ feedback: string | null } | null>(null)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.get('parent_run_id')) return
+    setNote({ feedback: params.get('feedback')?.trim() || null })
+  }, [])
+  if (!note) return null
+  return (
+    <Notice>
+      {note.feedback ? (
+        <>
+          Re-generating with your feedback: <strong>{note.feedback}</strong>
+        </>
+      ) : (
+        'Re-generating from an earlier run. Change anything below, then run it again.'
+      )}
+    </Notice>
+  )
+}
+
 export function ToolPageShell({
   toolId,
   children,
@@ -93,9 +126,16 @@ export function ToolPageShell({
 
   return (
     <Page width="narrow">
-      <PageHeader title={tool.label} lead={tool.summary} />
-      <GuestSaveBanner />
-      <WorkflowHandoffBanner toolId={toolId} />
+      <PageHeader
+        title={tool.label}
+        lead={tool.summary}
+        mark={<ToolTile tone={tool.tone} icon={tool.icon} size="lg" />}
+      />
+      <div className="tool-notices">
+        <GuestSaveBanner />
+        <WorkflowHandoffBanner toolId={toolId} />
+        <RegenerateNote />
+      </div>
       {children}
       <RecentToolRuns toolId={toolId} />
     </Page>
@@ -127,8 +167,16 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
             items.map((item) => {
               const href = historyRunHref(item)
               const label = item.label || 'Untitled run'
+              // Two runs can carry the same label: say what each one was about (role and company, or its headline).
+              const about =
+                [item.workspace?.role, item.workspace?.company].filter(Boolean).join(' at ') ||
+                item.metadata?.summary_headline ||
+                ''
               return (
-                <Row key={item.id}>
+                <Row key={item.id} overflow="truncate">
+                  <RowLeading>
+                    <ToolTile tone={tools[toolId].tone} icon={tools[toolId].icon} size="sm" />
+                  </RowLeading>
                   <RowBody>
                     {href ? (
                       <RowTitle asChild>
@@ -137,6 +185,7 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
                     ) : (
                       <RowTitle>{label}</RowTitle>
                     )}
+                    {about ? <RowSubtitle>{about}</RowSubtitle> : null}
                   </RowBody>
                   <RowMeta>{formatRunDate(item.created_at)}</RowMeta>
                 </Row>
@@ -149,6 +198,7 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
   )
 }
 
+/** The working panel: takes the form's footprint (same Panel, same height) while a run is in flight. */
 export function ToolPageLoading({
   toolId,
   mutationDone,
@@ -161,21 +211,25 @@ export function ToolPageLoading({
   onReady?: () => void
 }) {
   const { status } = useSession()
+  const height = formHeights[toolId]
 
   return (
-    <div className="tool-loading">
-      <CinematicLoader
-        toolId={toolId}
-        mutationDone={mutationDone}
-        onReady={onReady}
-        accessMode={status === 'authenticated' ? 'authenticated' : 'guest_demo'}
-      />
-    </div>
+    <Panel className="tool-loading" style={height ? { minBlockSize: `${Math.round(height)}px` } : undefined}>
+      <PanelBody className="tool-loading__body">
+        <CinematicLoader
+          toolId={toolId}
+          mutationDone={mutationDone}
+          onReady={onReady}
+          accessMode={status === 'authenticated' ? 'authenticated' : 'guest_demo'}
+        />
+      </PanelBody>
+    </Panel>
   )
 }
 
-/** The input form: its fields, then the run error (if any) and the one submit button. */
+/** The input form: one white Panel with its fields, then the run error (if any) and the one submit button. */
 export function ToolForm({
+  toolId,
   label,
   onSubmit,
   submitLabel,
@@ -183,6 +237,7 @@ export function ToolForm({
   pending,
   children,
 }: {
+  toolId: ToolId
   label: string
   onSubmit: () => void
   submitLabel: string
@@ -195,22 +250,25 @@ export function ToolForm({
       aria-label={label}
       onSubmit={(event) => {
         event.preventDefault()
+        formHeights[toolId] = event.currentTarget.getBoundingClientRect().height
         onSubmit()
       }}
     >
-      <Stack gap={6}>
-        {children}
-        <Stack gap={3}>
-          {error ? (
-            <Notice tone="danger">{error instanceof Error ? error.message : 'This run failed.'}</Notice>
-          ) : null}
-          <div>
-            <Button type="submit" loading={pending}>
-              {submitLabel}
-            </Button>
-          </div>
-        </Stack>
-      </Stack>
+      <Panel>
+        <PanelBody className="tool-form">
+          {children}
+          <Stack gap={3}>
+            {error ? (
+              <Notice tone="danger">{error instanceof Error ? error.message : 'This run failed.'}</Notice>
+            ) : null}
+            <div>
+              <Button type="submit" size="lg" loading={pending}>
+                {submitLabel}
+              </Button>
+            </div>
+          </Stack>
+        </PanelBody>
+      </Panel>
     </form>
   )
 }

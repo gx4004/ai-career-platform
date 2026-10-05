@@ -98,6 +98,54 @@ LISTINGS = [
      "to offer."),
 ]
 
+# A second paragraph per listing (what the job asks for and offers), so the
+# drawer reads like a real posting and fit has more than one keyword to rest on.
+DETAILS = {
+    "Senior Backend Engineer, Platform": "You bring five or more years of backend work, "
+    "strong Python, solid SQL and a habit of writing tests first. Experience with Redis "
+    "or Kafka is welcome. We offer a four-day week, a learning budget and remote-friendly hours.",
+    "Staff Data Engineer": "You have run Python and SQL pipelines in production and enjoy "
+    "mentoring. Airflow, dbt or Spark experience helps. We offer a hybrid week in Berlin "
+    "and a clear path to principal.",
+    "Backend Engineer, Payments": "You write clear Python, care about idempotency and "
+    "reconciliation, and are comfortable on call. Docker and AWS are part of the daily work.",
+    "Product Designer": "You have shipped a design system, can run a usability study in a "
+    "week and write about your decisions. Experience with data-heavy dashboards is a plus.",
+    "Engineering Manager, Core Services": "You have managed engineers for two or more years, "
+    "stay close to the code and give direct feedback. Experience with Python, AWS and "
+    "incident reviews is expected.",
+    "Platform Engineer": "You have run Kubernetes in production, written Terraform modules "
+    "and cut deploy times. Python or Go scripting, Prometheus and Grafana are a plus.",
+    "Senior Frontend Engineer": "You have shipped React and TypeScript at scale, test with "
+    "Jest and Playwright, and treat accessibility as a requirement, not a polish step.",
+    "Data Analyst": "You are fluent in SQL, can explain a result to a non-technical "
+    "colleague and have used Tableau, Looker or Metabase. Python and statistics help.",
+    "Site Reliability Engineer": "You have carried a pager, written post-mortems and "
+    "automated away toil with Python or Go. Terraform, Prometheus and AWS experience is expected.",
+    "Python Developer, Integrations": "You have built REST integrations, handled retries and "
+    "rate limits, and write tests with pytest. Docker and PostgreSQL experience is a plus.",
+    "Account Executive, Mid-Market": "You have carried a quota, can multi-thread a deal and "
+    "keep clean notes in Salesforce. Experience selling to engineering teams is a plus.",
+    "Machine Learning Engineer": "You have deployed models behind an API, measured them "
+    "online and fixed data quality issues. PyTorch, Python, SQL and Docker are daily tools.",
+    "Backend Engineer, Inference": "You have profiled latency, tuned queues and written "
+    "Python or Go services that stay up under load. Docker, Kubernetes and AWS experience helps.",
+    "Technical Writer": "You have documented an API or developer tool, can read code and "
+    "keep docs in Git next to it. Experience with OpenAPI and Markdown tooling is a plus.",
+    "Full-Stack Engineer": "You like owning a feature from the database to the browser, "
+    "write tests at every layer and review code kindly. React, TypeScript and Python are daily tools.",
+    "Customer Success Manager": "You have managed a book of accounts, spotted churn early "
+    "and partnered with product. Experience in B2B SaaS is a plus.",
+    "Security Engineer": "You have run a cloud security review, written detection rules and "
+    "led an incident. Python scripting, Terraform and CI/CD security checks are expected.",
+    "DevOps Engineer": "You have owned a deployment pipeline end to end, written Terraform "
+    "and cut build times. Python scripting, Kubernetes and Prometheus experience is a plus.",
+    "Head of Product": "You have led product managers, set a roadmap with data and shipped "
+    "in regulated environments. You write clearly and run a calm planning cycle.",
+    "Recruiter, Technical": "You have hired engineers end to end, can read a resume for "
+    "signal and keep candidates informed. Experience with Greenhouse or Lever is a plus.",
+}
+
 SKILLS = [
     "Python, FastAPI, SQLAlchemy",
     "PostgreSQL schema design and migrations",
@@ -145,8 +193,19 @@ def main(argv: list[str]) -> int:
             sources[key] = source
 
         for provider, company, title, department, location, remote, days, description in LISTINGS:
+            description = f"{description} {DETAILS[title]}" if title in DETAILS else description
             digest = hashlib.sha256(f"{title}|{company}|{description}".encode()).hexdigest()
-            if db.query(DiscoveredListing).filter_by(content_sha256=digest).first():
+            existing = (
+                db.query(DiscoveredListing).filter_by(title=title, company=company).first()
+            )
+            if existing is not None:
+                # Re-seeding refreshes the text and the posting date, so the demo
+                # data never goes stale or duplicates.
+                existing.content_sha256 = digest
+                existing.description = description
+                existing.posted_at = now - timedelta(days=days, hours=3)
+                for attribution in existing.attributions:
+                    attribution.retrieved_at = now
                 continue
             listing = DiscoveredListing(
                 content_sha256=digest,
@@ -172,7 +231,13 @@ def main(argv: list[str]) -> int:
                 )
             )
 
+        known = {
+            item.content.get("name")
+            for item in db.query(EvidenceItem).filter_by(user_id=user.id, kind="skill")
+        }
         for skill in SKILLS:
+            if skill in known:
+                continue
             db.add(
                 EvidenceItem(
                     user_id=user.id,

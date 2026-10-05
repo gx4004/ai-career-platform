@@ -1,4 +1,8 @@
-/* Public pages: the site header (brand and one way out) shared by sign-in and the legal pages, and the legal pages' one reading column. */
+/*
+ * Public pages (Sticker): the site header (brand and one way out) shared by sign-in and the legal pages,
+ * and the legal pages' reading column with its sticky contents rail. Not-found and error pages share the
+ * seal-and-copy layout at the end of the file.
+ */
 
 .site-header {
   display: flex;
@@ -14,8 +18,8 @@
   flex: none;
   align-items: center;
   min-height: var(--touch-target);
-  border-radius: var(--radius-md);
-  color: var(--text-strong);
+  border-radius: var(--r-md);
+  color: var(--ink);
   text-decoration: none;
 }
 
@@ -31,16 +35,31 @@
   min-width: 0;
 }
 
+/* One short action: keep it on one line so the brand beside it never pushes it into two (below 360px there is no room, it wraps). */
+@media (min-width: 360px) {
+  .site-header__actions .kit-button {
+    white-space: nowrap;
+  }
+}
+
 /* ── Legal pages ───────────────────────────────────────────────────── */
 
 .legal-page {
-  --legal-measure: 42rem;
+  --legal-measure: 46rem;
+  --legal-rail: 14.5rem;
+  --legal-scroll-offset: 72px; /* the kit's jump-nav contract: targets clear the sticky bar */
+  --kit-jump-offset: 0px; /* no app bar above the contents strip on a phone */
 
   display: flex;
   flex-direction: column;
   min-height: 100svh;
-  background: var(--background);
-  color: var(--text-body);
+  background: var(--ground);
+  color: var(--ink);
+}
+
+/* The cookie notice is fixed to the viewport: leave room under the page so it never covers the foot links. */
+html:has(.cookie-banner) .legal-page {
+  padding-bottom: 8rem;
 }
 
 .legal-page__main {
@@ -50,31 +69,78 @@
   padding: var(--space-8) var(--space-page-x) var(--space-16);
 }
 
-/* One column for the title rule, the paragraphs, the table and the footer links, so every edge lines up. */
+/* One column of text; with a contents rail the rail takes the first track on wide screens. */
+.legal-page__layout {
+  display: grid;
+  grid-template-columns: minmax(0, var(--legal-measure));
+  gap: var(--s5) var(--s9);
+  justify-content: center;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+/* One column for the title, the paragraphs, the table and the footer links, so every edge lines up. */
 .legal-page__article {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
   inline-size: 100%;
-  max-inline-size: var(--legal-measure);
   min-inline-size: 0;
+}
+
+/* Contents: a flat strip on small screens (the kit's jump nav scrolls it sideways); a sticky column from 1024px. */
+.legal-page__contents {
+  min-inline-size: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+@media (min-width: 1024px) {
+  .legal-page__layout[data-rail='true'] {
+    grid-template-columns: var(--legal-rail) minmax(0, var(--legal-measure));
+    align-items: start;
+  }
+
+  .legal-page__contents.kit-jump-nav {
+    flex-direction: column;
+    align-items: stretch;
+    align-self: start;
+    gap: var(--s1);
+    padding: var(--s2) 0;
+    border-block-end: 0;
+    background: none;
+    overflow: visible;
+  }
+
+  .legal-page__contents.kit-jump-nav[data-sticky='true'] {
+    top: var(--s6);
+  }
+
+  .legal-page__contents .kit-jump-nav__link {
+    flex: none;
+    white-space: normal;
+    line-height: 1.25;
+    padding-block: var(--s2);
+  }
 }
 
 .legal-page__body {
   font-size: var(--fs-body);
   line-height: 1.65;
-  color: var(--text-body);
+  color: var(--ink);
   text-wrap: pretty;
 }
 
 .legal-page__body h2 {
-  margin: var(--space-8) 0 var(--space-2);
-  color: var(--text-strong);
+  margin: var(--s9) 0 var(--space-2);
+  color: var(--ink);
+  font-family: var(--font-display);
   font-size: var(--fs-section);
-  font-weight: var(--fw-semibold);
-  line-height: 1.35;
-  letter-spacing: 0;
-  scroll-margin-top: var(--space-16);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-section);
+  letter-spacing: var(--ls-section);
+  text-wrap: balance;
+  scroll-margin-top: var(--legal-scroll-offset);
 }
 
 .legal-page__body h2:first-child {
@@ -83,11 +149,13 @@
 
 .legal-page__body h3 {
   margin: var(--space-6) 0 var(--space-2);
-  color: var(--text-strong);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0;
-  scroll-margin-top: var(--space-16);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-title);
+  letter-spacing: var(--ls-title);
+  scroll-margin-top: var(--legal-scroll-offset);
 }
 
 .legal-page__body p {
@@ -101,22 +169,22 @@
 }
 
 .legal-page__body li {
-  margin-block-end: var(--space-2);
+  margin-block-end: calc(var(--space-1) * 1.5);
 }
 
 .legal-page__body li::marker {
-  color: var(--text-faint);
+  color: var(--ink);
 }
 
 .legal-page__body strong {
-  color: var(--text-strong);
-  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
 .legal-page__body code {
   padding: 0.0625rem 0.25rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
+  border-radius: var(--r-xs);
+  background: var(--stone);
   font-family: var(--font-mono);
   font-size: var(--fs-meta);
   font-variant-ligatures: none;
@@ -127,49 +195,97 @@
   margin-block-end: var(--space-4);
 }
 
+.legal-page__body a,
 .legal-page__link {
-  color: var(--accent);
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
 }
 
-.legal-page__link:hover {
-  color: var(--accent-hover);
+@media (hover: hover) {
+  .legal-page__body a:hover,
+  .legal-page__link:hover {
+    background: var(--lemon);
+    text-decoration-color: transparent;
+  }
+}
+
+.legal-page__body a:focus-visible {
+  border-radius: var(--r-xs);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
 }
 
 /* The other legal pages, once, at the foot of the column. */
 .legal-page__nav {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-5);
+  gap: var(--space-1) var(--space-6);
   padding-block-start: var(--space-4);
-  border-block-start: 1px solid var(--border-soft);
+  border-block-start: var(--bw) solid var(--line);
 }
 
-.legal-page__nav-link {
-  display: inline-flex;
+/* ── Not found and error pages: a seal beside the copy, then search and the tools. ── */
+
+.state-page {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  min-height: var(--touch-target);
-  color: var(--text-muted);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  text-decoration: none;
-  transition: var(--transition-colors);
+  gap: var(--s9);
+  padding-block: var(--s6) var(--s4);
 }
 
-.legal-page__nav-link:hover,
-.legal-page__nav-link[aria-current='page'] {
-  color: var(--accent);
+/* The copy is the open half of the ErrorState: no frame, display title, lead-size sentence. */
+.kit-empty.state-page__copy {
+  gap: var(--s3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
-.legal-page__nav-link:focus-visible {
-  border-radius: var(--radius-sm);
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+.state-page__copy .kit-empty__title {
+  max-width: 16ch;
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
 }
 
-/* ── Not found: the tool list keeps a reading measure instead of running the whole page width. ── */
+.state-page__copy .kit-empty__text {
+  max-width: 34rem;
+  color: var(--ink-2);
+  font-size: var(--fs-title);
+  line-height: 1.45;
+}
+
+.state-page__copy .kit-error__actions {
+  margin-block-start: var(--s3);
+}
+
+.state-page .kit-seal {
+  margin-inline-start: var(--s2);
+}
+
+.not-found-search {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  justify-content: flex-start;
+  margin-block: var(--s6) var(--s2);
+}
+
+.not-found-search__kbd {
+  margin-inline-start: auto;
+}
 
 .not-found-tools {
   max-inline-size: 40rem;
+}
+
+@media (max-width: 860px) {
+  .state-page {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s6);
+  }
 }

@@ -8,6 +8,7 @@ import { clearTransientResults, setTransientResult } from '#/lib/tools/demoRuns'
 const getHistoryItemMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
+const setFavoriteMock = vi.hoisted(() => vi.fn())
 let sessionStatus: 'guest' | 'authenticated' = 'authenticated'
 
 vi.mock('@tanstack/react-router', async (importOriginal) => {
@@ -27,7 +28,7 @@ vi.mock('#/lib/telemetry/client', () => ({ trackTelemetry: vi.fn() }))
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
   getHistoryItem: getHistoryItemMock,
-  setHistoryFavorite: vi.fn(),
+  setHistoryFavorite: setFavoriteMock,
 }))
 
 function renderScreen(historyId: string, toolId: 'resume' | 'job-match' = 'resume') {
@@ -57,6 +58,11 @@ const savedRun = {
     top_actions: [{ title: 'Add metrics', action: 'Quantify two bullets.', priority: 'high' }],
     score_breakdown: [{ key: 'impact', label: 'Impact', score: 70 }],
   },
+}
+
+const withExportable = {
+  ...savedRun,
+  result_payload: { ...savedRun.result_payload, exportable_sections: [{ id: 'a', title: 'Summary', body: 'Body text.', items: [] }] },
 }
 
 describe('ToolResultScreen states', () => {
@@ -128,7 +134,7 @@ describe('ToolResultScreen states', () => {
     expect(await screen.findByText('Backend application')).toBeTruthy()
   })
 
-  it('exposes the favorite toggle with a pressed state, and a tooltip-named disabled one for guests', async () => {
+  it('exposes the favorite toggle with a pressed state, and a sign-in prompt for guests', async () => {
     getHistoryItemMock.mockResolvedValue({ ...savedRun, is_favorite: true })
     const { unmount } = renderScreen('run-1')
     const star = await screen.findByRole('button', { name: 'Remove from favorites' })
@@ -139,28 +145,71 @@ describe('ToolResultScreen states', () => {
     const item = setTransientResult('resume', { summary: { headline: 'Guest headline' } })
     renderScreen(item.id)
     const guestStar = await screen.findByRole('button', { name: 'Sign in to favorite this result' })
-    // aria-disabled, not disabled: the star keeps its focus stop and its name.
-    expect(guestStar.getAttribute('aria-disabled')).toBe('true')
-    await waitFor(() => expect(screen.getByText('Guest demo')).toBeTruthy())
+    expect(guestStar.getAttribute('aria-disabled')).toBeNull()
+    fireEvent.click(guestStar)
+    expect(openAuthDialogMock).toHaveBeenCalledWith(expect.objectContaining({ reason: 'save-demo-result' }))
+    await waitFor(() => expect(screen.getByText('This result is not saved')).toBeTruthy())
   })
 
-  it('keeps the actions after the report in the DOM, so the keyboard order is the visual order', async () => {
+  it('flips the star at once on a saved result read from the server, and keeps it flipped', async () => {
+    getHistoryItemMock.mockResolvedValue(savedRun)
+    setFavoriteMock.mockResolvedValue({})
+    renderScreen('run-1')
+    const star = await screen.findByRole('button', { name: 'Add to favorites' })
+    expect(star.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(star)
+    expect(screen.getByRole('button', { name: 'Remove from favorites' }).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(() => expect(setFavoriteMock).toHaveBeenCalledWith('run-1', true))
+    expect(screen.getByRole('button', { name: 'Remove from favorites' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('puts the star back when the server refuses', async () => {
+    getHistoryItemMock.mockResolvedValue(savedRun)
+    setFavoriteMock.mockRejectedValue(new Error('nope'))
+    renderScreen('run-1')
+    fireEvent.click(await screen.findByRole('button', { name: 'Add to favorites' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add to favorites' }).getAttribute('aria-pressed')).toBe('false'))
+  })
+
+  it('puts the actions in the header, before the report, in reading order', async () => {
     getHistoryItemMock.mockResolvedValue(savedRun)
     renderScreen('run-1')
     const lead = await screen.findByText('A clear headline.')
     const regenerate = screen.getByRole('button', { name: 'Re-generate' })
-    expect(lead.compareDocumentPosition(regenerate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(regenerate.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(regenerate.closest('header')).toBeTruthy()
   })
 
-  it('lays the actions out the same way on every tool: Re-generate and star, then the copy and export row', async () => {
-    getHistoryItemMock.mockResolvedValue(savedRun)
+  it('lays the actions out the same way on every tool: star, copy, export, new input, then the one primary', async () => {
+    getHistoryItemMock.mockResolvedValue(withExportable)
     renderScreen('run-1')
     const regenerate = await screen.findByRole('button', { name: 'Re-generate' })
     expect(regenerate.className).toContain('kit-button--primary')
-    const main = regenerate.closest('.result-actions__main')
-    expect(main?.querySelector('[aria-label="Add to favorites"]')).toBeTruthy()
-    const more = document.querySelector('.result-actions__more')
-    expect(more?.textContent).toContain('Copy')
+    const actions = regenerate.closest('.result-actions')
+    expect(actions?.querySelector('[aria-label="Add to favorites"]')).toBeTruthy()
+    expect(actions?.textContent).toContain('Copy')
+    expect(actions?.textContent).toContain('Export')
+    expect(actions?.querySelectorAll('.kit-button--primary')).toHaveLength(1)
+  })
+
+  it('offers plain text, Markdown and (for letters and interviews) PDF in the export menu', async () => {
+    getHistoryItemMock.mockResolvedValue(withExportable)
+    renderScreen('run-1')
+    const trigger = await screen.findByRole('button', { name: 'Export result' })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    expect(await screen.findByRole('menuitem', { name: 'Plain text (.txt)' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Markdown (.md)' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'PDF' })).toBeNull()
+  })
+
+  it('ends the report with the next tools from the registry and the run summary note', async () => {
+    getHistoryItemMock.mockResolvedValue(savedRun)
+    renderScreen('run-1')
+    await screen.findByText('A clear headline.')
+    const next = screen.getByRole('list', { name: 'What next' })
+    expect(next.textContent).toContain('Compare it to a role')
+    expect(screen.getByText('Directional.')).toBeTruthy()
   })
 
   it('steps Re-generate back to secondary while interview practice mode is open', async () => {

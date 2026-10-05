@@ -44,6 +44,7 @@ from reportlab.platypus import (
 from app.schemas.cv_documents import (
     CV_ACCENT_NAMES,
     CvArtifactEvidence,
+    CvRenderHeader,
     CvRenderModel,
     CvStyle,
     CvStyleCatalog,
@@ -55,7 +56,7 @@ from app.schemas.cv_documents import (
     CvStyleSizes,
 )
 from app.services.cv_fonts import FONT_FAMILIES, css_family, docx_font_name, pdf_font_names
-from app.services.cv_parser import parse_cv_import
+from app.services.cv_parser import lines_from_text, parse_cv, split_sections, title_key
 
 URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']*[^\s<>()\[\]{}\"'.,;:!?]")
 
@@ -253,6 +254,27 @@ def _render_entry(entry: dict) -> dict:
     }
 
 
+def _render_header(document) -> CvRenderHeader:
+    """The header block: the candidate's name (the document's own name only when no
+    name was set), headline and contact details."""
+    raw = getattr(document, "header", None) or {}
+    contact = [
+        value
+        for value in (
+            _clean(raw.get("email")),
+            _clean(raw.get("phone")),
+            _clean(raw.get("location")),
+            *(_clean(link) for link in raw.get("links") or []),
+        )
+        if value
+    ]
+    return CvRenderHeader(
+        title=_clean(raw.get("name")) or document.name.strip(),
+        headline=_clean(raw.get("headline")),
+        contact=contact,
+    )
+
+
 def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderModel:
     effective = resolve_effective_style(template_id, style)
     template = TEMPLATES[effective.layout_template_id]
@@ -271,6 +293,7 @@ def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderMo
     ]
     return CvRenderModel(
         document_name=document.name.strip(),
+        header=_render_header(document),
         template_id=effective.layout_template_id,
         margin_mm=effective.margin_mm,
         tokens={
@@ -352,6 +375,23 @@ def _pdf_styles(model: CvRenderModel) -> dict[str, ParagraphStyle]:
         alignment=TA_CENTER if tokens["title_align"] == "center" else TA_LEFT,
         spaceAfter=10,
     )
+    headline = ParagraphStyle(
+        "headline",
+        fontName=font,
+        fontSize=body_size + 2,
+        leading=body_size + 5,
+        alignment=title.alignment,
+        spaceAfter=2,
+    )
+    contact = ParagraphStyle(
+        "contact",
+        fontName=font,
+        fontSize=max(7, body_size - 1),
+        leading=body_size + 3,
+        textColor=HexColor("#4B5563"),
+        alignment=title.alignment,
+        spaceAfter=2,
+    )
     entry_heading = ParagraphStyle(
         "entry_heading",
         fontName=font_bold,
@@ -375,6 +415,8 @@ def _pdf_styles(model: CvRenderModel) -> dict[str, ParagraphStyle]:
         "heading": heading,
         "body": body,
         "title": title,
+        "headline": headline,
+        "contact": contact,
         "entry_heading": entry_heading,
         "entry_heading_right": entry_heading_right,
         "entry_meta": entry_meta,
@@ -431,6 +473,24 @@ def _split_sidebar(sections, sidebar_kinds) -> tuple[list, list]:
     return side, main
 
 
+def _pdf_header(model: CvRenderModel, styles: dict[str, ParagraphStyle]) -> list:
+    header = model.header
+    has_detail = bool(header.headline or header.contact)
+    title = ParagraphStyle("title_tight", parent=styles["title"], spaceAfter=3 if has_detail else 10)
+    flow: list = [Paragraph(escape(header.title), title)]
+    if header.headline:
+        flow.append(Paragraph(escape(header.headline), styles["headline"]))
+    if header.contact:
+        # A narrow sidebar column cannot hold one long line: stack the items there.
+        separator = "<br/>" if model.tokens["two_column"] else " | "
+        flow.append(
+            Paragraph(separator.join(_markup(item) for item in header.contact), styles["contact"])
+        )
+    if has_detail:
+        flow.append(Spacer(1, 8))
+    return flow
+
+
 def render_pdf(model: CvRenderModel) -> bytes:
     page_w, page_h = A4
     m = model.margin_mm * mm
@@ -465,7 +525,7 @@ def render_pdf(model: CvRenderModel) -> bytes:
     doc.addPageTemplates([PageTemplate(id="cv", frames=frames)])
     styles = _pdf_styles(model)
     section_gap = int(model.tokens["section_gap_pt"])
-    story: list = [Paragraph(escape(model.document_name), styles["title"])]
+    story: list = _pdf_header(model, styles)
     for index, (sections, width) in enumerate(columns):
         if index:
             story.append(FrameBreak())
@@ -496,13 +556,25 @@ def render_docx(model: CvRenderModel) -> bytes:
     normal = doc.styles["Normal"]
     normal.font.name = font
     normal.font.size = Pt(body_size)
+    alignment = 1 if tokens["title_align"] == "center" else 0
     title = doc.add_paragraph()
-    title.alignment = 1 if tokens["title_align"] == "center" else 0
-    run = title.add_run(model.document_name)
+    title.alignment = alignment
+    run = title.add_run(model.header.title)
     run.bold = True
     run.font.name = font
     run.font.size = Pt(heading_size + 6)
     run.font.color.rgb = accent
+    if model.header.headline:
+        headline = doc.add_paragraph()
+        headline.alignment = alignment
+        _add_run(headline, model.header.headline, font)
+    if model.header.contact:
+        contact = doc.add_paragraph()
+        contact.alignment = alignment
+        for index, item in enumerate(model.header.contact):
+            if index:
+                _add_run(contact, " | ", font)
+            _add_linked_text(contact, item, font)
     # A4 width in inches minus margins, for the right-aligned date tab stop.
     content_width_in = 8.27 - 2 * model.margin_mm / 25.4
     for rendered_section in model.sections:
@@ -555,12 +627,16 @@ def _add_docx_entry(doc, entry, font: str, content_width_in: float) -> None:
     if entry.paragraph:
         p = doc.add_paragraph()
         p.paragraph_format.keep_together = True
-        cursor = 0
-        for match in URL_RE.finditer(entry.paragraph):
-            _add_run(p, entry.paragraph[cursor : match.start()], font)
-            _add_hyperlink(p, match.group())
-            cursor = match.end()
-        _add_run(p, entry.paragraph[cursor:], font)
+        _add_linked_text(p, entry.paragraph, font)
+
+
+def _add_linked_text(paragraph, text: str, font: str) -> None:
+    cursor = 0
+    for match in URL_RE.finditer(text):
+        _add_run(paragraph, text[cursor : match.start()], font)
+        _add_hyperlink(paragraph, match.group())
+        cursor = match.end()
+    _add_run(paragraph, text[cursor:], font)
 
 
 def _add_hyperlink(paragraph, url: str) -> None:
@@ -582,11 +658,14 @@ def _add_hyperlink(paragraph, url: str) -> None:
     paragraph._p.append(hyperlink)
 
 
-_BULLET_MARKER_RE = re.compile(r"^[•◦\-*]\s*")
-
-
 def _normalize_text(value: str) -> str:
     return " ".join(str(value).split())
+
+
+def _letters_only(value: str) -> str:
+    """Text reduced to its letters and digits: separators, bullets and spacing differ
+    between the model and the re-read PDF without changing what is written."""
+    return re.sub(r"[\W_]+", "", str(value)).casefold()
 
 
 def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
@@ -594,39 +673,31 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
     order, links are real, and every section shares a page with its first entry."""
     import fitz
 
-    parsed = parse_cv_import(pdf, "cv.pdf", "pdf")
+    # The read-back uses the section titles the CV itself has, so a renamed
+    # section ("Selected Work") is still found as one.
+    extracted = parse_cv(pdf, "cv.pdf", "pdf").extracted_text
+    vocabulary = {title_key(section.title): section.kind for section in model.sections}
+    # Whatever sits above the first section is the header (name, headline, contact).
+    _, grouped = split_sections(lines_from_text(extracted), vocabulary, keep_empty=True)
     # A structured entry renders as several lines (heading, location, one per
-    # bullet); own-parser re-import produces one entry per rendered line, so
-    # comparing per-section joined text (rather than an exact per-entry list)
-    # is what stays stable across both freeform and structured entries (#322).
+    # bullet), so sections are compared as the text they hold, not entry by entry (#322).
     expected_structure = [
         (
             section.kind,
-            section.title,
-            _normalize_text(
+            title_key(section.title),
+            _letters_only(
                 " ".join(line for entry in section.entries for line in entry_render_lines(entry))
             ),
         )
         for section in model.sections
     ]
-    # The PDF's "&bull;" glyph is extracted as a literal character; drop it so
-    # it never changes the content comparison.
     actual_structure = [
-        (
-            section.kind,
-            section.title,
-            _normalize_text(
-                " ".join(_BULLET_MARKER_RE.sub("", entry.body) for entry in section.entries)
-            ),
-        )
-        for section in parsed.sections
+        (kind, title_key(title), _letters_only(" ".join(line.text for line in lines)))
+        for kind, title, lines in grouped
     ]
-    if actual_structure and actual_structure[0][2] == _normalize_text(model.document_name):
-        actual_structure = actual_structure[1:]
     links = [
         link for section in model.sections for entry in section.entries for link in entry.links
     ]
-    extracted = "\n".join(e.body for s in parsed.sections for e in s.entries)
     with fitz.open(stream=pdf, filetype="pdf") as rendered:
         page_lines = [page.get_text().splitlines() for page in rendered]
         page_text = [" ".join(" ".join(lines).split()) for lines in page_lines]

@@ -125,7 +125,7 @@ def persist_tool_run(
         tool_name=tool_name,
         parent_run_id=parent_run_id,
     )
-    linked_ids = _unique_strings(linked_context_ids)
+    linked_ids = _owned_run_ids(db, current_user, _unique_strings(linked_context_ids))
     workspace = resolve_workspace(
         db,
         current_user=current_user,
@@ -152,6 +152,20 @@ def persist_tool_run(
     db.commit()
     db.refresh(run)
     return run
+
+
+def _owned_run_ids(db: Session, current_user: User, ids: list[str]) -> list[str]:
+    """Keep only the caller's own run ids; anything else (another account's, or a
+    run since deleted) is dropped rather than stored as linked context."""
+    if not ids:
+        return ids
+    owned = {
+        row_id
+        for (row_id,) in db.query(ToolRun.id).filter(
+            ToolRun.user_id == current_user.id, ToolRun.id.in_(ids)
+        )
+    }
+    return [item for item in ids if item in owned]
 
 
 def require_valid_parent_run(

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import { AdminDiscoverySourcesPage } from '#/pages/admin/admin-discovery-sources-page'
 
 const getAdminDiscoverySourcesMock = vi.hoisted(() => vi.fn())
@@ -42,7 +43,9 @@ function renderPage(items: Array<Record<string, unknown>>) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <AdminDiscoverySourcesPage />
+      <ToastProvider>
+        <AdminDiscoverySourcesPage />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -84,9 +87,29 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(await screen.findByText('Healthy Board')).toBeTruthy()
     expect(screen.getByText('OK')).toBeTruthy()
     expect(screen.getByText('42 listings')).toBeTruthy()
-    expect(screen.getByText('failed: HTTPStatusError')).toBeTruthy()
+    expect(screen.getByText('Failed').closest('[data-tone]')?.getAttribute('data-tone')).toBe('danger')
+    expect(screen.getByText('OK').closest('[data-tone]')?.getAttribute('data-tone')).toBe('success')
     expect(screen.getByText('7 listings')).toBeTruthy()
     expect(screen.getByText('Never fetched')).toBeTruthy()
+  })
+
+  it('explains a failed fetch in words and keeps the recorded error behind a disclosure', async () => {
+    renderPage([
+      source({
+        last_fetched_at: '2026-09-27T06:00:00Z',
+        last_outcome: 'failed: HTTPStatusError',
+        listing_count: 7,
+      }),
+    ])
+    expect(await screen.findByText('The board answered with an error')).toBeTruthy()
+    expect(screen.queryByText('failed: HTTPStatusError')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Error detail' }))
+    expect(screen.getByText('failed: HTTPStatusError')).toBeTruthy()
+  })
+
+  it('says when a source has no listing count yet', async () => {
+    renderPage([source({ last_fetched_at: '2026-09-27T06:00:00Z', last_outcome: 'ok', listing_count: null })])
+    expect(await screen.findByText('No listing count yet')).toBeTruthy()
   })
 
   it('makes the all-disabled empty state explicit', async () => {

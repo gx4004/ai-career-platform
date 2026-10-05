@@ -1,24 +1,30 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { RefreshCw, Star, Undo2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Copy, Download, RefreshCw, Star, Undo2 } from 'lucide-react'
 import {
   Button,
   Cluster,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   ErrorState,
   KeyValue,
   Lead,
-  MetaRow,
   Notice,
   Page,
   PageHeader,
+  Panel,
+  PanelBody,
   ScoreBar,
+  ScoreSeal,
   Skeleton,
-  Split,
   Stack,
-  Stat,
+  Sticker,
   Textarea,
+  ToolTile,
   Tooltip,
 } from '#/components/kit'
 import { ScoreHelp } from '#/components/tooling/ScoreHelp'
@@ -26,10 +32,12 @@ import { ClaimPromotionSection } from '#/components/profile/ClaimPromotionSectio
 import { formatRunDate, runSubject } from '#/lib/tools/runLabel'
 import { ApiError } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
+import { useRevealOnce } from '#/hooks/use-reveal-once'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useSession } from '#/hooks/useSession'
 import { getTransientResult, isDemoHistoryId } from '#/lib/tools/demoRuns'
-import { writeWorkflowContext } from '#/lib/tools/drafts'
+import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import {
   exportPdf,
   formatExportContent,
@@ -41,7 +49,7 @@ import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext
 import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { trackTelemetry } from '#/lib/telemetry/client'
-import { ResultChromeContext, ResultToc } from './ResultParts'
+import { ResultChromeContext, ResultJumpNav, WhatNext, flushLetterEdits } from './ResultParts'
 import type { ResultSummary } from '#/lib/tools/resultDefinitions'
 
 function downloadTextFile(filename: string, content: string, mimeType = 'text/plain;charset=utf-8') {
@@ -72,8 +80,13 @@ export function ToolResultScreen({
   const [parentRunId, setParentRunId] = useState<string | null>(null)
   const [showUndo, setShowUndo] = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  // The star answers at once; the server's answer settles it (a saved run read from the cache never refetches).
+  const [favoriteOverride, setFavoriteOverride] = useState<{ id: string; value: boolean } | null>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reportRef = useRef<HTMLDivElement | null>(null)
   const queryClient = useQueryClient()
+  const reveal = useRevealOnce(historyId)
+  const breakpoint = useBreakpoint()
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
   const cachedItem = queryClient.getQueryData(['tool-run', historyId]) as ReturnType<typeof getTransientResult> | undefined
   const localItem = demoItem || cachedItem || null
@@ -87,7 +100,7 @@ export function ToolResultScreen({
   const hasLocalData = Boolean(localItem)
 
   // Track when the result page has no local data and must fetch from backend.
-  // This should rarely happen — a cache miss here means the mutation's onSuccess
+  // This should rarely happen: a cache miss here means the mutation's onSuccess
   // failed to populate the cache, or the cache was cleared between navigation.
   useEffect(() => {
     if (!hasLocalData) {
@@ -148,17 +161,23 @@ export function ToolResultScreen({
     const timer = setTimeout(() => setShowUndo(false), 30_000)
 
     let mounted = true
-    getHistoryItem(parentId).then((parent) => {
-      if (!mounted || !parent) return
-      const parentPayload = parent.result_payload ?? parent
-      const pp = parentPayload as Record<string, unknown>
-      const rp = item.result_payload as Record<string, unknown>
-      const parentScore = (pp.overall_score ?? pp.match_score ?? null) as number | null
-      const currentScore = (rp.overall_score ?? rp.match_score ?? null) as number | null
-      if (parentScore != null && currentScore != null) {
-        setScoreDelta(currentScore - parentScore)
-      }
-    })
+    // A guest's earlier run lives in this tab, not on the server.
+    const parentRequest = Promise.resolve(getTransientResult(parentId) ?? (isDemoHistoryId(parentId) ? null : getHistoryItem(parentId)))
+    parentRequest
+      .then((parent) => {
+        if (!mounted || !parent) return
+        const parentPayload = parent.result_payload ?? parent
+        const pp = parentPayload as Record<string, unknown>
+        const rp = item.result_payload as Record<string, unknown>
+        const parentScore = (pp.overall_score ?? pp.match_score ?? null) as number | null
+        const currentScore = (rp.overall_score ?? rp.match_score ?? null) as number | null
+        if (parentScore != null && currentScore != null) {
+          setScoreDelta(currentScore - parentScore)
+        }
+      })
+      .catch(() => {
+        // The earlier run is gone: there is simply no "what moved" line.
+      })
 
     return () => {
       mounted = false
@@ -176,7 +195,7 @@ export function ToolResultScreen({
       query.error instanceof ApiError && query.error.status === 404
 
     return (
-      <Page>
+      <Page className="result-state">
         <ErrorState
           size="page"
           headingLevel={1}
@@ -189,7 +208,7 @@ export function ToolResultScreen({
           }
           description={
             isDemoResult
-              ? 'Run the tool again to regenerate the demo, or sign in to save future runs in your workspace.'
+              ? 'Run the tool again to regenerate the demo, or create a free account to keep future runs in your workspace.'
               : isMissingSavedResult
                 ? 'The saved run may have been deleted or no longer matches the current workspace state.'
                 : 'The saved run is missing, inaccessible, or the backend is offline.'
@@ -206,6 +225,17 @@ export function ToolResultScreen({
               <Button asChild variant="secondary">
                 <Link to={tools[toolId].route}>Run the tool again</Link>
               </Button>
+              {isDemoResult && status !== 'authenticated' ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() =>
+                    openAuthDialog({ to: tools[toolId].route, reason: 'guest-demo-result', label: 'Create account', toolId })
+                  }
+                >
+                  Create a free account
+                </Button>
+              ) : null}
             </>
           }
         />
@@ -215,7 +245,6 @@ export function ToolResultScreen({
 
   const resolvedTool = getToolByHistoryName(item.tool_name) || tools[toolId]
   const definition = resultDefinitions[resolvedTool.id]
-  const guestSignupLabel = 'Sign in'
   const payload = item.result_payload
   const summary =
     payload.summary && typeof payload.summary === 'object'
@@ -242,19 +271,19 @@ export function ToolResultScreen({
   const runDate = item.created_at ? formatRunDate(item.created_at) : ''
   const headline = typeof summary.headline === 'string' ? summary.headline.trim() : ''
   const hasHeadline = headline.length > 0
-  // What the run is about, unless the rail already says it: "Portfolio Roadmap (Backend Engineer)" and
+  // What the run is about, unless the report already says it: "Portfolio Roadmap (Backend Engineer)" and
   // a "Target role: Backend Engineer" fact would print the same words twice.
   const subject = runSubject(item.label, resolvedTool)
-  const subjectInRail = summaryInfo.facts.some(
+  const subjectInFacts = summaryInfo.facts.some(
     (f) => f.value.trim().toLowerCase() === subject.toLowerCase(),
   )
-  const runLabel = subjectInRail ? '' : subject
+  const runLabel = subjectInFacts ? '' : subject
 
   async function handleCopy() {
     await navigator.clipboard.writeText(definition.copyText(payload, item!))
     setCopied(true)
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
-    copyTimeoutRef.current = setTimeout(() => setCopied(false), 1200)
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 1600)
   }
 
   function handleExport(format: 'txt' | 'md') {
@@ -265,7 +294,11 @@ export function ToolResultScreen({
       saved: savedResult,
       export_format: format,
     })
-    if (format === 'md') {
+    // Tools with their own download (Cover Letter) export the on-page, possibly edited, text.
+    const own = definition.download?.(payload, item!, format)
+    if (own) {
+      downloadTextFile(own.filename, own.content, format === 'md' ? 'text/markdown;charset=utf-8' : undefined)
+    } else if (format === 'md') {
       downloadTextFile(
         sanitizeDownloadTitle(downloadTitle, 'md'),
         formatExportContent(exportableSections, 'md'),
@@ -279,331 +312,364 @@ export function ToolResultScreen({
     }
   }
 
+  async function handlePdf() {
+    if (status !== 'authenticated' || !savedResult) {
+      openAuthDialog({ to: resolvedTool.route, reason: 'export-pdf', label: 'Create account', toolId: resolvedTool.id })
+      return
+    }
+    // The letter is saved as you type; wait for the last edit so the PDF is the version on the page.
+    await flushLetterEdits(historyId).catch(() => {})
+    await exportPdf(historyId)
+  }
+
+  const isFavorite = favoriteOverride?.id === item.id ? favoriteOverride.value : Boolean(item.is_favorite)
   const favoriteLabel = savedResult
-    ? item.is_favorite
+    ? isFavorite
       ? 'Remove from favorites'
       : 'Add to favorites'
     : 'Sign in to favorite this result'
   // aria-disabled rather than disabled: the button keeps its focus stop, its name and its tooltip.
-  const favoriteLocked = status !== 'authenticated' || favoriteToggle.isPending
+  const favoriteBusy = favoriteToggle.isPending
   const favoriteButton = (
     <Button
       type="button"
-      iconOnly
       variant="secondary"
-      aria-disabled={favoriteLocked || undefined}
-      data-disabled={favoriteLocked ? 'true' : undefined}
+      size="sm"
+      aria-disabled={favoriteBusy || undefined}
+      data-disabled={favoriteBusy ? 'true' : undefined}
       onClick={() => {
-        if (favoriteLocked) return
-        if (!savedResult) {
+        if (favoriteBusy) return
+        // A guest's click is the sign-up moment: the star offers to keep the result.
+        if (!savedResult || status !== 'authenticated') {
           openAuthDialog({ to: resolvedTool.route, reason: 'save-demo-result', label: 'Sign in to save', toolId: resolvedTool.id })
           return
         }
-        favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
+        const next = !isFavorite
+        setFavoriteOverride({ id: item.id, value: next })
+        favoriteToggle.mutate(
+          { historyId: item.id, isFavorite: next },
+          {
+            onSuccess: () => {
+              queryClient.setQueryData(['tool-run', item.id], (old: unknown) =>
+                old && typeof old === 'object' ? { ...old, is_favorite: next } : old,
+              )
+            },
+            onError: () => setFavoriteOverride(null),
+          },
+        )
       }}
       aria-label={favoriteLabel}
-      aria-pressed={savedResult ? Boolean(item.is_favorite) : undefined}
+      aria-pressed={savedResult ? isFavorite : undefined}
     >
-      <Star fill={item.is_favorite ? 'currentColor' : 'none'} aria-hidden="true" />
+      <Star fill={isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
+      {isFavorite ? 'Starred' : 'Star'}
     </Button>
   )
 
-  const exportButton =
-    exportableSections.length > 0 && !definition.download ? (
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => handleExport('txt')}
-        aria-label="Export result as plain-text file"
-      >
-        Export
-      </Button>
-    ) : definition.download ? (
-      // Tools with their own download (Cover Letter) export the
-      // on-page, possibly edited text rather than the raw payload.
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => {
-          const dl = definition.download?.(payload, item)
-          if (dl) downloadTextFile(dl.filename, dl.content)
-        }}
-        aria-label="Download result"
-      >
-        Download
-      </Button>
-    ) : null
-
-  const pdfButton =
-    (resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview') && status === 'authenticated' && historyId ? (
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => exportPdf(historyId)}
-        title={resolvedTool.id === 'cover-letter' ? 'Export PDF of the generated letter (edits not included)' : 'Export PDF'}
-      >
-        PDF
-      </Button>
+  const hasExport = exportableSections.length > 0 || Boolean(definition.download)
+  const hasPdf = resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview'
+  const exportMenu =
+    hasExport || hasPdf ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="secondary" size="sm" aria-label="Export result">
+            <Download aria-hidden="true" />
+            Export
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {hasExport ? (
+            <>
+              <DropdownMenuItem onSelect={() => handleExport('txt')}>Plain text (.txt)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleExport('md')}>Markdown (.md)</DropdownMenuItem>
+            </>
+          ) : null}
+          {hasPdf ? <DropdownMenuItem onSelect={() => void handlePdf()}>PDF</DropdownMenuItem> : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     ) : null
 
   const actions = (
-    <div className="result-actions">
-      <div className="result-actions__main">
+    <Cluster gap={2} className="result-actions">
+      <Tooltip content={favoriteLabel}>{favoriteButton}</Tooltip>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={handleCopy}
+        aria-label={copied ? 'Copied to clipboard' : 'Copy result to clipboard'}
+      >
+        {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+        {copied ? 'Copied' : 'Copy'}
+      </Button>
+      {exportMenu}
+      {parentRunId && showUndo ? (
         <Button
           type="button"
-          variant={practicing ? 'secondary' : 'primary'}
-          aria-expanded={regenOpen}
-          onClick={() => setRegenOpen((v) => !v)}
+          variant="ghost"
+          size="sm"
+          aria-label="Undo: restore previous result"
+          onClick={() => navigate({ to: resolvedTool.resultRoute.replace('$historyId', parentRunId) })}
         >
-          <RefreshCw aria-hidden="true" />
-          Re-generate
+          <Undo2 aria-hidden="true" />
+          Undo
         </Button>
-        <Tooltip content={favoriteLabel}>{favoriteButton}</Tooltip>
-      </div>
-      {regenOpen ? (
-        <Stack gap={2} role="group" aria-label="Re-generate with feedback">
-          <Textarea
-            autoFocus
-            placeholder="Optional: describe what you'd like changed..."
-            aria-label="Re-generate feedback"
-            value={regenFeedback}
-            onChange={(e) => setRegenFeedback(e.target.value)}
-            rows={3}
-          />
-          <Cluster justify="end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setRegenOpen(false)
-                setRegenFeedback('')
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="button" variant="secondary" size="sm" onClick={handleRegenSubmit}>
-              Submit
-            </Button>
-          </Cluster>
-        </Stack>
       ) : null}
-      <div className="result-actions__more">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={handleCopy}
-          aria-label={copied ? 'Copied to clipboard' : 'Copy result to clipboard'}
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
-        {exportButton}
-        {pdfButton}
-      </div>
-      <Button asChild variant="link" className="tool-link">
+      <Button asChild variant="ghost" size="sm" className="tool-link">
         <Link to={resolvedTool.route}>New input</Link>
       </Button>
-    </div>
+      <Button
+        type="button"
+        variant={practicing ? 'secondary' : 'primary'}
+        aria-expanded={regenOpen}
+        onClick={() => setRegenOpen((v) => !v)}
+      >
+        <RefreshCw aria-hidden="true" />
+        Re-generate
+      </Button>
+    </Cluster>
   )
 
+  const carriesInput = Boolean(readWorkflowContext()?.resumeText)
+
   return (
-    <ResultChromeContext.Provider value={{ setPracticing }}>
+    <ResultChromeContext.Provider value={{ setPracticing, reveal }}>
       <Page>
         <PageHeader
+          mark={<ToolTile tone={resolvedTool.tone} icon={resolvedTool.icon} size="lg" />}
           title={resolvedTool.label}
-          meta={[runLabel, runDate]}
-          actions={
-            parentRunId && showUndo ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate({ to: resolvedTool.resultRoute.replace('$historyId', parentRunId) })}
-              >
-                <Undo2 aria-hidden="true" />
-                Undo — restore previous result
-              </Button>
-            ) : undefined
-          }
+          meta={[runLabel, runDate ? `Result from ${runDate}` : '']}
+          actions={actions}
         />
 
         {guestResult && !bannerDismissed ? (
           <Notice
-            title="Guest demo"
+            title="This result is not saved"
             action={
               status !== 'authenticated' ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    openAuthDialog({
-                      to: resolvedTool.route,
-                      reason: 'guest-demo-result',
-                      label: guestSignupLabel,
-                      toolId: resolvedTool.id,
-                    })
-                  }}
-                >
-                  {guestSignupLabel}
-                </Button>
+                <Cluster gap={2}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      openAuthDialog({
+                        to: resolvedTool.route,
+                        reason: 'guest-demo-result',
+                        label: 'Create account',
+                        toolId: resolvedTool.id,
+                      })
+                    }}
+                  >
+                    Create free account
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      openAuthDialog({
+                        to: resolvedTool.route,
+                        reason: 'guest-demo-result',
+                        label: 'Sign in',
+                        toolId: resolvedTool.id,
+                      })
+                    }}
+                  >
+                    Sign in
+                  </Button>
+                </Cluster>
               ) : undefined
             }
             onDismiss={() => setBannerDismissed(true)}
-          />
+          >
+            Guest demo: it disappears when you close this tab. Create a free account to keep it. Your resume text stays with this browser until then.
+          </Notice>
         ) : null}
 
-        <ResultSplit
-          summary={summaryInfo}
-          toolId={resolvedTool.id}
-          scoreDelta={scoreDelta}
-          actions={actions}
-        >
-          {hasHeadline ? <Lead>{headline}</Lead> : null}
-          <FixFirstList actions={topActions} />
+        {regenOpen ? (
+          <Panel>
+            <PanelBody>
+              <Stack gap={3} role="group" aria-label="Re-generate with feedback">
+                <Textarea
+                  autoFocus
+                  placeholder="Optional: describe what you'd like changed..."
+                  aria-label="Re-generate feedback"
+                  value={regenFeedback}
+                  onChange={(e) => setRegenFeedback(e.target.value)}
+                  rows={3}
+                />
+                <p className="result-note">
+                  {carriesInput
+                    ? 'Your resume and job from this session are filled in on the next screen; your feedback goes with them.'
+                    : 'This run does not keep your resume text. Paste it again on the next screen; your feedback goes with it.'}
+                </p>
+                <Cluster justify="end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setRegenOpen(false)
+                      setRegenFeedback('')
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={handleRegenSubmit}>
+                    Submit
+                  </Button>
+                </Cluster>
+              </Stack>
+            </PanelBody>
+          </Panel>
+        ) : null}
+
+        <ResultJumpNav containerRef={reportRef} />
+
+        <div ref={reportRef} className="result-report">
+          <ResultHero
+            summary={summaryInfo}
+            toolId={resolvedTool.id}
+            tool={resolvedTool}
+            scoreDelta={scoreDelta}
+            reveal={reveal}
+            phone={breakpoint === 'mobile'}
+          >
+            {hasHeadline ? <Lead size="xl">{headline}</Lead> : null}
+            <FixFirstList actions={topActions} />
+          </ResultHero>
           {definition.render(payload, item, resolvedTool)}
           <ClaimPromotionSection
             toolId={resolvedTool.id}
             payload={payload as Record<string, unknown>}
             authenticated={status === 'authenticated'}
           />
-          {summaryInfo.note ? <p className="result-note">{summaryInfo.note}</p> : null}
-        </ResultSplit>
+          <WhatNext tool={resolvedTool} />
+          {summaryInfo.note ? <p className="result-footnote">{summaryInfo.note}</p> : null}
+        </div>
       </Page>
     </ResultChromeContext.Provider>
   )
 }
 
-/** The container width at which the kit's Split puts its rail beside the main column (56rem). */
-const SPLIT_SIDE_BY_SIDE_REM = 56
-
-/** Whether the Split is stacked (narrow): measured on the Split itself, like the kit's own container query. */
-function useStacked(ref: RefObject<HTMLElement | null>) {
-  const [stacked, setStacked] = useState(false)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-    const update = () => setStacked(el.getBoundingClientRect().width < SPLIT_SIDE_BY_SIDE_REM * rem)
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [ref])
-  return stacked
-}
-
-/** The score, a bar for a second ratio, and the run's facts: a rail block beside the report, one quiet line above it when stacked. */
-function ResultSummaryBlock({
-  summary,
-  toolId,
-  scoreDelta,
-  compact,
-}: {
-  summary: ResultSummary
-  toolId: ToolId
-  scoreDelta: number | null
-  compact: boolean
-}) {
-  const hasBars = summary.bars && summary.bars.length > 0
-  if (!summary.score && !hasBars && summary.facts.length === 0) return null
-  return (
-    <Stack gap={compact ? 3 : 6} className="result-summary">
-      {summary.score ? (
-        <div className="result-score">
-          <Stat
-            label={summary.score.label}
-            value={summary.score.value}
-            unit={summary.score.unit}
-            delta={scoreDelta !== null ? `${scoreDelta >= 0 ? '+' : ''}${scoreDelta} pts` : undefined}
-            tone={scoreDelta !== null && scoreDelta < 0 ? 'danger' : 'success'}
-          />
-          <ScoreHelp toolId={toolId} />
-        </div>
-      ) : null}
-      {hasBars ? (
-        <Stack gap={3}>
-          {summary.bars!.map((bar) => (
-            <ScoreBar key={bar.label} label={bar.label} value={bar.value} max={bar.max} valueLabel={bar.valueLabel} />
-          ))}
-        </Stack>
-      ) : null}
-      {summary.facts.length > 0 ? (
-        compact ? (
-          <MetaRow>
-            {summary.facts.map((f) => (
-              <span key={f.label}>
-                {f.label} <strong>{f.value}</strong>
-              </span>
-            ))}
-          </MetaRow>
-        ) : (
-          <KeyValue labelWidth="7.5rem" items={summary.facts} />
-        )
-      ) : null}
-    </Stack>
-  )
+/** "2 issues", "1 gap". */
+function countNoun(count: { value: number; noun: string }) {
+  return count.value === 1 ? count.noun : `${count.noun}s`
 }
 
 /**
- * The report's two columns. Beside the report the rail leads with the summary; stacked, the summary moves
- * into the main column (above the lead) and the actions stay last in both the DOM and the picture, so the
- * keyboard order is the visual order at every width.
+ * The first screen of a report: the score seal with its verdict (left), the lead sentence and the
+ * Fix-first stickers (right). Tools without a score show their facts under a large tool tile instead
+ * of an invented number.
  */
-function ResultSplit({
+function ResultHero({
   summary,
   toolId,
+  tool,
   scoreDelta,
-  actions,
+  reveal,
+  phone,
   children,
 }: {
   summary: ResultSummary
   toolId: ToolId
+  tool: (typeof tools)[ToolId]
   scoreDelta: number | null
-  actions: ReactNode
+  reveal: boolean
+  phone: boolean
   children: ReactNode
 }) {
-  const splitRef = useRef<HTMLDivElement | null>(null)
-  const stacked = useStacked(splitRef)
+  const hasBars = Boolean(summary.bars && summary.bars.length > 0)
+  // The verdict and the count are stickers under the seal: the facts list does not say them twice.
+  const facts = summary.facts.filter(
+    (f) => !(summary.verdict && f.label === 'Verdict') && !(summary.count && f.label === 'Issues'),
+  )
+  const slap = reveal ? 'slap' : 'none'
+
   return (
-    <Split
-      ref={splitRef}
-      railLabel="Summary"
-      stickyRail
-      rail={
-        <>
-          {stacked ? null : <ResultSummaryBlock summary={summary} toolId={toolId} scoreDelta={scoreDelta} compact={false} />}
-          {actions}
-          <ResultToc containerRef={splitRef} />
-        </>
-      }
-    >
-      {stacked ? <ResultSummaryBlock summary={summary} toolId={toolId} scoreDelta={scoreDelta} compact /> : null}
-      {children}
-    </Split>
+    <div className="result-hero">
+      <div className="result-hero__side">
+        {summary.score ? (
+          <>
+            <ScoreSeal
+              value={summary.score.value}
+              label={summary.score.label}
+              unit={summary.score.unit}
+              size={phone ? 'lg' : 'xl'}
+              reveal={reveal ? 'stamp' : 'none'}
+            />
+            <div className="result-hero__tags">
+              {summary.verdict?.label ? (
+                <Sticker as="span" size="sm" tone={summary.verdict.tone} tilt={phone ? 0 : -3} reveal={slap} revealOrder={3} className="result-verdict">
+                  {summary.verdict.label}
+                </Sticker>
+              ) : null}
+              {summary.count ? (
+                <Sticker as="span" size="sm" tone="white" tilt={phone ? 0 : 2.5} reveal={slap} revealOrder={3} className="result-issues">
+                  <b>{summary.count.value}</b> {countNoun(summary.count)}
+                </Sticker>
+              ) : null}
+              {scoreDelta !== null && scoreDelta !== 0 ? (
+                <Sticker as="span" size="sm" tone={scoreDelta > 0 ? 'mint' : 'rose'} reveal={slap} revealOrder={3} className="result-delta">
+                  {scoreDelta > 0 ? <ArrowUp aria-hidden="true" /> : <ArrowDown aria-hidden="true" />}
+                  <span>
+                    {scoreDelta > 0 ? '+' : ''}
+                    {scoreDelta} pts <span className="kit-sr-only">since the previous result</span>
+                  </span>
+                </Sticker>
+              ) : null}
+              <ScoreHelp toolId={toolId} />
+            </div>
+          </>
+        ) : (
+          <ToolTile tone={tool.tone} icon={tool.icon} size="xl" />
+        )}
+        {hasBars || facts.length > 0 ? (
+          <Panel className="result-hero__facts">
+            <PanelBody>
+              <Stack gap={3}>
+                {hasBars
+                  ? summary.bars!.map((bar) => (
+                      <ScoreBar key={bar.label} label={bar.label} value={bar.value} max={bar.max} valueLabel={bar.valueLabel} tone="ink" />
+                    ))
+                  : null}
+                {facts.length > 0 ? <KeyValue labelWidth="8.5rem" items={facts} /> : null}
+              </Stack>
+            </PanelBody>
+          </Panel>
+        ) : null}
+      </div>
+      <div className="result-hero__lead">{children}</div>
+    </div>
   )
 }
 
-/** The report's frame while the saved run is fetched: same header, rail and rows as the loaded page. */
+/** The report's frame while the saved run is fetched: same header, hero and rows as the loaded page. */
 function ResultLoading({ toolId }: { toolId: ToolId }) {
+  const tool = tools[toolId]
   return (
     <Page>
-      <PageHeader title={tools[toolId].label} meta={[<Skeleton key="date" size="meta" width="4rem" />]} />
-      <Split
-        railLabel="Summary"
-        rail={
-          <>
-            <Skeleton variant="stat" />
-            <Skeleton lines={3} />
-          </>
-        }
-      >
-        <Skeleton label="Fetching saved output" lines={2} size="title" />
-        <Stack gap={3}>
-          <Skeleton width="8rem" />
-          <Skeleton variant="row" count={3} />
-        </Stack>
-      </Split>
+      <PageHeader
+        mark={<ToolTile tone={tool.tone} icon={tool.icon} size="lg" />}
+        title={tool.label}
+        meta={[<Skeleton key="date" size="meta" width="4rem" />]}
+      />
+      <div className="result-report">
+        <div className="result-hero">
+          <div className="result-hero__side">
+            <Skeleton variant="block" width="min(300px, 100%)" className="result-seal-skeleton" />
+            <Skeleton lines={3} width="100%" />
+          </div>
+          <div className="result-hero__lead">
+            <Skeleton label="Fetching saved output" lines={2} size="title" />
+            <Stack gap={3}>
+              <Skeleton width="8rem" />
+              <Skeleton variant="row" count={3} />
+            </Stack>
+          </div>
+        </div>
+      </div>
     </Page>
   )
 }

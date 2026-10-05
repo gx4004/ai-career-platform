@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -7,6 +8,7 @@ from app.auth.security import (
     create_password_reset_token,
     create_refresh_token,
     get_current_user,
+    get_optional_current_user,
     hash_password,
     set_auth_cookies,
     verify_password,
@@ -17,6 +19,7 @@ from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models.user import User
+from app.routers.google_auth import google_sign_in_configured
 from app.schemas.auth import (
     AuthProvidersResponse,
     AuthSessionResponse,
@@ -37,7 +40,7 @@ router = APIRouter()
 @router.post("/login", response_model=AuthSessionResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(func.lower(User.email) == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -48,7 +51,7 @@ async def login(request: Request, response: Response, body: LoginRequest, db: Se
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
         )
-    access = create_access_token(user.id)
+    access = create_access_token(user.id, user.token_version)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
     return AuthSessionResponse()
@@ -63,7 +66,7 @@ async def register(request: Request, response: Response, body: RegisterRequest, 
             detail="Disposable email addresses are not allowed",
         )
 
-    existing = db.query(User).filter(User.email == body.email).first()
+    existing = db.query(User).filter(func.lower(User.email) == body.email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -79,7 +82,7 @@ async def register(request: Request, response: Response, body: RegisterRequest, 
     db.commit()
     db.refresh(user)
 
-    access = create_access_token(user.id)
+    access = create_access_token(user.id, user.token_version)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
 
@@ -126,14 +129,19 @@ def refresh_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
         )
-    access = create_access_token(user.id)
+    access = create_access_token(user.id, user.token_version)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
     return AuthSessionResponse()
 
 
 @router.post("/logout", status_code=200)
-def logout(request: Request, response: Response):
+def logout(
+    request: Request,
+    response: Response,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     origin = request.headers.get("origin")
     allowed_origins = {
         value.strip().rstrip("/")
@@ -147,6 +155,11 @@ def logout(request: Request, response: Response):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Origin is not allowed",
         )
+    if current_user is not None:
+        # Clearing cookies only helps this browser; bumping the version also
+        # kills any copy of the session tokens (refresh included).
+        current_user.token_version = (current_user.token_version or 0) + 1
+        db.commit()
     clear_auth_cookies(response)
     return {"ok": True}
 
@@ -181,7 +194,7 @@ def delete_account(
 @router.get("/providers", response_model=AuthProvidersResponse)
 def get_providers():
     providers = []
-    if settings.GOOGLE_CLIENT_ID:
+    if google_sign_in_configured():
         providers.append("google")
     return AuthProvidersResponse(providers=providers)
 
@@ -194,7 +207,7 @@ async def request_password_reset(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(func.lower(User.email) == body.email).first()
     if user:
         token = create_password_reset_token(user.email, user.hashed_password or "")
         frontend_base = settings.FRONTEND_URL or "http://localhost:3000"
@@ -221,7 +234,7 @@ def confirm_password_reset(request: Request, body: PasswordResetConfirm, db: Ses
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     if not email_claim:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    user = db.query(User).filter(User.email == email_claim).first()
+    user = db.query(User).filter(func.lower(User.email) == str(email_claim).strip().lower()).first()
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     # Verify token with password-derived secret (auto-invalidates after password change)

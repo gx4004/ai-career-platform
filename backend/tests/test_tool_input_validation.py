@@ -228,14 +228,17 @@ def test_resume_text_max_length(client, auth_headers, path, base_payload, _patch
 
 
 def test_resume_text_bounds_count_unicode_code_points(client, auth_headers, _patch_ai):
+    # Real words up front (text with no letters is rejected as unusable), then
+    # emoji: astral characters count as one code point each against the bound.
+    lead = "Backend engineer with Python, FastAPI and PostgreSQL experience. "
     accepted = client.post(
         f"{PREFIX}/resume/analyze",
-        json={"resume_text": "🧭" * 50_000},
+        json={"resume_text": lead + "🧭" * (50_000 - len(lead))},
         headers=auth_headers,
     )
     rejected = client.post(
         f"{PREFIX}/resume/analyze",
-        json={"resume_text": "🧭" * 50_001},
+        json={"resume_text": lead + "🧭" * (50_001 - len(lead))},
         headers=auth_headers,
     )
 

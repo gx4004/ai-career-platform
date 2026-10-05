@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button, Table } from '#/components/kit'
+import { Button, Table, useToast } from '#/components/kit'
 import type { TableColumn } from '#/components/kit'
 import { LegalLayout } from '#/components/legal/LegalLayout'
+import { StorageInventory } from '#/components/legal/StorageInventory'
 import { LEGAL_CONTACT_EMAIL } from '#/components/legal/constants'
 import { clearStoredConsent } from '#/lib/consent'
 
@@ -41,14 +43,21 @@ const COOKIE_COLUMNS: TableColumn<CookieRow>[] = [
   { id: 'lifetime', header: 'Lifetime', cell: (cookie) => cookie.lifetime },
 ]
 
-function resetConsent() {
-  clearStoredConsent()
-  if (typeof window !== 'undefined') {
-    window.location.reload()
-  }
-}
-
 export function CookiePolicyPage() {
+  const { toast } = useToast()
+  // Bumped after a reset so the live table of stored keys is read again.
+  const [inventoryVersion, setInventoryVersion] = useState(0)
+
+  function resetConsent() {
+    clearStoredConsent()
+    setInventoryVersion((version) => version + 1)
+    toast({
+      tone: 'success',
+      title: 'Cookie consent reset',
+      description: "We'll ask again the next time you visit.",
+    })
+  }
+
   return (
     <LegalLayout title="Cookie Policy">
       <p>
@@ -78,6 +87,14 @@ export function CookiePolicyPage() {
         rows={NECESSARY_COOKIES}
         getRowId={(cookie) => cookie.name}
       />
+
+      <h3>What this browser holds right now</h3>
+      <p>
+        The strictly necessary list above is what we always set. This table is read from your browser as you open
+        the page, so it also shows the preferences and in-tab working data the app keeps, and the sign-in cookies
+        above are missing from it because browsers hide HttpOnly cookies from page scripts. Values are never shown.
+      </p>
+      <StorageInventory version={inventoryVersion} />
 
       <h2>3. Analytics and advertising cookies</h2>
       <p>
@@ -123,7 +140,7 @@ export function CookiePolicyPage() {
         </li>
       </ul>
       <p>
-        <Button variant="secondary" onClick={resetConsent}>
+        <Button variant="secondary" size="sm" onClick={resetConsent}>
           Reset cookie consent
         </Button>
       </p>

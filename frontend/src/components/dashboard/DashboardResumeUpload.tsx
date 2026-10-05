@@ -1,10 +1,11 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { FileInput, Notice } from '#/components/kit'
+import { Button, FileInput, Notice } from '#/components/kit'
+import { SAMPLE_RESUME_TEXT } from '#/components/tooling/sampleResume'
 import { parseCv } from '#/lib/api/client'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
 
-/** Slim inline resume upload: parses the file, then hands off to the Resume Analyzer for review. */
+/** Inline resume upload: parses the file (or takes the sample), then hands off to the Resume Analyzer for review. */
 export function DashboardResumeUpload() {
   const navigate = useNavigate()
 
@@ -25,6 +26,12 @@ export function DashboardResumeUpload() {
     mutation.mutate(file)
   }
 
+  // The sample is made up and says so on its first line; it goes to the tool as a pending review like an upload.
+  const trySample = () => {
+    writeWorkflowContext({ resumeText: SAMPLE_RESUME_TEXT, resumePendingReview: true, updatedAt: Date.now() })
+    navigate({ to: '/resume' })
+  }
+
   const error = mutation.error
     ? mutation.error instanceof Error
       ? mutation.error.message
@@ -38,10 +45,15 @@ export function DashboardResumeUpload() {
         buttonVariant="primary"
         aria-label="Resume file"
         accept=".pdf,.docx"
-        hint="PDF or DOCX. Every tool builds on it. You can also drop a file here."
+        hint="PDF or DOCX. You can also drop a file here."
         disabled={mutation.isPending}
         onFilesChange={([file]) => handleFile(file)}
       />
+      <div>
+        <Button type="button" variant="link" size="sm" disabled={mutation.isPending} onClick={trySample}>
+          Try with a sample resume
+        </Button>
+      </div>
       {mutation.isPending ? <Notice role="status">Parsing your resume…</Notice> : null}
       {error ? <Notice tone="danger">{error}</Notice> : null}
     </div>

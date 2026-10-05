@@ -1,24 +1,48 @@
 import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Grid2x2, History, LayoutDashboard, LogIn } from 'lucide-react'
+import { LayoutGrid, LogIn } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 import { toolList } from '#/lib/tools/registry'
 import { useSession } from '#/hooks/useSession'
-import { getNavDestination } from '#/lib/navigation/navGroups'
+import { dashboardDestination, getNavDestination } from '#/lib/navigation/navGroups'
+import { openCommandPalette } from '#/components/app/CommandPalette'
 
 // Same icon + label as the sidebar and the More sheet (shared navGroups).
 const discover = getNavDestination('/discovery')
 const applications = getNavDestination('/campaigns')
 const cvStudio = getNavDestination('/cv-studio')
+const history = getNavDestination('/history')
 
-function TabLink({ to, icon: Icon, label, active }: { to: string; icon: LucideIcon; label: string; active: boolean }) {
+/**
+ * `short` is what the label shrinks to on the narrowest phones (320px: five tabs leave 53px of text, and
+ * "Applications" is 66px at 12px). The full word stays in the DOM, so the tab keeps its accessible name.
+ */
+function TabLink({
+  to,
+  icon: Icon,
+  label,
+  short,
+  active,
+}: {
+  to: string
+  icon: LucideIcon
+  label: string
+  short?: string
+  active: boolean
+}) {
   return (
-    <Link to={to} className="app-tabbar__item" data-active={active} aria-current={active ? 'page' : undefined}>
+    <Link
+      to={to}
+      className="app-tabbar__item"
+      data-active={active}
+      aria-current={active ? 'page' : undefined}
+      aria-label={short ? label : undefined}
+    >
       <Icon aria-hidden />
-      <span>{label}</span>
+      <span data-short={short}>{label}</span>
     </Link>
   )
 }
@@ -49,16 +73,22 @@ export function MobileNav() {
   return (
     <>
       <nav className="app-tabbar" aria-label="Main navigation">
-        <TabLink to="/dashboard" icon={LayoutDashboard} label="Home" active={isActive('/dashboard')} />
+        <TabLink to="/dashboard" icon={dashboardDestination.icon} label="Home" active={isActive('/dashboard')} />
 
         {user ? (
           <>
             <TabLink to="/discovery" icon={discover.icon} label={discover.label} active={isActive('/discovery')} />
-            <TabLink to="/campaigns" icon={applications.icon} label={applications.label} active={isActive('/campaigns')} />
+            <TabLink
+              to="/campaigns"
+              icon={applications.icon}
+              label={applications.label}
+              short="Apps"
+              active={isActive('/campaigns')}
+            />
           </>
         ) : (
           <>
-            <TabLink to="/history" icon={History} label="History" active={isActive('/history')} />
+            <TabLink to="/history" icon={history.icon} label="History" active={isActive('/history')} />
             {/* /discovery needs an account, so guests get a Sign in tab. It
                 keeps the bar at five tabs so widths do not jump on sign-in. */}
             <button
@@ -84,12 +114,18 @@ export function MobileNav() {
           aria-expanded={moreOpen}
           onClick={() => setMoreOpen((open) => !open)}
         >
-          <Grid2x2 aria-hidden />
+          <LayoutGrid aria-hidden />
           <span>More</span>
         </button>
       </nav>
 
-      <ToolGridSheet open={moreOpen} onOpenChange={setMoreOpen} showAuthenticatedLinks={Boolean(user)} />
+      <ToolGridSheet
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        showAuthenticatedLinks={Boolean(user)}
+        accountName={user ? user.full_name || user.email : undefined}
+        onSearch={openCommandPalette}
+      />
     </>
   )
 }

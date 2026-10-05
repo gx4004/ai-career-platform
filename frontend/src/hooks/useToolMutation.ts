@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { getHistory } from '#/lib/api/client'
 import { boundedIdentifierSchema } from '#/lib/api/schemas'
 import { useSession } from '#/hooks/useSession'
+import { markRevealPending } from '#/hooks/use-reveal-once'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolDraftState } from '#/lib/tools/drafts'
 import { setTransientResult } from '#/lib/tools/demoRuns'
@@ -167,6 +168,9 @@ export function useToolMutation(tool: ToolDefinition) {
         result_payload: result,
         created_at: new Date().toISOString(),
       })
+
+      // The result page plays the stamp-in reveal once for a run that has just finished (guest results too).
+      markRevealPending(historyId)
 
       // Navigate synchronously — do NOT await. This ensures navigation is
       // queued in the same microtask as the cache set, before React re-renders

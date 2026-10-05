@@ -6,6 +6,7 @@ import { TooltipProvider } from '#/components/kit'
 import { SidebarProvider } from '#/components/ui/sidebar'
 
 const mockPathname = vi.hoisted(() => ({ current: '/dashboard' }))
+const mockStatus = vi.hoisted(() => ({ current: null as null | 'loading' }))
 const mockSessionUser = vi.hoisted(() => ({
   current: { id: 'u1', email: 'test@example.com', full_name: 'Test User', is_admin: false } as {
     id: string
@@ -45,7 +46,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({
-    status: mockSessionUser.current ? 'authenticated' : 'guest',
+    status: mockStatus.current ?? (mockSessionUser.current ? 'authenticated' : 'guest'),
     user: mockSessionUser.current,
     login: vi.fn(),
     logout: vi.fn(),
@@ -76,6 +77,7 @@ function getBrandRowTrigger(container: HTMLElement) {
 describe('AppSidebar', () => {
   beforeEach(() => {
     mockPathname.current = '/dashboard'
+    mockStatus.current = null
     mockSessionUser.current = { id: 'u1', email: 'test@example.com', full_name: 'Test User', is_admin: false }
   })
 
@@ -134,7 +136,8 @@ describe('AppSidebar', () => {
     const { container } = renderSidebar(true)
 
     for (const link of container.querySelectorAll('[data-sidebar="menu-button"]')) {
-      const label = link.querySelector('span')
+      // The tool tiles are decorative (aria-hidden) spans in front of the label.
+      const label = link.querySelector('span:not([aria-hidden="true"])')
       expect(label?.textContent?.trim()).toBeTruthy()
     }
     expect(screen.getByText('Discover').tagName).toBe('SPAN')
@@ -236,6 +239,34 @@ describe('AppSidebar', () => {
     expect(legal.querySelector('a[href="/privacy"]')).toBeTruthy()
     expect(legal.querySelector('a[href="/terms"]')).toBeTruthy()
     expect(legal.querySelector('a[href="/cookies"]')).toBeTruthy()
+    expect(legal.querySelector('a[href="/imprint"]')).toBeTruthy()
+  })
+
+  it('draws a colour tile per tool and a bare icon per destination, under the Tools and Also labels', () => {
+    const { container } = renderSidebar(true)
+
+    const tiles = container.querySelectorAll('a[data-sidebar="menu-button"] .kit-tool-tile')
+    expect([...tiles].map((tile) => tile.getAttribute('data-tone'))).toEqual([
+      'tangerine',
+      'mint',
+      'lilac',
+      'lemon',
+      'rose',
+      'aqua',
+    ])
+    expect(screen.getByText('Also')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Dashboard' }).querySelector('.kit-tool-tile')).toBeNull()
+  })
+
+  it('holds the owner-only rows and the account slot as placeholders while the session resolves', () => {
+    mockStatus.current = 'loading'
+    mockSessionUser.current = null
+    const { container } = renderSidebar(true)
+
+    expect(container.querySelectorAll('.app-sidebar__placeholder')).toHaveLength(2)
+    expect(container.querySelector('.app-sidebar__account-placeholder')).toBeTruthy()
+    // No guest "Sign in" flashes up for someone who is about to turn out to be signed in.
+    expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull()
   })
 
   it('keeps the active tool highlighted and the normal sidebar controls on tool routes', () => {

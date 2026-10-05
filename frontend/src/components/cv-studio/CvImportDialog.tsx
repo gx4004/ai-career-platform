@@ -1,10 +1,91 @@
 import { useEffect, useState } from 'react'
+import { ArrowUpToLine, ClipboardPaste, FileUp, MoveRight, Trash2 } from 'lucide-react'
 import {
-  Button, Count, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-  Field, FileInput, Input, List, Notice, Row, RowBody, RowMeta, RowTitle, Skeleton, Stack,
+  Badge, Button, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+  Field, FileInput, Input, List, Notice, Section, Segmented, Skeleton, Stack, Textarea,
 } from '#/components/kit'
 import { acceptCvImport, proposeCvImport } from '#/lib/api/client'
 import type { CvDocument, CvImportProposal } from '#/lib/api/schemas'
+import { isStructuredKind } from '#/lib/cv-studio/editor'
+import {
+  countEntries, mergeIntoPrevious, moveImportEntry, removeImportEntry, toAcceptable, updateImportEntry,
+} from './importReview'
+import type { ImportEntry, ImportSection } from './importReview'
+
+/** The name and contact block the reader found (document-level); every field is optional. */
+type HeaderField = 'name' | 'headline' | 'email' | 'phone' | 'location'
+const HEADER_FIELDS: { key: HeaderField; label: string }[] = [
+  { key: 'name', label: 'Your name' }, { key: 'headline', label: 'Headline' }, { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' }, { key: 'location', label: 'Location' },
+]
+
+const sectionNoun = (kind: ImportSection['kind']) => kind === 'education' ? 'qualification' : kind === 'projects' ? 'project' : 'role'
+
+/** One thing the reader found, as a card you can correct before it becomes your CV. */
+function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove, onRemove }: {
+  section: ImportSection; entry: ImportEntry; index: number; sections: ImportSection[]
+  onChange: (patch: Partial<ImportEntry>) => void
+  onMerge: () => void; onMove: (toSectionId: string) => void; onRemove: () => void
+}) {
+  const structured = isStructuredKind(section.kind)
+  const [lines, setLines] = useState(() => (entry.bullets ?? []).join('\n'))
+  const hasBullets = (entry.bullets?.length ?? 0) > 0
+  const title = entry.heading?.trim() || (structured ? `Unnamed ${sectionNoun(section.kind)}` : `Entry ${index + 1}`)
+  const others = sections.filter((candidate) => candidate.id !== section.id)
+  const text = (key: 'heading' | 'subheading' | 'start_date' | 'end_date', label: string, placeholder?: string, wide = false) => (
+    <Field label={label} className={wide ? 'cvs-review__wide' : undefined}>
+      <Input value={entry[key] ?? ''} maxLength={key.endsWith('date') ? 40 : 200} placeholder={placeholder} onChange={(event) => onChange({ [key]: event.target.value })} />
+    </Field>
+  )
+
+  return (
+    <article className="cvs-review__card" aria-label={title}>
+      <header className="cvs-review__cardhead">
+        <p className="cvs-review__cardtitle">{title}</p>
+        {entry.claim ? <Badge size="sm" tone="lilac">Fact for your Evidence</Badge> : null}
+      </header>
+      {structured ? (
+        <div className="cvs-review__grid">
+          {text('heading', sectionNoun(section.kind) === 'role' ? 'Job title' : sectionNoun(section.kind) === 'project' ? 'Project name' : 'Qualification', undefined, true)}
+          {text('subheading', section.kind === 'education' ? 'School or university' : section.kind === 'projects' ? 'Organisation or client' : 'Company', undefined, true)}
+          {text('start_date', 'Start', 'Jan 2022')}
+          {text('end_date', 'End', 'Present')}
+        </div>
+      ) : null}
+      {hasBullets || (structured && lines) ? (
+        <Field label="Highlights" help="One per line.">
+          <Textarea
+            autosize rows={3} maxRows={8} value={lines} maxLength={30_000}
+            onChange={(event) => { setLines(event.target.value); onChange({ bullets: event.target.value.split('\n') }) }}
+          />
+        </Field>
+      ) : (
+        <Field label={structured ? 'Description' : 'Text'}>
+          <Textarea
+            autosize rows={2} maxRows={8} value={entry.body} maxLength={5_000}
+            onChange={(event) => onChange({ body: event.target.value })}
+          />
+        </Field>
+      )}
+      <div className="cvs-review__actions">
+        <Button type="button" size="sm" variant="secondary" disabled={index === 0} onClick={onMerge}>
+          <ArrowUpToLine aria-hidden="true" /> Merge into previous
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="sm" variant="secondary" disabled={others.length === 0}><MoveRight aria-hidden="true" /> Move to section</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Move to</DropdownMenuLabel>
+            {others.map((target) => <DropdownMenuItem key={target.id} onSelect={() => onMove(target.id)}>{target.title}</DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button type="button" size="sm" variant="ghost" onClick={onRemove}><Trash2 aria-hidden="true" /> Leave out</Button>
+      </div>
+    </article>
+  )
+}
 
 export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocus }: {
   open: boolean; onOpenChange: (open: boolean) => void; onImported: (document: CvDocument) => void
@@ -16,12 +97,16 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
   const [state, setState] = useState<'idle' | 'reading' | 'creating'>('idle')
   const [error, setError] = useState('')
   const [fileName, setFileName] = useState('')
+  const [source, setSource] = useState<'file' | 'text'>('file')
+  const [pasted, setPasted] = useState('')
   // FileInput cannot be reset from outside; a new key starts it empty again after a failed read.
   const [pickerKey, setPickerKey] = useState(0)
+  /** Bumps when entries are merged or moved, so every card re-reads its entry. */
+  const [revision, setRevision] = useState(0)
 
   useEffect(() => {
     if (!open) return
-    setProposal(null); setName(''); setError(''); setState('idle')
+    setProposal(null); setName(''); setError(''); setState('idle'); setPasted(''); setSource('file')
   }, [open])
 
   async function read(file: File | undefined) {
@@ -39,11 +124,13 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
     }
   }
 
+  const readPasted = () => void read(new File([pasted], 'pasted-cv.txt', { type: 'text/plain' }))
+
   async function create() {
     if (!proposal || !name.trim()) return
     setState('creating'); setError('')
     try {
-      const document = await acceptCvImport({ ...proposal, name: name.trim() })
+      const document = await acceptCvImport(toAcceptable(proposal, name))
       onImported(document)
       onOpenChange(false)
     } catch (caught) {
@@ -53,18 +140,20 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
     }
   }
 
-  const entryCount = proposal?.sections.reduce((total, section) => total + section.entries.length, 0) ?? 0
+  const edit = (change: (current: CvImportProposal) => CvImportProposal) => setProposal((current) => current && change(current))
+  const entryCount = proposal ? countEntries(proposal) : 0
   const busy = state !== 'idle'
+  const header = proposal?.header
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dismissible={!busy} onCloseAutoFocus={onCloseAutoFocus}>
+      <DialogContent size={proposal ? 'lg' : 'md'} dismissible={!busy} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>Import your CV</DialogTitle>
           <DialogDescription>
             {proposal
-              ? `We found ${proposal.sections.length} ${proposal.sections.length === 1 ? 'section' : 'sections'} and ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'} in ${proposal.filename}.`
-              : 'Upload a PDF or Word file. We’ll split it into sections you can edit, and nothing is saved until you say so.'}
+              ? `We found ${proposal.sections.length} ${proposal.sections.length === 1 ? 'section' : 'sections'} and ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'} in ${proposal.filename}. Fix anything that looks off, then create your CV.`
+              : 'Upload a PDF or Word file, or paste your CV as text. We’ll split it into sections you can edit, and nothing is saved until you say so.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -77,30 +166,66 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
                   <List aria-label="Reading your CV" aria-busy="true"><Skeleton variant="row" as="li" density="compact" count={4} /></List>
                 </Stack>
               ) : (
-                <FileInput
-                  key={pickerKey}
-                  variant="dropzone"
-                  label="Choose a PDF or DOCX"
-                  hint="Up to 10 MB"
-                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onFilesChange={([file]) => void read(file)}
-                />
+                <>
+                  <Segmented
+                    aria-label="How to add your CV" value={source} onValueChange={(next) => setSource(next as 'file' | 'text')}
+                    options={[{ value: 'file', label: 'Upload a file', icon: <FileUp aria-hidden="true" /> }, { value: 'text', label: 'Paste text', icon: <ClipboardPaste aria-hidden="true" /> }]}
+                  />
+                  {source === 'file' ? (
+                    <FileInput
+                      key={pickerKey}
+                      variant="dropzone"
+                      label="Choose a PDF or DOCX"
+                      hint="Up to 10 MB"
+                      accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onFilesChange={([file]) => void read(file)}
+                    />
+                  ) : (
+                    <Field label="Your CV as text" help="Paste everything: name, roles, dates, skills. We read it the same way as a file.">
+                      <Textarea autosize rows={8} maxRows={14} value={pasted} maxLength={200_000} placeholder="Paste your CV here." onChange={(event) => setPasted(event.target.value)} />
+                    </Field>
+                  )}
+                </>
               )
             ) : (
               <>
-                <Field label="CV name">
-                  <Input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
-                </Field>
-                <List boxed aria-label="Sections found">
-                  {proposal.sections.map((section) => (
-                    <Row key={section.id} density="compact">
-                      <RowBody><RowTitle>{section.title}</RowTitle></RowBody>
-                      <RowMeta><Count value={section.entries.length} /></RowMeta>
-                    </Row>
-                  ))}
-                </List>
+                <section className="cvs-review__head" aria-label="Name and contact details">
+                  <Field label="CV name">
+                    <Input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
+                  </Field>
+                  {header ? (
+                    <div className="cvs-review__grid">
+                      {HEADER_FIELDS.map(({ key, label }) => (
+                        <Field key={key} label={label}>
+                          <Input
+                            value={header[key] ?? ''} maxLength={key === 'phone' ? 40 : 200}
+                            onChange={(event) => edit((current) => ({ ...current, header: { ...current.header, [key]: event.target.value } }))}
+                          />
+                        </Field>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
                 {proposal.warnings.map((warning) => (
                   <Notice key={warning} tone="warning">{warning}</Notice>
+                ))}
+                {proposal.sections.map((section) => (
+                  <Section key={section.id} headingLevel={3} title={section.title} count={section.entries.length} countTone="white" className="cvs-review__section">
+                    {section.entries.length === 0 ? <p className="cvs-hint">Nothing was found under this heading.</p> : (
+                      <Stack gap={3}>
+                        {section.entries.map((entry, index) => (
+                          <EntryCard
+                            key={`${entry.id}-${revision}`}
+                            section={section} entry={entry} index={index} sections={proposal.sections}
+                            onChange={(patch) => edit((current) => updateImportEntry(current, section.id, entry.id, patch))}
+                            onMerge={() => { setRevision((value) => value + 1); edit((current) => mergeIntoPrevious(current, section.id, entry.id)) }}
+                            onMove={(toId) => { setRevision((value) => value + 1); edit((current) => moveImportEntry(current, section.id, entry.id, toId)) }}
+                            onRemove={() => edit((current) => removeImportEntry(current, section.id, entry.id))}
+                          />
+                        ))}
+                      </Stack>
+                    )}
+                  </Section>
                 ))}
                 <p className="cvs-hint">Facts we spot, like achievements and skills, are also added to your Evidence for you to confirm later.</p>
               </>
@@ -120,6 +245,8 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
             <Button type="button" loading={state === 'creating'} disabled={!name.trim() || proposal.sections.length === 0} onClick={() => void create()}>
               Create my CV
             </Button>
+          ) : source === 'text' ? (
+            <Button type="button" loading={state === 'reading'} disabled={pasted.trim().length < 20 || busy} onClick={readPasted}>Read my CV</Button>
           ) : null}
         </DialogFooter>
       </DialogContent>

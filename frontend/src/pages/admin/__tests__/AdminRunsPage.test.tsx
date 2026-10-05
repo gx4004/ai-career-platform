@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminRunsPage } from '#/pages/admin/admin-runs-page'
 
@@ -60,6 +60,20 @@ describe('AdminRunsPage', () => {
     expect(dialog.textContent).toContain('Useful.')
     fireEvent.keyDown(dialog, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('offers every kind of run the backend records, not only the six tools', async () => {
+    renderPage([run('r-1')])
+    await screen.findByRole('button', { name: 'Job Match (75%)' })
+    const options = within(screen.getByRole('combobox', { name: 'Tool' })).getAllByRole('option')
+    const values = options.map((option) => (option as HTMLOptionElement).value)
+    expect(values).toEqual(expect.arrayContaining(['application-drafts', 'application-reviewer', 'cv-tailoring']))
+  })
+
+  it('keeps a long unbroken label inside its column', async () => {
+    renderPage([run('r-1', { label: 'x'.repeat(300), tool_name: 'application-reviewer' })])
+    const opener = await screen.findByRole('button', { name: 'x'.repeat(300) })
+    expect(opener.closest('.admin-run')).toBeTruthy()
   })
 
   it('filters by tool and starts again from page one', async () => {

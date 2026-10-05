@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Search, Star } from 'lucide-react'
+import { Clock, Search, Star } from 'lucide-react'
 import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
 import { HistoryRow, runLabel } from '#/components/history/HistoryRow'
 import {
@@ -15,6 +15,9 @@ import {
   Page,
   PageHeader,
   Pagination,
+  Row,
+  RowBody,
+  RowTitle,
   Segmented,
   Select,
   Skeleton,
@@ -45,11 +48,45 @@ const DEFAULT_PAGE_SIZE = 10
 // Keeps the header's meta line when there is no count to show (nothing saved yet, or the list failed), so the toolbar does not jump.
 const META_PLACEHOLDER = <span key="placeholder" aria-hidden>{'\u00a0'}</span>
 
+// Each option carries the tool's colour as a dot, the same colour its tile has in the list below.
 const TOOL_OPTIONS = toolList.map((tool) => ({
   value: tool.id as string,
-  label: tool.shortLabel,
+  label: (
+    <>
+      <span className="kit-tone history-dot" data-tone={tool.tone} aria-hidden="true" />
+      {tool.shortLabel}
+    </>
+  ),
   'aria-label': tool.label,
 }))
+
+/** "Today", "Yesterday", then "Tuesday, Sep 29" (with the year when it is not this one). */
+function dayHeading(value: string, now: Date = new Date()) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Earlier'
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOf(now) - startOf(date)) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  })
+}
+
+/** Consecutive runs from the same day share one heading; the API already returns them newest first. */
+function groupByDay(items: ToolRunSummary[]) {
+  const groups: { heading: string; items: ToolRunSummary[] }[] = []
+  for (const item of items) {
+    const heading = dayHeading(item.created_at)
+    const last = groups[groups.length - 1]
+    if (last && last.heading === heading) last.items.push(item)
+    else groups.push({ heading, items: [item] })
+  }
+  return groups
+}
 
 // The kit's compact width (the Toolbar moves its filters into a sheet): a six-option segmented control would only scroll there.
 const COMPACT_QUERY = '(max-width: 767px)'
@@ -197,6 +234,7 @@ export function HistoryPage({
       <Page>
         <PageHeader title="History" />
         <EmptyState
+          icon={<Clock />}
           title="Pick up where you left off"
           description="Your saved runs and favorites live here — sign in to unlock your full history."
           action={
@@ -213,6 +251,7 @@ export function HistoryPage({
   }
 
   const items = listQuery.data?.items ?? []
+  const labelById = new Map(items.map((run) => [run.id, runLabel(run)]))
   const errorMessage = actionError ?? (favoriteToggle.error
     ? favoriteToggle.error instanceof Error
       ? favoriteToggle.error.message
@@ -326,43 +365,54 @@ export function HistoryPage({
           />
         ) : items.length ? (
           <List aria-label="Saved runs">
-            {items.map((item) => (
-              <HistoryRow
-                key={item.id}
-                item={item}
-                rename={
-                  editingId === item.id
-                    ? {
-                        draft: editDraft,
-                        error: renameError,
-                        pending: renameMutation.isPending,
-                        onDraftChange: setEditDraft,
-                        onSubmit: () => renameMutation.mutate({ historyId: item.id, label: editDraft.trim() }),
-                        onCancel: () => {
-                          setEditingId(null)
-                          setRenameError(null)
-                        },
-                      }
-                    : null
-                }
-                continuing={continuingId === item.id}
-                deleting={deleteMutation.isPending && deleteMutation.variables === item.id}
-                onStartRename={() => startRename(item)}
-                onToggleFavorite={() =>
-                  favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
-                }
-                onContinue={() => void continueRun(item)}
-                onDelete={(trigger) => {
-                  deleted.current = false
-                  setDeleteError(null)
-                  deleteTrigger.current = trigger
-                  setDeleteCandidate({ id: item.id, label: runLabel(item) })
-                }}
-              />
+            {groupByDay(items).map((group) => (
+              <Fragment key={group.heading}>
+                <Row className="history-day">
+                  <RowBody>
+                    <RowTitle headingLevel={3}>{group.heading}</RowTitle>
+                  </RowBody>
+                </Row>
+                {group.items.map((item) => (
+                  <HistoryRow
+                    key={item.id}
+                    item={item}
+                    parentLabel={item.parent_run_id ? (labelById.get(item.parent_run_id) ?? null) : null}
+                    rename={
+                      editingId === item.id
+                        ? {
+                            draft: editDraft,
+                            error: renameError,
+                            pending: renameMutation.isPending,
+                            onDraftChange: setEditDraft,
+                            onSubmit: () => renameMutation.mutate({ historyId: item.id, label: editDraft.trim() }),
+                            onCancel: () => {
+                              setEditingId(null)
+                              setRenameError(null)
+                            },
+                          }
+                        : null
+                    }
+                    continuing={continuingId === item.id}
+                    deleting={deleteMutation.isPending && deleteMutation.variables === item.id}
+                    onStartRename={() => startRename(item)}
+                    onToggleFavorite={() =>
+                      favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
+                    }
+                    onContinue={() => void continueRun(item)}
+                    onDelete={(trigger) => {
+                      deleted.current = false
+                      setDeleteError(null)
+                      deleteTrigger.current = trigger
+                      setDeleteCandidate({ id: item.id, label: runLabel(item) })
+                    }}
+                  />
+                ))}
+              </Fragment>
             ))}
           </List>
         ) : hasFilters ? (
           <EmptyState
+            icon={<Search />}
             title="No runs match these filters"
             description="Try a different tool or search, or clear the filters."
             action={
@@ -376,6 +426,7 @@ export function HistoryPage({
           />
         ) : (
           <EmptyState
+            icon={<Clock />}
             title="No runs yet"
             description="Run a tool and your saved results will show up here."
             action={

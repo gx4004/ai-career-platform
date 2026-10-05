@@ -1,9 +1,11 @@
 import { Link } from '@tanstack/react-router'
 import { Button, EmptyState, ErrorState, List, Section, Skeleton } from '#/components/kit'
+import type { ReactNode } from 'react'
 import { useHistory } from '#/hooks/useHistory'
 import type { HistoryQueryParams } from '#/lib/api/client'
 import { RunRow, formatRunDate } from '#/components/dashboard/RunRow'
 import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
+import { getToolByHistoryName } from '#/lib/tools/registry'
 
 /** A short list of saved runs under a section heading: recent activity, starred results. */
 export function RunList({
@@ -14,6 +16,9 @@ export function RunList({
   showDate = true,
   untitled = 'Untitled run',
   viewAllTo,
+  emptyIcon,
+  hideWhenEmpty = false,
+  tour,
 }: {
   title: string
   emptyTitle: string
@@ -24,16 +29,25 @@ export function RunList({
   untitled?: string
   /** Adds a "View all" link to the section heading. */
   viewAllTo?: '/history'
+  /** The die-cut empty state's disc. */
+  emptyIcon?: ReactNode
+  /** Draw nothing at all while there is nothing to list (a newcomer's page leads with first steps instead). */
+  hideWhenEmpty?: boolean
+  /** The onboarding tour's name for this section. */
+  tour?: string
 }) {
   const query = useHistory(queryParams, true)
   const items = query.data?.items ?? []
 
+  if (hideWhenEmpty && !query.isPending && !query.isError && items.length === 0) return null
+
   return (
     <Section
       title={title}
+      data-tour={tour}
       actions={
         viewAllTo && !query.isPending ? (
-          <Button asChild variant="ghost" size="sm">
+          <Button asChild variant="link" size="sm">
             <Link to={viewAllTo}>View all</Link>
           </Button>
         ) : null
@@ -58,11 +72,12 @@ export function RunList({
               label={item.label || untitled}
               date={showDate ? formatRunDate(item.created_at) : undefined}
               href={historyRunHref(item)}
+              scoreTone={getToolByHistoryName(item.tool_name)?.tone}
             />
           ))}
         </List>
       ) : (
-        <EmptyState title={emptyTitle} description={emptyText} />
+        <EmptyState icon={emptyIcon} title={emptyTitle} description={emptyText} />
       )}
     </Section>
   )

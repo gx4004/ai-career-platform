@@ -58,21 +58,45 @@ describe('ToolResultScreen — guest banner and result actions', () => {
     trackTelemetryMock.mockReset()
   })
 
-  it('shows the generic guest prompt and no next-best-action suggestion', () => {
+  it('tells a guest the result is not saved and offers a free account, without a next-best-action card', () => {
     renderResumeResult()
 
-    expect(screen.getByText('Guest demo')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    expect(screen.getByText('This result is not saved')).toBeTruthy()
+    expect(screen.getByText(/Create a free account to keep it/)).toBeTruthy()
     expect(screen.queryByText(/Resume Analyzer result/)).toBeNull()
     expect(screen.queryByRole('button', { name: /try next/i })).toBeNull()
     expect(screen.queryByLabelText('Try next suggestion')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create free account' }))
     expect(openAuthDialogMock).toHaveBeenCalledWith({
+      to: '/resume',
+      reason: 'guest-demo-result',
+      label: 'Create account',
+      toolId: 'resume',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(openAuthDialogMock).toHaveBeenLastCalledWith({
       to: '/resume',
       reason: 'guest-demo-result',
       label: 'Sign in',
       toolId: 'resume',
     })
+  })
+
+  it('opens the sign-in prompt when a guest clicks the star', () => {
+    renderResumeResult()
+    const star = screen.getByRole('button', { name: 'Sign in to favorite this result' })
+    expect(star.getAttribute('aria-disabled')).toBeNull()
+    fireEvent.click(star)
+    expect(openAuthDialogMock).toHaveBeenCalledWith(expect.objectContaining({ reason: 'save-demo-result', toolId: 'resume' }))
+  })
+
+  it('suggests the registry next tools at the end of the report', () => {
+    renderResumeResult()
+    const list = screen.getByRole('list', { name: 'What next' })
+    expect(list.textContent).toContain('Compare it to a role')
+    expect(screen.getByRole('link', { name: 'Open Job Match' }).getAttribute('href')).toBe('/job-match')
+    expect(screen.getByRole('link', { name: 'Open Portfolio Planner' }).getAttribute('href')).toBe('/portfolio')
   })
 })

@@ -52,6 +52,10 @@ def _send_resend_sync(to_email: str, reset_url: str) -> None:
 async def send_password_reset_email(to_email: str, reset_url: str) -> bool:
     if not settings.RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not configured — skipping password reset email")
+        if settings.ENVIRONMENT == "development":
+            # Local only: with no mail provider the link would otherwise be
+            # unreachable. Never logged outside development (it is a bearer token).
+            logger.info("Development password reset link: %s", reset_url)
         return False
 
     # Off-load the sync resend SDK call to a worker thread so it does not

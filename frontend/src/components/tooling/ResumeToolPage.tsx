@@ -33,6 +33,7 @@ export function ResumeToolPage() {
         <ToolPageLoading toolId="resume" mutationDone={!mutation.isPending} />
       ) : (
         <ToolForm
+          toolId="resume"
           label={`${tool.label} input form`}
           onSubmit={handleSubmit}
           submitLabel={tool.entryPointLabel}

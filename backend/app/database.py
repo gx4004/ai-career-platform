@@ -19,9 +19,14 @@ connect_args = {}
 if _is_sqlite:
     connect_args["check_same_thread"] = False
 
+if not _is_sqlite and settings.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS:
+    connect_args["options"] = (
+        f"-c idle_in_transaction_session_timeout={settings.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS}"
+    )
+
 # Production pool sizing: 20 connections + 10 overflow handles typical 4-worker deployments
-pool_size = 20 if settings.ENVIRONMENT == "production" else 5
-max_overflow = 10
+pool_size = settings.DB_POOL_SIZE or (20 if settings.ENVIRONMENT == "production" else 5)
+max_overflow = settings.DB_MAX_OVERFLOW
 
 engine = create_engine(
     settings.DATABASE_URL,
@@ -29,6 +34,7 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=pool_size,
     max_overflow=max_overflow,
+    pool_timeout=settings.DB_POOL_TIMEOUT_SECONDS,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

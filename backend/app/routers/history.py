@@ -25,6 +25,10 @@ from app.services.tool_runs import build_workspace_summary, derive_saved_run_met
 
 router = APIRouter()
 
+# Saved interview decks reach ~63 KB of JSON each and the list reads every
+# row's payload to derive its summary, so one page stays small.
+MAX_PAGE_SIZE = 50
+
 
 @router.get("", response_model=ToolRunListResponse)
 def list_history(
@@ -32,13 +36,13 @@ def list_history(
     favorite: bool | None = None,
     q: str | None = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(12, ge=1, le=100),
+    page_size: int = Query(12, ge=1, le=MAX_PAGE_SIZE),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     query = (
         db.query(ToolRun)
-        .options(selectinload(ToolRun.workspace))
+        .options(selectinload(ToolRun.workspace).selectinload(Workspace.listing))
         .filter(ToolRun.user_id == current_user.id)
     )
 
@@ -50,8 +54,8 @@ def list_history(
         query = query.filter(ToolRun.tool_name != DRAFTS_TOOL_NAME)
     if favorite is not None:
         query = query.filter(ToolRun.is_favorite == favorite)
-    if q:
-        query = query.filter(ToolRun.label.ilike(f"%{q}%"))
+    if q and q.strip():
+        query = query.filter(ToolRun.label.ilike(_like_pattern(q), escape="\\"))
 
     total = query.count()
     items = (
@@ -240,11 +244,17 @@ def update_run(
     db: Session = Depends(get_db),
 ):
     run = _get_run(db, history_id, current_user.id)
-    run.label = body.label.strip() if body.label and body.label.strip() else None
+    run.label = body.label
     db.commit()
     db.refresh(run)
     workspace_runs = _workspace_runs_map(db, current_user.id, [run])
     return _summary(run, workspace_runs.get(run.workspace_id, []))
+
+
+def _like_pattern(value: str) -> str:
+    """A contains-pattern in which % and _ in the search text are plain characters."""
+    escaped = value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 
 def _get_run(db: Session, history_id: str, user_id: str) -> ToolRun:
@@ -325,4 +335,5 @@ def _summary(run: ToolRun, workspace_runs: list[ToolRun] | None = None) -> ToolR
         locked_actions=[],
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs),
+        parent_run_id=run.parent_run_id,
     )

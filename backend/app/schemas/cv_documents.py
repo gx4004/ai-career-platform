@@ -72,13 +72,64 @@ def entry_body_from_bullets(bullets: list[str]) -> str | None:
     return "\n".join(filled) if filled else None
 
 
+ENTRY_BODY_MAX_CHARS = 5_000
+
+
 class _BodyFollowsBullets:
     @model_validator(mode="after")
     def _derive_body(self):
         derived = entry_body_from_bullets(self.bullets)
         if derived is not None:
+            # ``body`` is validated before it is replaced, so the derived text
+            # needs its own bound: an oversize body would pass the save and
+            # then fail every later response that re-validates it.
+            if len(derived) > ENTRY_BODY_MAX_CHARS:
+                raise ValueError(f"bullets together exceed {ENTRY_BODY_MAX_CHARS} characters")
             self.body = derived
         return self
+
+
+def _blank_to_none(value):
+    if isinstance(value, str):
+        return value.strip() or None
+    return value
+
+
+class CvHeader(BaseModel):
+    """The candidate's name, headline and contact details (document-level).
+
+    Every field is optional and blank text counts as unset, so a CV can carry
+    just a name. Rendered above the sections in the PDF, DOCX and preview.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    headline: str | None = Field(default=None, min_length=1, max_length=200)
+    email: str | None = Field(default=None, min_length=1, max_length=200)
+    phone: str | None = Field(default=None, min_length=1, max_length=40)
+    location: str | None = Field(default=None, min_length=1, max_length=200)
+    links: list[str] = Field(default_factory=list, max_length=6)
+
+    @field_validator("name", "headline", "email", "phone", "location", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value):
+        return _blank_to_none(value)
+
+    @field_validator("links", mode="before")
+    @classmethod
+    def _clean_links(cls, value):
+        if not isinstance(value, list):
+            return value
+        cleaned = [_blank_to_none(link) for link in value]
+        return [link for link in cleaned if link is not None]
+
+    @field_validator("links")
+    @classmethod
+    def _link_length(cls, value: list[str]) -> list[str]:
+        if any(len(link) > 200 for link in value):
+            raise ValueError("each link must be at most 200 characters")
+        return value
 
 
 class CvEntry(_BodyFollowsBullets, BaseModel):
@@ -113,6 +164,7 @@ class CvDocumentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     sections: list[CvSection] = Field(default_factory=list, max_length=50)
     seed_evidence_item_ids: list[str] = Field(default_factory=list, max_length=200)
+    header: CvHeader | None = None
 
 
 class CvDocumentUpdate(BaseModel):
@@ -121,10 +173,16 @@ class CvDocumentUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     sections: list[CvSection] | None = Field(default=None, max_length=50)
     style: CvStyle | None = None
+    header: CvHeader | None = None
 
     @model_validator(mode="after")
     def require_change(self):
-        if self.name is None and self.sections is None and self.style is None:
+        if (
+            self.name is None
+            and self.sections is None
+            and self.style is None
+            and self.header is None
+        ):
             raise ValueError("At least one editable field is required")
         return self
 
@@ -150,6 +208,7 @@ class CvDocumentResponse(BaseModel):
     name: str
     sections: list[CvSection]
     style: CvStyle
+    header: CvHeader = Field(default_factory=CvHeader)
     created_at: datetime
     updated_at: datetime
     tailoring_model_runs: int = Field(ge=0)
@@ -160,6 +219,11 @@ class CvDocumentResponse(BaseModel):
     @classmethod
     def _default_style_for_legacy_rows(cls, value):
         return value if value is not None else CvStyle()
+
+    @field_validator("header", mode="before")
+    @classmethod
+    def _default_header_for_legacy_rows(cls, value):
+        return value if value is not None else CvHeader()
 
 
 class CvDocumentListResponse(BaseModel):
@@ -191,10 +255,20 @@ class CvRenderSection(BaseModel):
     entries: list[CvRenderEntry]
 
 
+class CvRenderHeader(BaseModel):
+    """The header block as it renders: the title line plus optional headline and contact line."""
+
+    title: str
+    headline: str | None = None
+    # Email, phone, location and links, in that order.
+    contact: list[str] = Field(default_factory=list)
+
+
 class CvRenderModel(BaseModel):
     """Internal render input shared by the PDF and DOCX exporters (not an API response)."""
 
     document_name: str
+    header: CvRenderHeader
     template_id: CvTemplateId
     margin_mm: int
     tokens: dict[str, str | int | bool]
@@ -328,6 +402,7 @@ class CvImportProposal(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     sections: list[CvImportSection] = Field(max_length=50)
     warnings: list[str] = Field(max_length=20)
+    header: CvHeader = Field(default_factory=CvHeader)
 
     @field_validator("import_id", mode="before")
     @classmethod

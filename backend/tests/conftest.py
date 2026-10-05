@@ -1,3 +1,28 @@
+# ruff: noqa: E402
+import os
+import tempfile
+from pathlib import Path
+
+# Test isolation: backend/.env is the developer's runtime config (it enables the
+# ATS ingestion scheduler and the headed Autopilot browser). pydantic-settings
+# reads `.env` from the current directory, so a run from backend/ would pick it
+# up and hang. Build the app settings from a directory without a `.env`, then pin
+# every field to its built-in default in the environment (environment values beat
+# `.env`), so any later Settings() is just as isolated. Values the caller sets in
+# the real environment are kept, except the two switches that start background
+# workers, which tests always get off.
+_cwd = Path.cwd()
+with tempfile.TemporaryDirectory() as _empty:
+    os.chdir(_empty)
+    try:
+        from app.config import Settings as _Settings
+    finally:
+        os.chdir(_cwd)
+for _name, _field in _Settings.model_fields.items():
+    os.environ.setdefault(_name, str(_field.default))
+os.environ["ATS_INGESTION_ENABLED"] = "false"
+os.environ["AUTOPILOT_EXPERIMENT_ENABLED"] = "false"
+
 from datetime import UTC, datetime, timedelta
 
 import pytest

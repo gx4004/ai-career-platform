@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -17,7 +16,7 @@ from app.config import (
     validate_autopilot_config,
     validate_llm_provider_config,
 )
-from app.limiter import limiter
+from app.limiter import limiter, rate_limit_exceeded_handler
 from app.routers import (
     admin,
     applications,
@@ -95,7 +94,7 @@ async def request_validation_error_handler(
 app.add_exception_handler(RequestValidationError, request_validation_error_handler)
 
 
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 
 JSON_BODY_LIMIT_BYTES = 1_048_576

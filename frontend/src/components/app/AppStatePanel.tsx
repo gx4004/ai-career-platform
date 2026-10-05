@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button, ErrorState, Page } from '#/components/kit'
+import { Button, ErrorState, Page, ScoreSeal } from '#/components/kit'
 
 type PanelAction = {
   label: string
@@ -11,9 +11,15 @@ type PanelAction = {
 
 const VARIANTS = { default: 'primary', outline: 'secondary', ghost: 'ghost' } as const
 
+/** What the seal beside the copy says: a short word ("404", "!") and the tone that says how serious it is. */
+export type StateSeal = { value: string; label: string; tone?: 'lemon' | 'rose' | 'lilac' | 'stone' }
+
+const DEFAULT_SEAL: StateSeal = { value: '!', label: 'Error', tone: 'rose' }
+
 /**
- * A plain state page for screens that have not moved to the kit's EmptyState and ErrorState yet: one title,
- * one line of explanation, a primary and a secondary action, left-aligned.
+ * A whole-page state (crash, failed route, update needed): a seal on the left, the ErrorState copy on the
+ * right (code, display title, one sentence, the detail in a mono block), then a primary and a secondary
+ * action. Stacks on a phone. The 404 page composes the same layout through `StatePage`.
  */
 export function AppStatePanel({
   badge,
@@ -21,6 +27,8 @@ export function AppStatePanel({
   description,
   detail,
   actions = [],
+  seal = DEFAULT_SEAL,
+  role = 'alert',
   children,
 }: {
   badge?: string
@@ -28,6 +36,9 @@ export function AppStatePanel({
   description: string
   detail?: string
   actions?: PanelAction[]
+  seal?: StateSeal
+  /** A failure is announced (alert); the update-needed page is a quiet status. */
+  role?: 'alert' | 'status'
   children?: ReactNode
 }) {
   const buttons = actions.map((action, i) => {
@@ -45,17 +56,61 @@ export function AppStatePanel({
 
   return (
     <Page as="div">
-      <ErrorState
-        size="page"
-        role="status"
-        headingLevel={1}
+      <StatePage
+        seal={seal}
+        role={role}
         code={badge}
         title={title}
         description={description}
         detail={detail}
-        backAction={buttons.length > 0 ? <>{buttons}</> : undefined}
+        actions={buttons.length > 0 ? <>{buttons}</> : undefined}
       />
       {children}
     </Page>
+  )
+}
+
+/** The seal-and-copy layout shared by the 404 page and the error pages. */
+export function StatePage({
+  seal,
+  role = 'status',
+  code,
+  title,
+  description,
+  detail,
+  actions,
+}: {
+  seal: StateSeal
+  role?: 'alert' | 'status' | 'none'
+  code?: ReactNode
+  title: string
+  description: string
+  detail?: string
+  actions?: ReactNode
+}) {
+  const tone = seal.tone ?? 'rose'
+  return (
+    <div className="state-page">
+      {/* The kit's seal has no rose; the tone attribute is what paints it, so the page sets it. */}
+      <ScoreSeal
+        value={seal.value}
+        unit={null}
+        label={seal.label}
+        size="lg"
+        tone={tone === 'rose' ? 'lemon' : tone}
+        data-tone={tone}
+        rotate={-4}
+      />
+      <ErrorState
+        className="state-page__copy"
+        role={role}
+        headingLevel={1}
+        code={code}
+        title={title}
+        description={description}
+        detail={detail}
+        backAction={actions}
+      />
+    </div>
   )
 }

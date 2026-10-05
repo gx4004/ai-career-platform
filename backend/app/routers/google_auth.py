@@ -1,7 +1,8 @@
 import logging
 
 from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
 
@@ -39,20 +40,28 @@ def _oauth_error_redirect(reason: str) -> RedirectResponse:
     return RedirectResponse(url=f"{_resolve_frontend_url()}/login?oauth_error={reason}")
 
 
+def google_sign_in_configured() -> bool:
+    """True only when a Google sign-in can complete, so /auth/providers never
+    advertises a button that dead-ends."""
+    return bool(
+        settings.GOOGLE_CLIENT_ID
+        and settings.GOOGLE_CLIENT_SECRET
+        and settings.GOOGLE_REDIRECT_URI
+    )
+
+
 @router.get("/login")
 async def google_login(request: Request):
-    if not settings.GOOGLE_CLIENT_ID:
-        raise HTTPException(status_code=501, detail="Google OAuth not configured")
-    redirect_uri = settings.GOOGLE_REDIRECT_URI
-    if not redirect_uri:
-        raise HTTPException(status_code=501, detail="Google OAuth redirect URI not configured")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    # A full-page navigation: a JSON 501 would strand the user on a bare error.
+    if not google_sign_in_configured():
+        return _oauth_error_redirect("not_configured")
+    return await oauth.google.authorize_redirect(request, settings.GOOGLE_REDIRECT_URI)
 
 
 @router.get("/callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
     if not settings.GOOGLE_CLIENT_ID:
-        raise HTTPException(status_code=501, detail="Google OAuth not configured")
+        return _oauth_error_redirect("not_configured")
 
     try:
         token = await oauth.google.authorize_access_token(request)
@@ -68,13 +77,13 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         return _oauth_error_redirect("no_userinfo")
 
     google_id = userinfo["sub"]
-    email = userinfo["email"]
+    email = str(userinfo["email"]).strip().lower()
     email_verified = userinfo.get("email_verified", False)
-    full_name = userinfo.get("name")
+    full_name = (userinfo.get("name") or "").strip()[:200] or None
 
     user = db.query(User).filter(User.google_id == google_id).first()
     if not user:
-        existing = db.query(User).filter(User.email == email).first()
+        existing = db.query(User).filter(func.lower(User.email) == email).first()
         if existing:
             # Only link Google identity to an existing account when Google has
             # verified the email. Otherwise an attacker with a Google account
@@ -108,7 +117,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     if not user.is_active:
         return _oauth_error_redirect("account_deactivated")
 
-    access = create_access_token(user.id)
+    access = create_access_token(user.id, user.token_version)
     refresh = create_refresh_token(user.id, user.token_version)
 
     response = RedirectResponse(url=f"{_resolve_frontend_url()}/dashboard")

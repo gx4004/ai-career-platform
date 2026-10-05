@@ -20,15 +20,13 @@ import {
   Stack,
   StretchedLink,
   Table,
+  ToolTile,
 } from '#/components/kit'
 import type { TableColumn } from '#/components/kit'
 import { getAdminRuns, getAdminRun } from '#/lib/api/admin'
 import type { AdminRunItem, AdminRunListResponse, AdminRunDetail } from '#/lib/api/admin'
-import { toolList } from '#/lib/tools/registry'
-import { adminDateTime, labelNamesTool, toolLabel } from './toolLabel'
+import { ADMIN_TOOL_IDS, adminDateTime, labelNamesTool, toolLabel, toolVisual } from './toolLabel'
 import { countMeta } from './count-meta'
-
-const TOOL_IDS = toolList.map((t) => t.id)
 
 export function AdminRunsPage() {
   const [page, setPage] = useState(1)
@@ -63,17 +61,21 @@ export function AdminRunsPage() {
       primary: true,
       cell: (run) => {
         const title = run.label || toolLabel(run.tool_name)
+        const visual = toolVisual(run.tool_name)
         return (
-          <>
-            <StretchedLink asChild>
-              <button type="button" onClick={() => setSelectedRunId(run.id)}>
-                {title}
-              </button>
-            </StretchedLink>
-            {run.label && !labelNamesTool(run.label, run.tool_name) ? (
-              <span className="admin-subline">{toolLabel(run.tool_name)}</span>
-            ) : null}
-          </>
+          <span className="admin-run">
+            <ToolTile size="sm" tone={visual.tone} icon={visual.icon} />
+            <span>
+              <StretchedLink asChild>
+                <button type="button" onClick={() => setSelectedRunId(run.id)}>
+                  {title}
+                </button>
+              </StretchedLink>
+              {run.label && !labelNamesTool(run.label, run.tool_name) ? (
+                <span className="admin-subline">{toolLabel(run.tool_name)}</span>
+              ) : null}
+            </span>
+          </span>
         )
       },
     },
@@ -81,7 +83,7 @@ export function AdminRunsPage() {
     {
       id: 'user',
       header: 'User',
-      width: '16rem',
+      width: '20rem',
       stackLabel: false,
       cell: (run) => <span className="admin-wrap">{run.user_email || run.user_id.slice(0, 8)}</span>,
     },
@@ -109,7 +111,7 @@ export function AdminRunsPage() {
           }}
         >
           <option value="">All tools</option>
-          {TOOL_IDS.map((t) => (
+          {ADMIN_TOOL_IDS.map((t) => (
             <option key={t} value={t}>
               {toolLabel(t)}
             </option>
@@ -121,6 +123,7 @@ export function AdminRunsPage() {
         ) : (
           <Table
             caption="Runs"
+            density="compact"
             columns={columns}
             rows={data?.items ?? []}
             getRowId={(run) => run.id}
@@ -153,7 +156,7 @@ export function AdminRunsPage() {
               <Stack gap={6}>
                 <KeyValue
                   items={[
-                    { label: 'Tool', value: detail.tool_name, mono: true },
+                    { label: 'Tool', value: toolLabel(detail.tool_name) },
                     { label: 'User', value: detail.user_email || detail.user_id },
                     { label: 'Label', value: detail.label },
                     { label: 'Created', value: adminDateTime(detail.created_at) },

@@ -25,6 +25,18 @@ describe('CV Studio contracts', () => {
     expect(() => cvDocumentSchema.parse({ ...cv, style: { section_order: ['x'] } })).toThrow()
   })
 
+  it('reads a document header, and an empty one when a legacy row has none', () => {
+    expect(cvDocumentSchema.parse(cv).header).toEqual({
+      name: null, headline: null, email: null, phone: null, location: null, links: [],
+    })
+    const header = {
+      name: 'Casey Morgan', headline: 'Backend Engineer', email: 'casey@example.com',
+      phone: '+49 30 5550134', location: 'Berlin, Germany', links: ['https://github.com/casey'],
+    }
+    expect(cvDocumentSchema.parse({ ...cv, header }).header).toEqual(header)
+    expect(() => cvDocumentSchema.parse({ ...cv, header: { ...header, extra: 1 } })).toThrow()
+  })
+
   it('carries CV documents and their variants in the complete career-data export', () => {
     const parsed = careerDataExportSchema.parse({
       schema_version: 'career-data-export/v1', exported_at: '2026-07-12T10:00:00Z',
