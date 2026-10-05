@@ -174,3 +174,28 @@ describe('kit Skeleton', () => {
     expect(container.querySelectorAll('.kit-skeleton__bar').length).toBeGreaterThan(5)
   })
 })
+
+describe('kit EmptyState and ErrorState icon', () => {
+  it('draws an icon in a disc before the title, hidden from assistive tech', () => {
+    const { container } = render(<EmptyState icon={<svg data-testid="star" />} title="No starred results" />)
+    const disc = container.querySelector('.kit-empty__icon') as HTMLElement
+    expect(disc.getAttribute('aria-hidden')).toBe('true')
+    expect(disc.querySelector('[data-testid="star"]')).toBeTruthy()
+    expect(container.querySelector('.kit-empty__title')).toBeTruthy()
+  })
+
+  it('has no disc without an icon, on both states', () => {
+    const { container } = render(
+      <>
+        <EmptyState title="Nothing" />
+        <ErrorState title="Failed" />
+      </>,
+    )
+    expect(container.querySelector('.kit-empty__icon')).toBeNull()
+  })
+
+  it('an ErrorState icon sits in the same disc (the stylesheet colours it rose)', () => {
+    const { container } = render(<ErrorState icon={<svg />} title="Failed" />)
+    expect(container.querySelector('.kit-error .kit-empty__icon')).toBeTruthy()
+  })
+})

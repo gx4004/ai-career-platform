@@ -5,19 +5,29 @@ import { cn } from '#/lib/utils'
 export type StateSize = 'compact' | 'page' | 'inline'
 
 type StateBaseProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & {
-  /** compact: inside a Section or beside content. page: the whole page has nothing to show. inline: a quiet one-line placeholder in a narrow slot (a board column, a side rail): body type, not serif. Default compact. */
+  /** compact: inside a Section or beside content. page: the whole page has nothing to show. inline: a quiet one-line placeholder in a narrow slot (a board column, a side rail): no frame, body type. Default compact. */
   size?: StateSize
   /** Level of the title heading (1 for a full-page error or not-found). Omit for a plain paragraph. */
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
+  /** A 20px icon in the tilted disc above the title (lemon; rose for an ErrorState). Decorative. Not shown at size inline. */
+  icon?: ReactNode
 }
 
 export type EmptyStateProps = StateBaseProps & {
-  /** One serif line: what is missing, in plain words ("No applications yet"). */
+  /** One display line: what is missing, in plain words ("No applications yet"). */
   title: ReactNode
   /** One sentence on what to do about it. */
   description?: ReactNode
   /** At most one action: a Button (secondary, or primary on a page-level empty state). */
   action?: ReactNode
+}
+
+function Icon({ icon }: { icon: ReactNode }) {
+  return icon ? (
+    <span className="kit-empty__icon" aria-hidden="true">
+      {icon}
+    </span>
+  ) : null
 }
 
 function Title({ headingLevel, className, children }: { headingLevel?: number; className: string; children: ReactNode }) {
@@ -26,16 +36,17 @@ function Title({ headingLevel, className, children }: { headingLevel?: number; c
 }
 
 /**
- * Nothing here yet: a serif line, one sentence, at most one action. Left-aligned, no illustration, no
- * icon. Replaces .camp-empty, .dash-empty, .today-empty, .history-empty, .profile-empty, WorkspaceEmpty,
+ * Nothing here yet: the die-cut panel (dashed outline), an optional icon disc, a display line, one
+ * sentence, at most one action. Left-aligned. Replaces .camp-empty, .dash-empty, .today-empty, .history-empty, .profile-empty, WorkspaceEmpty,
  * .cvs-empty-panel and the other empty-state variants.
  */
 export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(function EmptyState(
-  { title, description, action, size = 'compact', headingLevel, className, ...rest },
+  { title, description, action, size = 'compact', headingLevel, icon, className, ...rest },
   ref,
 ) {
   return (
     <div ref={ref} className={cn('kit-empty', className)} data-size={size} {...rest}>
+      <Icon icon={icon} />
       <Title headingLevel={headingLevel} className="kit-empty__title">
         {title}
       </Title>
@@ -81,6 +92,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(function E
     backAction,
     size = 'compact',
     headingLevel,
+    icon,
     role = 'alert',
     className,
     ...rest
@@ -96,6 +108,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(function E
       data-size={size}
       {...rest}
     >
+      <Icon icon={icon} />
       {code ? <p className="kit-error__code">{code}</p> : null}
       <Title headingLevel={headingLevel} className="kit-empty__title">
         {title}

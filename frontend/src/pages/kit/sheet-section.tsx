@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, FileText, LayoutDashboard, Search, Settings, SquareKanban, UserRound, X } from 'lucide-react'
+import { Clock, FileCheck2, Layers, Mail, MessageCircle, Route, Search, Settings, Target, UserRound, X } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -108,12 +108,18 @@ function FiltersSheet() {
 }
 
 const TOOLS = [
-  { label: 'Resume Analyzer', icon: FileText },
-  { label: 'Job Match', icon: Search },
-  { label: 'Career Path', icon: BookOpen },
-  { label: 'Dashboard', icon: LayoutDashboard },
-  { label: 'Applications', icon: SquareKanban },
+  { label: 'Resume Analyzer', icon: FileCheck2, tone: 'tangerine' },
+  { label: 'Job Match', icon: Target, tone: 'mint' },
+  { label: 'Career Path', icon: Route, tone: 'lilac' },
+  { label: 'Cover Letter', icon: Mail, tone: 'lemon' },
+  { label: 'Interview Q&A', icon: MessageCircle, tone: 'rose' },
+  { label: 'Portfolio Planner', icon: Layers, tone: 'aqua' },
+] as const
+
+const PLACES = [
+  { label: 'History', icon: Clock },
   { label: 'Profile', icon: UserRound },
+  { label: 'Search', icon: Search },
   { label: 'Settings', icon: Settings },
 ]
 
@@ -121,7 +127,7 @@ function ToolsSheet() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="secondary">Tools sheet (list)</Button>
+        <Button variant="secondary">Tools sheet (tiles)</Button>
       </SheetTrigger>
       <SheetContent side="bottom" size="sm">
         <SheetHeader>
@@ -130,7 +136,21 @@ function ToolsSheet() {
         </SheetHeader>
         <SheetBody>
           <ul className="kit-gallery__tool-list">
-            {TOOLS.map(({ label, icon: Icon }) => (
+            {TOOLS.map(({ label, icon: Icon, tone }) => (
+              <li key={label}>
+                <SheetClose asChild>
+                  <button type="button" className="kit-gallery__tool-row kit-tone" data-tone={tone}>
+                    <span className="kit-gallery__tool-disc">
+                      <Icon aria-hidden="true" />
+                    </span>
+                    {label}
+                  </button>
+                </SheetClose>
+              </li>
+            ))}
+          </ul>
+          <ul className="kit-gallery__tool-list kit-gallery__tool-list--plain">
+            {PLACES.map(({ label, icon: Icon }) => (
               <li key={label}>
                 <SheetClose asChild>
                   <button type="button" className="kit-gallery__tool-row">
@@ -164,6 +184,7 @@ function StaticBottom() {
   return (
     <Sheet open>
       <div className="kit-sheet" data-side="bottom" data-closable="true">
+        <span className="kit-sheet__grab" aria-hidden="true" />
         <SheetHeader>
           <SheetTitle>Filters</SheetTitle>
           <SheetDescription>Narrow the list to the jobs you want to see.</SheetDescription>
@@ -195,7 +216,7 @@ export function SheetSection() {
     <GallerySection
       id="sheet"
       title="Sheet"
-      note="The same modal behaviour as Dialog. Right-hand drawer on desktop, bottom sheet at 767px and below (or always one of them). Opacity and a 4px shift, no sliding, no drag handle."
+      note="The same modal behaviour as Dialog, white with the 2px ink outline. Right-hand drawer on desktop (slides 24px and fades in, 200ms), bottom sheet at 767px and below or always (28px top corners, a grab bar that is decoration only, rises 60px in 260ms). Both leave with a 120ms fade; reduced motion shows the final state at once."
     >
       <Group title="At rest (static previews)">
         <Grid wide>

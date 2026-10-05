@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Count, Disclosure } from '#/components/kit'
+import { Count, Disclosure, Panel } from '#/components/kit'
 import { GallerySection, Group, Specimen } from './gallery-parts'
 
 function ControlledDemo() {
@@ -22,10 +22,10 @@ export function DisclosureSection() {
     <GallerySection
       id="disclosure"
       title="Disclosure"
-      note="A heading row that shows or hides its content. It is a real button with aria-expanded and aria-controls, controlled or uncontrolled. Closed content is not rendered."
+      note="A heading row that shows or hides its content. It is a real button with aria-expanded and aria-controls, controlled or uncontrolled. Closed content is not rendered, and nothing animates: the chevron and the content swap at once."
     >
-      <Group title="Section rows (stacked share their hairlines)">
-        <div>
+      <Group title="Section rows in a flush Panel (stacked rows share their 2px rules; the chevron disc turns lemon while open)">
+        <Panel flush>
           <Disclosure title="What's working" meta={<Count value={3} />} defaultOpen headingLevel={3}>
             <ul className="kit-gallery__bullets">
               <li>Applications with a tailored CV reached interview 2.1 times more often.</li>
@@ -38,6 +38,17 @@ export function DisclosureSection() {
           </Disclosure>
           <Disclosure title="Notes" headingLevel={3}>
             <p className="kit-gallery__paragraph">Private notes for this application.</p>
+          </Disclosure>
+        </Panel>
+      </Group>
+
+      <Group title="Section rows on their own, and disabled">
+        <div>
+          <Disclosure title="Offer details" meta="Added Oct 2" headingLevel={3}>
+            <p className="kit-gallery__paragraph">Base salary, bonus and start date as you entered them.</p>
+          </Disclosure>
+          <Disclosure title="Archived notes" meta="Locked" headingLevel={3} disabled>
+            <p className="kit-gallery__paragraph">Hidden.</p>
           </Disclosure>
         </div>
       </Group>

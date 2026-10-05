@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck, EyeOff, X } from 'lucide-react'
+import { Check, EyeOff, TriangleAlert, X } from 'lucide-react'
 import { Button, useToast } from '#/components/kit'
 import { GallerySection, Group, Row, Stage } from './gallery-parts'
 
@@ -85,13 +85,13 @@ function StaticToast({ tone, children, action, icon }: { tone: 'neutral' | 'succ
   return (
     <div className="kit-toast kit-gallery__toast-static" data-tone={tone} data-state="open">
       {icon ? (
-        <span className="kit-toast__icon">{icon === 'success' ? <CircleCheck aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}</span>
+        <span className="kit-toast__icon">{icon === 'success' ? <Check aria-hidden="true" /> : <TriangleAlert aria-hidden="true" />}</span>
       ) : null}
       <div className="kit-toast__text">
         <p className="kit-toast__title">{children}</p>
       </div>
       {action ? (
-        <Button type="button" variant="ghost" size="sm" className="kit-toast__action">
+        <Button type="button" variant="link" size="sm" className="kit-toast__action">
           {action}
         </Button>
       ) : null}
@@ -107,7 +107,7 @@ export function ToastSection() {
     <GallerySection
       id="toast"
       title="Toast"
-      note="Queue via useToast(). Auto-dismiss after 5s (8s for danger or an action) and the timer pauses while you hover or focus a toast. Text is announced through two persistent live regions (polite for neutral and success, assertive for danger). Bottom-right on desktop, above the tab bar on phones."
+      note="A white 2px-outlined panel with the 4px hard shadow; success and danger carry a mint check or rose alert disc, neutral has none. It slaps on in 260ms (kit-slap-lite) and leaves with a 120ms fade; reduced motion shows and hides it at once. Queue via useToast(). Auto-dismiss after 5s (8s for danger or an action) and the timer pauses while you hover or focus a toast. Text is announced through two persistent live regions (polite for neutral and success, assertive for danger). Bottom-right on desktop, above the tab bar on phones."
     >
       <Group title="At rest (static copies)">
         <Stage label="Static preview of toasts" className="kit-gallery__stage--plain kit-gallery__stage--stack">

@@ -8,16 +8,21 @@ export type RowOverflow = 'wrap' | 'truncate'
 export type ListProps = ComponentPropsWithoutRef<'ul'> & {
   /** Render an <ol> with a number in front of every row ("Fix first"). */
   numbered?: boolean
-  /** Hairlines above the first row and below the last, for a list that stands alone. */
+  /** Rules above the first row and below the last, for an unframed list that stands alone. A no-op while framed. */
   boxed?: boolean
+  /**
+   * Draw the list as an object: white, 2px ink outline, 24px radius, rows flush inside. Default true.
+   * Pass false inside a Panel, Dialog, Sheet, rail or Table cell, which already provide the frame.
+   */
+  framed?: boolean
 }
 
 /**
- * A vertical list of Rows. The rows are separated by hairlines. Name it with aria-label (or
- * aria-labelledby) unless a Section heading already does.
+ * A vertical list of Rows, framed by default, the rows separated by 2px dividers. Name it with
+ * aria-label (or aria-labelledby) unless a Section heading already does.
  */
 export const List = forwardRef<HTMLUListElement, ListProps>(function List(
-  { numbered = false, boxed = false, className, ...rest },
+  { numbered = false, boxed = false, framed = true, className, ...rest },
   ref,
 ) {
   const Tag = (numbered ? 'ol' : 'ul') as 'ul'
@@ -29,17 +34,18 @@ export const List = forwardRef<HTMLUListElement, ListProps>(function List(
       className={cn('kit-list', className)}
       data-numbered={numbered ? 'true' : undefined}
       data-boxed={boxed ? 'true' : undefined}
+      data-framed={framed ? 'true' : undefined}
       {...rest}
     />
   )
 })
 
 export type RowProps = HTMLAttributes<HTMLElement> & {
-  /** compact 36px, comfortable 44px (a title plus a subtitle fits in it). Default comfortable. */
+  /** compact 40px, comfortable 44px minimum (16px/20px padding, a title plus a subtitle fits in it). Default comfortable. */
   density?: RowDensity
-  /** The row is open, current or chosen: tinted, with a bar on its start edge. */
+  /** The row is open, current or chosen: lemon-soft tint, with a 4px ink bar on its start edge. */
   selected?: boolean
-  /** Tint on hover. Rows that contain a StretchedLink get this without asking. */
+  /** Lemon-soft tint on hover. Rows that contain a StretchedLink get this without asking. */
   interactive?: boolean
   /** How long titles and subtitles behave: wrap onto more lines (default) or cut with an ellipsis. */
   overflow?: RowOverflow
@@ -70,7 +76,7 @@ export const Row = forwardRef<HTMLElement, RowProps>(function Row(
   )
 })
 
-/** Icon, avatar, checkbox or rank in front of the text. */
+/** Icon, avatar, checkbox, FitStamp, ToolTile or StageMark in front of the text. */
 export const RowLeading = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(function RowLeading(
   { className, ...rest },
   ref,
@@ -91,11 +97,13 @@ export type RowTitleProps = ComponentPropsWithoutRef<'div'> & {
   headingLevel?: 2 | 3 | 4 | 5 | 6
   /** The child (a router Link, an <a>, a button) is the title AND the link for the whole row. */
   asChild?: boolean
+  /** lg: 17px, for a comfortable match row. Default md (15px). */
+  size?: 'md' | 'lg'
 }
 
 /** Row title. With `asChild` it is also the row's whole-row link. */
-export const RowTitle = forwardRef<HTMLElement, RowTitleProps>(function RowTitle(props, ref) {
-  return <TitleSlot ref={ref} baseClass="kit-row__title" headingClass="kit-row__heading" {...props} />
+export const RowTitle = forwardRef<HTMLElement, RowTitleProps>(function RowTitle({ size = 'md', ...props }, ref) {
+  return <TitleSlot ref={ref} baseClass="kit-row__title" headingClass="kit-row__heading" data-size={size === 'lg' ? 'lg' : undefined} {...props} />
 })
 
 /** Second line under the title: plain text, or a MetaRow. */

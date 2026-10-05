@@ -1,70 +1,70 @@
 /*
- * Toast: a small paper panel, tone shown by the icon and a tinted hairline (never by colour alone:
- * the icon shape and the text carry it). Bottom-right on desktop; above the mobile tab bar on phones.
+ * Toast (Sticker): a small white panel, 2px ink outline, radius 16, the 4px hard shadow. Tone is a 28px
+ * disc at the start (mint check = success, rose alert = danger); the icon shape and the text carry the
+ * meaning, never colour alone. Bottom-right on desktop; above the floating tab tray on phones.
+ * It enters with kit-slap-lite (a short slap-on, 260ms, slight overshoot) and leaves with a 120ms fade.
  * The region ignores the pointer so it never blocks the page, and the toasts opt back in (also
  * while a modal has switched the rest of the page off).
  */
 
 .kit-toast-region {
   position: fixed;
-  right: var(--space-4);
-  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  right: var(--s4);
+  bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  width: min(24rem, calc(100vw - var(--space-4) * 2));
+  gap: var(--s3);
+  width: min(24rem, calc(100vw - var(--s4) * 2));
+  /* The hard shadow and the slap-on overshoot sit outside the box: keep them off the viewport edge. */
+  padding: 0 var(--s1) var(--s1) 0;
   pointer-events: none;
 }
 
 @media (max-width: 767px) {
   .kit-toast-region {
-    right: var(--space-4);
-    left: var(--space-4);
+    right: var(--s4);
+    left: var(--s4);
     width: auto;
   }
 }
 
-/* Above the mobile tab bar, which exists at 639px and below only. */
+/* Above the floating tab tray, which exists at 639px and below only. */
 @media (max-width: 639px) {
   .kit-toast-region {
-    bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + var(--space-3));
+    bottom: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s3));
   }
 }
 
 .kit-toast {
-  --kit-toast-border: var(--border-soft);
-  --kit-toast-icon: var(--text-soft);
-  --kit-shift-y: 4px;
+  --kit-toast-disc: var(--stone);
 
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s3);
   box-sizing: border-box;
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
-  border: 1px solid var(--kit-toast-border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-overlay);
-  box-shadow: var(--shadow-overlay);
-  color: var(--text-body);
-  font-family: var(--font-sans);
+  padding: var(--s3) var(--s2) var(--s3) var(--s3);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   pointer-events: auto;
 }
 
 .kit-toast[data-tone='success'] {
-  --kit-toast-border: var(--success-border);
-  --kit-toast-icon: var(--success-solid);
+  --kit-toast-disc: var(--mint);
 }
 
 .kit-toast[data-tone='danger'] {
-  --kit-toast-border: var(--danger-border);
-  --kit-toast-icon: var(--danger-solid);
+  --kit-toast-disc: var(--rose);
 }
 
 .kit-toast[data-state='open'] {
-  animation: kit-shift-in var(--duration-overlay) var(--ease-out);
+  animation: kit-slap-lite var(--dur-3) var(--ease-pop);
 }
 
 .kit-toast[data-state='closed'] {
@@ -74,7 +74,15 @@
 .kit-toast__icon {
   display: inline-flex;
   flex: none;
-  color: var(--kit-toast-icon);
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--kit-toast-disc);
+  color: var(--ink);
 }
 
 .kit-toast__icon > svg {
@@ -85,7 +93,7 @@
 .kit-toast__text {
   flex: 1 1 auto;
   min-width: 0;
-  padding-block: var(--space-1);
+  padding-block: var(--s1);
 }
 
 .kit-toast__title,
@@ -95,25 +103,35 @@
 }
 
 .kit-toast__title {
-  color: var(--text-strong);
-  font-weight: var(--fw-medium);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
 .kit-toast__description {
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
 }
 
 .kit-toast .kit-toast__action {
-  --kit-button-fg: var(--accent);
-  --kit-button-hover-fg: var(--accent-hover);
-
   flex: none;
 }
 
 .kit-toast .kit-toast__close {
   flex: none;
+}
+
+/* The slap-on of the signature, shortened for a small panel: it lands level and never rotates at rest. */
+@keyframes kit-slap-lite {
+  from {
+    opacity: 0;
+    transform: translate(12px, 8px) rotate(2deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

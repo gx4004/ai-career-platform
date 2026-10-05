@@ -60,7 +60,7 @@ export function FieldSection() {
     <GallerySection
       id="field"
       title="Field, Input, Select, Textarea, DateField"
-      note="Field wires id, aria-describedby, aria-invalid, required and disabled into the control it wraps. Every frame shares one height scale, border, radius and focus ring."
+      note="Field wires id, aria-describedby, aria-invalid, required and disabled into the control it wraps. Every frame shares one height scale (36, 44, 56), a 2px ink outline, radius 12 and no shadow; state is a fill (hover stone, focus warm white, invalid rose, disabled stone)."
     >
       <Group title="Field">
         <Grid>
@@ -104,13 +104,13 @@ export function FieldSection() {
 
       <Group title="Input sizes">
         <Grid>
-          <Specimen label="sm (28)">
+          <Specimen label="sm (36)">
             <Input size="sm" aria-label="Small" placeholder="Small" />
           </Specimen>
-          <Specimen label="md (32, default)">
+          <Specimen label="md (44, default)">
             <Input aria-label="Medium" placeholder="Medium" />
           </Specimen>
-          <Specimen label="lg (36)">
+          <Specimen label="lg (56)">
             <Input size="lg" aria-label="Large" placeholder="Large" />
           </Specimen>
         </Grid>
@@ -124,8 +124,14 @@ export function FieldSection() {
           <Specimen label="filled">
             <Input aria-label="Filled" defaultValue="Senior Backend Engineer" />
           </Specimen>
+          <Specimen label="focus (forced): warm fill and 3px ink ring">
+            <Input aria-label="Focus" className="kit-demo-focus" defaultValue="Focused" />
+          </Specimen>
           <Specimen label="invalid">
             <Input aria-label="Invalid" invalid defaultValue="not-an-email" />
+          </Specimen>
+          <Specimen label="invalid and focused: the ring turns danger ink">
+            <Input aria-label="Invalid focus" invalid className="kit-demo-focus" defaultValue="not-an-email" />
           </Specimen>
           <Specimen label="read-only">
             <Input aria-label="Read-only" readOnly defaultValue="Locked by your account" />

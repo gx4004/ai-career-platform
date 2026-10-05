@@ -1,7 +1,9 @@
 import { forwardRef, type ComponentPropsWithoutRef } from 'react'
 import { cn } from '#/lib/utils'
 
-export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info'
+/** The palette tones (colour by meaning: stage, severity, tool) join the semantic ones. */
+export type PaletteTone = 'tangerine' | 'mint' | 'lilac' | 'lemon' | 'rose' | 'aqua' | 'stone' | 'white'
+export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info' | PaletteTone
 export type BadgeSize = 'sm' | 'md'
 
 export type BadgeProps = ComponentPropsWithoutRef<'span'> & {
@@ -33,17 +35,20 @@ export type CountProps = Omit<ComponentPropsWithoutRef<'span'>, 'children'> & {
   value: number | string
   /** Cap numeric values: max={99} renders 100 as "99+". */
   max?: number
-  tone?: 'muted' | 'accent'
+  /** muted and accent colour the text; a palette tone fills the pill variant. */
+  tone?: 'muted' | 'accent' | PaletteTone
+  /** text (default) is a bare tabular number; pill draws the outlined circle beside a heading. */
+  variant?: 'text' | 'pill'
 }
 
-/** Tabular numeric count, no pill: sits next to a heading, tab or button label. */
+/** Tabular numeric count: bare beside a tab or button label, `variant="pill"` after a heading. */
 export const Count = forwardRef<HTMLSpanElement, CountProps>(function Count(
-  { value, max, tone = 'muted', className, ...rest },
+  { value, max, tone = 'muted', variant = 'text', className, ...rest },
   ref,
 ) {
   const text = typeof value === 'number' && max !== undefined && value > max ? `${max}+` : String(value)
   return (
-    <span ref={ref} className={cn('kit-count', className)} data-tone={tone} {...rest}>
+    <span ref={ref} className={cn('kit-count', className)} data-tone={tone} data-variant={variant} {...rest}>
       {text}
     </span>
   )

@@ -1,0 +1,113 @@
+/* FitStamp, SkillPips, RoundStamp, Highlight: the small printed marks of a job and a pipeline. */
+
+.kit-fit-stamp {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 60px;
+  block-size: 52px;
+  padding-block-start: 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--tone, var(--surface));
+  box-shadow: var(--sh-1);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: 1.5rem;
+  font-weight: var(--fw-black);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kit-fit-stamp small {
+  margin-inline-start: 1px;
+  font-size: 0.8125rem;
+  font-weight: var(--fw-black);
+}
+
+.kit-fit-stamp[data-size='sm'] {
+  inline-size: 52px;
+  block-size: 48px;
+  padding-block-start: 10px;
+}
+
+.kit-fit-stamp[data-digits='3'] {
+  font-size: 1.25rem;
+  letter-spacing: -0.04em;
+}
+
+.kit-fit-stamp[data-digits='3'] small {
+  font-size: 0.6875rem;
+}
+
+.kit-skill-pips[data-mode='pips'] {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.kit-skill-pips[data-mode='bar'] {
+  display: block;
+  min-inline-size: 7rem;
+}
+
+.kit-skill-pips__pip {
+  box-sizing: border-box;
+  inline-size: 8px;
+  block-size: 14px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 3px;
+  background: var(--surface);
+}
+
+.kit-skill-pips__pip[data-on='true'] {
+  background: var(--mint);
+}
+
+.kit-round-stamp {
+  --kit-stamp-size: 84px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--kit-stamp-size);
+  block-size: var(--kit-stamp-size);
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--tone, var(--mint));
+  box-shadow: var(--sh-1);
+  color: var(--ink);
+  transform: rotate(var(--kit-tilt, 8deg));
+}
+
+.kit-round-stamp::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: var(--bw-thin) dashed var(--ink);
+  border-radius: 50%;
+}
+
+.kit-round-stamp__value {
+  position: relative;
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: calc(var(--kit-stamp-size) / 3);
+  font-weight: var(--fw-black);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* An inline marker stroke: an inset shadow, so no gradient is needed. */
+.kit-highlight {
+  padding: 0 2px;
+  background: none;
+  box-shadow: inset 0 -0.42em 0 var(--lemon);
+  color: inherit;
+  font-weight: var(--fw-bold);
+}

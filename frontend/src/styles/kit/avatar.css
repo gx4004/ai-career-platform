@@ -1,7 +1,7 @@
-/* Avatar: a round identity mark. Initials on a quiet stone disc, never a per-person colour. */
+/* Avatar (Sticker): a round identity mark. Initials on a lilac disc with the 2px outline, never a per-person colour. */
 
 .kit-avatar {
-  --kit-avatar-size: 1.75rem;
+  --kit-avatar-size: 1.75rem; /* 28 */
 
   position: relative;
   display: inline-flex;
@@ -12,26 +12,25 @@
   inline-size: var(--kit-avatar-size);
   block-size: var(--kit-avatar-size);
   overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  color: var(--text-body);
-  font-family: var(--font-sans);
-  font-size: var(--fs-micro);
-  font-weight: var(--fw-medium);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--lilac);
+  color: var(--ink);
+  font-family: var(--font-display);
+  /* 0.4 x the disc, never below the 12px floor. */
+  font-size: max(var(--fs-micro), calc(var(--kit-avatar-size) * 0.4));
+  font-weight: var(--fw-black);
   line-height: 1;
   vertical-align: middle;
   user-select: none;
 }
 
 .kit-avatar[data-size='sm'] {
-  --kit-avatar-size: 1.5rem;
+  --kit-avatar-size: 1.5rem; /* 24 */
 }
 
 .kit-avatar[data-size='lg'] {
-  --kit-avatar-size: 2.25rem;
-
-  font-size: var(--fs-meta);
+  --kit-avatar-size: 2.25rem; /* 36 */
 }
 
 .kit-avatar__image {

@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
-import { CircleAlert, CircleCheck, X } from 'lucide-react'
+import { Check, TriangleAlert, X } from 'lucide-react'
 import { Button } from './button'
 
 export type ToastTone = 'neutral' | 'success' | 'danger'
@@ -19,7 +19,7 @@ type ToastContent = { title: ReactNode; description?: ReactNode } | { title?: un
 export type ToastOptions = ToastContent & {
   /** Reuse an id to replace a toast in place (and restart its timer) instead of stacking another. */
   id?: string
-  /** success and danger carry their own icon; neutral has none. */
+  /** success (mint check disc) and danger (rose alert disc) carry their own icon; neutral has none. */
   tone?: ToastTone
   /** Your own icon, or false for none. */
   icon?: ReactNode | false
@@ -178,8 +178,8 @@ export function ToastProvider({ children, max = 3 }: { children: ReactNode; /** 
 }
 
 function toneIcon(tone: ToastTone) {
-  if (tone === 'success') return <CircleCheck aria-hidden="true" />
-  if (tone === 'danger') return <CircleAlert aria-hidden="true" />
+  if (tone === 'success') return <Check aria-hidden="true" />
+  if (tone === 'danger') return <TriangleAlert aria-hidden="true" />
   return null
 }
 
@@ -247,7 +247,7 @@ function ToastItem({ record, onDismiss }: { record: ToastRecord; onDismiss: (id:
       {options.action ? (
         <Button
           type="button"
-          variant="ghost"
+          variant="link"
           size="sm"
           className="kit-toast__action"
           onClick={() => {

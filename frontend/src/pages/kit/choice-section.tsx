@@ -37,18 +37,19 @@ const TEMPLATES = [
 ]
 
 const FONTS = [
-  { id: 'inter', name: 'Inter', category: 'sans serif', family: 'var(--font-sans)' },
-  { id: 'newsreader', name: 'Newsreader', category: 'serif', family: 'var(--font-serif)' },
+  { id: 'inter', name: 'Inter', category: 'sans serif', family: 'var(--font-ui)' },
+  // A CV document font choice, not the app's face (the app no longer loads Newsreader): a generic serif sample.
+  { id: 'newsreader', name: 'Newsreader', category: 'serif', family: "Georgia, 'Times New Roman', serif" },
   { id: 'mono', name: 'Plex Mono', category: 'monospace', family: 'var(--font-mono)' },
 ]
 
 const ACCENTS = [
-  { value: 'var(--accent)', name: 'Forest' },
-  { value: 'var(--danger-solid)', name: 'Oxblood' },
-  { value: 'var(--text-strong)', name: 'Ink' },
-  { value: 'var(--warning-solid)', name: 'Amber' },
-  { value: 'var(--text-soft)', name: 'Stone' },
-  { value: 'var(--background)', name: 'Paper (near white)' },
+  { value: 'var(--tangerine)', name: 'Tangerine' },
+  { value: 'var(--mint)', name: 'Mint' },
+  { value: 'var(--ink)', name: 'Ink' },
+  { value: 'var(--lilac)', name: 'Lilac' },
+  { value: 'var(--ink-3)', name: 'Slate' },
+  { value: 'var(--surface)', name: 'Paper (white)' },
 ]
 
 function TemplateDemo() {
@@ -91,7 +92,7 @@ function FontDemo() {
 }
 
 function SwatchDemo() {
-  const [value, setValue] = useState('var(--accent)')
+  const [value, setValue] = useState('var(--tangerine)')
   return (
     <RadioGroup aria-label="Accent colour" variant="swatch" value={value} onValueChange={setValue}>
       {ACCENTS.map((accent) => (
@@ -117,7 +118,7 @@ export function ChoiceSection() {
     <GallerySection
       id="choice"
       title="Checkbox, Switch, RadioGroup"
-      note="Native checkbox and radio inputs, restyled. The whole label row is the hit area. A switch applies immediately; a checkbox waits for a submit."
+      note="Native checkbox and radio inputs, restyled. The whole label row is the hit area. Checked is tangerine with an ink tick; a switch is mint when on and applies immediately; a checkbox waits for a submit."
     >
       <Group title="Checkbox">
         <Grid>
@@ -273,7 +274,7 @@ export function ChoiceSection() {
             <SwatchDemo />
           </Specimen>
           <Specimen label="disabled">
-            <RadioGroup aria-label="Locked accent" variant="swatch" disabled defaultValue="var(--accent)">
+            <RadioGroup aria-label="Locked accent" variant="swatch" disabled defaultValue="var(--tangerine)">
               {ACCENTS.slice(0, 3).map((accent) => (
                 <RadioItem key={accent.value} value={accent.value} label={accent.name} swatch={accent.value} />
               ))}

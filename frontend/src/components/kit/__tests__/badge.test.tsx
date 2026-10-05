@@ -61,6 +61,24 @@ describe('kit Badge', () => {
   })
 })
 
+describe('kit Badge palette tones', () => {
+  it('accepts the palette tones next to the semantic ones and passes data-severity through', () => {
+    render(
+      <>
+        <Badge tone="lilac" data-testid="a">
+          Applied
+        </Badge>
+        <Badge tone="neutral" data-severity="low" data-testid="b">
+          Low
+        </Badge>
+      </>,
+    )
+    expect(screen.getByTestId('a').getAttribute('data-tone')).toBe('lilac')
+    expect(screen.getByTestId('b').getAttribute('data-tone')).toBe('neutral')
+    expect(screen.getByTestId('b').getAttribute('data-severity')).toBe('low')
+  })
+})
+
 describe('kit Count', () => {
   it('renders numbers and text', () => {
     render(
@@ -82,6 +100,18 @@ describe('kit Count', () => {
     )
     expect(screen.getByTestId('big').textContent).toBe('99+')
     expect(screen.getByTestId('edge').textContent).toBe('99')
+  })
+
+  it('has a text variant by default and an outlined pill variant that takes palette tones', () => {
+    render(
+      <>
+        <Count value={2} data-testid="plain" />
+        <Count value={2} variant="pill" tone="rose" data-testid="pill" />
+      </>,
+    )
+    expect(screen.getByTestId('plain').getAttribute('data-variant')).toBe('text')
+    expect(screen.getByTestId('pill').getAttribute('data-variant')).toBe('pill')
+    expect(screen.getByTestId('pill').getAttribute('data-tone')).toBe('rose')
   })
 
   it('supports an accent tone', () => {

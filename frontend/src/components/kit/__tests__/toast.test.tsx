@@ -218,6 +218,13 @@ describe('kit Toast', () => {
     expect(nope.querySelector('.kit-toast__icon')).toBeNull()
   })
 
+  it('renders the action as a link-style button and the tone icon inside the disc', () => {
+    setup({ tone: 'success', title: 'Hid it', action: { label: 'Undo', onClick: () => undefined } })
+    show()
+    expect(screen.getByRole('button', { name: 'Undo' }).className).toContain('kit-button--link')
+    expect(document.querySelector('.kit-toast__icon > svg')).toBeTruthy()
+  })
+
   it('keeps a persistent live-region marker on the container so a modal never hides it from assistive tech', () => {
     setup({ title: 'x' })
     expect(document.querySelector('.kit-toast-region')?.getAttribute('aria-live')).toBe('off')

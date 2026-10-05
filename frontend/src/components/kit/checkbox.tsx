@@ -22,9 +22,9 @@ type ChoiceOwnProps = {
   /** Second line of quiet explanatory text under the label. */
   description?: ReactNode
   invalid?: boolean
-  /** Draw the same frame as Input/Select (border, 32px height) so it can sit in a toolbar row. */
+  /** Draw the same frame as Input/Select (2px outline, 44px height) so it can sit in a toolbar row. */
   framed?: boolean
-  /** Height of a framed control (sm 28, md 32, lg 36; 44 on touch), to sit beside an Input or Select of the same size. Ignored unless framed. */
+  /** Height of a framed control (sm 36, md 44, lg 56; 44 on touch), to sit beside an Input or Select of the same size. Ignored unless framed. */
   size?: ControlSize
   /** "end" puts the control at the far edge and the label first (settings rows). */
   controlPosition?: 'start' | 'end'

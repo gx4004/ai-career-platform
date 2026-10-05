@@ -5,7 +5,7 @@ export type StatTone = 'neutral' | 'success' | 'warning' | 'danger'
 
 export type StatProps = Omit<ComponentPropsWithoutRef<'dl'>, 'children'> & {
   label: ReactNode
-  /** The number (or short value). Serif, tabular. */
+  /** The number (or short value). Display type, tabular. */
   value: ReactNode
   /** Small suffix after the value: "%", "/100", "days". */
   unit?: ReactNode
@@ -13,8 +13,8 @@ export type StatProps = Omit<ComponentPropsWithoutRef<'dl'>, 'children'> & {
   delta?: ReactNode
   /** Colours the delta only; the number stays ink. */
   tone?: StatTone
-  /** lg: display size (32). md: title size (20). Default lg. */
-  size?: 'md' | 'lg'
+  /** lg: display size (44). md: section size (24). stamp: a date stamp (48). Default lg. */
+  size?: 'md' | 'lg' | 'stamp'
 }
 
 /**

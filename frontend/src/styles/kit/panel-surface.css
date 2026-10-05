@@ -1,0 +1,63 @@
+/*
+ * Panel: a flat container with a 2px ink outline and no shadow, for lists, forms and grouped facts.
+ * (.kit-panel__* are the Dialog and Sheet parts; these are the page-level surface.)
+ */
+.kit-panel-surface {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--tone-soft, var(--surface));
+  color: var(--ink);
+}
+
+/* Rows fill the panel edge to edge: clip them to its rounded corners. */
+.kit-panel-surface[data-flush='true'] {
+  overflow: hidden;
+}
+
+.kit-panel-surface__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  border-block-end: var(--bw) solid var(--ink);
+}
+
+.kit-panel-surface__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: 1.1;
+  letter-spacing: var(--ls-title);
+  text-wrap: balance;
+}
+
+.kit-panel-surface__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+.kit-panel-surface__body {
+  padding: var(--s5);
+}
+
+.kit-panel-surface__body[data-flush='true'] {
+  padding: 0;
+}
+
+.kit-panel-surface__footer {
+  padding: var(--s3) var(--s5) var(--s4);
+  border-block-start: var(--bw) solid var(--ink);
+  border-radius: 0 0 calc(var(--r-lg) - var(--bw)) calc(var(--r-lg) - var(--bw));
+  background: var(--tone-soft, var(--stone-soft));
+}

@@ -1,13 +1,13 @@
 /*
- * RadioGroup and RadioItem: native radio inputs, restyled. Four looks share one markup:
- * plain (dot + text), framed (the Input frame), card (a bordered block with a description),
- * swatch (a round colour chip). Selected is the dot plus an accent border/tint/ring, never colour alone.
+ * RadioGroup and RadioItem (Sticker): native radio inputs, restyled. Four looks share one markup:
+ * plain (dot + text), framed (the Input frame), card (a 2px panel with a description),
+ * swatch (a round colour chip). Selected is never colour alone: tangerine dot / lemon fill / ring + position.
  */
 
 .kit-radiogroup {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--s1);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -17,33 +17,35 @@
 .kit-radiogroup[data-orientation='horizontal'] {
   flex-flow: row wrap;
   align-items: flex-start;
-  gap: var(--space-1) var(--space-4);
+  gap: var(--s1) var(--s4);
 }
 
 .kit-radiogroup[data-variant='framed'],
 .kit-radiogroup[data-variant='card'] {
-  gap: var(--space-2);
+  gap: var(--s2);
 }
 
 .kit-radiogroup[data-variant='swatch'] {
   flex-flow: row wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--s3);
 }
 
 /* ── Option ────────────────────────────────────────────────────────── */
 
 .kit-radio {
+  --kit-radio-dot: 1.375rem; /* 22 */
+
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--s3);
   box-sizing: border-box;
   min-width: 0;
   max-width: 100%;
-  padding-block: var(--space-1);
-  color: var(--text-strong);
-  font-family: var(--font-sans);
+  padding-block: var(--s1);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   cursor: pointer;
@@ -57,37 +59,36 @@
   position: relative;
   flex: none;
   box-sizing: border-box;
-  width: 1rem;
-  height: 1rem;
-  margin: calc((var(--lh-body) - 1rem) / 2) 0 0;
+  width: var(--kit-radio-dot);
+  height: var(--kit-radio-dot);
+  margin: calc((var(--lh-body) - var(--kit-radio-dot)) / 2) 0 0;
   padding: 0;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  background: var(--surface-raised);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--surface);
   box-shadow: none;
   cursor: inherit;
-  transition: var(--transition-colors);
+  transition: background-color var(--dur-1) var(--ease-out);
   appearance: none;
 }
 
 .kit-radio__input::after {
   content: '';
   position: absolute;
-  inset: 0.25rem;
+  inset: 4px;
   display: none;
-  border-radius: var(--radius-pill);
-  background: var(--accent-on);
+  border-radius: var(--r-pill);
+  background: var(--ink);
 }
 
 @media (hover: hover) {
-  .kit-radio__input:hover:not(:disabled) {
-    border-color: var(--text-soft);
+  .kit-radio__input:hover:not(:disabled, :checked) {
+    background: var(--lemon-soft);
   }
 }
 
 .kit-radio__input:checked {
-  border-color: var(--accent);
-  background: var(--accent);
+  background: var(--tangerine);
 }
 
 .kit-radio__input:checked::after {
@@ -100,18 +101,22 @@
 }
 
 .kit-radio[data-invalid] .kit-radio__input:not(:checked) {
-  border-color: var(--danger-solid);
+  outline: var(--bw) solid var(--danger-ink);
+  outline-offset: 2px;
 }
 
 .kit-radio__input:disabled {
-  border-color: var(--border-strong);
-  background: var(--surface-sunken);
+  border-color: var(--ink-3);
+  background: var(--stone);
   cursor: not-allowed;
 }
 
 .kit-radio__input:disabled:checked {
-  border-color: var(--surface-sunken);
-  background: var(--text-disabled);
+  background: var(--stone);
+}
+
+.kit-radio__input:disabled::after {
+  background: var(--ink-3);
 }
 
 .kit-radio__text {
@@ -122,12 +127,16 @@
   overflow-wrap: anywhere;
 }
 
+.kit-radio__label {
+  font-weight: var(--fw-semibold);
+}
+
 .kit-radio[data-disabled] .kit-radio__label {
-  color: var(--text-disabled);
+  color: var(--ink-3);
 }
 
 .kit-radio__description {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
 }
@@ -135,40 +144,46 @@
 .kit-radio__meta {
   flex: none;
   margin-inline-start: auto;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-body);
   white-space: nowrap;
 }
 
-/* ── Framed and card: the whole row is a bordered control ──────────── */
+/* ── Framed and card: the whole row is a 2px outlined control ──────── */
 
 .kit-radio:is([data-variant='framed'], [data-variant='card']) {
   align-items: center;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  transition: var(--transition-colors);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {
-  .kit-radio:is([data-variant='framed'], [data-variant='card']):hover:not([data-disabled]) {
-    border-color: var(--text-soft);
+  .kit-radio:is([data-variant='framed'], [data-variant='card']):hover:not([data-disabled], [data-checked]) {
+    background: var(--lemon-soft);
   }
 }
 
-.kit-radio:is([data-variant='framed'], [data-variant='card'])[data-checked] {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
+/* Selected: framed = lemon fill (the active-nav look), card = lemon-soft fill plus the small shadow. */
+.kit-radio[data-variant='framed'][data-checked] {
+  background: var(--lemon);
+}
+
+.kit-radio[data-variant='card'][data-checked] {
+  background: var(--lemon-soft);
+  box-shadow: var(--sh-1);
 }
 
 .kit-radio:is([data-variant='framed'], [data-variant='card'])[data-invalid]:not([data-checked]) {
-  border-color: var(--danger-solid);
+  background: var(--rose-soft);
 }
 
 .kit-radio:is([data-variant='framed'], [data-variant='card'])[data-disabled] {
-  border-color: var(--border-strong);
-  background: var(--surface-subtle);
+  border-color: var(--ink-3);
+  background: var(--stone);
+  box-shadow: none;
 }
 
 .kit-radio:is([data-variant='framed'], [data-variant='card']) .kit-radio__input {
@@ -180,7 +195,8 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.kit-radio:is([data-variant='framed'], [data-variant='card']) .kit-radio__input:focus-visible {
+.kit-radio:is([data-variant='framed'], [data-variant='card']) .kit-radio__input:focus-visible,
+.kit-radio:is([data-variant='framed'], [data-variant='card'])[data-invalid] .kit-radio__input:not(:checked) {
   outline: none;
 }
 
@@ -188,7 +204,7 @@
   display: inline-flex;
   align-self: flex-start;
   height: var(--kit-h-md);
-  padding: 0 var(--space-3);
+  padding: 0 var(--s4);
 }
 
 .kit-radio[data-variant='framed'] .kit-radio__text {
@@ -198,39 +214,29 @@
 .kit-radio[data-variant='card'] {
   align-items: flex-start;
   min-height: var(--kit-row-h-lg);
-  padding: var(--space-3);
-  border-color: var(--border-soft);
-  border-radius: var(--radius-lg);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-md);
 }
 
 .kit-radio[data-variant='card'] .kit-radio__input {
-  margin-top: calc((var(--lh-body) - 1rem) / 2);
+  margin-top: calc((var(--lh-body) - var(--kit-radio-dot)) / 2);
 }
 
-.kit-radio[data-variant='card'] .kit-radio__label {
-  font-weight: var(--fw-medium);
-}
-
-.kit-radio[data-variant='card'] .kit-radio__meta {
-  line-height: var(--lh-body);
-}
-
-/* ── Swatch: the input is the chip ─────────────────────────────────── */
+/* ── Swatch: the input is the chip; selected = a white gap plus an ink ring (position, not colour) ── */
 
 .kit-radio[data-variant='swatch'] {
   align-items: center;
   justify-content: center;
-  inline-size: max(1.75rem, var(--kit-h-sm));
-  block-size: max(1.75rem, var(--kit-h-sm));
+  inline-size: max(2.5rem, var(--kit-h-sm));
+  block-size: max(2.5rem, var(--kit-h-sm));
   padding: 0;
 }
 
 .kit-radio[data-variant='swatch'] .kit-radio__input {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2rem;
+  height: 2rem;
   margin: 0;
-  border: 1px solid var(--ink-hairline);
-  background: var(--kit-swatch, var(--surface-sunken));
+  background: var(--kit-swatch, var(--stone));
 }
 
 .kit-radio[data-variant='swatch'] .kit-radio__input::after {
@@ -238,21 +244,21 @@
 }
 
 .kit-radio[data-variant='swatch'] .kit-radio__input:checked {
-  border-color: var(--ink-hairline);
-  background: var(--kit-swatch, var(--surface-sunken));
+  background: var(--kit-swatch, var(--stone));
   box-shadow:
-    0 0 0 2px var(--background),
-    0 0 0 4px var(--accent);
+    0 0 0 3px var(--surface),
+    0 0 0 6px var(--ink);
 }
 
 @media (hover: hover) {
-  .kit-radio[data-variant='swatch'] .kit-radio__input:hover:not(:disabled) {
-    border-color: var(--text-soft);
+  .kit-radio[data-variant='swatch'] .kit-radio__input:hover:not(:disabled, :checked) {
+    background: var(--kit-swatch, var(--stone));
+    box-shadow: var(--sh-1);
   }
 }
 
 .kit-radio[data-variant='swatch'] .kit-radio__input:focus-visible {
-  outline-offset: 5px;
+  outline-offset: 8px;
 }
 
 .kit-radio[data-variant='swatch'][data-disabled] {

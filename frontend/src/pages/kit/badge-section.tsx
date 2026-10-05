@@ -11,6 +11,17 @@ const TONES: Array<{ tone: BadgeTone; label: string }> = [
   { tone: 'info', label: 'Draft' },
 ]
 
+const PALETTE: Array<{ tone: BadgeTone; label: string }> = [
+  { tone: 'tangerine', label: 'Interviewing' },
+  { tone: 'mint', label: 'Offer' },
+  { tone: 'lilac', label: 'Applied' },
+  { tone: 'lemon', label: 'Saved' },
+  { tone: 'rose', label: 'High' },
+  { tone: 'aqua', label: 'Portfolio' },
+  { tone: 'stone', label: 'Closed' },
+  { tone: 'white', label: 'Matches' },
+]
+
 function ChipGroup() {
   const [terms, setTerms] = useState(['backend engineer', 'platform', 'Staff engineer, data infrastructure and developer productivity'])
   return (
@@ -33,7 +44,7 @@ export function BadgeSection() {
       title="Badge, Count, Kbd"
       note="One status chip for every status in the app. The label always says the status; the dot is decoration."
     >
-      <Group title="Tones, medium (20)">
+      <Group title="Tones, medium (26)">
         <Row>
           {TONES.map(({ tone, label }) => (
             <Badge key={tone} tone={tone}>
@@ -43,13 +54,41 @@ export function BadgeSection() {
         </Row>
       </Group>
 
-      <Group title="Tones, small (18)">
+      <Group title="Tones, small (22)">
         <Row>
           {TONES.map(({ tone, label }) => (
             <Badge key={tone} tone={tone} size="sm">
               {label}
             </Badge>
           ))}
+        </Row>
+      </Group>
+
+      <Group title="Palette tones: stage, severity, tool (colour by meaning)">
+        <Row>
+          {PALETTE.map(({ tone, label }) => (
+            <Badge key={tone} tone={tone}>
+              {label}
+            </Badge>
+          ))}
+        </Row>
+        <Row>
+          <Specimen label="severity (data-severity): high / medium / low">
+            <Row>
+              <Badge tone="danger" data-severity="high">
+                High
+              </Badge>
+              <Badge tone="warning" data-severity="medium">
+                Medium
+              </Badge>
+              <Badge tone="neutral" data-severity="low">
+                Low
+              </Badge>
+            </Row>
+          </Specimen>
+          <Specimen label="quiet (info)">
+            <Badge tone="info">Remote-friendly</Badge>
+          </Specimen>
         </Row>
       </Group>
 
@@ -142,7 +181,7 @@ export function BadgeSection() {
         </Row>
       </Group>
 
-      <Group title="Count: tabular, no pill">
+      <Group title="Count: tabular text, or the outlined pill after a heading">
         <Row>
           <Specimen label="muted">
             <Count value={12} />
@@ -161,10 +200,19 @@ export function BadgeSection() {
               Applications <Count value={7} />
             </span>
           </Specimen>
+          <Specimen label="pill: rose / lemon / mint / white">
+            <Row>
+              <Count variant="pill" tone="rose" value={2} />
+              <Count variant="pill" tone="lemon" value={2} />
+              <Count variant="pill" tone="mint" value={3} />
+              <Count variant="pill" value={5} />
+              <Count variant="pill" value={128} />
+            </Row>
+          </Specimen>
         </Row>
       </Group>
 
-      <Group title="Avatar: initials on a stone disc, never a per-person colour">
+      <Group title="Avatar: initials on a lilac disc, never a per-person colour">
         <Row>
           <Specimen label="sm / md / lg">
             <Row>

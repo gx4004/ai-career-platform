@@ -1,7 +1,8 @@
 /*
- * List and Row. A row is 36 (compact) or 44 (comfortable) tall, text inset 8px from the column
- * edge, hairline between rows, tint on hover and selection. Secondary actions appear on hover for
- * fine pointers; they are always there on touch and while focus is inside the row.
+ * List and Row (Sticker). A List is a framed object: white, 2px ink outline, radius 24; rows inside are
+ * flush with 2px --line dividers. A row has 16px/20px padding; hover (links only) and selection are the
+ * lemon-soft tint, selection also gets a 4px ink bar on its start edge. Secondary actions appear on hover
+ * for fine pointers; they are always there on touch and while focus is inside the row.
  *
  * Narrow lists (the List is under 32rem wide, i.e. a phone) follow ONE rule, decided by the list's
  * width and never by a row's content: a row with actions keeps them at the end of its first line,
@@ -17,8 +18,24 @@
   counter-reset: kit-row;
 }
 
-.kit-list[data-boxed] {
-  border-block: 1px solid var(--divider);
+/* Framed (the default): the list stands alone as an object. Inside a Panel, Dialog, Sheet or Table cell it is framed={false}. */
+.kit-list[data-framed] {
+  overflow: hidden;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+/* Safety net, not the contract (that is framed={false}): a list inside a container that already draws the frame never double-frames. */
+:is(.kit-panel__body, .kit-panel-surface__body, .kit-table__cell) .kit-list[data-framed] {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.kit-list[data-boxed]:not([data-framed]) {
+  border-block: var(--bw) solid var(--line);
 }
 
 .kit-row {
@@ -26,15 +43,16 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-3);
+  gap: var(--space-1) var(--s4);
   box-sizing: border-box;
   min-width: 0;
   min-height: var(--kit-row-h-lg);
   margin: 0;
-  padding: var(--space-1) var(--space-2) var(--space-1) calc(var(--space-2) - 2px);
-  border-inline-start: 2px solid transparent;
+  /* The 4px start border is the selection bar's slot: transparent at rest, ink when selected, inside the padding. */
+  padding: var(--s4) var(--s5) var(--s4) calc(var(--s5) - 4px);
+  border-inline-start: 4px solid transparent;
   background-color: transparent;
-  color: var(--text-body);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   list-style: none;
@@ -43,48 +61,46 @@
 
 .kit-row[data-density='compact'] {
   min-height: var(--kit-row-h-md);
+  padding-block: var(--s2);
 }
 
-/* The hairline is a background image over the whole border box, so it takes no height (every row is exactly 36 or 44) and tints go under it. */
 .kit-row + .kit-row {
-  background-image: linear-gradient(var(--divider), var(--divider));
-  background-repeat: no-repeat;
-  background-position: top;
-  background-size: 100% 1px;
-  background-origin: border-box;
+  border-top: var(--bw) solid var(--line);
 }
 
 @media (hover: hover) {
   .kit-row:is([data-interactive], :has(.kit-stretched)):hover {
-    background-color: var(--surface-hover);
+    background-color: var(--lemon-soft);
   }
 }
 
 .kit-row[data-selected] {
-  border-inline-start-color: var(--accent);
-  background-color: var(--accent-subtle);
+  border-inline-start-color: var(--ink);
+  background-color: var(--lemon-soft);
 }
 
-@media (hover: hover) {
-  .kit-row[data-selected]:is([data-interactive], :has(.kit-stretched)):hover {
-    background-color: var(--accent-selected);
-  }
-}
-
-/* Numbered list ("Fix first"): a counter in front of every row. The row itself increments: the List is a size container, and its style containment would restart a counter incremented in a pseudo-element. */
+/* Numbered list ("Fix first"): a 28px outlined disc in front of every row. The row itself increments: the List is a size container, and its style containment would restart a counter incremented in a pseudo-element. */
 .kit-list[data-numbered] > .kit-row {
   counter-increment: kit-row;
 }
 
 .kit-list[data-numbered] > .kit-row::before {
+  display: grid;
   flex: none;
   align-self: flex-start;
-  width: 1.25rem;
-  padding-block: var(--space-1);
-  color: var(--text-muted);
-  font-weight: var(--fw-medium);
+  place-items: center;
+  box-sizing: border-box;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: var(--fw-black);
   font-variant-numeric: var(--numeric-tabular);
-  line-height: var(--lh-body);
+  line-height: 1;
   content: counter(kit-row);
 }
 
@@ -98,12 +114,12 @@
   display: flex;
   flex: none;
   align-items: center;
-  color: var(--text-soft);
+  color: var(--ink);
 }
 
 .kit-row__leading > svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .kit-row__body {
@@ -125,9 +141,9 @@
 .kit-row__title {
   min-width: 0;
   margin: 0;
-  color: var(--text-strong);
+  color: var(--ink);
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-body);
   letter-spacing: 0;
   text-align: start;
@@ -138,15 +154,15 @@
   display: block;
 }
 
-@media (hover: hover) {
-  .kit-row__title:is(a, button):hover {
-    color: var(--accent);
-  }
+/* A match row's title: 17px (RowTitle size="lg"). */
+.kit-row__title[data-size='lg'] {
+  font-size: 1.0625rem;
+  line-height: 1.25;
 }
 
 .kit-row__subtitle {
   min-width: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
   text-align: start;
@@ -156,7 +172,7 @@
 .kit-row__meta {
   flex: none;
   margin-inline-start: auto;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
   text-align: end;
@@ -171,9 +187,12 @@
   flex: none;
   align-items: center;
   gap: var(--space-1);
-  /* 44px touch buttons fill the row to its edge instead of adding the row's padding on top (a one-line row stays 44). */
-  margin-block: calc(var(--space-1) * -1);
   margin-inline-start: auto;
+}
+
+/* A compact row has 8px padding: its 44px touch buttons fill the row instead of growing it. */
+.kit-row[data-density='compact'] > .kit-row__actions {
+  margin-block: calc(var(--s2) * -1);
 }
 
 /* RowActions collapse: the inline actions on wide lists, one overflow menu on narrow ones. */
@@ -233,6 +252,7 @@
   .kit-list[data-numbered] > .kit-row:has(> .kit-row__actions)::before {
     grid-column: 1;
     grid-row: 1 / span 2;
+    margin-inline-end: var(--s3);
   }
 
   .kit-row:has(> .kit-row__actions) > .kit-row__body {

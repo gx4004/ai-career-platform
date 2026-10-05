@@ -79,10 +79,10 @@ export function SegmentedSection() {
     >
       <Group title="Sizes">
         <Grid>
-          <Specimen label="md (32)">
+          <Specimen label="md (44)">
             <ToneDemo />
           </Specimen>
-          <Specimen label="sm (28)">
+          <Specimen label="sm (36)">
             <ToneDemo size="sm" />
           </Specimen>
           <Specimen label="numbers">

@@ -42,7 +42,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagi
       <div className="kit-pagination__controls">
         <Button
           type="button"
-          variant={variant === 'simple' ? 'secondary' : 'ghost'}
+          variant="secondary"
           size="sm"
           disabled={current <= 1}
           onClick={() => onPageChange(current - 1)}
@@ -80,7 +80,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagi
         </p>
         <Button
           type="button"
-          variant={variant === 'simple' ? 'secondary' : 'ghost'}
+          variant="secondary"
           size="sm"
           disabled={current >= pageCount}
           onClick={() => onPageChange(current + 1)}

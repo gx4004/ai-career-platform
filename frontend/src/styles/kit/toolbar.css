@@ -1,5 +1,6 @@
 /*
- * Toolbar and Pagination.
+ * Toolbar and Pagination (Sticker). Controls inherit the new heights (44, sm 36); the current page is
+ * the same lemon + 2px ink + 700 as the active nav item.
  * Desktop: search, filters, sort, count on one row. 767px and below: search plus a Filters button
  * (the filters live in a bottom Sheet), count on its own line.
  */
@@ -9,7 +10,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s3);
   min-width: 0;
 }
 
@@ -52,8 +53,9 @@
   flex: none;
   margin: 0;
   margin-inline-start: auto;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-meta);
   font-variant-numeric: var(--numeric-tabular);
   white-space: nowrap;
@@ -116,10 +118,15 @@
 .kit-pagination__summary,
 .kit-pagination__status {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
   font-variant-numeric: var(--numeric-tabular);
+}
+
+.kit-pagination__status {
+  font-size: 0.875rem;
+  font-weight: var(--fw-semibold);
 }
 
 .kit-pagination__controls {
@@ -145,7 +152,7 @@
   justify-content: center;
   min-width: var(--kit-h-sm);
   height: var(--kit-h-sm);
-  color: var(--text-muted);
+  color: var(--ink-3);
 }
 
 .kit-pagination__gap > svg {
@@ -159,10 +166,11 @@
   font-variant-numeric: var(--numeric-tabular);
 }
 
-.kit-pagination__page[aria-current='page'] {
-  background: var(--accent-selected);
-  color: var(--accent);
-  font-weight: var(--fw-semibold);
+.kit-pagination .kit-pagination__page[aria-current='page'] {
+  border-color: var(--ink);
+  background: var(--lemon);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
 .kit-pagination__status {

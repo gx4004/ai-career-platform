@@ -1,7 +1,8 @@
 import { forwardRef, useId, type ComponentPropsWithoutRef, type CSSProperties, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
 
-export type ScoreTone = 'success' | 'warning' | 'danger' | 'accent' | 'neutral'
+/** accent is the tangerine highlight, ink the explicit neutral-data colour; success, warning and danger are mint, lemon and rose. */
+export type ScoreTone = 'success' | 'warning' | 'danger' | 'accent' | 'neutral' | 'ink'
 
 export type ScoreThresholds = {
   /** At or above this share of max the bar is success. Default 70. */
@@ -35,7 +36,7 @@ export type ScoreBarProps = Omit<ComponentPropsWithoutRef<'div'>, 'children' | '
     max?: number
     /** The number shown at the end. Default: the rounded value. Pass "72%" or "3 of 4" to say more. */
     valueLabel?: ReactNode
-    /** auto (default) picks success / warning / danger from the thresholds; the others force a tone. */
+    /** auto (default) picks success / warning / danger from the thresholds but draws the fill ink (data-auto): bars are neutral data, the highlight is chosen on purpose with accent. The others force a tone. */
     tone?: ScoreTone | 'auto'
     thresholds?: ScoreThresholds
     /** What a low score looks like under auto: danger (default) or a quiet neutral. */
@@ -48,7 +49,7 @@ export type ScoreBarProps = Omit<ComponentPropsWithoutRef<'div'>, 'children' | '
   }
 
 /**
- * A thin bar with its label and a right-aligned tabular value. The number is always shown, so the
+ * A pill bar with its label and a right-aligned tabular value. The number is always shown, so the
  * bar and its tone are never the only way to read the score. The track is a `meter`.
  */
 export const ScoreBar = forwardRef<HTMLDivElement, ScoreBarProps>(function ScoreBar(
@@ -102,7 +103,13 @@ export const ScoreBar = forwardRef<HTMLDivElement, ScoreBarProps>(function Score
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy ?? (label !== undefined ? labelId : undefined)}
       >
-        <span className="kit-score__fill" data-tone={resolved} style={{ inlineSize: `${percent}%` }} />
+        <span
+          className="kit-score__fill"
+          data-tone={resolved}
+          data-auto={tone === 'auto' ? 'true' : undefined}
+          data-zero={percent === 0 ? 'true' : undefined}
+          style={{ inlineSize: `${percent}%` }}
+        />
       </span>
       <span className="kit-score__value" aria-hidden="true">
         {shown}

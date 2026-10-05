@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { createRef } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -141,5 +143,40 @@ describe('kit Button', () => {
   it('works as a toggle through aria-pressed', () => {
     render(<Button aria-pressed>Starred</Button>)
     expect(screen.getByRole('button', { name: 'Starred', pressed: true })).toBeTruthy()
+  })
+})
+
+describe('Button Sticker contract (button.css)', () => {
+  const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/button.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+
+  it('rests as a 2px ink outline with the hard sh-2 shadow, radius 16 and 44px minimum height', () => {
+    const base = css.match(/\.kit-button\s*\{([^}]*)\}/)![1]
+    expect(base).toMatch(/--kit-button-shadow:\s*var\(--sh-2\)/)
+    expect(base).toMatch(/--kit-button-radius:\s*var\(--r-md\)/)
+    expect(base).toMatch(/--kit-button-h:\s*var\(--kit-h-md\)/)
+    expect(base).toMatch(/border:\s*var\(--bw\) solid/)
+  })
+
+  it('lifts on hover and sinks on press, hover only for a fine pointer', () => {
+    const hover = css.match(/@media \(hover: hover\)\s*\{([\s\S]*?)\n\}/)![1]
+    expect(hover).toMatch(/transform:\s*translate\(var\(--kit-button-lift\)/)
+    expect(hover).toMatch(/box-shadow:\s*var\(--kit-button-shadow-hover\)/)
+    expect(css).toMatch(/:active\s*\{[^}]*box-shadow:\s*var\(--sh-0\)[^}]*translate\(var\(--kit-button-press\)/)
+    expect(css).toMatch(/--kit-button-lift:\s*-2px/)
+    expect(css).toMatch(/--kit-button-press:\s*4px/)
+  })
+
+  it('never lifts a ghost or link button, and never changes the radius on focus', () => {
+    expect(css.match(/\.kit-button--ghost\s*\{([^}]*)\}/)![1]).toMatch(/--kit-button-lift:\s*0px/)
+    expect(css.match(/\.kit-button--link\s*\{([^}]*)\}/)![1]).toMatch(/--kit-button-lift:\s*0px/)
+    expect(css.match(/\.kit-button:focus-visible\s*\{([^}]*)\}/)![1]).not.toMatch(/radius/)
+  })
+
+  it('primary is tangerine with ink text, disabled is flat stone without a shadow, loading keeps the shadow', () => {
+    expect(css.match(/\.kit-button--primary\s*\{([^}]*)\}/)![1]).toMatch(/--kit-button-bg:\s*var\(--primary\)[\s\S]*--kit-button-fg:\s*var\(--primary-on\)/)
+    const disabled = css.match(/\.kit-button:is\(:disabled, \[data-disabled='true'\]\)\s*\{([^}]*)\}/)![1]
+    expect(disabled).toMatch(/--kit-button-bg:\s*var\(--stone\)/)
+    expect(disabled).toMatch(/--kit-button-shadow:\s*none/)
+    expect(css.match(/\.kit-button\[data-loading='true'\]\s*\{([^}]*)\}/)![1]).not.toMatch(/box-shadow|--kit-button-shadow/)
   })
 })

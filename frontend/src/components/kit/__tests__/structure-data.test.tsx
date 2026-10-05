@@ -247,6 +247,21 @@ describe('kit ScoreBar', () => {
     expect(tones).toEqual(['success', 'neutral', 'danger', 'accent'])
   })
 
+  it('marks a fill resolved from auto (drawn ink) and leaves forced tones unmarked', () => {
+    const { container } = render(
+      <>
+        <ScoreBar label="a" value={92} />
+        <ScoreBar label="b" value={60} tone="accent" />
+        <ScoreBar label="c" value={60} tone="ink" />
+        <ScoreBar label="d" value={0} />
+      </>,
+    )
+    const fills = [...container.querySelectorAll('.kit-score__fill')]
+    expect(fills.map((node) => node.hasAttribute('data-auto'))).toEqual([true, false, false, true])
+    expect(fills.map((node) => node.getAttribute('data-tone'))).toEqual(['success', 'accent', 'ink', 'danger'])
+    expect(fills.map((node) => node.hasAttribute('data-zero'))).toEqual([false, false, false, true])
+  })
+
   it('scales to max and clamps the fill to the track', () => {
     const { container } = render(
       <>
@@ -282,5 +297,18 @@ describe('kit ScoreBar', () => {
     expect(scoreTone(69)).toBe('warning')
     expect(scoreTone(0)).toBe('danger')
     expect(scoreTone(0, undefined, 'neutral')).toBe('neutral')
+  })
+})
+
+describe('kit Stat sizes', () => {
+  it('has lg, md and a stamp size for a date', () => {
+    const { container } = render(
+      <>
+        <Stat label="a" value={1} />
+        <Stat label="b" value={2} size="md" />
+        <Stat label="in 5 days" value="Oct 9" size="stamp" />
+      </>,
+    )
+    expect([...container.querySelectorAll('.kit-stat')].map((node) => node.getAttribute('data-size'))).toEqual(['lg', 'md', 'stamp'])
   })
 })

@@ -97,7 +97,7 @@ export type ConfirmDialogProps = {
   /** Verb phrase for the action: "Delete application", not "OK". */
   confirmLabel: string
   cancelLabel?: string
-  /** destructive: oxblood confirm button. default: the forest primary. */
+  /** destructive: rose-soft header band and a red confirm button. default: the tangerine primary. */
   tone?: 'destructive' | 'default'
   /** Icon inside the confirm button. */
   icon?: ReactNode
@@ -144,7 +144,7 @@ export function ConfirmDialog({
           cancelRef.current?.focus()
         }}
       >
-        <DialogHeader>
+        <DialogHeader data-tone={tone === 'destructive' ? 'danger' : undefined}>
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>

@@ -1,5 +1,7 @@
 import {
   Cluster,
+  Panel,
+  PanelBody,
   KeyValue,
   KeyValueRow,
   MetaRow,
@@ -24,7 +26,7 @@ export function DataSection() {
     <GallerySection
       id="data"
       title="MetaRow, KeyValue, Stat, ScoreBar"
-      note="Small data displays. Numbers are tabular everywhere; the serif appears only on Stat's number."
+      note="Small data displays. Numbers are tabular everywhere; display type appears on Stat's number and ScoreBar's value."
     >
       <Group title="MetaRow: dot between items, never at a line start">
         <div className="kit-gallery__grid">
@@ -99,7 +101,7 @@ export function DataSection() {
         </div>
       </Group>
 
-      <Group title="KeyValue: 32px rows, quiet labels, tabular values">
+      <Group title="KeyValue: 2px dividers, quiet labels, tabular values">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
           <Specimen label="inline, divided (default)">
             <KeyValue
@@ -146,7 +148,7 @@ export function DataSection() {
         </div>
       </Group>
 
-      <Group title="Stat: serif number, label under it">
+      <Group title="Stat: display number, label under it">
         <Cluster gap={8} align="start">
           <Stat label="Skills fit" value={92} unit="%" delta="+6 since Sep 24" tone="success" />
           <Stat label="Applications" value={7} />
@@ -157,7 +159,7 @@ export function DataSection() {
         </Cluster>
       </Group>
 
-      <Group title="ScoreBar: thin bar, tone from thresholds, number always shown">
+      <Group title="ScoreBar: 20px pill bar, ink by default, number always shown">
         <div className="kit-gallery__grid">
           <Specimen label="stacked, auto tone (92 / 58 / 23)">
             <div className="kit-gallery__stack">
@@ -170,6 +172,10 @@ export function DataSection() {
             <div className="kit-gallery__stack">
               <ScoreBar label="Progress" value={60} tone="accent" valueLabel="3 of 5 steps" />
               <ScoreBar label="Neutral" value={45} tone="neutral" />
+              <ScoreBar label="Ink (explicit)" value={70} tone="ink" />
+              <ScoreBar label="Good (mint)" value={88} tone="success" />
+              <ScoreBar label="Fair (lemon)" value={55} tone="warning" />
+              <ScoreBar label="Problem (rose)" value={31} tone="danger" />
               <ScoreBar label="Low is quiet, not red (lowTone=neutral)" value={23} lowTone="neutral" />
               <ScoreBar label="Custom thresholds (good at 50)" value={55} thresholds={{ good: 50, fair: 20 }} />
             </div>
@@ -196,6 +202,26 @@ export function DataSection() {
             </div>
           </Specimen>
         </div>
+        <Specimen label="Breakdown panel (parity with result.png): bars are ink, the two lowest are the tangerine highlight">
+          <Panel>
+            <PanelBody>
+              <div className="kit-gallery__stack">
+                {[
+                  ['Keyword alignment', 75, true],
+                  ['Impact evidence', 78, false],
+                  ['Structure', 82, false],
+                  ['Clarity', 76, false],
+                  ['Completeness', 74, true],
+                ].map(([label, value, low]) => (
+                  <ScoreBar key={String(label)} layout="inline" label={label as string} value={value as number} tone={low ? 'accent' : 'ink'} />
+                ))}
+              </div>
+            </PanelBody>
+          </Panel>
+        </Specimen>
+        <Specimen label="Date stamp (Stat size=stamp)">
+          <Stat size="stamp" label="in 5 days" value="Oct 9" />
+        </Specimen>
         <Specimen label="inline, a score breakdown (8 rows)">
           <div className="kit-gallery__bounded kit-gallery__bounded--wide">
             <div className="kit-gallery__stack">

@@ -16,6 +16,7 @@ import {
   runPortfolio,
   runResumeAnalysis,
 } from '#/lib/api/client'
+import type { Tone } from '#/components/kit/tone'
 
 export type ToolId =
   | 'resume'
@@ -35,6 +36,8 @@ export type ToolDefinition = {
   resultRoute: string
   icon: LucideIcon
   accent: string
+  /** The Sticker colour that says which tool this is (tiles, tool marks, the seal on the result). */
+  tone: Tone
   group: WorkflowGroup
   priority: number
   summary: string
@@ -65,6 +68,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     resultRoute: '/resume/result/$historyId',
     icon: ScanText,
     accent: 'var(--resume-accent)',
+    tone: 'tangerine',
     group: 'primary',
     priority: 1,
     summary: 'Score the resume you have and fix the issues recruiters notice first.',
@@ -92,6 +96,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     resultRoute: '/job-match/result/$historyId',
     icon: BriefcaseBusiness,
     accent: 'var(--match-accent)',
+    tone: 'mint',
     group: 'primary',
     priority: 2,
     summary: 'Compare your resume to a real role and surface the gaps that matter.',
@@ -119,6 +124,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     resultRoute: '/cover-letter/result/$historyId',
     icon: FileText,
     accent: 'var(--letter-accent)',
+    tone: 'lemon',
     group: 'application',
     priority: 4,
     summary: 'Draft a tailored letter using your resume and the target job.',
@@ -146,6 +152,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     resultRoute: '/interview/result/$historyId',
     icon: MessagesSquare,
     accent: 'var(--interview-accent)',
+    tone: 'rose',
     group: 'application',
     priority: 5,
     summary: 'Generate likely questions and stronger answer angles for the role.',
@@ -173,6 +180,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     resultRoute: '/career/result/$historyId',
     icon: Compass,
     accent: 'var(--career-accent)',
+    tone: 'lilac',
     group: 'planning',
     priority: 3,
     summary: 'Compare next-step directions, timelines, and missing skills.',
@@ -200,6 +208,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     resultRoute: '/portfolio/result/$historyId',
     icon: FolderKanban,
     accent: 'var(--portfolio-accent)',
+    tone: 'aqua',
     group: 'planning',
     priority: 6,
     summary: 'Turn career gaps into project ideas that prove your fit.',

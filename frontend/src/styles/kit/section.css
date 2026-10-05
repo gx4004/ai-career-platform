@@ -1,5 +1,5 @@
 /*
- * Section, Notice, Card, StretchedLink.
+ * Section, Notice, Card, StretchedLink (Sticker).
  */
 
 /* ── Section ────────────────────────────────────────────────────────── */
@@ -28,32 +28,37 @@
   min-width: 0;
 }
 
+/* rule: a 2px ink rule under the heading row (off by default; separation is whitespace). */
 .kit-section[data-rule] > .kit-section__head {
   padding-block-end: var(--space-2);
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: var(--bw) solid var(--ink);
 }
 
 .kit-section__title {
   min-width: 0;
   margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-sans);
+  color: var(--ink);
+  font-family: var(--font-display);
   font-size: var(--fs-section);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-black);
   line-height: var(--lh-section);
   letter-spacing: var(--ls-section);
   overflow-wrap: anywhere;
 }
 
-/* A group inside another section or a disclosure: its title steps down so the outer heading stays the loudest. */
+/* A group inside another section or a disclosure: its title steps down to UI type so the outer heading stays the loudest. */
 .kit-section[data-size='sm'] > .kit-section__head .kit-section__title {
-  color: var(--text-body);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-body);
+  letter-spacing: 0;
 }
 
+/* Inline, so a long title wraps with the pill on its last line instead of stranding it. */
 .kit-section__count {
-  margin-inline-start: var(--space-1);
+  margin-inline-start: var(--s2);
+  vertical-align: middle;
 }
 
 .kit-section__actions {
@@ -68,7 +73,7 @@
 .kit-section__description {
   max-width: 46rem;
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
@@ -77,48 +82,44 @@
   min-width: 0;
 }
 
-/* A list, table or key-value block sits directly under the hairline: its rows bring their own padding. */
-.kit-section[data-rule]:has(> .kit-section__body > :is(.kit-list, .kit-table-wrap, .kit-kv):first-child) {
+/* A list, table or key-value block sits directly under the rule: its rows bring their own padding. */
+.kit-section[data-rule]:has(> .kit-section__body > :is(.kit-list:not([data-framed]), .kit-kv):first-child) {
   gap: 0;
 }
 
 /* ── Notice ─────────────────────────────────────────────────────────── */
 
+/* Info is the lemon-soft default (attention); the tone fills are the soft tints. Text on any of them is ink. */
 .kit-notice {
-  --kit-notice-fg: var(--text-strong);
-  --kit-notice-bg: var(--surface-raised);
-  --kit-notice-border: var(--border-strong);
+  --kit-notice-fg: var(--ink);
+  --kit-notice-bg: var(--lemon-soft);
 
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
   box-sizing: border-box;
   min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--kit-notice-border);
-  border-radius: var(--radius-md);
+  padding: var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
   background: var(--kit-notice-bg);
-  color: var(--text-body);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
 
 .kit-notice[data-tone='success'] {
-  --kit-notice-fg: var(--success-fg);
-  --kit-notice-bg: var(--success-bg);
-  --kit-notice-border: var(--success-border);
+  --kit-notice-bg: var(--mint-soft);
 }
 
 .kit-notice[data-tone='warning'] {
-  --kit-notice-fg: var(--warning-fg);
-  --kit-notice-bg: var(--warning-bg);
-  --kit-notice-border: var(--warning-border);
+  --kit-notice-fg: var(--warn-ink);
+  --kit-notice-bg: var(--lemon-soft);
 }
 
 .kit-notice[data-tone='danger'] {
-  --kit-notice-fg: var(--danger-fg);
-  --kit-notice-bg: var(--danger-bg);
-  --kit-notice-border: var(--danger-border);
+  --kit-notice-fg: var(--danger-ink);
+  --kit-notice-bg: var(--rose-soft);
 }
 
 .kit-notice__icon {
@@ -126,12 +127,12 @@
   flex: none;
   align-items: center;
   height: var(--lh-body);
-  color: var(--kit-notice-fg);
+  color: var(--ink);
 }
 
 .kit-notice__icon > svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .kit-notice__body {
@@ -142,7 +143,7 @@
 .kit-notice__title {
   margin: 0;
   color: var(--kit-notice-fg);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-bold);
 }
 
 .kit-notice__text {
@@ -152,8 +153,9 @@
 
 .kit-notice__text a {
   color: inherit;
+  font-weight: var(--fw-bold);
   text-decoration: underline;
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: 2px;
   text-underline-offset: 0.2em;
 }
 
@@ -193,6 +195,7 @@
 
 /* ── Card ───────────────────────────────────────────────────────────── */
 
+/* A real object (a job, an application): white, 2px ink, the small hard shadow. Hover is a tint, never a lift. */
 .kit-card {
   position: relative;
   isolation: isolate;
@@ -203,14 +206,20 @@
   min-width: 0;
   margin: 0;
   padding: var(--kit-card-py) var(--kit-card-px);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  color: var(--text-body);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   list-style: none;
   transition: var(--transition-colors);
+}
+
+/* A toned card carries the soft tint of its tone (the stage shows as a StageMark inside). */
+.kit-card[data-tone] {
+  background: var(--tone-soft, var(--surface));
 }
 
 .kit-card[data-padding='none'] {
@@ -223,13 +232,19 @@
 
 @media (hover: hover) {
   .kit-card:is([data-interactive], :has(.kit-stretched)):hover {
-    border-color: var(--border-strong);
+    background: var(--lemon-soft);
   }
 }
 
 .kit-card[data-selected] {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
+  background: var(--lemon);
+  box-shadow: var(--sh-2);
+}
+
+@media (hover: hover) {
+  .kit-card[data-selected]:is([data-interactive], :has(.kit-stretched)):hover {
+    background: var(--lemon);
+  }
 }
 
 .kit-card__header {
@@ -255,9 +270,9 @@
 .kit-card__title {
   min-width: 0;
   margin: 0;
-  color: var(--text-strong);
+  color: var(--ink);
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-body);
   letter-spacing: 0;
   text-align: start;
@@ -311,7 +326,7 @@
 
 /* The ring follows the card's corners, not the anchor's (rows are square and need nothing). */
 .kit-card .kit-stretched::after {
-  border-radius: var(--radius-lg);
+  border-radius: calc(var(--r-md) - var(--bw));
 }
 
 .kit-stretched:focus-visible {

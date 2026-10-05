@@ -109,19 +109,19 @@ export function SurfaceSection() {
     >
       <Group title="Section">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
-          <Specimen label="title, count, action; list sits under the hairline">
+          <Specimen label="title, count, action; a framed list under it">
             <Section title="Documents" count={3} actions={<Button size="sm" variant="secondary">Add document</Button>}>
               <SimpleRows count={3} />
             </Section>
           </Specimen>
-          <Specimen label="with a description; free content gets 12px">
+          <Specimen label="with a description; free content gets 16px">
             <Section title="Prepare for me" description="We draft a cover letter and a tailored CV for each job you add.">
-              <p className="kit-gallery__paragraph">Content under the description keeps a 12px gap.</p>
+              <p className="kit-gallery__paragraph">Content under the description keeps a 16px gap.</p>
             </Section>
           </Specimen>
-          <Specimen label="no rule (rule={false})">
-            <Section title="Notes" rule={false}>
-              <p className="kit-gallery__paragraph">A heading without the hairline, for sections inside a card or a rail.</p>
+          <Specimen label="rule: a 2px ink rule under the heading row">
+            <Section title="Notes" rule>
+              <p className="kit-gallery__paragraph">A heading without the rule (the default), for sections inside a card or a rail.</p>
             </Section>
           </Specimen>
           <Specimen label="size=sm: a group inside a disclosure or another section">

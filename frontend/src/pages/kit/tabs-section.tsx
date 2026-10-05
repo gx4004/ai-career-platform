@@ -39,15 +39,15 @@ export function TabsSection() {
     <GallerySection
       id="tabs"
       title="Tabs"
-      note="Underline style. Left and Right arrows move and open, Home and End jump, Tab goes into the panel. The count is part of the tab's name. A list wider than its container scrolls sideways."
+      note="Folder tabs: the row overlaps the white panel by 2px and the selected tab opens into it. Hover (fine pointer) tints an unselected tab lemon-soft. Left and Right arrows move and open, Home and End jump, Tab goes into the panel. The count is a lemon pill and part of the tab's name. A list wider than its container scrolls sideways. variant=plain drops the panel for tabs whose content is page sections."
     >
       <Group title="With counts and a disabled tab">
         <ApplicationsTabs />
       </Group>
 
-      <Group title="Plain, with icons, and overflowing a narrow container">
+      <Group title="Sign-in tabs, with icons, plain, and overflowing a narrow container">
         <div className="kit-gallery__grid">
-          <Specimen label="plain">
+          <Specimen label="folder (default)">
             <Tabs defaultValue="sign-in">
               <TabsList aria-label="Account">
                 <TabsTrigger value="sign-in">Sign in</TabsTrigger>
@@ -76,6 +76,22 @@ export function TabsSection() {
               </TabsContent>
               <TabsContent value="saved">
                 <p className="kit-gallery__paragraph">Saved jobs.</p>
+              </TabsContent>
+            </Tabs>
+          </Specimen>
+          <Specimen label="variant plain: no panel">
+            <Tabs defaultValue="all" variant="plain">
+              <TabsList aria-label="Filter">
+                <TabsTrigger value="all" count={9}>
+                  All
+                </TabsTrigger>
+                <TabsTrigger value="open">Open</TabsTrigger>
+              </TabsList>
+              <TabsContent value="all">
+                <p className="kit-gallery__paragraph">The content sits bare on the page under a 2px rule.</p>
+              </TabsContent>
+              <TabsContent value="open">
+                <p className="kit-gallery__paragraph">Open ones.</p>
               </TabsContent>
             </Tabs>
           </Specimen>

@@ -15,8 +15,8 @@ export type PageProps = ComponentPropsWithoutRef<'main'> & {
 }
 
 /**
- * The standard page frame: left-aligned, 32px gutters (16px on phones), 32px between its direct
- * children, room under the mobile tab bar. Put one PageHeader first, then Sections or any block.
+ * The standard page frame: left-aligned, 40px gutters (16px on phones), 40px between its direct
+ * children, room under the floating tab tray. Put one PageHeader first, then Sections or any block.
  */
 export const Page = forwardRef<HTMLElement, PageProps>(function Page(
   { width = 'default', as = 'main', id, className, ...rest },
@@ -36,7 +36,7 @@ export const Page = forwardRef<HTMLElement, PageProps>(function Page(
 })
 
 export type PageHeaderProps = Omit<ComponentPropsWithoutRef<'header'>, 'title'> & {
-  /** The page title: serif display type. */
+  /** The page title: display type. */
   title: ReactNode
   /** One line saying what the page is for, only when that teaches something. */
   lead?: ReactNode
@@ -46,27 +46,41 @@ export type PageHeaderProps = Omit<ComponentPropsWithoutRef<'header'>, 'title'> 
   actions?: ReactNode
   /** A back link or breadcrumb above the title. */
   back?: ReactNode
-  /** A TabsList or nav under the title; its hairline replaces the header's own. */
+  /** A folder-tab row under the title; it sits on the edge of the panel that follows. */
   tabs?: ReactNode
+  /** A tilted tool tile (or any small object) before the title block, vertically centred on it. Decorative: the title names the page. */
+  mark?: ReactNode
   /** Level of the title heading. Default 1 (a page has one h1); 2 or 3 where a header sits inside another page, as in the gallery. */
   headingLevel?: 1 | 2 | 3
 }
 
 /** Title row of a page. Replaces PageHero, PageHeader, .page-header, .admin-page-title, .state-page__title. */
 export const PageHeader = forwardRef<HTMLElement, PageHeaderProps>(function PageHeader(
-  { title, lead, meta, actions, back, tabs, headingLevel = 1, className, ...rest },
+  { title, lead, meta, actions, back, tabs, mark, headingLevel = 1, className, ...rest },
   ref,
 ) {
   const Heading = `h${headingLevel}` as 'h1'
+  const text = (
+    <div className="kit-page-header__text">
+      <Heading className="kit-page-header__title">{title}</Heading>
+      {lead ? <div className="kit-page-header__lead">{lead}</div> : null}
+      {meta ? <MetaRow className="kit-page-header__meta">{meta}</MetaRow> : null}
+    </div>
+  )
   return (
     <header ref={ref} className={cn('kit-page-header', className)} data-tabs={tabs ? 'true' : undefined} {...rest}>
       {back ? <div className="kit-page-header__back">{back}</div> : null}
       <div className="kit-page-header__main">
-        <div className="kit-page-header__text">
-          <Heading className="kit-page-header__title">{title}</Heading>
-          {lead ? <div className="kit-page-header__lead">{lead}</div> : null}
-          {meta ? <MetaRow className="kit-page-header__meta">{meta}</MetaRow> : null}
-        </div>
+        {mark ? (
+          <div className="kit-page-header__identity">
+            <div className="kit-page-header__mark" aria-hidden="true">
+              {mark}
+            </div>
+            {text}
+          </div>
+        ) : (
+          text
+        )}
         {actions ? <div className="kit-page-header__actions">{actions}</div> : null}
       </div>
       {tabs ? <div className="kit-page-header__tabs">{tabs}</div> : null}
@@ -74,12 +88,14 @@ export const PageHeader = forwardRef<HTMLElement, PageHeaderProps>(function Page
   )
 })
 
-/** A lead sentence: serif, one size up from body. The verdict line of a report, the opening line of a section. */
-export const Lead = forwardRef<HTMLParagraphElement, ComponentPropsWithoutRef<'p'>>(function Lead(
-  { className, ...rest },
-  ref,
-) {
-  return <p ref={ref} className={cn('kit-lead', className)} {...rest} />
+export type LeadProps = ComponentPropsWithoutRef<'p'> & {
+  /** xl: a report hero's verdict sentence (32px, a narrow measure). Default md (28px). */
+  size?: 'md' | 'xl'
+}
+
+/** A lead sentence in the display face, semibold. The verdict line of a report, the opening line of a section. */
+export const Lead = forwardRef<HTMLParagraphElement, LeadProps>(function Lead({ size = 'md', className, ...rest }, ref) {
+  return <p ref={ref} className={cn('kit-lead', className)} data-size={size === 'xl' ? 'xl' : undefined} {...rest} />
 })
 
 export type SplitProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & {

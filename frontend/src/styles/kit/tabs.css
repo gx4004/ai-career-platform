@@ -1,22 +1,27 @@
 /*
- * Tabs: underline style. The list carries a hairline; the active tab draws a 2px forest line over it.
- * A list wider than its container scrolls sideways instead of wrapping.
+ * Tabs (Sticker): folder tabs. The row sits on the panel edge and overlaps its 2px outline; the
+ * selected tab is white with a white bottom border, so it opens into the panel; the others are stone.
+ * variant="folder" (default) draws the white panel under the row; variant="plain" keeps the content
+ * bare (a 2px rule closes the row) for tabs whose content is page sections. A list wider than its
+ * container scrolls sideways (scrollbar hidden) and never wraps.
  */
 
 .kit-tabs {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
   min-width: 0;
 }
 
 .kit-tabs__list {
+  position: relative;
+  z-index: 1;
   display: flex;
-  align-items: stretch;
-  gap: var(--space-5);
+  align-items: flex-end;
+  gap: var(--s1);
   min-width: 0;
+  margin-bottom: calc(var(--bw) * -1);
+  padding: 0 var(--s3);
   overflow-x: auto;
-  border-bottom: 1px solid var(--border-soft);
   scrollbar-width: none;
 }
 
@@ -29,18 +34,18 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: calc(var(--space-1) * 1.5);
+  gap: calc(var(--s1) * 1.5);
   box-sizing: border-box;
-  height: var(--kit-h-lg);
+  min-height: var(--kit-h-md);
   margin: 0;
-  padding: 0 var(--space-1);
-  border: 0;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
+  padding: 0 var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: var(--stone);
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: var(--fw-semibold);
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
@@ -55,42 +60,68 @@
   height: 1rem;
 }
 
-.kit-tabs__trigger::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  background: transparent;
-  content: '';
+/* The count is a 20px lemon pill inside the tab. */
+.kit-tabs__trigger .kit-count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 7px;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-bold);
 }
 
 @media (hover: hover) {
-  .kit-tabs__trigger:hover {
-    color: var(--text-strong);
+  .kit-tabs__trigger[data-state='inactive']:hover:not([data-disabled]) {
+    background: var(--lemon-soft);
+    color: var(--ink);
   }
 }
 
 .kit-tabs__trigger[data-state='active'] {
-  color: var(--text-strong);
-}
-
-.kit-tabs__trigger[data-state='active']::after {
-  background: var(--accent);
+  border-bottom-color: var(--surface);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
 .kit-tabs__trigger:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(var(--focus-ring-width) * -1);
+  outline-offset: -6px; /* inside the 2px border with a clear gap, so it never reads as a thicker border */
 }
 
 .kit-tabs__trigger[data-disabled] {
-  color: var(--text-disabled);
+  border-color: var(--ink-3);
+  border-bottom-color: var(--ink);
+  background: var(--stone);
+  color: var(--ink-3);
   cursor: not-allowed;
 }
 
+/* ── Panel ─────────────────────────────────────────────────────────── */
+
 .kit-tabs__panel {
   min-width: 0;
+}
+
+.kit-tabs[data-variant='folder'] > .kit-tabs__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  box-sizing: border-box;
+  padding: var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+/* plain: the row's own 2px rule closes it, the content below is bare. */
+.kit-tabs[data-variant='plain'] > .kit-tabs__list {
+  margin-bottom: 0;
+  padding-inline: 0;
+  box-shadow: inset 0 calc(var(--bw) * -1) 0 var(--ink);
+}
+
+.kit-tabs[data-variant='plain'] > .kit-tabs__panel {
+  padding-top: var(--s4);
 }
 
 .kit-tabs__panel:focus-visible {

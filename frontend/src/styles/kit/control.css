@@ -1,7 +1,8 @@
 /*
- * Control frame: the one skin shared by Input, DateField, Select, Textarea
- * and the framed Checkbox/Switch. Same height scale, border, radius, colours,
- * focus ring and states, so a toolbar row of mixed controls reads as one set.
+ * Control frame (Sticker): the one skin shared by Input, DateField, Select, Textarea and the framed
+ * Checkbox/Switch. White, 2px ink outline, radius 12, no shadow, no tilt, no lift. State is a fill:
+ * hover stone-soft, focus --focus-fill (painted on the FRAME, because the bare input is transparent),
+ * invalid rose-soft, read-only stone-soft, disabled stone (STICKER-SYSTEM 1.16, 3.0).
  */
 
 .kit-input,
@@ -9,29 +10,31 @@
 .kit-textarea,
 .kit-check[data-framed] {
   --kit-control-h: var(--kit-h-md);
-  --kit-control-px: var(--space-3);
+  --kit-control-px: var(--s4);
   --kit-control-fs: var(--fs-body);
-  --kit-control-lh: var(--lh-body);
+  --kit-control-lh: 1.4;
   --kit-control-icon: 1rem;
   --kit-control-ring: var(--focus-ring-color);
+  --kit-control-bg: var(--surface);
 
   position: relative;
   display: flex;
   flex: 0 1 auto;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s2);
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   margin: 0;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  color: var(--text-strong);
-  font-family: var(--font-sans);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-sm);
+  background: var(--kit-control-bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: var(--kit-control-fs);
+  font-weight: var(--fw-medium);
   line-height: var(--kit-control-lh);
-  transition: var(--transition-colors);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 
 .kit-input,
@@ -45,10 +48,9 @@
 .kit-select[data-size='sm'],
 .kit-check[data-framed][data-size='sm'] {
   --kit-control-h: var(--kit-h-sm);
-  --kit-control-px: var(--space-2);
-  --kit-control-fs: var(--fs-meta);
-  --kit-control-lh: var(--lh-meta);
-  --kit-control-icon: 0.875rem;
+  --kit-control-px: var(--s3);
+  --kit-control-fs: 0.875rem;
+  --kit-control-icon: 1rem;
 }
 
 .kit-input[data-size='lg'],
@@ -64,41 +66,48 @@
   .kit-select:hover,
   .kit-textarea:hover,
   .kit-check[data-framed]:hover {
-    border-color: var(--text-soft);
+    --kit-control-bg: var(--stone-soft);
   }
-}
-
-.kit-input:has(.kit-input__control:focus-visible),
-.kit-select:has(.kit-select__control:focus-visible),
-.kit-textarea:focus-visible,
-.kit-check[data-framed]:has(input:focus-visible) {
-  outline: var(--focus-ring-width) solid var(--kit-control-ring);
-  outline-offset: var(--focus-ring-offset);
 }
 
 .kit-input[data-invalid],
 .kit-select[data-invalid],
 .kit-textarea[data-invalid],
 .kit-check[data-framed][data-invalid] {
-  --kit-control-ring: var(--danger-solid);
-
-  border-color: var(--danger-solid);
+  --kit-control-ring: var(--danger-ink);
+  --kit-control-bg: var(--rose-soft);
 }
 
 .kit-input[data-readonly],
 .kit-textarea[data-readonly] {
-  border-color: var(--border-strong);
-  background: var(--surface-subtle);
+  --kit-control-bg: var(--stone-soft);
+
+  border-color: var(--ink-3);
 }
 
 .kit-input[data-disabled],
 .kit-select[data-disabled],
 .kit-textarea[data-disabled],
 .kit-check[data-framed][data-disabled] {
-  border-color: var(--border-strong);
-  background: var(--surface-subtle);
-  color: var(--text-disabled);
+  --kit-control-bg: var(--stone);
+
+  border-color: var(--ink-3);
+  color: var(--ink-3);
   cursor: not-allowed;
+}
+
+/* Focus: --focus-fill on the frame plus the 3px ink ring (danger ink when invalid). Declared last so it beats hover and the status fills (.kit-demo-focus forces it for the /_kit gallery). */
+.kit-input:has(.kit-input__control:focus-visible),
+.kit-select:has(.kit-select__control:focus-visible),
+.kit-textarea:focus-visible,
+.kit-check[data-framed]:has(input:focus-visible),
+.kit-input.kit-demo-focus,
+.kit-select.kit-demo-focus,
+.kit-textarea.kit-demo-focus {
+  --kit-control-bg: var(--focus-fill);
+
+  outline: var(--focus-ring-width) solid var(--kit-control-ring);
+  outline-offset: 2px;
 }
 
 /* ── Inner controls (Input, Select) ────────────────────────────────── */
@@ -129,7 +138,7 @@
 }
 
 .kit-input__control::placeholder {
-  color: var(--text-placeholder);
+  color: var(--ink-3);
   opacity: 1;
 }
 
@@ -139,7 +148,7 @@
 }
 
 .kit-input__control:disabled::placeholder {
-  color: var(--text-disabled);
+  color: var(--ink-3);
 }
 
 .kit-input__control[type='search']::-webkit-search-cancel-button,
@@ -158,16 +167,16 @@
   text-align: left;
 }
 
-/* An empty date reads like a placeholder; a focused segment uses the selection tint, not the browser's blue. */
+/* An empty date reads like a placeholder; a focused segment is lemon with ink text, not the browser's blue. */
 .kit-input[data-empty]:not(:focus-within) .kit-input__control[type='date'] {
-  color: var(--text-placeholder);
+  color: var(--ink-3);
 }
 
 .kit-input__control[type='date']::-webkit-datetime-edit-day-field:focus,
 .kit-input__control[type='date']::-webkit-datetime-edit-month-field:focus,
 .kit-input__control[type='date']::-webkit-datetime-edit-year-field:focus {
-  background: var(--accent-selected);
-  color: var(--accent);
+  background: var(--lemon);
+  color: var(--ink);
   outline: none;
 }
 
@@ -188,7 +197,7 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  color: var(--text-soft);
+  color: var(--ink-3);
   white-space: nowrap;
 }
 
@@ -199,7 +208,7 @@
 
 /* A trailing icon button (show/hide password) sits where the clear button does: same inset from the frame edge. */
 .kit-input__adornment:last-child > .kit-button {
-  margin-inline-end: calc(var(--space-1) * -1);
+  margin-inline-end: calc(var(--s1) * -1);
 }
 
 /* The adornment shrinks to its content and the negative end margin takes width off it: the button's own 100% cap would then squeeze a 44px touch icon button to 32px. */
@@ -214,20 +223,19 @@
   justify-content: center;
   width: 1.5rem;
   height: 1.5rem;
-  margin: 0 calc(var(--space-1) * -1) 0 0;
+  margin: 0 calc(var(--s1) * -1) 0 0;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-pill);
   background: transparent;
-  color: var(--text-soft);
+  color: var(--ink);
   cursor: pointer;
   transition: var(--transition-colors);
 }
 
 @media (hover: hover) {
   .kit-input__clear:hover {
-    background: var(--surface-hover);
-    color: var(--text-strong);
+    background: var(--lemon-soft);
   }
 }
 
@@ -248,7 +256,7 @@
 }
 
 .kit-select__control {
-  padding-right: calc(var(--kit-control-px) + var(--kit-control-icon) + var(--space-2));
+  padding-right: calc(var(--kit-control-px) + var(--kit-control-icon) + var(--s2));
   cursor: pointer;
 }
 
@@ -259,33 +267,32 @@
   width: var(--kit-control-icon);
   height: var(--kit-control-icon);
   margin-top: calc(var(--kit-control-icon) / -2);
-  color: var(--text-soft);
+  color: var(--ink);
   pointer-events: none;
 }
 
 .kit-select[data-disabled] .kit-select__chevron {
-  color: var(--text-disabled);
+  color: var(--ink-3);
 }
 
 /* ── Textarea ──────────────────────────────────────────────────────── */
 
 .kit-textarea {
   display: block;
-  padding: var(--space-2) var(--kit-control-px);
+  min-height: 7.5rem;
+  padding: var(--s3) var(--kit-control-px);
+  line-height: 1.5;
   resize: vertical;
   outline: none;
 }
 
 .kit-textarea::placeholder {
-  color: var(--text-placeholder);
+  color: var(--ink-3);
   opacity: 1;
 }
 
-.kit-textarea:focus-visible {
-  box-shadow: none;
-}
-
 .kit-textarea[data-autosize] {
+  min-height: 0;
   resize: none;
   overflow-y: hidden;
 }
@@ -299,7 +306,7 @@
 }
 
 .kit-textarea[data-disabled]::placeholder {
-  color: var(--text-disabled);
+  color: var(--ink-3);
 }
 
 /* Touch: 16px text stops iOS Safari from zooming the page on focus. */

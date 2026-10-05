@@ -1,0 +1,140 @@
+/*
+ * ScoreSeal: the score stamp. A scalloped tone-filled seal, a hard offset shadow (the same shape in ink,
+ * 7 units of the 220 box = 3.2% of the size), a dotted inner ring and the number in the display face.
+ * Everything scales from --seal through container units, so a seal squeezed by a narrow column still sets
+ * its numeral in proportion. The resting state is the final state: the reveal only plays on top of it.
+ */
+.kit-seal {
+  --seal: 300px;
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--seal);
+  max-inline-size: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  container-type: inline-size;
+  color: var(--ink);
+  transform: rotate(var(--seal-rotate));
+}
+
+.kit-seal__group,
+.kit-seal__dd {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+
+.kit-seal__dd {
+  display: grid;
+  place-items: center;
+}
+
+.kit-seal__art {
+  position: absolute;
+  inset: 0;
+}
+
+.kit-seal__art > svg {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+}
+
+.kit-seal__shadow {
+  fill: var(--ink);
+  transform: translate(calc(var(--seal-shadow) * 1px), calc(var(--seal-shadow) * 1px));
+}
+
+.kit-seal__shape {
+  fill: var(--tone, var(--tangerine));
+  stroke: var(--ink);
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+}
+
+.kit-seal__ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+}
+
+.kit-seal__body {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  padding-block-end: 4%;
+  text-align: center;
+}
+
+.kit-seal__num {
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-weight: var(--fw-black);
+  font-size: 44cqw;
+  line-height: 0.85;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Three characters ("100", "404") would touch the dotted ring at 0.44: measured 217px against a 218px ring. */
+.kit-seal[data-digits='3'] .kit-seal__num {
+  font-size: 34cqw;
+}
+
+.kit-seal[data-digits='4'] .kit-seal__num {
+  font-size: 26cqw;
+}
+
+.kit-seal[data-small] .kit-seal__num {
+  letter-spacing: -0.04em;
+}
+
+.kit-seal__of {
+  font-family: var(--font-ui);
+  font-weight: var(--fw-bold);
+  font-size: 7.5cqw;
+  line-height: 1;
+}
+
+/* The reveal (STICKER-SYSTEM 6.2): the seal flies in and stamps, the shadow snaps shut, an ink ring pulses out. */
+.kit-seal[data-reveal='stamp'] {
+  animation: kit-stamp var(--stamp-ms) var(--ease-out) 150ms backwards;
+}
+
+.kit-seal[data-reveal='stamp'] .kit-seal__shadow {
+  animation: kit-stamp-shadow var(--stamp-ms) var(--ease-out) 150ms backwards;
+}
+
+.kit-seal[data-reveal='stamp']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: kit-ring 640ms ease-out 560ms forwards; /* forwards: invisible until it starts */
+}
+
+.kit-seal[data-animating='true'] {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-seal[data-reveal='stamp'],
+  .kit-seal[data-reveal='stamp'] .kit-seal__shadow,
+  .kit-seal[data-reveal='stamp']::after {
+    animation: none;
+  }
+
+  .kit-seal[data-animating='true'] {
+    will-change: auto;
+  }
+}

@@ -90,6 +90,27 @@ describe('kit Tabs', () => {
     expect((tab('Archive') as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('is a folder tab set by default and a plain one on request', () => {
+    const { container, rerender } = render(<Demo />)
+    expect(container.querySelector('.kit-tabs')?.getAttribute('data-variant')).toBe('folder')
+    rerender(
+      <Tabs defaultValue="a" variant="plain">
+        <TabsList aria-label="Letters">
+          <TabsTrigger value="a">Alpha</TabsTrigger>
+        </TabsList>
+        <TabsContent value="a">A</TabsContent>
+      </Tabs>,
+    )
+    expect(container.querySelector('.kit-tabs')?.getAttribute('data-variant')).toBe('plain')
+  })
+
+  it('draws the count as a lemon pill', () => {
+    render(<Demo />)
+    const count = tab(/^Saved/).querySelector('.kit-count')
+    expect(count?.getAttribute('data-variant')).toBe('pill')
+    expect(count?.getAttribute('data-tone')).toBe('lemon')
+  })
+
   it('works uncontrolled with defaultValue and renders an icon', () => {
     render(
       <Tabs defaultValue="b">

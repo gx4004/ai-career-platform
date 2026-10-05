@@ -40,7 +40,7 @@ type ItemExtras = {
 
 export type DropdownMenuItemProps = ComponentPropsWithoutRef<typeof MenuPrimitive.Item> &
   ItemExtras & {
-    /** Oxblood text for an action that removes something. Keep it last, after a separator. */
+    /** Red text and a rose highlight for an action that removes something. Keep it last, after a separator. */
     destructive?: boolean
   }
 

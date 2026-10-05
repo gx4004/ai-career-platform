@@ -1,19 +1,22 @@
 /*
- * Page frame, PageHeader, Lead, Split, Stack, Cluster.
- * Left-aligned. 32px gutters (16px on phones), 32px between a page's direct children.
+ * Page frame, PageHeader, Lead, Split, Stack, Cluster (Sticker).
+ * Left-aligned, 40px gutters (16 on phones), 40px between a page's direct children. The header owns its
+ * own 40px top padding and sits 24px above what follows (it cancels the page gap with a negative margin).
  */
 
 .kit-page {
+  --kit-page-gap: var(--space-10);
+
   display: flex;
   flex-direction: column;
-  gap: var(--space-section);
+  gap: var(--kit-page-gap);
   box-sizing: border-box;
   width: 100%;
   max-width: var(--kit-page-w-default);
   min-width: 0;
   margin: 0;
-  padding: var(--space-8) var(--space-8) var(--space-12);
-  color: var(--text-body);
+  padding: 0 var(--space-page-x) var(--s9);
+  color: var(--ink);
 }
 
 .kit-page[data-width='narrow'] {
@@ -33,16 +36,19 @@
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
-@media (max-width: 767px) {
+/* Phones: 16px gutters; hard shadows and tilts (at most 10px) stay inside them. */
+@media (max-width: 860px) {
   .kit-page {
-    padding: var(--space-4) var(--space-4) var(--space-12);
+    --kit-page-gap: var(--space-8);
+
+    padding-inline: var(--s4);
   }
 }
 
-/* The tab bar exists only at 639px and below (hooks/use-breakpoint MOBILE_MAX): that is when the page clears it. */
+/* The floating tab tray exists at 639px and below (hooks/use-breakpoint MOBILE_MAX): the page clears it and 32px more. */
 @media (max-width: 639px) {
   .kit-page {
-    padding-block-end: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + var(--space-8));
+    padding-block-end: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s7));
   }
 }
 
@@ -53,15 +59,14 @@
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
-  /* The header sits 24px above what follows, not the full 32px a page puts between sections. */
-  margin-block-end: calc(var(--space-2) * -1);
-  padding-block-end: var(--space-4);
-  border-bottom: 1px solid var(--border-soft);
+  /* 24px under the header, whatever the page's own gap is (outside a Page the gap is 0 and so is this). */
+  margin-block-end: calc(var(--kit-page-gap, 0px) * -1);
+  padding: var(--s8) 0 var(--s6);
 }
 
+/* Folder tabs sit on the edge of the panel below: no space under them. */
 .kit-page-header[data-tabs] {
   padding-block-end: 0;
-  border-bottom: 0;
 }
 
 .kit-page-header__back {
@@ -80,6 +85,21 @@
   min-width: 0;
 }
 
+/* A mark (the tool tile) sits before the text block, centred on it. */
+.kit-page-header__identity {
+  display: flex;
+  flex: 1 1 20rem;
+  align-items: center;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.kit-page-header__mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
 .kit-page-header__text {
   display: flex;
   flex: 1 1 20rem;
@@ -88,12 +108,16 @@
   min-width: 0;
 }
 
+.kit-page-header__identity > .kit-page-header__text {
+  flex-basis: 0;
+}
+
 .kit-page-header__title {
   margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-serif);
+  color: var(--ink);
+  font-family: var(--font-display);
   font-size: var(--fs-display);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-black);
   line-height: var(--lh-display);
   letter-spacing: var(--ls-display);
   overflow-wrap: anywhere;
@@ -103,7 +127,7 @@
 .kit-page-header__lead {
   max-width: 44rem;
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
@@ -117,10 +141,21 @@
   flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: flex-end;
+  gap: var(--s3);
   min-width: 0;
   /* Wider content wraps inside the header instead of pushing past the page gutter. */
   max-width: 100%;
+}
+
+@media (max-width: 860px) {
+  .kit-page-header {
+    padding-block: var(--s6) var(--s5);
+  }
+
+  .kit-page-header__actions {
+    justify-content: flex-start;
+  }
 }
 
 .kit-page-header__tabs {
@@ -128,9 +163,9 @@
   margin-block-start: var(--space-1);
 }
 
-/* In a header the tab list is the hairline; it should not add its own spacing. */
+/* In a header the folder tab row carries its own spacing. */
 .kit-page-header__tabs > .kit-tabs__list {
-  margin: 0;
+  margin-block-start: 0;
 }
 
 /* ── Lead ───────────────────────────────────────────────────────────── */
@@ -138,12 +173,31 @@
 .kit-lead {
   max-width: 45rem;
   margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-size: var(--fs-title);
-  font-weight: var(--fw-regular);
-  line-height: 1.45;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-semibold);
+  line-height: 1.18;
+  letter-spacing: -0.015em;
   text-wrap: pretty;
+}
+
+/* A report's verdict sentence: one size up, a narrower measure. */
+.kit-lead[data-size='xl'] {
+  max-width: 30ch;
+  font-size: var(--fs-lead-xl);
+}
+
+@media (max-width: 860px) {
+  .kit-lead {
+    font-size: var(--fs-section);
+    line-height: 1.2;
+  }
+
+  .kit-lead[data-size='xl'] {
+    max-width: none;
+    font-size: var(--fs-lead);
+  }
 }
 
 /* ── Split: main column plus rail ───────────────────────────────────── */

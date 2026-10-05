@@ -1,0 +1,122 @@
+/* ToolTile, StageMark (count and dot), NumberDisc: small tone-filled marks that say which tool, which stage, which step. */
+
+.kit-tool-tile {
+  --kit-tile-size: 40px;
+  --kit-tile-radius: var(--r-sm);
+  --kit-tile-icon: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--kit-tile-size);
+  block-size: var(--kit-tile-size);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--kit-tile-radius);
+  background: var(--tone, var(--surface));
+  color: var(--ink);
+  transform: rotate(var(--kit-tilt, 0deg));
+}
+
+.kit-tool-tile > svg {
+  inline-size: var(--kit-tile-icon);
+  block-size: var(--kit-tile-icon);
+  flex: none;
+}
+
+.kit-tool-tile--sm {
+  --kit-tile-size: 28px;
+  --kit-tile-radius: 9px;
+  --kit-tile-icon: 16px;
+}
+
+.kit-tool-tile--lg {
+  --kit-tile-size: 56px;
+  --kit-tile-radius: var(--r-md);
+  --kit-tile-icon: 28px;
+  box-shadow: var(--sh-2);
+}
+
+.kit-tool-tile--xl {
+  --kit-tile-size: 120px;
+  --kit-tile-radius: var(--r-lg);
+  --kit-tile-icon: 56px;
+  box-shadow: var(--sh-2);
+}
+
+/* The full-height colour block at the start of a ruled tool list (landing). */
+.kit-tool-tile--index {
+  --kit-tile-icon: 26px;
+  display: grid;
+  align-self: stretch;
+  inline-size: 104px;
+  block-size: auto;
+  min-block-size: 100%;
+  border-width: 0;
+  border-inline-end: var(--bw) solid var(--ink);
+  border-radius: 0;
+}
+
+.kit-stage-mark[data-variant='count'] {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 40px;
+  block-size: 40px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-sm);
+  background: var(--tone, var(--surface));
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: 1.25rem;
+  font-weight: var(--fw-black);
+  line-height: 1;
+}
+
+.kit-stage-mark[data-variant='count'][data-digits='3'],
+.kit-stage-mark[data-variant='count'][data-digits='4'] {
+  font-size: 1rem;
+}
+
+.kit-stage-mark[data-variant='dot'] {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 12px;
+  block-size: 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--tone, var(--surface));
+}
+
+.kit-number-disc {
+  --kit-disc-size: 34px;
+  --kit-disc-font: 1.125rem;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--kit-disc-size);
+  block-size: var(--kit-disc-size);
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--tone, var(--surface));
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: var(--kit-disc-font);
+  font-weight: var(--fw-black);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.kit-number-disc--sm {
+  --kit-disc-size: 28px;
+  --kit-disc-font: 0.9375rem;
+}
+
+.kit-number-disc--lg {
+  --kit-disc-size: 44px;
+  --kit-disc-font: 1.5rem;
+}

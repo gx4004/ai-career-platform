@@ -70,15 +70,33 @@ describe('kit Section', () => {
     expect((container.firstElementChild as HTMLElement).getAttribute('data-size')).toBe('sm')
   })
 
-  it('has the hairline by default and drops it with rule={false}', () => {
+  it('has no rule by default (whitespace separates sections) and draws one with rule', () => {
     const { container, rerender } = render(<Section title="A">x</Section>)
-    expect((container.firstElementChild as HTMLElement).getAttribute('data-rule')).toBe('true')
+    expect((container.firstElementChild as HTMLElement).hasAttribute('data-rule')).toBe(false)
     rerender(
-      <Section title="A" rule={false}>
+      <Section title="A" rule>
         x
       </Section>,
     )
-    expect((container.firstElementChild as HTMLElement).hasAttribute('data-rule')).toBe(false)
+    expect((container.firstElementChild as HTMLElement).getAttribute('data-rule')).toBe('true')
+  })
+
+  it('draws its count as an outlined pill, white unless countTone says what it means', () => {
+    const { container, rerender } = render(
+      <Section title="Needs action" count={2}>
+        x
+      </Section>,
+    )
+    const pill = () => container.querySelector('.kit-section__count') as HTMLElement
+    expect(pill().getAttribute('data-variant')).toBe('pill')
+    expect(pill().getAttribute('data-tone')).toBe('white')
+    expect(pill().textContent).toBe('2')
+    rerender(
+      <Section title="Needs action" count={2} countTone="rose">
+        x
+      </Section>,
+    )
+    expect(pill().getAttribute('data-tone')).toBe('rose')
   })
 
   it('uses a given id for the region and derives the heading id from it', () => {
@@ -89,6 +107,15 @@ describe('kit Section', () => {
     )
     expect(screen.getByRole('region', { name: 'Documents' }).id).toBe('docs')
     expect(screen.getByRole('heading', { name: 'Documents' }).id).toBe('docs-heading')
+  })
+})
+
+describe('kit Card tone', () => {
+  it('carries a palette tone for the stylesheet and none by default', () => {
+    const { container, rerender } = render(<Card>x</Card>)
+    expect((container.firstElementChild as HTMLElement).hasAttribute('data-tone')).toBe(false)
+    rerender(<Card tone="lilac">x</Card>)
+    expect((container.firstElementChild as HTMLElement).getAttribute('data-tone')).toBe('lilac')
   })
 })
 
