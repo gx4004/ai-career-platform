@@ -68,11 +68,13 @@ describe('ToolResultScreen — guest banner and result actions', () => {
     expect(screen.queryByLabelText('Try next suggestion')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create free account' }))
+    // The create-account prompt asks for the register view.
     expect(openAuthDialogMock).toHaveBeenCalledWith({
       to: '/resume',
       reason: 'guest-demo-result',
       label: 'Create account',
       toolId: 'resume',
+      view: 'register',
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))

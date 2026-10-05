@@ -709,7 +709,11 @@ def clear_selected_variants(
 ) -> None:
     """Un-select a document's saved versions (all, or just ``only_variant_ids``) on every
     application that picked one."""
-    variant_ids = only_variant_ids or [variant.id for variant in document.variants]
+    variant_ids = (
+        [variant.id for variant in document.variants]
+        if only_variant_ids is None
+        else only_variant_ids
+    )
     if not variant_ids:
         return
     workspaces = (

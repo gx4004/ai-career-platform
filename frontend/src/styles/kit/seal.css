@@ -92,6 +92,23 @@
   font-size: 26cqw;
 }
 
+/* A word ("Applied", "Facts") instead of a number: one tier per character keeps it inside the 72cqw ring. */
+.kit-seal[data-digits='5'] .kit-seal__num {
+  font-size: 22cqw;
+}
+
+.kit-seal[data-digits='6'] .kit-seal__num {
+  font-size: 18.5cqw;
+}
+
+.kit-seal[data-digits='7'] .kit-seal__num {
+  font-size: 16cqw;
+}
+
+.kit-seal[data-digits='8'] .kit-seal__num {
+  font-size: 14cqw;
+}
+
 .kit-seal[data-small] .kit-seal__num {
   letter-spacing: -0.04em;
 }

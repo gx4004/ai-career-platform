@@ -29,6 +29,14 @@
   overflow-wrap: anywhere;
 }
 
+/* A link in the row reads as one: ink, heavier, underlined (the row's muted colour is for plain facts). */
+.kit-meta__item a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 /*
  * The dot lives in the gap before an item, centred in it. It is hidden (not removed) on the item
  * that starts a wrapped line, so it never clips and never moves anything.

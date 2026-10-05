@@ -21,14 +21,22 @@ logger = logging.getLogger(__name__)
 # a run of blank lines, so a 50k-newline body froze the event loop for minutes.
 _LINE_START = re.IGNORECASE | re.MULTILINE
 
+# A role label at the start of a line ("System:", "Admin:") is how a prompt fakes a
+# message from the system, but it is also an ordinary resume line ("System: Linux, macOS").
+# The label is neutralised (the colon becomes a dash) and the rest of the line is kept.
+ROLE_LABEL_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"^([^\S\n]*(?:system|assistant))([^\S\n]*):", _LINE_START),
+    re.compile(r"^([^\S\n]*ADMIN)([^\S\n]*):", _LINE_START),
+]
+
+_QUALIFIERS = r"(?:(?:all|any|previous|above|prior|earlier|the|your|these|those|my|of)\s+)*"
+
 INJECTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"^[^\S\n]*(?:system|assistant)[^\S\n]*:", _LINE_START),
-    re.compile(r"ignore (?:all |previous |above |prior )?instructions", re.IGNORECASE),
-    re.compile(r"disregard (?:all |previous |above |prior )?instructions", re.IGNORECASE),
-    re.compile(r"forget (?:all |previous |above |prior )?instructions", re.IGNORECASE),
+    re.compile(rf"ignore\s+{_QUALIFIERS}instructions", re.IGNORECASE),
+    re.compile(rf"disregard\s+{_QUALIFIERS}instructions", re.IGNORECASE),
+    re.compile(rf"forget\s+{_QUALIFIERS}instructions", re.IGNORECASE),
     re.compile(r"you are now (?:a |an )?", re.IGNORECASE),
     re.compile(r"new (?:role|persona|identity|instructions?)\s*:", re.IGNORECASE),
-    re.compile(r"^[^\S\n]*ADMIN[^\S\n]*:", _LINE_START),
     re.compile(r"return (?:a )?score (?:of )?\d+", re.IGNORECASE),
     re.compile(r"always (?:return|give|output) (?:a )?(?:score|rating) (?:of )?\d+", re.IGNORECASE),
     re.compile(r"override (?:the )?(?:score|rating|result)", re.IGNORECASE),
@@ -52,6 +60,10 @@ def sanitize_user_input(text: str) -> str:
 
     cleaned = text
     detected = False
+    # Neutralising a role label is not a detection: "System: Linux" is an ordinary resume
+    # line. A genuine injection after the label is caught (and logged) by INJECTION_PATTERNS.
+    for pattern in ROLE_LABEL_PATTERNS:
+        cleaned = pattern.sub(r"\1\2 -", cleaned)
     for pattern in INJECTION_PATTERNS:
         if pattern.search(cleaned):
             detected = True

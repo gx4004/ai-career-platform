@@ -166,6 +166,27 @@ export function StateSection() {
         </Specimen>
       </Group>
 
+      <Group title="Open variant: no frame, a display title and a lead sentence (a page that carries its own art beside the copy)">
+        <Specimen label="variant=open, ErrorState with a way back; EmptyState open below">
+          <div className="kit-gallery__frame kit-gallery__roomy">
+            <ErrorState
+              variant="open"
+              role="status"
+              headingLevel={2}
+              code="404"
+              title="That page isn't here"
+              description="The link may be old, or the page moved."
+              backAction={
+                <Button asChild variant="secondary">
+                  <DemoLink>Back to the dashboard</DemoLink>
+                </Button>
+              }
+            />
+            <EmptyState variant="open" headingLevel={2} title="Nothing saved yet" description="Run a tool and your results will be listed here." />
+          </div>
+        </Specimen>
+      </Group>
+
       <Group title="Skeleton">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
           <Specimen label="line: body, three lines (last is shorter)">

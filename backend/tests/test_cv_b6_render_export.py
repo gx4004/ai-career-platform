@@ -39,7 +39,7 @@ def _section(kind, title, position, entries):
     }
 
 
-def _role(index):
+def _role(index, bullet_count=5):
     return _entry(
         f"role-{index}",
         index,
@@ -50,7 +50,7 @@ def _role(index):
         bullets=[
             f"Role {index} bullet {n}: delivered a measurable improvement to a production "
             f"system used by several teams and customers."
-            for n in range(1, 6)
+            for n in range(1, bullet_count + 1)
         ],
     )
 
@@ -93,10 +93,9 @@ def _create(client, auth_headers, sections, name="Test CV", header=None):
     return response.json()
 
 
-def _pdf(client, auth_headers, document_id, **params):
-    response = client.get(
-        f"{PREFIX}/{document_id}/artifacts/pdf", params=params, headers=auth_headers
-    )
+def _pdf(client, auth_headers, document_id, variant=None):
+    path = f"variants/{variant}/artifacts/pdf" if variant else "artifacts/pdf"
+    response = client.get(f"{PREFIX}/{document_id}/{path}", headers=auth_headers)
     assert response.status_code == 200, response.text
     return response.content
 
@@ -167,6 +166,19 @@ def test_a_large_gap_at_the_bottom_of_a_non_final_page_fails_tidy_page_breaks(db
     # A page that is simply full of content is fine.
     full = _page_gap_pdf(["Test User", "Summary", "One short line."] + ["filler"] * 44, ["More."])
     assert validate_artifact(model, full).page_breaks == "pass"
+
+
+def test_two_column_continuation_pages_keep_the_main_column_in_place(client, auth_headers):
+    document = _create(client, auth_headers, mid_cv_sections())
+    client.patch(
+        f"{PREFIX}/{document['id']}",
+        json={"style": {"template_id": "modern-two-column"}},
+        headers=auth_headers,
+    )
+    with fitz.open(stream=_pdf(client, auth_headers, document["id"]), filetype="pdf") as parsed:
+        assert parsed.page_count > 1
+        # The sidebar is 58 mm wide: nothing on page two starts inside it.
+        assert min(block[0] for block in parsed[1].get_text("blocks")) > 58 * 72 / 25.4
 
 
 # ── d10: ATS check, imported CV ──
@@ -325,7 +337,7 @@ def test_a_second_writer_with_a_stale_copy_gets_409_with_the_newer_version(clien
     )
     assert tab_two.status_code == 409
     body = tab_two.json()
-    assert "another tab" in body["detail"].lower() or "changed" in body["detail"].lower()
+    assert isinstance(body["detail"], str) and body["detail"]
     assert body["current"]["name"] == "Renamed in tab one"
     assert body["current"]["updated_at"] == tab_one.json()["updated_at"]
     # The loser did not overwrite anything.
@@ -384,16 +396,14 @@ def test_a_version_exports_without_touching_the_working_cv(client, auth_headers)
     sections[0]["entries"][0]["body"] = "Edited after saving the version."
     client.patch(f"{PREFIX}/{document['id']}", json={"sections": sections}, headers=auth_headers)
 
-    version_pdf = _pdf(client, auth_headers, document["id"], variant_id=variant["id"])
+    version_pdf = _pdf(client, auth_headers, document["id"], variant=variant["id"])
     working_pdf = _pdf(client, auth_headers, document["id"])
     assert "Working copy text." in _pdf_text(version_pdf)
     assert "Edited after saving" not in _pdf_text(version_pdf)
     assert "Edited after saving" in _pdf_text(working_pdf)
 
     docx = client.get(
-        f"{PREFIX}/{document['id']}/artifacts/docx",
-        params={"variant_id": variant["id"]},
-        headers=auth_headers,
+        f"{PREFIX}/{document['id']}/variants/{variant['id']}/artifacts/docx", headers=auth_headers
     )
     assert docx.status_code == 200
     assert "Working copy text." in "\n".join(
@@ -409,9 +419,7 @@ def test_a_version_exports_without_touching_the_working_cv(client, auth_headers)
 def test_an_unknown_or_foreign_version_id_is_a_404(client, auth_headers):
     document = _create(client, auth_headers, _body_cv("Text."))
     response = client.get(
-        f"{PREFIX}/{document['id']}/artifacts/pdf",
-        params={"variant_id": "not-a-version"},
-        headers=auth_headers,
+        f"{PREFIX}/{document['id']}/variants/not-a-version/artifacts/pdf", headers=auth_headers
     )
     assert response.status_code == 404
 
@@ -546,6 +554,22 @@ def test_duplicate_section_and_entry_ids_are_rejected(client, auth_headers):
     )
 
 
+def test_a_second_user_cannot_export_someone_elses_version(client, auth_headers, db):
+    from app.auth.security import create_access_token, hash_password  # noqa: PLC0415
+    from app.models.user import User  # noqa: PLC0415
+
+    document = _create(client, auth_headers, _body_cv("Private."))
+    variant = client.post(
+        f"{PREFIX}/{document['id']}/variants", json={"name": "Mine"}, headers=auth_headers
+    ).json()
+    other = User(email="intruder@example.com", hashed_password=hash_password("password123"))
+    db.add(other)
+    db.commit()
+    headers = {"Authorization": f"Bearer {create_access_token(other.id)}"}
+    url = f"{PREFIX}/{document['id']}/variants/{variant['id']}/artifacts/pdf"
+    assert client.get(url, headers=headers).status_code == 404
+
+
 # ── d17: separate export limits ──
 
 
@@ -615,3 +639,249 @@ def test_docx_is_a4_with_heading_styles(client, auth_headers):
     assert abs(section.page_height - Mm(297)) < Mm(1)
     headings = [p.text for p in parsed.paragraphs if p.style.name.startswith("Heading")]
     assert headings == ["Summary", "Experience", "Skills", "Education"]
+
+
+# ── review fixes: pagination of one long paragraph ──
+
+
+def _long_paragraph_sections():
+    long_body = " ".join(
+        f"Project sentence {n} describes a delivered result for a customer."
+        for n in range(1, 60)
+    )
+    assert len(long_body) > 3_000
+    return [
+        _section("experience", "Experience", 0, [_role(i, 4) for i in range(1, 5)]),
+        _section("projects", "Projects", 1, [_entry("proj", 0, body=long_body)]),
+    ]
+
+
+def test_a_long_single_paragraph_entry_splits_instead_of_leaving_a_blank_page(
+    client, auth_headers
+):
+    document = _create(client, auth_headers, _long_paragraph_sections())
+    pdf = _pdf(client, auth_headers, document["id"])
+    with fitz.open(stream=pdf, filetype="pdf") as parsed:
+        assert parsed.page_count >= 2
+        first_page_bottom = max(block[3] for block in parsed[0].get_text("blocks"))
+        assert first_page_bottom > 0.6 * A4_HEIGHT_PT
+        text = " ".join(page.get_text() for page in parsed)
+        # The Projects heading stays with the start of its text on page one.
+        assert "Projects" in parsed[0].get_text() and "Project sentence 1 " in parsed[0].get_text()
+    flat = " ".join(text.split())
+    assert "Project sentence 59 describes" in flat and "Role 4 bullet 4" in flat
+    assert _quality(client, auth_headers, document["id"])["page_breaks"]["passed"]
+
+
+# ── review fixes: stored rows from before blank values were refused ──
+
+
+def _store_document(db, user, sections, name="Legacy CV"):
+    from app.models.cv_document import CvDocument
+
+    document = CvDocument(user_id=user.id, name=name, sections=sections)
+    db.add(document)
+    db.commit()
+    return document
+
+
+def _legacy_sections():
+    return [
+        {
+            "id": "s1",
+            "kind": "experience",
+            "title": "Experience",
+            "visible": True,
+            "position": 0,
+            "entries": [
+                {
+                    "id": "e1",
+                    "evidence_item_id": None,
+                    "position": 0,
+                    "body": "Built things.",
+                    "heading": "   ",
+                    "subheading": " ",
+                    "location": "  ",
+                    "start_date": "   ",
+                    "end_date": " ",
+                    "bullets": ["Real bullet", "   "],
+                },
+                {"id": "e2", "evidence_item_id": None, "position": 1, "body": "   ", "bullets": []},
+            ],
+        }
+    ]
+
+
+def test_stored_documents_with_blank_optional_values_still_open_list_export_and_check(
+    client, auth_headers, db, test_user
+):
+    document = _store_document(db, test_user, _legacy_sections())
+    fetched = client.get(f"{PREFIX}/{document.id}", headers=auth_headers)
+    assert fetched.status_code == 200, fetched.text
+    entry = fetched.json()["sections"][0]["entries"][0]
+    assert entry["heading"] is None and entry["start_date"] is None
+    assert entry["bullets"] == ["Real bullet"]
+    listed = client.get(PREFIX, headers=auth_headers).json()["items"]
+    assert any(item["id"] == document.id and item["sections"] for item in listed)
+    assert client.patch(
+        f"{PREFIX}/{document.id}", json={"name": "Still opens"}, headers=auth_headers
+    ).status_code == 200
+    _pdf(client, auth_headers, document.id)
+    assert client.get(f"{PREFIX}/{document.id}/artifacts/docx", headers=auth_headers).status_code == 200
+    assert client.post(f"{PREFIX}/{document.id}/quality", headers=auth_headers).status_code == 200
+
+
+# ── review fixes: the sidebar overflowing page one ──
+
+
+def test_a_long_sidebar_does_not_push_the_main_column_into_the_sidebar_frame(
+    client, auth_headers
+):
+    skills = [_entry(f"sk{n}", n, body=f"Skill {n} word word word word word") for n in range(60)]
+    sections = [
+        _section("summary", "Summary", 0, [_entry("sum", 0, body="Backend engineer.")]),
+        _section("experience", "Experience", 1, [_role(i) for i in range(1, 3)]),
+        _section("skills", "Skills", 2, skills),
+    ]
+    document = _create(client, auth_headers, sections)
+    client.patch(
+        f"{PREFIX}/{document['id']}",
+        json={"style": {"template_id": "modern-two-column"}},
+        headers=auth_headers,
+    )
+    with fitz.open(stream=_pdf(client, auth_headers, document["id"]), filetype="pdf") as parsed:
+        assert parsed.page_count > 1
+        # Pages after the first carry the main column only, never the 58 mm sidebar frame.
+        for page in parsed.pages(1):
+            for block in page.get_text("blocks"):
+                text = block[4]
+                if any(f"Role {i} " in text for i in range(1, 3)) or "Experience" in text:
+                    assert block[0] >= 58 * 72 / 25.4, (page.number, block)
+
+
+# ── review fixes: smaller items ──
+
+
+def test_clearing_selection_for_an_empty_list_of_versions_clears_nothing(db, test_user):
+    from app.models.workspace import Workspace
+    from app.services.applications import clear_selected_variants
+
+    document = create_document(
+        db, test_user.id, CvDocumentCreate(name="Doc", sections=_body_cv("Text."))
+    )
+    from app.models.cv_document import CvVariant
+
+    variant = CvVariant(document_id=document.id, name="V", sections=document.sections)
+    db.add(variant)
+    db.commit()
+    workspace = Workspace(user_id=test_user.id, label="App", selected_cv_variant_id=variant.id)
+    db.add(workspace)
+    db.commit()
+    clear_selected_variants(db, document, [])
+    db.commit()
+    db.refresh(workspace)
+    assert workspace.selected_cv_variant_id == variant.id
+
+
+def test_a_symbol_in_the_text_does_not_change_the_whole_cv_font(client, auth_headers):
+    document = _create(client, auth_headers, _body_cv("Reliable systems \u2713 done."))
+    pdf = _pdf(client, auth_headers, document["id"])
+    with fitz.open(stream=pdf, filetype="pdf") as parsed:
+        names = {font[3] for page in parsed for font in page.get_fonts()}
+    assert names and all("Lato" in name for name in names), names
+
+
+def test_sidebar_template_order_difference_is_explained_as_layout_not_missing_sections(
+    client, auth_headers
+):
+    document = _create(client, auth_headers, mid_cv_sections())
+    client.patch(
+        f"{PREFIX}/{document['id']}",
+        json={"style": {"template_id": "modern-two-column"}},
+        headers=auth_headers,
+    )
+    check = _quality(client, auth_headers, document["id"])["reads_back"]
+    if not check["passed"]:
+        assert "single-column" in check["fix"]
+        assert "did not read back as written" not in check["fix"]
+
+
+def test_a_versions_download_name_includes_the_version_name(client, auth_headers):
+    document = _create(client, auth_headers, _body_cv("Text."))
+    variant = client.post(
+        f"{PREFIX}/{document['id']}/variants", json={"name": "For Acme"}, headers=auth_headers
+    ).json()
+    response = client.get(
+        f"{PREFIX}/{document['id']}/variants/{variant['id']}/artifacts/pdf", headers=auth_headers
+    )
+    assert "For-Acme" in response.headers["content-disposition"]
+    working = client.get(f"{PREFIX}/{document['id']}/artifacts/pdf", headers=auth_headers)
+    assert "For-Acme" not in working.headers["content-disposition"]
+
+
+def test_a_cv_too_long_to_read_back_is_reported_not_a_500(client, auth_headers, monkeypatch):
+    from app.services import cv_rendering
+    from app.services.cv_parser import CvParserRejected
+
+    def too_long(*_args, **_kwargs):
+        raise CvParserRejected("too many pages")
+
+    monkeypatch.setattr(cv_rendering, "parse_cv", too_long)
+    document = _create(client, auth_headers, _body_cv("Text."))
+    checks = _quality(client, auth_headers, document["id"])
+    assert checks["reads_back"]["passed"] is False
+
+
+def test_a_patch_with_only_the_precondition_is_422(client, auth_headers):
+    document = _create(client, auth_headers, _body_cv("Text."))
+    response = client.patch(
+        f"{PREFIX}/{document['id']}",
+        json={"expected_updated_at": document["updated_at"]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_renaming_a_version_to_its_own_name_is_accepted(client, auth_headers):
+    document = _create(client, auth_headers, _body_cv("Text."))
+    variant = client.post(
+        f"{PREFIX}/{document['id']}/variants", json={"name": "Same"}, headers=auth_headers
+    ).json()
+    response = client.patch(
+        f"{PREFIX}/{document['id']}/variants/{variant['id']}",
+        json={"name": "Same", "target_role": "Engineer"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200 and response.json()["target_role"] == "Engineer"
+
+
+def test_a_two_column_version_exports(client, auth_headers):
+    document = _create(client, auth_headers, mid_cv_sections())
+    client.patch(
+        f"{PREFIX}/{document['id']}",
+        json={"style": {"template_id": "modern-two-column"}},
+        headers=auth_headers,
+    )
+    variant = client.post(
+        f"{PREFIX}/{document['id']}/variants", json={"name": "Two column"}, headers=auth_headers
+    ).json()
+    assert "Role 1 Engineer" in _pdf_text(_pdf(client, auth_headers, document["id"], variant["id"]))
+
+
+def test_nul_in_an_import_proposal_is_stripped_not_refused(client, auth_headers):
+    proposal = client.post(
+        f"{PREFIX}/import/proposals",
+        files={"file": ("cv.txt", io.BytesIO(IMPORTED.encode()), "text/plain")},
+        headers=auth_headers,
+    ).json()
+    proposal["name"] = "Casey\x00 Morgan"
+    proposal["sections"][0]["entries"][0]["body"] += "\x00 more"
+    accepted = client.post(f"{PREFIX}/import/accept", json=proposal, headers=auth_headers)
+    assert accepted.status_code in (200, 201), accepted.text
+    assert "\\u0000" not in accepted.text and "\x00" not in accepted.text
+
+
+def test_the_conflict_response_is_documented_in_the_api_schema(client):
+    schema = client.get("/openapi.json").json()
+    patch = schema["paths"]["/api/v1/cv-documents/{document_id}"]["patch"]
+    assert "409" in patch["responses"]

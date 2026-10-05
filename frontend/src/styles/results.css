@@ -12,6 +12,37 @@
   justify-content: flex-end;
 }
 
+/* The guest "not saved" sticker: text, the two choices and the dismiss on one row; on narrow screens the choices drop under the text and the dismiss stays beside the title. */
+.result-unsaved {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: 'text actions dismiss';
+  align-items: center;
+  gap: var(--s3) var(--s4);
+}
+
+.result-unsaved__text {
+  grid-area: text;
+}
+
+.result-unsaved__actions {
+  grid-area: actions;
+}
+
+.result-unsaved__dismiss {
+  grid-area: dismiss;
+  align-self: start;
+}
+
+@media (max-width: 860px) {
+  .result-unsaved {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'text dismiss'
+      'actions actions';
+  }
+}
+
 /* The loading state keeps the seal's place so the report does not jump when it arrives. */
 .result-seal-skeleton,
 .result-seal-skeleton > .kit-skeleton__bar {

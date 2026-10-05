@@ -72,42 +72,42 @@
  * attribute, so a component's own rule always wins. Badge keeps its semantic tone names
  * (neutral accent success warning danger info) and maps them in badge.css.
  */
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='tangerine'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='tangerine'] {
   --tone: var(--tangerine);
   --tone-soft: var(--tangerine-soft);
 }
 
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='mint'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='mint'] {
   --tone: var(--mint);
   --tone-soft: var(--mint-soft);
 }
 
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='lilac'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='lilac'] {
   --tone: var(--lilac);
   --tone-soft: var(--lilac-soft);
 }
 
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='lemon'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='lemon'] {
   --tone: var(--lemon);
   --tone-soft: var(--lemon-soft);
 }
 
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='rose'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='rose'] {
   --tone: var(--rose);
   --tone-soft: var(--rose-soft);
 }
 
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='aqua'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='aqua'] {
   --tone: var(--aqua);
   --tone-soft: var(--aqua-soft);
 }
 
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='stone'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='stone'] {
   --tone: var(--stone);
   --tone-soft: var(--stone-soft);
 }
 
-:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='white'] {
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card, .kit-panel-surface__header, .kit-tone-dot)[data-tone='white'] {
   --tone: var(--surface);
   --tone-soft: var(--surface);
 }

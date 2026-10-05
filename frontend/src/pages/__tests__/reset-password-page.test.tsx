@@ -27,7 +27,8 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({ token: routerState.legacyToken }),
 }))
 
-vi.mock('#/lib/api/client', () => ({
+vi.mock('#/lib/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/api/client')>()),
   confirmPasswordReset: confirmPasswordResetMock,
 }))
 

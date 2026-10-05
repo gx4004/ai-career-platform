@@ -311,7 +311,7 @@ function BoardCard({
           <Link to="/campaigns/$campaignId" params={{ campaignId: card.id }}>{title}</Link>
         </CardTitle>
         {card.is_pinned ? <Pin className="camp-pin" size={12} fill="currentColor" aria-label="Pinned" role="img" /> : null}
-        <CardActions>
+        <CardActions placement="overlay">
           <StageMenu status={card.status} onMove={onMove} disabled={moving}>
             <Button iconOnly variant="ghost" size="sm" aria-label={`Move ${title}`}>
               <MoreHorizontal aria-hidden="true" />

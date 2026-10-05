@@ -178,11 +178,15 @@ async def _fetch_with_playwright(url: str) -> str:
 def _parse_job_data(html: str, url: str) -> ImportedJobResponse:
     soup = BeautifulSoup(html, "html.parser")
 
-    for tag in soup(["script", "style", "nav", "footer", "header"]):
+    for tag in soup(["script", "style"]):
         tag.decompose()
 
+    # The posting's own title and company often sit inside a <header>, so read them
+    # before the page chrome (header, nav, footer) is removed from the description.
     title = _extract_title(soup)
     company = _extract_company(soup)
+    for tag in soup(["nav", "footer", "header"]):
+        tag.decompose()
     description = _extract_description(soup)
 
     return ImportedJobResponse(
@@ -227,7 +231,10 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
     if html is None:
         try:
             html = await _fetch_with_playwright(url)
-            return _parse_job_data(html, url)
+            rendered = _parse_job_data(html, url)
+            if len(rendered.job_description or "") > _SUBSTANTIVE_DESCRIPTION_CHARS:
+                return rendered
+            # Still thin after rendering (a login wall, an error page): not a posting.
         except Exception as exc:
             logger.info(
                 "Playwright scrape also failed error_type=%s",

@@ -10,6 +10,7 @@ const proposal = {
     entries: [{ id: 'entry-summary-0', body: 'Platform engineer', position: 0, claim: null }],
   }],
   warnings: [],
+  header: { name: null, headline: null, email: null, phone: null, location: null, links: [] },
 }
 
 describe('CV import contract', () => {

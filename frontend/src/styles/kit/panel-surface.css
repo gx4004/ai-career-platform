@@ -25,6 +25,10 @@
   border-block-end: var(--bw) solid var(--ink);
 }
 
+.kit-panel-surface__header[data-tone] {
+  background: var(--tone-soft);
+}
+
 .kit-panel-surface__title {
   display: flex;
   align-items: center;

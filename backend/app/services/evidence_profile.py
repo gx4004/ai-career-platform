@@ -80,11 +80,30 @@ def stage_evidence_proposal(
     return item
 
 
+def _fact_key(kind: str, content: dict) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """Identity of a fact for de-duplication: kind plus case-insensitive field text."""
+    return kind, tuple(
+        sorted((str(k).lower(), " ".join(str(v).lower().split())) for k, v in content.items())
+    )
+
+
 def stage_evidence_items(
     db: Session, user_id: str, bodies: list[EvidenceItemCreate]
 ) -> list[EvidenceItem]:
-    """Store a batch of unconfirmed suggestions in one commit (resume import)."""
-    items = [stage_evidence_proposal(db, user_id, body) for body in bodies]
+    """Store a batch of unconfirmed suggestions in one commit (resume import).
+
+    Idempotent: a fact the owner already holds (in any state) or that repeats within
+    the batch is skipped, so importing the same resume twice adds nothing. Returns
+    only the items actually staged.
+    """
+    known = {_fact_key(item.kind, item.content) for item in list_evidence_items(db, user_id)}
+    items = []
+    for body in bodies:
+        key = _fact_key(body.kind, body.content)
+        if key in known:
+            continue
+        known.add(key)
+        items.append(stage_evidence_proposal(db, user_id, body))
     db.commit()
     return items
 

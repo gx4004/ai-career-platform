@@ -300,7 +300,18 @@ describe('ToolRouteScreen', () => {
     try {
       renderScreen('resume')
       expect(await screen.findByText('Focus on impact')).toBeTruthy()
-      expect(screen.getByText(/Re-generating with your feedback/)).toBeTruthy()
+      expect(screen.getByText(/Regenerating with:/)).toBeTruthy()
+    } finally {
+      window.history.pushState({}, '', '/')
+    }
+  })
+
+  it('tells a cold re-generate that the resume has to be added again', async () => {
+    window.sessionStorage.clear()
+    window.history.pushState({}, '', '/resume?parent_run_id=run-1')
+    try {
+      renderScreen('resume')
+      expect(await screen.findByText(/did not keep your resume in this tab/)).toBeTruthy()
     } finally {
       window.history.pushState({}, '', '/')
     }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.services.skill_vocabulary import EXTRA_SKILL_PATTERNS, SQL_FLAVOUR_LABELS
 
@@ -296,6 +296,8 @@ class ResumePrepass:
     action_verb_hits: int
     job_keywords: list[str]
     target_role_label: str | None
+    #: Job keywords the posting only lists as nice-to-have (a subset of `job_keywords`).
+    preferred_keywords: list[str] = field(default_factory=list)
 
     def evidence(self) -> dict:
         return {
@@ -444,17 +446,157 @@ _JOB_VOCABULARY: dict[str, tuple[str, ...]] = {**EXTRA_SKILL_PATTERNS, **SKILL_P
 _SKILL_PATTERNS_BY_LOWER_LABEL = {label.lower(): patterns for label, patterns in _JOB_VOCABULARY.items()}
 
 
+#: Evidence for a competency that is stated as an action, not by its name: "Led a team of 5"
+#: shows leadership, "monitoring and alerting" shows observability. Used only to decide
+#: whether a *resume* demonstrates a keyword; never to extract keywords from a posting.
+_EVIDENCE_ALIASES: dict[str, tuple[str, ...]] = {
+    "leadership": (
+        # "Led a team of 5", "Led 5 engineers"; not "led to a 20% saving" or "led the migration".
+        r"\bled (?:a |an |the |\d+ )?(?:[\w-]+ ){0,2}(?:teams?|groups?|squads?|engineers|developers|designers|analysts|people|reports)\b",
+        r"\bleading (?:a |an |the |\d+ )",
+        r"\bleads? (?:a |an |the )?(?:\w+ ){0,2}(?:team|group|squad|engineers|developers|designers|analysts)\b",
+        r"\b(?:team|tech|technical) lead\b",
+        r"\bmanag(?:ed|ing|es) (?:a |an |the )?(?:\w+ )?(?:team|group|squad|\d+)",
+        r"\bhead of\b",
+    ),
+    "mentoring": (
+        r"\bmentor(?:s|ed|ing|ship)?\b",
+        r"\bcoach(?:ed|ing|es)?\b",
+        r"\bmentee",
+        r"\bonboard(?:ed|ing)? (?:new |junior )",
+    ),
+    "observability": (r"\bmonitoring\b", r"\balerting\b", r"\bopentelemetry\b", r"\bdistributed tracing\b"),
+}
+
+_MIN_STEMMABLE_LENGTH = 6
+
+
+def _inflection_forms(word: str) -> set[str]:
+    """The word and its *inflections* only ("deploy" -> deployed, "mentoring" -> mentored).
+
+    Derivational endings (er, ion, ment, ship) are never added or stripped, and a
+    "-ing" keyword never matches its bare stem, so "Marketing" is not shown by
+    "stock market", "Server" by "served" or "Management" by "managed".
+    """
+    if len(word) < _MIN_STEMMABLE_LENGTH:
+        return {word}
+    forms = {word}
+    if word.endswith("ing"):
+        stem = word[:-3]
+        forms |= {stem + tail for tail in ("ed", "es", "s", "e", "ing")}
+    elif word.endswith("ed"):
+        stem = word[:-2]
+        forms |= {stem + tail for tail in ("ed", "es", "e", "ing")}
+    elif word.endswith("s") and not word.endswith("ss"):
+        forms.add(word[:-1])
+        if word.endswith("es"):
+            forms.add(word[:-2])
+    else:
+        forms |= {word + tail for tail in ("s", "es", "ed", "d", "ing")}
+        if word.endswith("e"):
+            forms.add(word[:-1] + "ing")
+    return forms
+
+
+def _inflection_pattern(word: str) -> str:
+    forms = _inflection_forms(word)
+    return r"\b(?:" + "|".join(sorted((re.escape(form) for form in forms), key=len, reverse=True)) + r")\b"
+
+
 def keyword_present(keyword: str, text: str) -> bool:
     lowered = text.lower()
     normalized = keyword.lower().strip(".,:;!()[]{}")
     if normalized in {"api", "apis"}:
         return bool(re.search(r"\bapi(?:s)?\b", lowered))
+    if any(re.search(pattern, lowered) for pattern in _EVIDENCE_ALIASES.get(normalized, ())):
+        return True
     family_patterns = _SKILL_PATTERNS_BY_LOWER_LABEL.get(normalized)
     if family_patterns:
         return any(re.search(pattern, lowered) for pattern in family_patterns)
     if " " in normalized:
         return normalized in lowered
-    return bool(re.search(rf"\b{re.escape(normalized)}\b", lowered))
+    return bool(re.search(_inflection_pattern(normalized), lowered))
+
+
+def evidence_line(keyword: str, text: str, *, limit: int = 140) -> str | None:
+    """The first resume line that demonstrates `keyword`, trimmed for display."""
+    for raw in text.splitlines():
+        line = raw.strip().lstrip("-*•0123456789.) ").strip()
+        if line and keyword_present(keyword, line):
+            return line if len(line) <= limit else line[: limit - 1].rstrip() + "…"
+    return None
+
+
+_PREFERRED_CUE = re.compile(
+    r"\b(?:nice[- ]to[- ]haves?|good to have|preferred|bonus|desirable|pluses|ideally|extra credit|not required)\b",
+    re.IGNORECASE,
+)
+#: "Kubernetes is a plus", "Terraform and Helm are a bonus": the cue closes the clause it ends.
+_TRAILING_CUE = re.compile(r"\b(?:is|are)\s+(?:a\s+|an\s+)?(?:big\s+|real\s+)?(?:plus|bonus)(?:es)?\b|\ba\s+plus\b", re.IGNORECASE)
+_SENTENCE_BREAK = re.compile(r"(?<=[.;!?])\s+")
+_CLAUSE_BREAK = re.compile(r"[,;]|\b(?:but|while)\b", re.IGNORECASE)
+_PLURAL_CLAUSE_BREAK = re.compile(
+    r";|\b(?:but|while)\b|\b(?:required|essential|mandatory|needed|a must)\s*,", re.IGNORECASE
+)
+_MUST_HEADING = re.compile(
+    r"^\W*(?:requirements?|required|must[- ]haves?|minimum qualifications|qualifications|"
+    r"what you(?:'ll| will)? (?:bring|need|do)|responsibilities|about (?:the )?role|about you)\b",
+    re.IGNORECASE,
+)
+
+
+def _trailing_cue_scope(sentence: str, cue: re.Match[str]) -> int:
+    """Where, in `sentence`, the clause that the trailing cue closes begins."""
+    breaker = _PLURAL_CLAUSE_BREAK if cue.group(0).lower().startswith("are") else _CLAUSE_BREAK
+    start = 0
+    for match in breaker.finditer(sentence[: cue.start()]):
+        start = match.end()
+    return start
+
+
+def preferred_job_keywords(job_description: str, keywords: list[str]) -> list[str]:
+    """Keywords the posting names only as nice-to-have ("Nice to have: Kubernetes", "... is a plus").
+
+    A keyword also named in a required line, or outside any nice-to-have section, stays a must.
+    A leading cue ("Nice to have:") covers what follows it; a trailing cue ("is a plus")
+    covers the clause it ends, so "Python is required, Kubernetes is a plus." splits correctly.
+    """
+    mentions: dict[str, list[bool]] = {keyword: [] for keyword in keywords}
+    in_preferred_section = False
+    for raw in job_description.splitlines():
+        line = raw.strip()
+        if not line:
+            in_preferred_section = False
+            continue
+        if _PREFERRED_CUE.search(line) and len(line) <= 40 and line.endswith(":"):
+            in_preferred_section = True
+            continue
+        if _MUST_HEADING.match(line):
+            in_preferred_section = False
+        line_preferred = in_preferred_section
+        for sentence in _SENTENCE_BREAK.split(line):
+            trailing = _TRAILING_CUE.search(sentence)
+            leading = _PREFERRED_CUE.search(sentence)
+            for keyword in keywords:
+                if trailing:
+                    scope = _trailing_cue_scope(sentence, trailing)
+                    if keyword_present(keyword, sentence[:scope]):
+                        mentions[keyword].append(line_preferred)
+                    if keyword_present(keyword, sentence[scope : trailing.end()]):
+                        mentions[keyword].append(True)
+                    if keyword_present(keyword, sentence[trailing.end() :]):
+                        mentions[keyword].append(line_preferred)
+                elif leading and not line_preferred:
+                    # "Requirements: Python. Nice to have: Kubernetes." splits at the cue.
+                    if keyword_present(keyword, sentence[: leading.start()]):
+                        mentions[keyword].append(False)
+                    if keyword_present(keyword, sentence[leading.start() :]):
+                        mentions[keyword].append(True)
+                elif keyword_present(keyword, sentence):
+                    mentions[keyword].append(line_preferred or bool(leading))
+            if leading and not trailing:
+                line_preferred = True
+    return [keyword for keyword, flags in mentions.items() if flags and all(flags)]
 
 
 def format_keyword(token: str) -> str:
@@ -630,6 +772,7 @@ def build_resume_prepass(resume_text: str, job_description: str | None) -> Resum
         action_verb_hits=count_action_verbs(resume_text),
         job_keywords=job_keywords,
         target_role_label=extract_role_label(job_description or ""),
+        preferred_keywords=preferred_job_keywords(job_description or "", job_keywords),
     )
 
 
@@ -694,11 +837,24 @@ def severity_from_score(score: int) -> str:
     return "low"
 
 
-def compute_match_score(matched_keywords: list[str], missing_keywords: list[str]) -> int:
-    total = len(matched_keywords) + len(missing_keywords)
+#: A missing nice-to-have counts for half a missing must in the match score.
+PREFERRED_WEIGHT = 0.5
+
+
+def compute_match_score(
+    matched_keywords: list[str],
+    missing_keywords: list[str],
+    preferred_keywords: list[str] | None = None,
+) -> int:
+    preferred = {keyword.lower() for keyword in preferred_keywords or []}
+
+    def weight(keyword: str) -> float:
+        return PREFERRED_WEIGHT if keyword.lower() in preferred else 1.0
+
+    total = sum(weight(k) for k in matched_keywords) + sum(weight(k) for k in missing_keywords)
     if total == 0:
         return 58
-    ratio = len(matched_keywords) / total
+    ratio = sum(weight(k) for k in matched_keywords) / total
     return clamp(round(25 + (ratio * 75)))
 
 
@@ -810,3 +966,43 @@ def infer_career_profile(resume_text: str) -> dict:
         "years_experience": infer_resume_years_experience(resume_text),
         "detected_skills": detected_skills,
     }
+
+
+# --- Headline / verdict agreement ---
+
+_NEGATORS = re.compile(r"\b(?:not|n't|no longer|never|isn't|doesn't|without)\b[^.;]{0,25}$", re.IGNORECASE)
+_POSITIVE_HEADLINE = re.compile(
+    r"\baligns?\b|\baligned\b|\bstrong (?:foundation|match|fit|resume|candidate)\b|"
+    r"\bwell[- ](?:aligned|matched|positioned)\b|\bexcellent\b|\bready to (?:send|apply|submit)\b|"
+    r"\bcompetitive\b|\bcompelling\b|\bgreat fit\b|\bsolid match\b",
+    re.IGNORECASE,
+)
+_STRONG_POSITIVE_HEADLINE = re.compile(
+    r"\bstrong (?:foundation|match|fit|resume|candidate)\b|\bexcellent\b|"
+    r"\bready to (?:send|apply|submit)\b|\bgreat fit\b|\baligns well\b|\bwell[- ]aligned\b",
+    re.IGNORECASE,
+)
+_NEGATIVE_HEADLINE = re.compile(
+    r"\bstretch\b|\bweak (?:match|fit|resume|candidate)\b|\bpoor fit\b|\bsignificant gaps?\b|\bfar from\b|\bunlikely\b", re.IGNORECASE
+)
+
+
+def _claims(pattern: re.Pattern[str], headline: str) -> bool:
+    """True when `headline` asserts `pattern` (a negation right before it cancels the claim)."""
+    return any(not _NEGATORS.search(headline[: m.start()]) for m in pattern.finditer(headline))
+
+
+def headline_conflicts_with_band(headline: str, band: str) -> bool:
+    """Whether a provider's headline says the opposite of the locked score band.
+
+    `band` is "high" (strong), "mid" (borderline) or "low" (stretch / needs work). The
+    score and verdict are computed, so a headline that cheers for a low score, or warns
+    of a stretch for a high one, is replaced by the computed headline.
+    """
+    if band == "low":
+        return _claims(_POSITIVE_HEADLINE, headline)
+    if band == "mid":
+        return _claims(_STRONG_POSITIVE_HEADLINE, headline) or _claims(_NEGATIVE_HEADLINE, headline)
+    if band == "high":
+        return _claims(_NEGATIVE_HEADLINE, headline)
+    return False

@@ -902,22 +902,22 @@
   color: var(--ink);
 }
 
-/* ── Cookie notice: a compact corner sticker; two equal-weight choices ── */
+/* ── Cookie notice: a slim one-row corner sticker (text left, two equal-weight choices right); the page reserves room under it ── */
 
 .cookie-banner {
   position: fixed;
   right: var(--s4);
   bottom: var(--s4);
   z-index: var(--z-banner);
-  width: min(calc(100% - var(--s8)), 22rem);
+  width: min(calc(100% - var(--s8)), 46rem);
 }
 
 .cookie-banner__inner {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s3);
-  padding: var(--s4);
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s2) var(--s4);
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -925,6 +925,8 @@
 }
 
 .cookie-banner__text {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   color: var(--ink);
   font-size: var(--fs-meta);
@@ -945,16 +947,17 @@
 
 .cookie-banner__actions {
   display: flex;
+  flex: none;
   gap: var(--s2);
 }
 
 /* The notice never sits on a page's last rows or on the footer links: the page gets room under it. */
 html:has(.cookie-banner) .app-main {
-  padding-bottom: 7rem;
+  padding-bottom: 5.5rem;
 }
 
 html:has(.cookie-banner):not(:has(.app-main)) body {
-  padding-bottom: 7rem;
+  padding-bottom: 5.5rem;
 }
 
 /* Phones: one slim sticker above the tab tray, full width, the short wording, buttons beside the text. */

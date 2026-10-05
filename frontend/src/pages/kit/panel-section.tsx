@@ -26,6 +26,15 @@ export function PanelSection() {
           </Panel>
         </Group>
 
+        <Group title="Header tone: lemon">
+          <Panel flush>
+            <PanelHeader title="Suggestions to review" count={2} countTone="lemon" tone="lemon" actions={<Button size="sm" variant="secondary">Save all</Button>} />
+            <PanelBody>
+              <p style={{ margin: 0 }}>The header takes the lemon-soft tint; the rows below stay white.</p>
+            </PanelBody>
+          </Panel>
+        </Group>
+
         <Group title="Flush list with a tone footer (the pipeline)">
           <Panel flush>
             <PanelHeader title="Pipeline" headingLevel={3} />

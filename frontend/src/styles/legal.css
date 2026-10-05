@@ -237,33 +237,6 @@ html:has(.cookie-banner) .legal-page {
   padding-block: var(--s6) var(--s4);
 }
 
-/* The copy is the open half of the ErrorState: no frame, display title, lead-size sentence. */
-.kit-empty.state-page__copy {
-  gap: var(--s3);
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-}
-
-.state-page__copy .kit-empty__title {
-  max-width: 16ch;
-  font-size: var(--fs-display);
-  line-height: var(--lh-display);
-  letter-spacing: var(--ls-display);
-}
-
-.state-page__copy .kit-empty__text {
-  max-width: 34rem;
-  color: var(--ink-2);
-  font-size: var(--fs-title);
-  line-height: 1.45;
-}
-
-.state-page__copy .kit-error__actions {
-  margin-block-start: var(--s3);
-}
-
 .state-page .kit-seal {
   margin-inline-start: var(--s2);
 }

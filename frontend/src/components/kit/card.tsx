@@ -60,12 +60,23 @@ export const CardTitle = forwardRef<HTMLElement, CardTitleProps>(function CardTi
 export type CardActionsProps = ComponentPropsWithoutRef<'div'> & {
   /** Hide until hover/focus on fine pointers (always visible on touch and with focus inside). Default true. */
   reveal?: boolean
+  /** inline (default): beside the title, taking its share of the row. overlay: floats over the card's top end corner on a fine
+   *  pointer, so a narrow card's title keeps the whole line; on touch it falls back to inline, where it is always visible. */
+  placement?: 'inline' | 'overlay'
 }
 
 /** Buttons and menus that sit above the card's whole-card link, at the card's end edge. */
 export const CardActions = forwardRef<HTMLDivElement, CardActionsProps>(function CardActions(
-  { reveal = true, className, ...rest },
+  { reveal = true, placement = 'inline', className, ...rest },
   ref,
 ) {
-  return <div ref={ref} className={cn('kit-card__actions', className)} data-reveal={reveal ? 'true' : undefined} {...rest} />
+  return (
+    <div
+      ref={ref}
+      className={cn('kit-card__actions', className)}
+      data-reveal={reveal ? 'true' : undefined}
+      data-placement={placement === 'overlay' ? 'overlay' : undefined}
+      {...rest}
+    />
+  )
 })

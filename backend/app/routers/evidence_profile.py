@@ -68,6 +68,9 @@ async def import_from_resume(
 ):
     """Extract facts from an uploaded resume and store them as suggestions (R11, #146).
 
+    Idempotent: facts the profile already holds are skipped, and only the newly
+    staged suggestions are returned.
+
     Authenticated-owner-only: ``get_current_user`` rejects guests, so guest uploads
     never write to a profile (D-064). Every extracted fact lands `unconfirmed` with
     `imported` provenance, so nothing is trusted until the owner saves it on the

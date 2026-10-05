@@ -445,6 +445,7 @@ export function EvidenceProfilePage() {
               title={<span id="profile-suggestions-title">Suggestions to review</span>}
               count={suggestions.length}
               countTone="lemon"
+              tone="lemon"
               actions={
                 suggestions.length > 1 ? (
                   <Button

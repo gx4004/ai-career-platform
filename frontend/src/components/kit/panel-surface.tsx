@@ -39,15 +39,17 @@ export type PanelHeaderProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & 
   actions?: ReactNode
   /** Heading level of the title. Default 2. */
   headingLevel?: 2 | 3 | 4
+  /** Fill the header with a tone's soft tint (lemon-soft marks a panel that needs attention). Default none: the panel's own fill. */
+  tone?: Tone
 }
 
 export const PanelHeader = forwardRef<HTMLDivElement, PanelHeaderProps>(function PanelHeader(
-  { title, count, countTone = 'white', actions, headingLevel = 2, className, ...rest },
+  { title, count, countTone = 'white', actions, headingLevel = 2, tone, className, ...rest },
   ref,
 ) {
   const Heading = `h${headingLevel}` as 'h2' | 'h3' | 'h4'
   return (
-    <div ref={ref} className={cn('kit-panel-surface__header', className)} {...rest}>
+    <div ref={ref} className={cn('kit-panel-surface__header', className)} data-tone={tone} {...rest}>
       <Heading className="kit-panel-surface__title">
         {title}
         {count !== undefined ? <Count variant="pill" tone={countTone} value={count} /> : null}

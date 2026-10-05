@@ -242,8 +242,23 @@ def test_seeded_cv_never_contains_a_dict_repr_in_the_paper_or_exports(client, au
     assert pdf.count("Senior Backend Engineer") == 1
 
 
-def test_oversize_evidence_cannot_break_creation_or_listing(client, auth_headers):
-    big = _fact(client, auth_headers, "achievement", {"statement": "y" * 6000})
+def test_oversize_evidence_cannot_break_creation_or_listing(
+    client, auth_headers, db, test_user
+):
+    # The evidence API now bounds a fact, so an oversize one can only be a row stored
+    # before that bound; seed it directly.
+    from app.models.evidence_item import EvidenceItem
+
+    legacy = EvidenceItem(
+        user_id=test_user.id,
+        kind="achievement",
+        content={"statement": "y" * 6000},
+        provenance="user-entered",
+        confirmation_state="confirmed",
+    )
+    db.add(legacy)
+    db.commit()
+    big = legacy.id
     small = _fact(client, auth_headers, "skill", {"statement": "Python"})
 
     created = client.post(

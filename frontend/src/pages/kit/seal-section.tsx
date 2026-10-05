@@ -54,6 +54,17 @@ export function SealSection() {
         </Row>
       </Group>
 
+      <Group title="Rose tone and words longer than four characters: one size tier per character (Applied, Facts, Offer)">
+        <Row top>
+          <ScoreSeal value={3} label="Days left" size="sm" tone="rose" unit="days" />
+          <ScoreSeal value="✓" label="Application status" size="sm" tone="lilac" unit="Applied" />
+          <ScoreSeal value="Offer" label="Stage" size="sm" tone="mint" unit={null} />
+          <ScoreSeal value="Hired" label="Outcome" size="sm" tone="rose" unit={null} />
+          <ScoreSeal value="Applied" label="Status word" size="sm" tone="lilac" unit={null} />
+          <ScoreSeal value="Interview" label="Status long word" size="sm" tone="tangerine" unit={null} />
+        </Row>
+      </Group>
+
       <Group title="Reveal: stamp in, count up (plays on mount; reduced motion shows the final state)">
         <StampDemo />
       </Group>

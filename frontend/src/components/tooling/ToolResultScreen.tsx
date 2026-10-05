@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, Check, Copy, Download, RefreshCw, Star, Undo2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Copy, Download, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import {
   Button,
   Cluster,
@@ -13,13 +13,13 @@ import {
   ErrorState,
   KeyValue,
   Lead,
-  Notice,
   Page,
   PageHeader,
   Panel,
   PanelBody,
   ScoreBar,
   ScoreSeal,
+  Section,
   Skeleton,
   Stack,
   Sticker,
@@ -431,6 +431,27 @@ export function ToolResultScreen({
   )
 
   const carriesInput = Boolean(readWorkflowContext()?.resumeText)
+  // The create-account prompt opens on the register view (the intent's `view` is honoured once the session supports it).
+  const createAccountIntent = {
+    to: resolvedTool.route,
+    reason: 'guest-demo-result',
+    label: 'Create account',
+    toolId: resolvedTool.id,
+    view: 'register' as const,
+  }
+  const signInIntent = { to: resolvedTool.route, reason: 'guest-demo-result', label: 'Sign in', toolId: resolvedTool.id }
+
+  // A saved Job Match belongs to an application: link to it, named for the role when it has one.
+  const workspace = item.workspace
+  const applicationName = workspace
+    ? [workspace.role, workspace.company].filter(Boolean).join(' at ') || workspace.listing?.title || ''
+    : ''
+  const applicationLink =
+    resolvedTool.id === 'job-match' && workspace && savedResult && (workspace.status || workspace.listing) && applicationName ? (
+      <Link key="application" to="/campaigns/$campaignId" params={{ campaignId: workspace.id }}>
+        In applications: {applicationName}
+      </Link>
+    ) : null
 
   return (
     <ResultChromeContext.Provider value={{ setPracticing, reveal }}>
@@ -438,53 +459,42 @@ export function ToolResultScreen({
         <PageHeader
           mark={<ToolTile tone={resolvedTool.tone} icon={resolvedTool.icon} size="lg" />}
           title={resolvedTool.label}
-          meta={[runLabel, runDate ? `Result from ${runDate}` : '']}
+          meta={[runLabel, runDate ? `Result from ${runDate}` : '', applicationLink]}
           actions={actions}
         />
 
         {guestResult && !bannerDismissed ? (
-          <Notice
-            title="This result is not saved"
-            action={
-              status !== 'authenticated' ? (
-                <Cluster gap={2}>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      openAuthDialog({
-                        to: resolvedTool.route,
-                        reason: 'guest-demo-result',
-                        label: 'Create account',
-                        toolId: resolvedTool.id,
-                      })
-                    }}
-                  >
+          <Sticker as="aside" role="status" tone="lemon" size="sm" reveal={reveal ? 'slap' : 'none'} revealOrder={3}>
+            <div className="result-unsaved">
+              <Section
+                size="sm"
+                title="This result is not saved"
+                description="Guest demo: it disappears when you close this tab. Create a free account to keep it. Your resume text stays with this browser until then."
+                className="result-unsaved__text"
+              />
+              {status !== 'authenticated' ? (
+                <Cluster gap={2} className="result-unsaved__actions">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => openAuthDialog(createAccountIntent)}>
                     Create free account
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      openAuthDialog({
-                        to: resolvedTool.route,
-                        reason: 'guest-demo-result',
-                        label: 'Sign in',
-                        toolId: resolvedTool.id,
-                      })
-                    }}
-                  >
+                  <Button type="button" size="sm" variant="ghost" onClick={() => openAuthDialog(signInIntent)}>
                     Sign in
                   </Button>
                 </Cluster>
-              ) : undefined
-            }
-            onDismiss={() => setBannerDismissed(true)}
-          >
-            Guest demo: it disappears when you close this tab. Create a free account to keep it. Your resume text stays with this browser until then.
-          </Notice>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                iconOnly
+                aria-label="Dismiss"
+                className="result-unsaved__dismiss"
+                onClick={() => setBannerDismissed(true)}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </div>
+          </Sticker>
         ) : null}
 
         {regenOpen ? (
