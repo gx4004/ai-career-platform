@@ -3,7 +3,8 @@ import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2, X } from 'lucide-react'
 import {
   Badge, Button, Card, Cluster, ConfirmDialog, Disclosure, EmptyState, Field, Input, Section, Stack, Textarea,
 } from '#/components/kit'
-import type { CvEntry, CvSection } from '#/lib/api/schemas'
+import type { CvEntry, CvHeader, CvSection } from '#/lib/api/schemas'
+import { MAX_HEADER_LINKS } from '#/lib/cv-studio/header'
 import {
   MAX_BULLETS, addBullet, addEntry, isStructuredKind, moveBullet, moveEntry, removeBullet, removeEntry,
   removeSection, sectionLabels, updateBullet, updateEntry,
@@ -233,6 +234,45 @@ export function CvSectionEditor({ section, onSections, onBack, inline = false }:
         confirmLabel="Remove section" icon={<Trash2 />}
         onConfirm={() => { setConfirmRemove(false); onSections((sections) => removeSection(sections, section.id)) }}
       />
+    </Stack>
+  )
+}
+
+/**
+ * The document header: name, headline and contact details, shown at the top of the paper and of the PDF and
+ * DOCX. Every field is optional; a cleared field leaves the paper. Plain text only, saved with the CV.
+ */
+export function CvHeaderEditor({ header, documentName, onChange, inline = false }: {
+  header: CvHeader; documentName: string; onChange: (patch: Partial<CvHeader>) => void
+  /** Unfolded inside its row of the sections list (the row names it). */
+  inline?: boolean
+}) {
+  const text = (key: 'name' | 'headline' | 'email' | 'phone' | 'location', label: string, options: {
+    placeholder?: string; maxLength: number; type?: 'email' | 'tel'; span?: string; help?: string
+  }) => (
+    <Field label={label} optional help={options.help} className={options.span ?? 'cvs-field--third'}>
+      <Input
+        type={options.type} value={header[key] ?? ''} maxLength={options.maxLength} placeholder={options.placeholder}
+        autoComplete="off" onChange={(event) => onChange({ [key]: event.target.value })}
+      />
+    </Field>
+  )
+  return (
+    <Stack gap={inline ? 4 : 6} role="group" aria-label="Header">
+      <div className="cvs-entry__grid">
+        {text('name', 'Name', { maxLength: 120, span: 'cvs-field--full', placeholder: documentName.trim() || 'Your full name', help: 'Shown at the top of the page. Left empty, the page opens with the name of this CV.' })}
+        {text('headline', 'Headline', { maxLength: 200, span: 'cvs-field--full', placeholder: 'e.g. Senior Product Designer' })}
+        {text('email', 'Email', { maxLength: 200, type: 'email', span: 'cvs-field--full', placeholder: 'you@example.com' })}
+        {text('phone', 'Phone', { maxLength: 40, type: 'tel', placeholder: '+44 20 7946 0958' })}
+        {text('location', 'Location', { maxLength: 200, placeholder: 'City, Country' })}
+        <Field label="Links" optional help={`One per line, up to ${MAX_HEADER_LINKS}: portfolio, LinkedIn, GitHub.`} className="cvs-field--full">
+          <Textarea
+            autosize maxRows={8} rows={2} value={(header.links ?? []).join('\n')} placeholder="https://linkedin.com/in/you"
+            onChange={(event) => onChange({ links: event.target.value.split('\n').slice(0, MAX_HEADER_LINKS).map((link) => link.slice(0, 200)) })}
+          />
+        </Field>
+      </div>
+      {inline ? <p className="cvs-hint">The page updates as you type.</p> : null}
     </Stack>
   )
 }

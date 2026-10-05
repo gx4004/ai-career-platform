@@ -42,6 +42,7 @@ from sqlalchemy.orm import Session
 
 from app.models.development_item import DevelopmentItem
 from app.models.gap_classification import GapClassification
+from app.schemas.gap_classification import TRACE_DEMONSTRATED_IN, TRACE_VISIBLE_CHARACTERS
 from app.services.evidence_injection import EvidencePayload
 from app.services.quality_signals import keyword_present
 
@@ -65,8 +66,6 @@ _DEMONSTRATED_KINDS = frozenset(
 )
 
 _REQUIREMENT_TRACE_PREFIX = "listing_requirement:"
-#: Marks a reviewer ``document_defect`` raised because the document is too short.
-_SHORT_DOCUMENT_TRACE_PREFIX = "visible_characters:"
 
 
 class GapClassificationNotFoundError(Exception):
@@ -109,7 +108,7 @@ def _decide(
     category: str, trace: list[str], payload: EvidencePayload | None
 ) -> tuple[str | None, list[str]]:
     if category == "document_defect" and any(
-        entry.startswith(_SHORT_DOCUMENT_TRACE_PREFIX) for entry in trace
+        entry.startswith(TRACE_VISIBLE_CHARACTERS) for entry in trace
     ):
         # An empty or near-empty document has no substance to reword: it needs
         # content, which is not one of the four evidence gaps (D-110). Left
@@ -140,7 +139,7 @@ def _decide(
             # The profile already demonstrates this through real evidence — it is
             # simply absent from the selected materials.
             return GAP_UNCAPTURED_EVIDENCE, [
-                f"profile_lookup:{keyword}:demonstrated_in:{demonstrated}",
+                f"profile_lookup:{keyword}{TRACE_DEMONSTRATED_IN}{demonstrated}",
                 "classified:uncaptured_evidence",
             ]
         if kinds:

@@ -12,6 +12,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+#: Trace vocabulary shared by the reviewer that emits it and the classifier and response
+#: mapper that read it, so a rename cannot silently turn a rule off.
+#: Emitted on a ``document_defect`` raised because the document is too short.
+TRACE_VISIBLE_CHARACTERS = "visible_characters:"
+#: Marks a classification traced to evidence the profile already demonstrates.
+TRACE_DEMONSTRATED_IN = ":demonstrated_in:"
+
 #: The four honest gap kinds (D-109). Each maps to exactly one truthful response
 #: in R17 #200; the mapping never offers rewording for a substance gap (D-110).
 GapKind = Literal[

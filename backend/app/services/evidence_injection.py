@@ -56,7 +56,9 @@ class EvidencePayload:
 #: Prompt-side bounds. Writes are bounded already (see ``normalize_evidence_content``);
 #: these protect the prompt from rows stored before that and from many large items.
 _MAX_RENDERED_VALUE_CHARS = 2_000
+_MAX_RENDERED_LINE_CHARS = _MAX_RENDERED_VALUE_CHARS * 4
 _MAX_RENDERED_SECTION_CHARS = 20_000
+_OMITTED_LINE = "- (further items omitted for length)"
 
 
 def _render_content(content: dict) -> str:
@@ -69,7 +71,12 @@ def _render_content(content: dict) -> str:
         )
         for key, value in content.items()
     }
-    return json.dumps(safe, ensure_ascii=False, sort_keys=True)[: _MAX_RENDERED_VALUE_CHARS * 4]
+    encoded = json.dumps(safe, ensure_ascii=False, sort_keys=True)
+    # Drop whole fields rather than slicing, so the line stays valid JSON.
+    while len(encoded) > _MAX_RENDERED_LINE_CHARS and safe:
+        safe.pop(sorted(safe)[-1])
+        encoded = json.dumps(safe, ensure_ascii=False, sort_keys=True)
+    return encoded
 
 
 def _bounded_lines(entries: list[dict]) -> list[str]:
@@ -79,6 +86,7 @@ def _bounded_lines(entries: list[dict]) -> list[str]:
         line = f"- [{entry['kind']}] {_render_content(entry['content'])}"
         used += len(line)
         if used > _MAX_RENDERED_SECTION_CHARS:
+            lines.append(_OMITTED_LINE)
             break
         lines.append(line)
     return lines

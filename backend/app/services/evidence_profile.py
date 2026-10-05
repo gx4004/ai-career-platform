@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.development_item import DevelopmentItem
 from app.models.evidence_item import EvidenceItem
 from app.schemas.evidence_profile import (
+    MAX_CONTENT_VALUE_CHARS,
     EvidenceItemCreate,
     EvidenceItemResponse,
     EvidenceItemUpdate,
@@ -54,6 +55,24 @@ def create_evidence_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+def imported_evidence_proposal(kind: str, content: dict[str, str]) -> EvidenceItemCreate | None:
+    """A reviewed CV import's claim as a suggestion, or ``None`` when it holds nothing.
+
+    The owner already has the full text in the CV itself, so an over-long value is
+    clamped to the evidence bound (it is only an unconfirmed suggestion) and blank
+    fields are dropped. A claim that is still not a valid fact is skipped rather
+    than failing the whole import.
+    """
+    clamped = {
+        key: value[:MAX_CONTENT_VALUE_CHARS] if isinstance(value, str) else value
+        for key, value in content.items()
+    }
+    try:
+        return EvidenceItemCreate(kind=kind, content=clamped, provenance="imported")
+    except ValueError:
+        return None
 
 
 def stage_evidence_proposal(

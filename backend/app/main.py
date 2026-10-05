@@ -1,5 +1,8 @@
 import asyncio
+import json
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request, status
@@ -16,6 +19,7 @@ from app.config import (
     validate_autopilot_config,
     validate_llm_provider_config,
 )
+from app.database import release_scheduler_leader, try_acquire_scheduler_leader
 from app.limiter import limiter, rate_limit_exceeded_handler
 from app.routers import (
     admin,
@@ -42,10 +46,33 @@ from app.routers import (
 from app.services.ats_ingestion import run_ats_ingestion_scheduler
 from app.services.observability import configure_logging
 from app.services.retention import run_discovered_listing_expiry_scheduler
+from app.startup_checks import redacted_config_summary, validate_startup_config
 
 configure_logging()
 
 logger = logging.getLogger(__name__)
+
+
+SCHEDULER_RESTART_DELAY_SECONDS = 60.0
+
+
+async def _supervise(name: str, run_scheduler) -> None:
+    """Run one scheduler; a crash is logged (type only) and retried after a pause.
+
+    A scheduler that returns normally (ATS ingestion when its flags are off) is
+    finished and is not restarted. Cancellation passes through for shutdown.
+    """
+    while True:
+        try:
+            await run_scheduler()
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - supervisor must outlive any job failure
+            logger.error(
+                "scheduler crashed name=%s error_type=%s", name, type(exc).__name__
+            )
+        await asyncio.sleep(SCHEDULER_RESTART_DELAY_SECONDS)
 
 
 @asynccontextmanager
@@ -53,21 +80,31 @@ async def lifespan(app: FastAPI):
     """Start the recurring discovered-listing expiry and ATS ingestion tasks.
 
     See `app.services.retention` for why an app-startup task is the chosen
-    mechanism. Tasks are cancelled cleanly on shutdown. `run_ats_ingestion_scheduler`
-    (#323) returns immediately as a no-op when its own flags are off, so the task
-    always exists but never fetches unless deliberately enabled.
+    mechanism. Only the instance holding the scheduler leader lock starts them
+    (a no-op on SQLite). Tasks are cancelled cleanly on shutdown.
+    `run_ats_ingestion_scheduler` (#323) returns immediately as a no-op when its
+    own flags are off, so the task always exists but never fetches unless
+    deliberately enabled.
     """
-    listing_expiry_task = asyncio.create_task(run_discovered_listing_expiry_scheduler())
-    ats_ingestion_task = asyncio.create_task(run_ats_ingestion_scheduler())
+    tasks: list[asyncio.Task] = []
+    if await asyncio.to_thread(try_acquire_scheduler_leader):
+        tasks = [
+            asyncio.create_task(
+                _supervise("discovered_listing_expiry", run_discovered_listing_expiry_scheduler)
+            ),
+            asyncio.create_task(_supervise("ats_ingestion", run_ats_ingestion_scheduler)),
+        ]
+    else:
+        logger.info("scheduler leader held by another instance; schedulers not started")
     try:
         yield
     finally:
-        listing_expiry_task.cancel()
-        ats_ingestion_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await listing_expiry_task
-        with suppress(asyncio.CancelledError):
-            await ats_ingestion_task
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with suppress(asyncio.CancelledError):
+                await task
+        await asyncio.to_thread(release_scheduler_leader)
 
 
 app = FastAPI(title="Career Workbench API", version="1.0.0", lifespan=lifespan)
@@ -99,10 +136,17 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 JSON_BODY_LIMIT_BYTES = 1_048_576
 MULTIPART_BODY_LIMIT_BYTES = 11_010_048
+MAX_BODY_CHUNKS = 4_096
 
 
 class RequestSizeLimitMiddleware:
-    """Reject request bodies whose declared Content-Length exceeds the limit."""
+    """Bound request bodies at the ASGI receive seam, before framework parsing.
+
+    A declared Content-Length over the limit is refused up front. Chunked bodies
+    carry no length, so received bytes and chunks are counted as they arrive and
+    the request is answered 413 the moment either bound is crossed; the app is
+    then shown a disconnect so it stops reading.
+    """
 
     def __init__(self, app):
         self.app = app
@@ -129,7 +173,36 @@ class RequestSizeLimitMiddleware:
                 await self._reject(send)
                 return
 
-        await self.app(scope, receive, send)
+        received_bytes = 0
+        received_chunks = 0
+        response_started = False
+        rejected = False
+
+        async def counting_receive():
+            nonlocal received_bytes, received_chunks, rejected
+            if rejected:
+                return {"type": "http.disconnect"}
+            message = await receive()
+            if message["type"] == "http.request":
+                received_chunks += 1
+                received_bytes += len(message.get("body", b""))
+                if (
+                    received_bytes > limit or received_chunks > MAX_BODY_CHUNKS
+                ) and not response_started:
+                    rejected = True
+                    await self._reject(send)
+                    return {"type": "http.disconnect"}
+            return message
+
+        async def guarded_send(message):
+            nonlocal response_started
+            if rejected:
+                return  # the 413 is already on the wire; drop whatever the app says next
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        await self.app(scope, counting_receive, guarded_send)
 
     @staticmethod
     async def _reject(send):
@@ -145,6 +218,89 @@ class RequestSizeLimitMiddleware:
         await send({"type": "http.response.body", "body": body})
 
 
+request_logger = logging.getLogger("app.request")
+
+
+class RequestLogMiddleware:
+    """One structured line per request, and a catch-all for unhandled errors.
+
+    The line holds method, path, status, duration and a generated request id: no
+    query string (job-search terms) and no client address, matching the logging
+    policy. An unhandled exception is logged by type and request id only, never
+    its message or traceback, and answered with a generic 500.
+    """
+
+    _QUIET_PREFIX = "/api/v1/health"
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request_id = uuid.uuid4().hex[:16]
+        started = time.perf_counter()
+        status_code = 500
+        response_started = False
+
+        async def logging_send(message):
+            nonlocal status_code, response_started
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                response_started = True
+                message = {
+                    **message,
+                    "headers": [
+                        *message.get("headers", []),
+                        (b"x-request-id", request_id.encode("ascii")),
+                    ],
+                }
+            await send(message)
+
+        try:
+            await self.app(scope, receive, logging_send)
+        except Exception as exc:  # noqa: BLE001 - last line of defence for the process
+            request_logger.error(
+                json.dumps(
+                    {
+                        "event": "unhandled_error",
+                        "error_type": type(exc).__name__,
+                        "request_id": request_id,
+                    },
+                    sort_keys=True,
+                )
+            )
+            if not response_started:
+                body = b'{"detail":"Internal server error"}'
+                await logging_send({
+                    "type": "http.response.start",
+                    "status": 500,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                        (b"content-length", str(len(body)).encode("ascii")),
+                    ],
+                })
+                await send({"type": "http.response.body", "body": body})
+        finally:
+            path = scope.get("path", "")
+            if not path.startswith(self._QUIET_PREFIX):
+                request_logger.info(
+                    json.dumps(
+                        {
+                            "event": "http_request",
+                            "method": scope.get("method"),
+                            "path": path,
+                            "status": status_code,
+                            "duration_ms": int((time.perf_counter() - started) * 1000),
+                            "request_id": request_id,
+                        },
+                        sort_keys=True,
+                    )
+                )
+
+
 # --- Security headers ---
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -158,6 +314,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RequestSizeLimitMiddleware)
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     SessionMiddleware,
@@ -176,14 +333,8 @@ app.add_middleware(
 )
 
 # --- Startup checks ---
-_DEFAULT_SECRET = "change-me-to-a-random-secret-key"
-if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "development":
-    raise RuntimeError(
-        f"SECRET_KEY is the default placeholder. "
-        f"Set a strong random value before running in {settings.ENVIRONMENT}. "
-        f"Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
-    )
-
+validate_startup_config(settings)
+logger.info(json.dumps(redacted_config_summary(settings), sort_keys=True))
 validate_llm_provider_config()
 validate_autopilot_config()
 

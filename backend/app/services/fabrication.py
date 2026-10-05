@@ -35,19 +35,36 @@ KIND_FIGURE = "figure"
 _WORD_TOKEN = re.compile(r"[^\W_][^\W_]*(?:[&./+\-][^\W_]+)*(?:\+\+|#)?")
 #: A quantified figure: optional ``$``, digit groups, optional decimal, optional
 #: unit suffix (``%``, ``+``, ``k``/``m``/``b``, ``x``). Captures "$1,200", "40%",
-#: "99.95%", "30+", "$1.2M", "3x". The figure must stand alone: "p95" or "3rd"
-#: are tokens, not numbers, and yield no figure claim.
-_FIGURE = re.compile(r"(?<![\w.])\$?\d[\d,]*(?:\.\d+)?(?:%|\+|[kKmMbBxX])?(?!\w)")
+#: "99.95%", "30+", "$1.2M", "$1.2 million", "3x". The figure must stand alone: "p95",
+#: "3rd", "3.5mm" and "99.9th" are tokens, not numbers, and yield no figure claim.
+_FIGURE = re.compile(
+    r"(?<![\w.])\$?\d[\d,]*(?:\.\d+)?"
+    r"(?:%|\+|\s(?i:million|billion|thousand)\b|[kKmMbBxX])?(?!\w|\.\d)"
+)
+#: A figure split into its number and spelled or abbreviated magnitude.
+_MAGNITUDE = re.compile(r"(\d+(?:\.\d+)?)\s?(million|billion|thousand|[kmb])", re.IGNORECASE)
 #: Splits output into rough sentences so sentence-initial capitalization can be
 #: distinguished from mid-sentence proper nouns.
 _SENTENCE_SPLIT = re.compile(r"[.!?\n]+")
 #: Verbs that routinely open CV/letter sentences ("Used Go", "Led Atlas"); the
 #: capitalisation is sentence casing, not part of the name that follows.
+#: An explicit list, not a suffix rule: "Boeing" and "Sterling" open a sentence as
+#: employer names and must stay part of the name they begin.
 _OPENING_VERBS = frozenset(
-    {"used", "led", "ran", "built", "wrote", "made", "drove", "took", "won", "set", "got", "cut", "grew"}
+    {
+        "used", "led", "ran", "built", "wrote", "made", "drove", "took", "won", "set", "got",
+        "cut", "grew", "developed", "designed", "managed", "created", "delivered",
+        "launched", "implemented", "improved", "reduced", "increased", "shipped",
+        "migrated", "owned", "worked", "helped", "supported", "maintained",
+        "coordinated", "scaled", "automated", "deployed", "architected", "mentored",
+        "trained", "introduced", "established", "founded", "achieved", "collaborated",
+        "partnered", "spearheaded", "optimized", "optimised", "integrated", "using",
+        "leading", "building", "working", "developing", "designing", "managing",
+    }
 )
-#: Suffix words that spell out a figure's unit, so ``$1.2M`` grounds in "$1.2 million".
-_UNIT_WORDS = {"k": "thousand", "m": "million", "b": "billion"}
+#: A magnitude's letter and its spelled-out word, so ``$1.2M`` and "$1.2 million" agree.
+_MAGNITUDE_WORDS = {"k": "thousand", "m": "million", "b": "billion"}
+_MAGNITUDE_LETTERS = {word: letter for letter, word in _MAGNITUDE_WORDS.items()}
 
 # Common words that are capitalized only because they open a sentence, are
 # pronouns, or are letter/greeting boilerplate. Excluded from proper-noun claim
@@ -174,8 +191,7 @@ def _proper_runs(sentence: str) -> list[tuple[int, list[str]]]:
 
 
 def _is_opening_verb(word: str) -> bool:
-    lowered = word.lower()
-    return lowered in _OPENING_VERBS or (len(lowered) >= 5 and lowered.endswith(("ed", "ing")))
+    return word.lower() in _OPENING_VERBS
 
 
 def _extract_proper_nouns(sentence: str, seen: set[str], claims: list[Claim]) -> None:
@@ -249,9 +265,12 @@ def _figure_traceable(figure: str, resume_text: str) -> bool:
     resume_normalized = resume_text.replace(",", "")
     bare = normalized.lstrip("$")
     forms = {re.escape(normalized), re.escape(bare)}
-    unit = _UNIT_WORDS.get(bare[-1:].lower())
-    if unit and bare[:-1][-1:].isdigit():
-        forms.add(rf"{re.escape(bare[:-1])}\s*{unit}")
+    magnitude = _MAGNITUDE.fullmatch(bare)
+    if magnitude:
+        number, unit = magnitude.group(1), magnitude.group(2).lower()
+        letter = unit if unit in _MAGNITUDE_WORDS else _MAGNITUDE_LETTERS[unit]
+        word = _MAGNITUDE_WORDS[letter]
+        forms.add(rf"{re.escape(number)}(?:{letter}|\s?{word})")
     for form in forms:
         if re.search(rf"(?<![\w.]){form}(?![\w])(?!\.\d)", resume_normalized, re.IGNORECASE):
             return True

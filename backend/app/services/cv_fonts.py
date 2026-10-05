@@ -123,7 +123,7 @@ def _needs_glyph(character: str) -> bool:
     return unicodedata.category(character) not in ("Cc", "Cf")
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _covered(font_id: str) -> frozenset[int]:
     register_fonts()
     family = FONT_FAMILIES[font_id]

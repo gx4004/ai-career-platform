@@ -8,6 +8,7 @@ from app.auth.security import (
     create_access_token,
     create_password_reset_token,
     create_refresh_token,
+    dummy_password_hash,
     get_current_user,
     get_optional_current_user,
     hash_password,
@@ -40,9 +41,15 @@ router = APIRouter()
 
 @router.post("/login", response_model=AuthSessionResponse)
 @limiter.limit("10/minute")
-async def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
+    # Sync on purpose: bcrypt takes ~250 ms and must run in the threadpool, not on
+    # the event loop that serves every other request.
     user = db.query(User).filter(func.lower(User.email) == body.email).first()
-    if not user or not verify_password(body.password, user.hashed_password):
+    stored_hash = user.hashed_password if user else None
+    # Always pay for one verification (against a dummy hash when there is no
+    # stored password) so an unknown address is not faster than a wrong password.
+    password_ok = verify_password(body.password, stored_hash or dummy_password_hash())
+    if not user or not stored_hash or not password_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -60,7 +67,7 @@ async def login(request: Request, response: Response, body: LoginRequest, db: Se
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 @limiter.limit("5/minute")
-async def register(request: Request, response: Response, body: RegisterRequest, db: Session = Depends(get_db)):
+def register(request: Request, response: Response, body: RegisterRequest, db: Session = Depends(get_db)):
     if settings.DISPOSABLE_EMAIL_BLOCK_ENABLED and is_disposable_email(body.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

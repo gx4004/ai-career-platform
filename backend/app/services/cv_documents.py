@@ -20,10 +20,9 @@ from app.schemas.cv_documents import (
     CvTailoringApply,
     CvVariantResponse,
 )
-from app.schemas.evidence_profile import EvidenceItemCreate
 from app.services.applications import clear_selected_variants
 from app.services.cv_tailoring import read_change_field, write_change_field
-from app.services.evidence_profile import stage_evidence_proposal
+from app.services.evidence_profile import imported_evidence_proposal, stage_evidence_proposal
 
 logger = logging.getLogger(__name__)
 
@@ -395,16 +394,13 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
             entries = []
             for entry in section.entries:
                 item = None
-                if entry.claim is not None:
-                    item = stage_evidence_proposal(
-                        db,
-                        user_id,
-                        EvidenceItemCreate(
-                            kind=entry.claim.kind,
-                            content=entry.claim.content,
-                            provenance="imported",
-                        ),
-                    )
+                proposal = (
+                    None
+                    if entry.claim is None
+                    else imported_evidence_proposal(entry.claim.kind, entry.claim.content)
+                )
+                if proposal is not None:
+                    item = stage_evidence_proposal(db, user_id, proposal)
                 stored_entry = {
                     "id": entry.id,
                     "evidence_item_id": None if item is None else item.id,

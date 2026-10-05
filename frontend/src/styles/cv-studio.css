@@ -275,6 +275,10 @@
   cursor: grab;
 }
 
+.kit-row__leading.cvs-sec__grip--static {
+  cursor: default;
+}
+
 .cvs-sec__grip > svg {
   width: 1rem;
   height: 1rem;
@@ -808,6 +812,25 @@
   color: var(--cvp-accent);
 }
 
+/* Header block (mirrors the exports' name, headline and contact line). With nothing set it is the bare title, unchanged. */
+.cvp-header--detailed { padding-bottom: 8pt; }
+.cvp-header--detailed .cvp-title { margin-bottom: 3pt; }
+
+.cvp-headline {
+  margin-bottom: 2pt;
+  font-size: calc(var(--cvp-body) + 2pt);
+  line-height: calc(var(--cvp-body) + 5pt);
+}
+
+.cvp-contact {
+  margin-bottom: 2pt;
+  font-size: max(7pt, calc(var(--cvp-body) - 1pt));
+  line-height: calc(var(--cvp-body) + 3pt);
+  color: #4b5563;
+}
+
+.cvp-link { color: #0000ff; }
+
 .cvp-section { margin-bottom: var(--cvp-gap); }
 
 .cvp-section__title {
@@ -906,6 +929,9 @@
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
 }
+
+/* The header's gap to the first section is fixed by the export, so its frame hugs it to stay clear of that section's title. */
+.cvp-header.cvp-section--editable { outline-offset: 0; }
 
 /* The tag sits on the dashed edge, clear of the title rule above. */
 .cvp-section--editable::after {

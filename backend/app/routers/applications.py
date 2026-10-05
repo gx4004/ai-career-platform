@@ -321,6 +321,8 @@ async def review_application(
             "job_description": workspace.listing.description,
             "cover_text": clean_cover,
             "cv_document_text": cv_document_text,
+            "listing_title": workspace.listing.title,
+            "listing_company": workspace.listing.company,
         },
         label_fn=lambda result: f"Application review ({len(result['findings'])} findings)",
         resume_text=cv_text,
@@ -329,7 +331,10 @@ async def review_application(
         current_user=current_user,
         db=db,
         cache_extra_keys={
-            "reviewer_version": "v2",
+            "reviewer_version": "v3",
+            "listing_sha256": hashlib.sha256(
+                f"{workspace.listing.title}\n{workspace.listing.company}".encode()
+            ).hexdigest(),
             "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
             "cv_document_sha256": hashlib.sha256(cv_document_text.encode()).hexdigest(),
         },
@@ -411,6 +416,8 @@ async def classify_gaps(
         cover_text=sanitize_user_input(cover_text),
         evidence_profile=payload,
         cv_document_text=project_cv_document_text(workspace),
+        listing_title=workspace.listing.title,
+        listing_company=workspace.listing.company,
     )
     classifications = classify_findings(review["findings"], payload)
     rows = persist_gap_classifications(db, current_user.id, workspace.id, classifications)

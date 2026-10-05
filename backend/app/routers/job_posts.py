@@ -10,7 +10,11 @@ from app.models.user import User
 from app.schemas.tools import ImportedJobResponse, ImportJobTextRequest, ImportJobUrlRequest
 from app.services.campaign_listings import attach_listing
 from app.services.import_source import map_source_family
-from app.services.job_scraper import PASTE_FALLBACK_DESCRIPTION, scrape_job_posting
+from app.services.job_scraper import (
+    GUEST_MAX_RESPONSE_BYTES,
+    PASTE_FALLBACK_DESCRIPTION,
+    scrape_job_posting,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +30,12 @@ async def import_job_url(
     db: Session = Depends(get_db),
 ):
     try:
-        result = await scrape_job_posting(str(body.url))
+        if current_user is None:
+            result = await scrape_job_posting(
+                str(body.url), max_response_bytes=GUEST_MAX_RESPONSE_BYTES
+            )
+        else:
+            result = await scrape_job_posting(str(body.url))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as exc:

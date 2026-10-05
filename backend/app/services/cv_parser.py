@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.schemas.cv_documents import CvImportProposal
+from app.schemas.evidence_profile import MAX_CONTENT_VALUE_CHARS
 from app.schemas.tools import ParsedCvResponse
 
 MAX_PDF_PAGES = 100
@@ -599,7 +600,7 @@ def _claim_for(section_kind: str, entry: dict) -> dict | None:
                 content[field] = entry[field]
         if entry.get("bullets"):
             # Kept with the role so the achievements it lists survive confirming it.
-            content["highlights"] = "\n".join(entry["bullets"])[:4_000]
+            content["highlights"] = "\n".join(entry["bullets"])[:MAX_CONTENT_VALUE_CHARS]
         return {"kind": section_kind, "content": content, "provenance": "imported"}
     body = entry["body"]
     if section_kind == "achievements":
@@ -612,7 +613,7 @@ def _claim_for(section_kind: str, entry: dict) -> dict | None:
         kind = _CLAIM_BY_SECTION.get(section_kind)
     if kind is None:
         return None
-    return {"kind": kind, "content": {"statement": body[:MAX_BODY_CHARS]}, "provenance": "imported"}
+    return {"kind": kind, "content": {"statement": body[:MAX_CONTENT_VALUE_CHARS]}, "provenance": "imported"}
 
 
 def _structure_lines(

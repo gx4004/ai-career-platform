@@ -86,11 +86,14 @@ def _backfill_snapshots(db: Session, items: list[DevelopmentItem]) -> None:
     stale = [i for i in items if i.label is None and i.gap_classification_id is not None]
     if not stale:
         return
+    changed = False
     for item in stale:
         classification = db.get(GapClassification, item.gap_classification_id)
         if classification is not None:
             item.label, item.workspace_id = _snapshot(classification)
-    db.commit()
+            changed = True
+    if changed:
+        db.commit()
 
 
 def get_development_item(db: Session, item_id: str, user_id: str) -> DevelopmentItem:

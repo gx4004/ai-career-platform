@@ -323,7 +323,8 @@ describe('section rows', () => {
     api.listCvDocuments.mockResolvedValue({ items: [twoSections] })
     view()
     await screen.findByTestId('cv-paper')
-    const rows = within(panel()).getAllByRole('listitem')
+    // The first row is the document header: it is not a section and cannot be dragged.
+    const rows = within(panel()).getAllByRole('listitem').slice(1)
     const transfer = { effectAllowed: '', setData: vi.fn() }
     fireEvent.dragStart(rows[1], { dataTransfer: transfer })
     fireEvent.dragOver(rows[0], { dataTransfer: transfer })

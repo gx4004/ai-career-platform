@@ -5,9 +5,15 @@ import re
 import uuid
 from datetime import UTC, datetime
 
+from app.schemas.gap_classification import TRACE_VISIBLE_CHARACTERS
 from app.services.evidence_injection import EvidencePayload
 from app.services.fabrication import KIND_FIGURE, extract_claims, trace_claim
-from app.services.quality_signals import extract_job_keywords, keyword_present
+from app.services.quality_signals import (
+    _SKILL_PATTERNS_BY_LOWER_LABEL,
+    extract_detected_skills,
+    extract_job_keywords,
+    keyword_present,
+)
 
 GENERIC_PHRASES = (
     "results-driven",
@@ -91,11 +97,18 @@ async def review_campaign_materials(
         for item in (evidence_profile.locked_facts if evidence_profile else [])
     }
     findings: list[dict] = []
-    # The posting is the cover letter's own subject: its role, company and wording
-    # are grounded by definition, so naming them is not a claim about the user.
-    posting = "\n".join(part for part in (listing_title, listing_company, job_description) if part)
+    # The posting is the cover letter's own subject: its role and company are
+    # grounded by definition, so naming them is not a claim about the user.
+    posting_names = "\n".join(part for part in (listing_title, listing_company) if part)
     findings.extend(
-        _unsupported(resume_text, cover_text, confirmed_sources, cv_document_text, posting)
+        _unsupported(
+            resume_text,
+            cover_text,
+            confirmed_sources,
+            cv_document_text,
+            posting_names,
+            job_description,
+        )
     )
     findings.extend(_missed_requirements(job_description, resume_text, cover_text))
     findings.extend(_contradictions(resume_text, cover_text))
@@ -153,6 +166,7 @@ def _unsupported(
     cover: str,
     confirmed_sources: dict[str, str],
     cv_document_text: str = "",
+    posting_names: str = "",
     posting_text: str = "",
 ) -> list[dict]:
     """Flag CV/cover-letter claims traceable to neither confirmed evidence nor
@@ -164,29 +178,28 @@ def _unsupported(
     would be flagged the moment the owner has no confirmed Evidence Profile
     items, which is the common case. The cover letter additionally grounds
     against the selected CV, since a cover letter may legitimately restate CV
-    content, and against the job posting (title, company, description) it answers.
+    content. It also grounds against the job posting it answers: the title and company
+    ground any name; the description grounds names that are not skills, so "the
+    Integrations team" is fine but "I led our Kubernetes migration" is still checked
+    against what the owner actually has (D-043: a posting naming a skill is not
+    evidence the owner has it).
     """
     findings = []
     for location, output, extra_sources in (
         ("CV", cv, {"cv_document": cv_document_text}),
-        (
-            "Cover letter",
-            cover,
-            {"selected_cv": cv, "cv_document": cv_document_text},
-        ),
+        ("Cover letter", cover, {"selected_cv": cv, "cv_document": cv_document_text}),
     ):
         sources = {**confirmed_sources, **extra_sources}
-        # The posting grounds the names it uses (role, company, product), never a
-        # figure: "5 years" in a requirement is not evidence the user has 5 years.
-        named_sources = (
-            {**sources, "job_posting": posting_text}
-            if location == "Cover letter" and posting_text
-            else sources
-        )
+        is_letter = location == "Cover letter"
         for claim in extract_claims(output):
-            trace = trace_claim(
-                claim, sources if claim.kind == KIND_FIGURE else named_sources
-            )
+            claim_sources = dict(sources)
+            # Never a figure: "5 years" in a requirement is not evidence of 5 years.
+            if is_letter and claim.kind != KIND_FIGURE:
+                if posting_names:
+                    claim_sources["job_posting_title_company"] = posting_names
+                if posting_text and not _names_a_skill(claim.text):
+                    claim_sources["job_posting"] = posting_text
+            trace = trace_claim(claim, claim_sources)
             if trace.traceable:
                 continue
             findings.append(
@@ -204,6 +217,10 @@ def _unsupported(
                 )
             )
     return findings
+
+
+def _names_a_skill(text: str) -> bool:
+    return bool(extract_detected_skills(text)) or text.lower() in _SKILL_PATTERNS_BY_LOWER_LABEL
 
 
 def _missed_requirements(listing: str, cv: str, cover: str) -> list[dict]:
@@ -301,7 +318,7 @@ def _document_defects(cv: str, cover: str) -> list[dict]:
                 "medium",
                 "Your CV looks almost empty.",
                 ["CV:entire document"],
-                [f"visible_characters:{len(cv.strip())}", "minimum:80"],
+                [f"{TRACE_VISIBLE_CHARACTERS}{len(cv.strip())}", "minimum:80"],
             )
         )
     if len(cover.strip()) < 120:
@@ -311,7 +328,7 @@ def _document_defects(cv: str, cover: str) -> list[dict]:
                 "medium",
                 "Your cover letter is very short.",
                 ["Cover letter:entire document"],
-                [f"visible_characters:{len(cover.strip())}", "minimum:120"],
+                [f"{TRACE_VISIBLE_CHARACTERS}{len(cover.strip())}", "minimum:120"],
             )
         )
     for token in ("[company]", "[name]", "todo"):
