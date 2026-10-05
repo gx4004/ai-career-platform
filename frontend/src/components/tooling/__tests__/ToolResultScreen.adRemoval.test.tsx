@@ -109,7 +109,7 @@ describe('ToolResultScreen — dormant ad gate removed (R9 #127)', () => {
 
       // Full content and an export affordance are present.
       expect(screen.getByText('RESULT_CONTENT_MARKER')).toBeTruthy()
-      expect(screen.getByLabelText(/Download result/i)).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Export result/i })).toBeTruthy()
 
       // No advertising vendor script was injected in any consent state.
       expect(document.querySelector('script[src*="adsbygoogle"]')).toBeNull()
@@ -132,7 +132,7 @@ describe('ToolResultScreen — dormant ad gate removed (R9 #127)', () => {
       renderResult()
 
       expect(screen.getByText('RESULT_CONTENT_MARKER')).toBeTruthy()
-      expect(screen.getByLabelText(/Download result/i)).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Export result/i })).toBeTruthy()
       expect(document.querySelector('script[src*="adsbygoogle"]')).toBeNull()
       expect(document.querySelector('.ad-gate-card')).toBeNull()
       expect(screen.queryByText(/Unlock full results/i)).toBeNull()

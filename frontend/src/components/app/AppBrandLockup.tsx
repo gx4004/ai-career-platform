@@ -6,25 +6,22 @@ type AppBrandLockupProps = {
   className?: string
 }
 
-/** Newsreader "C" with a cursor bar: a serif letter on a forest tile. Same artwork as /favicon.svg. */
+/**
+ * The brand sticker: a tangerine tile tilted -6deg with an ink check. Same artwork as /favicon.svg.
+ * The tile, outline and shadow are CSS (tokens), so the mark scales with `--cw-brand-mark-size`.
+ */
 export function BrandMark({ title, className }: { title?: string; className?: string }) {
   return (
-    <svg
+    <span
       className={cn('cw-brand-mark', className)}
-      viewBox="0 0 32 32"
-      xmlns="http://www.w3.org/2000/svg"
       role={title ? 'img' : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : true}
-      focusable="false"
     >
-      <rect className="cw-brand-mark__tile" width="32" height="32" rx="7" />
-      <path
-        className="cw-brand-mark__ink"
-        d="M15.41 24.11Q16.25 24.11 17.03 23.92Q17.81 23.73 18.66 23.28L17.97 23.83L20.23 20.07H20.82L20.14 24.44Q19.01 24.86 17.67 25.08Q16.34 25.3 14.8 25.3Q12.59 25.3 10.8 24.73Q9.01 24.15 7.73 23.03Q6.45 21.91 5.77 20.27Q5.08 18.63 5.08 16.5Q5.08 13.85 6.3 11.85Q7.52 9.85 9.76 8.73Q12 7.62 15.05 7.62Q15.94 7.62 16.76 7.72Q17.59 7.82 18.67 8.07L17.77 8.29L19.41 7.1H19.73L20.7 13.32L20.1 13.45L17.53 9.24L18.37 10.16Q17.33 9.41 16.43 9.13Q15.53 8.84 14.54 8.84Q13.2 8.84 12.12 9.25Q11.05 9.66 10.3 10.49Q9.55 11.32 9.15 12.59Q8.75 13.87 8.75 15.61Q8.75 17.68 9.25 19.27Q9.75 20.85 10.66 21.93Q11.57 23.01 12.78 23.56Q13.99 24.11 15.41 24.11Z"
-      />
-      <rect className="cw-brand-mark__ink" x="21.92" y="22.6" width="5" height="2.4" rx="0.5" />
-    </svg>
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M5 12.5l4.5 4.5L19 7" />
+      </svg>
+    </span>
   )
 }
 

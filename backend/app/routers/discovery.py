@@ -7,12 +7,14 @@ from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter
 from app.models.user import User
+from app.models.workspace import Workspace
 from app.schemas.applications import ApplicationDetail
 from app.schemas.discovery_personalization import DismissalCreate, DismissalItem
 from app.schemas.discovery_recommendations import (
     DiscoveryDeepMatch,
     DiscoveryListingDetail,
     DiscoveryListingPage,
+    HiddenListingPage,
 )
 from app.services.applications import application_detail
 from app.services.discovery_adoption import (
@@ -25,13 +27,19 @@ from app.services.discovery_personalization import (
     dismiss_recommendation,
     undismiss_recommendation,
 )
-from app.services.discovery_recommendations import listing_detail, search_listings
+from app.services.discovery_recommendations import (
+    hidden_listings,
+    listing_detail,
+    search_listings,
+)
 
 router = APIRouter()
 
 
 @router.get("/listings", response_model=DiscoveryListingPage)
+@limiter.limit("120/minute")
 def list_listings(
+    request: Request,
     q: str | None = Query(default=None, max_length=200),
     location: str | None = Query(default=None, max_length=200),
     remote: bool | None = None,
@@ -101,6 +109,7 @@ async def start_deep_match(
 )
 def adopt_recommendation_into_campaign(
     listing_id: str,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -109,8 +118,15 @@ def adopt_recommendation_into_campaign(
     The listing content, its source attribution, apply link and retrieval date are
     copied into the new application's listing, and the adoption is its first
     event (D-091, D-078). Hidden listings (dismissed, expired, source not
-    allowed) are refused.
+    allowed) are refused. Adding a listing that is already an application changes
+    nothing and answers 200 with that application; only the first adoption is 201.
     """
+    already_added = (
+        db.query(Workspace.id)
+        .filter(Workspace.user_id == current_user.id, Workspace.discovery_listing_id == listing_id)
+        .first()
+        is not None
+    )
     try:
         workspace = adopt_recommendation(db, current_user.id, listing_id)
     except RecommendationNotAdoptableError as error:
@@ -118,10 +134,21 @@ def adopt_recommendation_into_campaign(
             status_code=404,
             detail="Recommendation is not available to adopt",
         ) from error
+    if already_added:
+        response.status_code = status.HTTP_200_OK
     return application_detail(db, workspace)
 
 
 # ── Dismissals (R14, issue #175) ──
+
+
+@router.get("/dismissals", response_model=HiddenListingPage)
+def list_dismissals(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The jobs the owner hid, newest first; DELETE /dismissals/{id} restores one."""
+    return hidden_listings(db, current_user.id)
 
 
 @router.post(

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trash2 } from 'lucide-react'
+import { Sprout, Trash2 } from 'lucide-react'
 import {
   Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, RowMeta, Section, Select, Skeleton, Stack,
 } from '#/components/kit'
@@ -24,19 +24,28 @@ import {
   EditDevelopmentItemDialog,
   type DevelopmentEditSubmit,
 } from '#/components/profile/EditDevelopmentItemDialog'
+import { CompleteSkillDialog, type CompletionResult } from '#/components/profile/CompleteSkillDialog'
 
 /**
  * "Skills to build" — the R17 development plan on the profile page (#321).
  * Items are created from an application's gap checklist, so the empty state points
  * there.
  */
-export function SkillsToBuildSection() {
+export function SkillsToBuildSection({
+  onShowEvidence,
+}: {
+  /** Called with the profile item completing produced, so the page can scroll to it. */
+  onShowEvidence?: (evidenceItemId: string) => void
+} = {}) {
   const queryClient = useQueryClient()
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<DevelopmentItem | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DevelopmentItem | null>(null)
+  const [completeTarget, setCompleteTarget] = useState<DevelopmentItem | null>(null)
+  const [completeError, setCompleteError] = useState<string | null>(null)
+  const [completion, setCompletion] = useState<CompletionResult | null>(null)
 
   const itemsQuery = useQuery({
     queryKey: DEVELOPMENT_PLAN_QUERY_KEY,
@@ -54,14 +63,33 @@ export function SkillsToBuildSection() {
   const stateMutation = useMutation({
     mutationFn: ({ id, state }: { id: string; state: DevelopmentState }) =>
       updateDevelopmentItem(id, { state }),
-    // Completing an item adds a fact or suggestion to the profile (R17 #201).
-    onSuccess: (_item, { state }) =>
-      state === 'completed'
-        ? invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
-        : invalidate(),
+    onSuccess: invalidate,
     onError: (error) => reportError(error, 'Could not update the status.'),
     onSettled: () => setPendingItemId(null),
   })
+
+  // Completing an item adds a fact or suggestion to the profile (R17 #201), so it goes through its own dialog.
+  const completeMutation = useMutation({
+    mutationFn: ({ item, notes }: { item: DevelopmentItem; notes: string }) =>
+      // Words are sent only when they changed; an unchanged note stays the owner's own words on the server.
+      updateDevelopmentItem(item.id, {
+        state: 'completed',
+        ...(notes !== (item.notes ?? '') ? { notes: notes || null } : {}),
+      }),
+    onSuccess: async (updated, { notes }) => {
+      setCompleteError(null)
+      setCompletion({ evidenceItemId: updated.evidence_item_id, saved: notes.length > 0 })
+      await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
+    },
+    onError: (error) =>
+      setCompleteError(error instanceof Error ? error.message : 'Could not mark this complete.'),
+  })
+
+  function closeCompletion() {
+    setCompleteTarget(null)
+    setCompleteError(null)
+    setCompletion(null)
+  }
 
   const editMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: DevelopmentEditSubmit }) =>
@@ -87,6 +115,12 @@ export function SkillsToBuildSection() {
 
   function handleStateChange(item: DevelopmentItem, state: DevelopmentState) {
     if (state === item.state) return
+    if (state === 'completed') {
+      setCompleteError(null)
+      setCompletion(null)
+      setCompleteTarget(item)
+      return
+    }
     setPendingItemId(item.id)
     stateMutation.mutate({ id: item.id, state })
   }
@@ -115,6 +149,7 @@ export function SkillsToBuildSection() {
           />
         ) : items.length === 0 ? (
           <EmptyState
+            icon={<Sprout />}
             title="Nothing to build yet"
             description="When an application’s gap check finds something to work on, add it from the application and it shows up here."
             action={<Button asChild variant="secondary" size="sm"><Link to="/campaigns">Open applications</Link></Button>}
@@ -144,6 +179,17 @@ export function SkillsToBuildSection() {
                           <MetaRow>
                             {formatTargetDate(item.target_date) ? `Target ${formatTargetDate(item.target_date)}` : 'No target date'}
                             {item.evidence_item_id ? <Badge tone="success" size="sm" role="status">Added to your profile</Badge> : null}
+                            {item.evidence_item_id && onShowEvidence ? (
+                              <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                aria-label={`Show on your profile: ${kind}`}
+                                onClick={() => onShowEvidence(item.evidence_item_id as string)}
+                              >
+                                Show it
+                              </Button>
+                            ) : null}
                           </MetaRow>
                         </>
                       }
@@ -170,6 +216,19 @@ export function SkillsToBuildSection() {
           ))
         )}
       </Stack>
+
+      <CompleteSkillDialog
+        item={completeTarget}
+        submitting={completeMutation.isPending}
+        error={completeError}
+        result={completion}
+        onSubmit={(notes) => completeTarget && completeMutation.mutate({ item: completeTarget, notes })}
+        onClose={closeCompletion}
+        onShow={(evidenceItemId) => {
+          closeCompletion()
+          onShowEvidence?.(evidenceItemId)
+        }}
+      />
 
       <EditDevelopmentItemDialog
         item={editTarget}

@@ -23,7 +23,7 @@ vi.mock('#/lib/api/client', async (importOriginal) => ({
   getHistory: getHistoryMock,
 }))
 
-function run(id: string, label: string | null, tool = 'resume') {
+function run(id: string, label: string | null, tool = 'resume', workspace: Record<string, unknown> | null = null) {
   return {
     id,
     tool_name: tool,
@@ -34,7 +34,7 @@ function run(id: string, label: string | null, tool = 'resume') {
     access_mode: 'authenticated',
     locked_actions: [],
     metadata: {},
-    workspace: null,
+    workspace,
   }
 }
 
@@ -68,6 +68,23 @@ describe('RecentToolRuns', () => {
     expect(screen.getByRole('link', { name: 'Untitled run' }).getAttribute('href')).toBe('/resume/result/r2')
     expect(screen.getByRole('list', { name: 'Recent runs' }).querySelectorAll('li')).toHaveLength(2)
     expect(getHistoryMock).toHaveBeenCalledWith({ tool: 'resume', page: 1, page_size: 3 })
+  })
+
+  it('tells two runs with the same label apart by what they were about', async () => {
+    const workspace = (role: string, company: string) => ({
+      id: `ws-${company}`, label: null, is_pinned: false, company, role, status: 'saved', deadline: null,
+      listing: null, linked_run_ids: [], updated_at: '2026-10-03T10:00:00Z',
+    })
+    getHistoryMock.mockResolvedValue({
+      items: [
+        run('r1', 'Job Match (48%)', 'job-match', workspace('Platform Engineer', 'Northwind Labs')),
+        run('r2', 'Job Match (48%)', 'job-match', workspace('Data Analyst', 'Harbor Health')),
+      ],
+      total: 2, page: 1, page_size: 3, has_more: false,
+    })
+    renderRuns()
+    expect(await screen.findByText('Platform Engineer at Northwind Labs')).toBeTruthy()
+    expect(screen.getByText('Data Analyst at Harbor Health')).toBeTruthy()
   })
 
   it('shows nothing for a new user and nothing for a guest (no request is made)', async () => {

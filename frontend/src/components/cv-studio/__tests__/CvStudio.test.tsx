@@ -31,6 +31,7 @@ const skills = { id: 's2', kind: 'skills' as const, title: 'Skills', visible: tr
 const style = { template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false }
 const document: CvDocument = {
   id: 'd1', name: 'Principal CV', sections: [experience, skills], style,
+  header: { name: null, headline: null, email: null, phone: null, location: null, links: [] },
   created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z',
   tailoring_model_runs: 0, tailoring_model_run_limit: 10,
   variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [experience], created_at: '2026-07-12T10:00:00Z' }],

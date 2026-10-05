@@ -74,17 +74,27 @@ describe('OnboardingTour', () => {
     expect(document.activeElement).toBe(document.body)
   })
 
+  it('is one spotlight: a single ring around the current target, and no second primary button', () => {
+    const { baseElement } = renderTour(['quick-start', 'activity'])
+    expect(baseElement.querySelectorAll('.app-tour__ring')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Next' }).className).toContain('kit-button--secondary')
+  })
+
   it('does not scroll a target that is already in view (it would move where Tab starts)', () => {
     renderTour(['quick-start'])
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
   })
 
   it('skips on Escape and from the close button', () => {
-    const { onSkip } = renderTour(['quick-start'])
+    const { onSkip } = renderTour(['quick-start', 'activity'])
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onSkip).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: 'Skip tour' }))
     expect(onSkip).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }))
+    expect(onSkip).toHaveBeenCalledTimes(3)
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull()
   })
 })

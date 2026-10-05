@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronsUpDown, LogIn } from 'lucide-react'
+import { ChevronDown, LogIn } from 'lucide-react'
 import { AccountMenuContent } from '#/components/app/AccountMenu'
 import { Avatar, DropdownMenu, DropdownMenuTrigger } from '#/components/kit'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '#/components/ui/sidebar'
@@ -8,6 +8,12 @@ import { useSession } from '#/hooks/useSession'
 /** Account row at the bottom of the sidebar (desktop has no top bar). */
 export function SidebarUserMenu() {
   const { status, user, logout } = useSession()
+
+  // Until the session answers the slot keeps the account button's height, so the footer does not jump
+  // and a signed-in person never sees a "Sign in" button flash up first.
+  if (status === 'loading') {
+    return <div className="app-sidebar__account-placeholder" aria-hidden="true" />
+  }
 
   if (status !== 'authenticated' || !user) {
     return (
@@ -36,9 +42,9 @@ export function SidebarUserMenu() {
               className="app-sidebar__account"
               aria-label={`Account menu for ${displayName}`}
             >
-              <Avatar name={displayName} size="sm" decorative />
+              <Avatar name={displayName} decorative />
               <span className="app-sidebar__account-name">{displayName}</span>
-              <ChevronsUpDown className="app-sidebar__account-chevron" aria-hidden />
+              <ChevronDown className="app-sidebar__account-chevron" aria-hidden />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <AccountMenuContent

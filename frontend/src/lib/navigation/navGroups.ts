@@ -1,10 +1,11 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  BadgeCheck,
-  History as HistoryIcon,
-  PanelsTopLeft,
-  SquareKanban,
-  Telescope,
+  Briefcase,
+  Clock,
+  Compass,
+  FileText,
+  House,
+  User,
 } from 'lucide-react'
 
 /** One destination in a grouped nav section (sidebar + mobile tools sheet). */
@@ -13,6 +14,9 @@ export type NavDestination = {
   route: string
   icon: LucideIcon
 }
+
+/** The dashboard is every signed-in and guest user's home, so it is not in a group (the sidebar and the palette add it first). */
+export const dashboardDestination: NavDestination = { label: 'Dashboard', route: '/dashboard', icon: House }
 
 export type NavGroup = {
   id: string
@@ -25,25 +29,27 @@ export type NavGroup = {
  * the mobile tab bar and the mobile tools sheet render the same labels and
  * icons instead of drifting. The six tools live in their own "Tools" group
  * built straight from `toolList` (canonical priority order) at each call
- * site. Every destination icon must differ from every tool icon (Career Path
- * owns Compass), so a collapsed, icon-only sidebar stays readable.
+ * site. Icons are the Sticker set (STICKER-SYSTEM 1.14): House, Compass, Briefcase,
+ * FileText, User, Clock for destinations; FileCheck2, Target, Route, Mail, MessageCircle and
+ * Layers for tools. Every destination icon differs from every tool icon, so a collapsed,
+ * icon-only sidebar stays readable.
  */
 export const navGroups: NavGroup[] = [
   {
     id: 'job-search',
     label: 'Job search',
     destinations: [
-      { label: 'Discover', route: '/discovery', icon: Telescope },
-      { label: 'Applications', route: '/campaigns', icon: SquareKanban },
+      { label: 'Discover', route: '/discovery', icon: Compass },
+      { label: 'Applications', route: '/campaigns', icon: Briefcase },
     ],
   },
   {
     id: 'you',
     label: 'You',
     destinations: [
-      { label: 'CV Studio', route: '/cv-studio', icon: PanelsTopLeft },
-      { label: 'Profile', route: '/profile', icon: BadgeCheck },
-      { label: 'History', route: '/history', icon: HistoryIcon },
+      { label: 'CV Studio', route: '/cv-studio', icon: FileText },
+      { label: 'Profile', route: '/profile', icon: User },
+      { label: 'History', route: '/history', icon: Clock },
     ],
   },
 ]

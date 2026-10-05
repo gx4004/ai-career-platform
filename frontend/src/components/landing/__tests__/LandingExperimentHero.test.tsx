@@ -20,13 +20,31 @@ describe('LandingExperimentHero', () => {
     expect(heading?.textContent).toContain('blind spots')
     expect(heading?.textContent).toContain('We find them')
     expect(container.querySelector('.lp-hero-image-card .lp-preview')).toBeTruthy()
-    expect(container.querySelector('.lp-hero-actions a')?.getAttribute('href')).toBe('/dashboard')
+    // the call to action opens the tool itself, not the dashboard.
+    expect(container.querySelector('.lp-hero-actions a')?.getAttribute('href')).toBe('/resume')
   })
 
-  it('hero image link navigates to dashboard with aria-label', () => {
+  it('says it is a thesis demo, never a public beta', () => {
+    const { container } = render(<LandingExperimentHero />)
+    expect(container.textContent).not.toMatch(/public beta/i)
+    expect(container.textContent).toMatch(/thesis demo/i)
+  })
+
+  it('labels the collage as an example and keeps the seal equal to the mean of its bars', () => {
+    const { container } = render(<LandingExperimentHero />)
+    expect(container.textContent).toContain('Example result')
+    const bars = [...container.querySelectorAll('.lp-collage__card [role="meter"]')].map((el) =>
+      Number(el.getAttribute('aria-valuenow')),
+    )
+    expect(bars).toHaveLength(4)
+    const mean = Math.round(bars.reduce((a, b) => a + b, 0) / bars.length)
+    expect(container.querySelector('.lp-collage__card .kit-seal__num')?.textContent).toBe(String(mean))
+  })
+
+  it('hero image link opens the Resume Analyzer with an aria-label', () => {
     const { container } = render(<LandingExperimentHero />)
     const imageLink = container.querySelector('.lp-hero-image-link')
-    expect(imageLink?.getAttribute('href')).toBe('/dashboard')
+    expect(imageLink?.getAttribute('href')).toBe('/resume')
     expect(imageLink?.getAttribute('aria-label')).toBeTruthy()
   })
 

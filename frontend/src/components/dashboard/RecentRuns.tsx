@@ -1,12 +1,16 @@
+import { Clock } from 'lucide-react'
 import { RunList } from '#/components/dashboard/RunList'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 
-export function RecentRuns() {
+export function RecentRuns({ hideWhenEmpty = false }: { hideWhenEmpty?: boolean }) {
   // Phones show a short vertical list: fetch three instead of hiding rows in CSS.
   const pageSize = useBreakpoint() === 'mobile' ? 3 : 5
   return (
     <RunList
       title="Recent activity"
+      emptyIcon={<Clock aria-hidden />}
+      hideWhenEmpty={hideWhenEmpty}
+      tour="activity"
       emptyTitle="No runs yet"
       emptyText="Run a tool to see your results here."
       queryParams={{ page: 1, page_size: pageSize }}

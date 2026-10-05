@@ -2,8 +2,10 @@ import { Link, useSearch } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { AuthShell } from '#/components/auth/AuthShell'
+import { AuthStamp } from '#/components/auth/AuthStamp'
+import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
 import { PasswordInput } from '#/components/auth/PasswordInput'
-import { Button, EmptyState, ErrorState, Field, Input, Notice, PageHeader } from '#/components/kit'
+import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Panel, PanelBody } from '#/components/kit'
 import { confirmPasswordReset } from '#/lib/api/client'
 import { newPasswordSchema } from '#/lib/api/schemas'
 
@@ -24,7 +26,7 @@ export function ResetPasswordPage() {
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [error, setError] = useState('')
+  const failure = useFormFailure()
   const [passwordError, setPasswordError] = useState('')
   const [confirmError, setConfirmError] = useState('')
 
@@ -82,23 +84,25 @@ export function ResetPasswordPage() {
   if (status === 'success') {
     return (
       <AuthShell>
-        <EmptyState
-          headingLevel={1}
-          title="Password updated"
-          description="Your password has been reset. Sign in with your new password to continue."
-          action={
-            <Button asChild>
-              <Link to="/login">Sign in</Link>
-            </Button>
-          }
-        />
+        <AuthStamp word="Done">
+          <EmptyState
+            headingLevel={1}
+            title="Password updated"
+            description="Your password has been reset. Sign in with your new password to continue."
+            action={
+              <Button asChild>
+                <Link to="/login">Sign in</Link>
+              </Button>
+            }
+          />
+        </AuthStamp>
       </AuthShell>
     )
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
+    failure.clear()
     setPasswordError('')
     setConfirmError('')
 
@@ -118,58 +122,58 @@ export function ResetPasswordPage() {
       setStatus('success')
     } catch (err) {
       setStatus('error')
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'This reset link may have expired. Request a new one.',
-      )
+      failure.fail(err, 'This reset link may have expired. Request a new one.')
     }
   }
 
   return (
     <AuthShell actions={backToSignIn}>
       <PageHeader title="Set a new password" lead="Choose a strong password you haven't used before." />
-      <form onSubmit={handleSubmit} className="auth-form__fields">
-        <Field
-          label="New password"
-          id="new-password"
-          help={passwordError ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
-          error={passwordError || undefined}
-        >
-          <PasswordInput
-            size="lg"
-            shown={showPassword}
-            onShownChange={setShowPassword}
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value)
-              setPasswordError('')
-            }}
-            autoComplete="new-password"
-            required
-            minLength={8}
-          />
-        </Field>
-        <Field label="Confirm password" id="confirm-password" error={confirmError || undefined}>
-          <Input
-            size="lg"
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Re-enter your new password"
-            value={confirm}
-            onChange={(e) => {
-              setConfirm(e.target.value)
-              setConfirmError('')
-            }}
-            autoComplete="new-password"
-            required
-            minLength={8}
-          />
-        </Field>
-        {error ? <Notice tone="danger">{error}</Notice> : null}
-        <Button type="submit" size="lg" className="auth-wide" loading={status === 'loading'}>
-          Reset password
-        </Button>
-      </form>
+      <Panel className="auth-panel">
+        <PanelBody>
+          <form onSubmit={handleSubmit} className="auth-form__fields">
+            <Field
+              label="New password"
+              id="new-password"
+              help={passwordError || failure.failure?.fields.new_password ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
+              error={passwordError || failure.failure?.fields.new_password || undefined}
+            >
+              <PasswordInput
+                size="lg"
+                shown={showPassword}
+                onShownChange={setShowPassword}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setPasswordError('')
+                }}
+                autoComplete="new-password"
+                required
+                minLength={8}
+              />
+            </Field>
+            <Field label="Confirm password" id="confirm-password" error={confirmError || undefined}>
+              <Input
+                size="lg"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Re-enter your new password"
+                value={confirm}
+                onChange={(e) => {
+                  setConfirm(e.target.value)
+                  setConfirmError('')
+                }}
+                autoComplete="new-password"
+                required
+                minLength={8}
+              />
+            </Field>
+            <FormFailureNotice failure={failure.failure} remaining={failure.remaining} />
+            <Button type="submit" size="lg" className="auth-wide" loading={status === 'loading'} disabled={failure.remaining > 0}>
+              Reset password
+            </Button>
+          </form>
+        </PanelBody>
+      </Panel>
     </AuthShell>
   )
 }

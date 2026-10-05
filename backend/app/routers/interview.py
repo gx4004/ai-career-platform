@@ -16,6 +16,7 @@ from app.schemas.tools import (
     InterviewResponse,
 )
 from app.services.interview_gen import evaluate_practice_answer, generate_interview_questions
+from app.services.llm_budget import reserve_anonymous_model_call
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
@@ -84,6 +85,10 @@ async def practice_feedback(
     body: InterviewPracticeFeedbackRequest,
     current_user: User | None = Depends(get_optional_current_user),
 ):
+    if current_user is None:
+        # Guest model calls count toward the daily circuit breaker, like the
+        # pipeline's own guest runs; this route calls the model directly.
+        reserve_anonymous_model_call()
     result = await evaluate_practice_answer(
         body.question, body.user_answer, body.model_answer
     )

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DashboardToday } from '#/components/dashboard/DashboardToday'
 
@@ -71,7 +71,8 @@ describe('DashboardToday', () => {
     renderToday()
 
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
-    expect(screen.getByLabelText('82% skills fit, 4 of 5 skills')).toBeTruthy()
+    expect(screen.getByRole('img', { name: '82% fit' })).toBeTruthy()
+    expect(screen.getByText('4 of 5 skills')).toBeTruthy()
     expect(screen.getByRole('link', { name: /Platform Engineer/ }).getAttribute('href')).toBe(
       LISTING.source_url,
     )
@@ -112,6 +113,50 @@ describe('DashboardToday', () => {
     expect(screen.getByRole('link', { name: /Data Engineer/ }).getAttribute('href')).toBe('/campaigns/a2')
   })
 
+  it('draws the first two as stickers by meaning, the rest as rows, with the total in a count', async () => {
+    const item = (id: string, reason: string, extra: Record<string, unknown> = {}) => ({
+      application_id: id, title: `Role ${id}`, company: 'Globex', status: 'applied', reason,
+      deadline: null, applied_at: null, days_since_applied: null, ...extra,
+    })
+    getToday.mockResolvedValue(
+      plan({
+        needs_action: [
+          item('a1', 'interview', { status: 'interviewing' }),
+          item('a2', 'deadline', { deadline: '2026-10-09T00:00:00Z', status: 'saved' }),
+          item('a3', 'no_reply', { days_since_applied: 30 }),
+        ],
+        needs_action_total: 5,
+      }),
+    )
+    renderToday()
+
+    await screen.findByText('Role a1')
+    const stickers = screen.getByRole('list', { name: 'Needs action' }).querySelectorAll('.kit-sticker')
+    expect(Array.from(stickers).map((el) => el.getAttribute('data-tone'))).toEqual(['tangerine', 'rose'])
+    expect(screen.getByRole('link', { name: 'Prep for the round' }).getAttribute('href')).toBe('/interview')
+    expect(screen.getByRole('link', { name: 'Role a1' }).getAttribute('href')).toBe('/campaigns/a1')
+    const more = screen.getByRole('list', { name: 'More that need action' })
+    expect(within(more).getByRole('link', { name: 'Role a3' })).toBeTruthy()
+    expect(within(more).getByText('and 2 more in Applications')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: /^Needs action\s*5$/ })).toBeTruthy()
+  })
+
+  it('stamps a deadline with its date and how far away it is', async () => {
+    const soon = new Date()
+    soon.setDate(soon.getDate() + 5)
+    getToday.mockResolvedValue(
+      plan({
+        needs_action: [
+          { application_id: 'a1', title: 'Platform Engineer', company: 'Harbor Health', status: 'saved', reason: 'deadline', deadline: soon.toISOString(), applied_at: null, days_since_applied: null },
+        ],
+        needs_action_total: 1,
+      }),
+    )
+    renderToday()
+
+    expect(await screen.findByText('in 5 days')).toBeTruthy()
+  })
+
   it('asks for a job board when there are no sources', async () => {
     getToday.mockResolvedValue(plan({ has_sources: false, best_matches: [] }))
     renderToday()
@@ -148,17 +193,14 @@ describe('DashboardToday', () => {
     )
     const { unmount } = renderToday()
     await screen.findByText('Backend Engineer')
-    const first = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
-    expect(first).toEqual(['Needs action', 'Best matches to add'])
+    const names = () => screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.replace(/\s*\d+$/, ''))
+    expect(names()).toEqual(['Needs action', 'Best matches to add'])
     unmount()
 
     getToday.mockResolvedValue(plan())
     renderToday()
     await screen.findByText('Platform Engineer')
-    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
-      'Best matches to add',
-      'Needs action',
-    ])
+    expect(names()).toEqual(['Best matches to add', 'Needs action'])
   })
 
   it('shows the deadline date of an application due soon', async () => {

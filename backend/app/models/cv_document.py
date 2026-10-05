@@ -21,6 +21,7 @@ class CvDocument(Base):
     source_import_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     sections: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     style: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    header: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
     tailoring_model_runs: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)

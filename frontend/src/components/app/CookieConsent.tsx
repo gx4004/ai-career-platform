@@ -43,16 +43,20 @@ export function CookieConsent() {
     <div className="cookie-banner" role="dialog" aria-label="Cookie consent">
       <div className="cookie-banner__inner">
         <p className="cookie-banner__text">
-          Essential cookies keep you signed in. Optional diagnostics help us fix bugs, and declining turns them off.{' '}
+          {/* Two lengths of the same promise: phones get the short one so the sticker stays one slim row. */}
+          <span className="cookie-banner__long">
+            Essential cookies keep you signed in. Optional diagnostics help us fix bugs, and declining turns them off.
+          </span>
+          <span className="cookie-banner__short">Essential cookies only, unless you accept.</span>{' '}
           <Button asChild variant="link" size="sm">
             <Link to="/cookies">Learn more</Link>
           </Button>
         </p>
         <div className="cookie-banner__actions">
-          <Button type="button" variant="secondary" onClick={reject}>
+          <Button type="button" variant="secondary" size="sm" onClick={reject}>
             Decline
           </Button>
-          <Button type="button" variant="secondary" onClick={accept}>
+          <Button type="button" variant="secondary" size="sm" onClick={accept}>
             Accept
           </Button>
         </div>

@@ -1,9 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import {
   countOf,
+  breakdownInsight,
   FixFirstList,
   formatLetterDate,
+  lowestTwo,
   resultDefinitions,
   roleFitLabel,
   uniqueRequirementCount,
@@ -412,6 +414,34 @@ describe('resultDefinitions', () => {
     expect(screen.getAllByText(/Operational Intake Service/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Strategy/i)).toBeTruthy()
   })
+
+  it('puts "Start here" on the recommended project even when the plan lists another first', () => {
+    const project = (title: string, complexity: string) => ({
+      project_title: title,
+      description: 'd',
+      skills: [],
+      complexity,
+      deliverables: [],
+      hiring_signals: [],
+      estimated_timeline: '1 week',
+    })
+    const payload = {
+      history_id: 'p2',
+      generated_at: '2026-03-13T10:00:00Z',
+      target_role: 'Backend Engineer',
+      portfolio_strategy: { headline: 'h', focus: 'f' },
+      projects: [project('Advanced Thing', 'intermediate'), project('Proof Project', 'foundational')],
+      recommended_start_project: 'Proof Project',
+      sequence_plan: [
+        { order: 1, project_title: 'Advanced Thing', reason: 'a' },
+        { order: 2, project_title: 'Proof Project', reason: 'b' },
+      ],
+    }
+    render(resultDefinitions.portfolio.render(payload, makeItem('portfolio', payload), tools.portfolio))
+    const steps = screen.getAllByRole('listitem').filter((li) => li.classList.contains('result-path__step'))
+    expect(steps[0].textContent).not.toContain('Start here')
+    expect(steps[1].textContent).toContain('Start here')
+  })
 })
 
 describe('cover letter helpers', () => {
@@ -468,10 +498,20 @@ describe('FixFirstList', () => {
     { title: 'B', action: 'do b', priority: 'medium' },
   ]
 
-  it('renders a numbered list under a plain heading', () => {
+  it('renders the actions as numbered stickers under a heading with a count', () => {
     const { container } = render(<FixFirstList actions={actions} />)
-    expect(screen.getByRole('heading', { name: 'Fix first' })).toBeTruthy()
-    expect(container.querySelectorAll('ol > li').length).toBe(2)
+    expect(screen.getByRole('heading', { name: /^Fix first/ }).textContent).toContain('2')
+    expect(container.querySelectorAll('ol > li.kit-sticker').length).toBe(2)
+    expect(screen.getByRole('heading', { level: 3, name: 'A' })).toBeTruthy()
+  })
+
+  it('shows the third action as a row under the two stickers, numbered 3', () => {
+    const three = [...actions, { title: 'C', action: 'do c', priority: 'low' }]
+    const { container } = render(<FixFirstList actions={three} />)
+    expect(container.querySelectorAll('li.kit-sticker').length).toBe(2)
+    const more = screen.getByRole('list', { name: 'More to fix' })
+    expect(more.textContent).toContain('C')
+    expect((more as HTMLElement).style.counterReset).toBe('kit-row 2')
   })
 
   it('renders nothing without actions', () => {
@@ -496,6 +536,11 @@ describe('FixFirstList', () => {
     const many = Array.from({ length: 5 }, (_, i) => ({ title: `T${i}`, action: 'x', priority: 'medium' }))
     const { container } = render(<FixFirstList actions={many} />)
     expect(container.querySelectorAll('ol > li').length).toBe(3)
+  })
+
+  it('slaps the stickers on only while the reveal plays', () => {
+    const { container } = render(<FixFirstList actions={actions} />)
+    expect(container.querySelector('[data-reveal="slap"]')).toBeNull()
   })
 })
 
@@ -600,5 +645,118 @@ describe('label helpers', () => {
     const payload = { summary: { headline: 'h' }, match_score: 80, requirements: [requirement, requirement] }
     render(resultDefinitions['job-match'].render(payload, makeItem('job-match', payload), tools['job-match']))
     expect(screen.getAllByText('Python')).toHaveLength(2)
+  })
+})
+
+describe('score breakdown helpers', () => {
+  const rows = [
+    { label: 'Keyword alignment', score: 75 },
+    { label: 'Impact evidence', score: 78 },
+    { label: 'Structure', score: 82 },
+    { label: 'Clarity', score: 76 },
+    { label: 'Completeness', score: 74 },
+  ]
+
+  it('highlights the two lowest dimensions, ties by list order, and nothing for fewer than three', () => {
+    const low = lowestTwo(rows)
+    expect([...low].map((r) => r.label)).toEqual(['Completeness', 'Keyword alignment'])
+    expect(lowestTwo(rows.slice(0, 2)).size).toBe(0)
+    const tied = lowestTwo([{ label: 'A', score: 50 }, { label: 'B', score: 50 }, { label: 'C', score: 50 }])
+    expect([...tied].map((r) => r.label)).toEqual(['A', 'B'])
+  })
+
+  it('reads the note from the numbers', () => {
+    expect(breakdownInsight(rows)).toBe(
+      'Structure is your strongest area at 82. Completeness is the lowest at 74, with keyword alignment close behind at 75.',
+    )
+    expect(breakdownInsight([{ label: 'A', score: 90 }, { label: 'B', score: 60 }, { label: 'C', score: 40 }])).toContain('then b at 60')
+    expect(breakdownInsight([{ label: 'A', score: 60 }, { label: 'B', score: 60 }])).toBe('Every area scores 60.')
+    expect(breakdownInsight([{ label: 'A', score: 60 }])).toBe('')
+  })
+
+  it('draws the lowest two bars in the highlight tone and the rest in ink', () => {
+    const payload = {
+      summary: { headline: 'h' },
+      overall_score: 77,
+      score_breakdown: rows.map((r, i) => ({ key: ['keywords', 'impact', 'structure', 'clarity', 'completeness'][i], label: r.label, score: r.score })),
+    }
+    const { container } = render(resultDefinitions.resume.render(payload, makeItem('resume', payload), tools.resume))
+    const tones = [...container.querySelectorAll('.kit-score__fill')].map((el) => el.getAttribute('data-tone'))
+    expect(tones).toEqual(['accent', 'ink', 'ink', 'ink', 'accent'])
+    expect(screen.getByText('Lowest two')).toBeTruthy()
+  })
+})
+
+describe('job match missing keywords', () => {
+  it('opens a missing keyword to its guidance and the only-if-true note', () => {
+    const payload = {
+      summary: { headline: 'h' },
+      match_score: 60,
+      missing_keywords: [{ keyword: 'Kubernetes', contextual_guidance: 'Mention the cluster you ran.', anti_stuffing_note: 'Do not list it without using it.' }],
+    }
+    render(resultDefinitions['job-match'].render(payload, makeItem('job-match', payload), tools['job-match']))
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    expect(screen.getByText('Mention the cluster you ran.')).toBeTruthy()
+    expect(screen.getByText(/Do not list it without using it/)).toBeTruthy()
+    expect(screen.getByText('Only if true.')).toBeTruthy()
+  })
+})
+
+describe('cover letter sheet', () => {
+  const payload = {
+    opening: { text: 'Dear team,', why_this_paragraph: 'Hooks with the role.', requirements_used: ['Python'] },
+    body_points: [{ text: 'Body.', why_this_paragraph: 'Proves the stack.', requirements_used: ['Kubernetes', 'SQL'] }],
+    closing: { text: 'Thanks.', why_this_paragraph: 'Asks for a call.', requirements_used: [] },
+    generated_at: '2026-03-13T10:00:00Z',
+  }
+
+  it('numbers the sections and shows each one its own rationale and requirements', () => {
+    const item = makeItem('cover-letter', payload)
+    render(<>{resultDefinitions['cover-letter'].render(payload, item, tools['cover-letter'])}</>)
+    expect(screen.getByText('Hooks with the role.')).toBeTruthy()
+    expect(screen.getByText('Proves the stack.')).toBeTruthy()
+    expect(screen.getByText('Asks for a call.')).toBeTruthy()
+    expect(screen.getAllByRole('list', { name: 'Requirements it answers' })).toHaveLength(2)
+    expect(screen.getByText('Kubernetes')).toBeTruthy()
+  })
+
+  it('offers the edited letter as Markdown and a sanitised file name', () => {
+    const item = { ...makeItem('cover-letter', payload), label: 'Backend / Lumen: letter?' }
+    const definition = resultDefinitions['cover-letter']
+    render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
+    fireEvent.change(screen.getByLabelText('Opening paragraph'), { target: { value: 'Edited opening.' } })
+    const md = definition.download?.(payload, item, 'md')
+    expect(md?.filename).toBe('Backend Lumen letter.md')
+    expect(md?.content).toContain('Edited opening.')
+    expect(definition.download?.(payload, item, 'txt')?.filename).toBe('Backend Lumen letter.txt')
+  })
+
+  it('keeps an edit in this tab (never in localStorage) and shows it after a reload', async () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('sessionStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+      removeItem: (k: string) => store.delete(k),
+    })
+    const localSet = vi.spyOn(Storage.prototype, 'setItem')
+    vi.useFakeTimers()
+    const item = { ...makeItem('cover-letter', payload), id: 'cover-letter-demo-1', saved: false }
+    const definition = resultDefinitions['cover-letter']
+    const first = render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
+    fireEvent.change(screen.getByLabelText('Opening paragraph'), { target: { value: 'My own opening.' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200)
+    })
+    expect(screen.getByText('Saved in this tab')).toBeTruthy()
+    expect(screen.getByText(/the PDF still has the original letter/)).toBeTruthy()
+    expect(store.has('cw:letter-edit:cover-letter-demo-1')).toBe(true)
+    expect(localSet).not.toHaveBeenCalled()
+    localSet.mockRestore()
+    first.unmount()
+    vi.useRealTimers()
+
+    render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
+    expect((screen.getByLabelText('Opening paragraph') as HTMLTextAreaElement).value).toBe('My own opening.')
+    vi.unstubAllGlobals()
   })
 })

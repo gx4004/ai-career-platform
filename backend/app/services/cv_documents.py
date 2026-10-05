@@ -1,22 +1,31 @@
+import logging
 from copy import deepcopy
 from datetime import UTC, datetime
 
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
+from app.models.user import User
 from app.schemas.cv_documents import (
     CvDocumentCreate,
+    CvDocumentResponse,
     CvDocumentsExport,
+    CvHeader,
     CvImportAccept,
+    CvSection,
     CvStyle,
     CvTailoringApply,
+    CvVariantResponse,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
 from app.services.applications import clear_selected_variants
 from app.services.cv_tailoring import read_change_field, write_change_field
 from app.services.evidence_profile import stage_evidence_proposal
+
+logger = logging.getLogger(__name__)
 
 
 class CvDocumentNotFoundError(Exception):
@@ -40,6 +49,108 @@ def _query(db: Session, user_id: str):
         db.query(CvDocument)
         .options(selectinload(CvDocument.variants))
         .filter(CvDocument.user_id == user_id)
+    )
+
+
+_ENTRY_TEXT_LIMITS = {
+    "id": 100, "body": 5_000, "heading": 200, "subheading": 200, "location": 200,
+    "start_date": 40, "end_date": 40,
+}
+
+
+def _clamp_sections(sections: list[dict]) -> list[dict]:
+    """Sections cut to the current field limits, for documents stored before a limit
+    existed (or by a path that did not enforce it)."""
+    clamped = []
+    for section in sections[:50]:
+        entries = []
+        for entry in (section.get("entries") or [])[:200]:
+            entry = dict(entry)
+            for key, limit in _ENTRY_TEXT_LIMITS.items():
+                if isinstance(entry.get(key), str):
+                    entry[key] = entry[key][:limit]
+            bullets = [b for b in (entry.get("bullets") or []) if isinstance(b, str)][:30]
+            if sum(len(b) + 1 for b in bullets) > _ENTRY_TEXT_LIMITS["body"]:
+                bullets = []  # the body text is kept; bullets that cannot fit are dropped
+            entry["bullets"] = bullets
+            entries.append(entry)
+        clamped.append(
+            {**section, "title": str(section.get("title", ""))[:120] or "Section", "entries": entries}
+        )
+    return clamped
+
+
+def _variant_payload(variant: CvVariant) -> dict:
+    return {
+        "id": variant.id,
+        "name": variant.name,
+        "target_role": variant.target_role,
+        "sections": _clamp_sections(variant.sections),
+        "created_at": variant.created_at,
+    }
+
+
+def serialize_document(document: CvDocument) -> CvDocumentResponse:
+    """The API view of a document. Stored content that no longer fits the limits is
+    served clamped instead of failing, so one bad document never breaks the list,
+    the editor, a mutation of it or the account export. Every endpoint that returns
+    a document goes through here."""
+    try:
+        return CvDocumentResponse.model_validate(document)
+    except ValidationError as error:
+        # Ids and a count only: the error text would quote the user's CV content.
+        logger.warning(
+            "CV document %s exceeds the current field limits (%d errors); serving it clamped",
+            document.id,
+            error.error_count(),
+        )
+    return CvDocumentResponse.model_validate(
+        {
+            "id": document.id,
+            "name": document.name[:120],
+            "sections": _clamp_sections(document.sections),
+            "style": document.style,
+            "header": document.header,
+            "created_at": document.created_at,
+            "updated_at": document.updated_at,
+            "tailoring_model_runs": document.tailoring_model_runs,
+            "variants": [_variant_payload(variant) for variant in document.variants],
+        }
+    )
+
+
+def serialize_variant(variant: CvVariant) -> CvVariantResponse:
+    """A saved version, clamped the same way when its stored content is oversize."""
+    try:
+        return CvVariantResponse.model_validate(variant)
+    except ValidationError:
+        logger.warning("CV version %s exceeds the current field limits; serving it clamped", variant.id)
+    return CvVariantResponse.model_validate(_variant_payload(variant))
+
+
+def serialize_document_for_list(document: CvDocument) -> CvDocumentResponse:
+    """Like ``serialize_document``, but a document that still cannot be read becomes
+    an empty stub (id and name) so it stays visible and deletable in CV Studio."""
+    try:
+        return serialize_document(document)
+    except ValueError as error:
+        logger.error(
+            "CV document %s could not be read (%s); listing it as an empty stub",
+            document.id,
+            type(error).__name__,
+        )
+    return CvDocumentResponse.model_validate(
+        {
+            "id": document.id,
+            "name": (document.name or "CV")[:120],
+            "sections": [],
+            "style": None,
+            "header": None,
+            "created_at": document.created_at,
+            "updated_at": document.updated_at,
+            "tailoring_model_runs": document.tailoring_model_runs,
+            "variants": [],
+        }
     )
 
 
@@ -87,6 +198,105 @@ def _validate_evidence(
         raise InvalidEvidenceReferenceError
 
 
+# Section order and title for a CV started from Evidence: one section per kind.
+_SEED_SECTIONS: tuple[tuple[str, str, str], ...] = (
+    ("experience", "experience", "Experience"),
+    ("education", "education", "Education"),
+    ("project", "projects", "Projects"),
+    ("achievement", "achievements", "Achievements"),
+    ("skill", "skills", "Skills"),
+    ("certification", "certifications", "Certifications"),
+    ("interview-evidence", "interview-evidence", "Interview evidence"),
+    ("preference", "custom", "Preferences"),
+)
+_BODY_KEYS = ("statement", "summary", "description", "text", "details")
+_NAME_KEYS = ("name", "title", "skill", "label")
+_ROLE_KEYS = {
+    "experience": (("role", "title", "position", "job_title"), ("company", "employer", "organization", "organisation")),
+    "education": (("degree", "program", "programme", "qualification"), ("school", "institution", "university")),
+}
+_START_KEYS = ("start_date", "start", "from", "begin", "started")
+_END_KEYS = ("end_date", "end", "to", "until", "ended")
+
+
+def _text(value, limit: int) -> str | None:
+    """A readable one-line-or-paragraph string for a content value, never a repr."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+    elif isinstance(value, int | float):
+        text = str(value)
+    elif isinstance(value, list):
+        text = "; ".join(filter(None, (_text(item, limit) for item in value)))
+    else:
+        return None
+    return text[:limit] or None
+
+
+def _first(content: dict, keys: tuple[str, ...], limit: int) -> str | None:
+    for key in keys:
+        text = _text(content.get(key), limit)
+        if text:
+            return text
+    return None
+
+
+def _bullets(value) -> list[str]:
+    """Bullet points from a list, or from a text with one point per line."""
+    lines = value if isinstance(value, list) else str(value or "").splitlines()
+    bullets: list[str] = []
+    used = 0
+    for line in lines:
+        text = _text(line, 1_000)
+        if text and used + len(text) + 1 <= 5_000 and len(bullets) < 30:
+            bullets.append(text)
+            used += len(text) + 1
+    return bullets
+
+
+def _seed_entry(item: EvidenceItem, position: int) -> dict:
+    """One CV entry from an Evidence fact: structured fields for roles and
+    degrees, a readable body for everything else. Values are cut to the entry
+    limits here so a long fact can never produce a CV that cannot be saved."""
+    content = item.content if isinstance(item.content, dict) else {}
+    entry: dict = {
+        "id": f"entry-{item.id}",
+        "evidence_item_id": item.id,
+        "position": position,
+    }
+    roles = _ROLE_KEYS.get(item.kind)
+    heading = subheading = None
+    if roles:
+        heading = _first(content, roles[0], 200)
+        subheading = _first(content, roles[1], 200)
+    if heading:
+        entry["heading"] = heading
+        if subheading:
+            entry["subheading"] = subheading
+        for field, keys in (("start_date", _START_KEYS), ("end_date", _END_KEYS)):
+            date = _first(content, keys, 40)
+            if date:
+                entry[field] = date
+    bullets = _bullets(content.get("highlights") or content.get("bullets"))
+    body = _first(content, _BODY_KEYS, 5_000)
+    if bullets and body and len(bullets) < 30 and len(body) + 1 + sum(len(b) + 1 for b in bullets) <= 5_000:
+        # Bullets become the entry text, so a fact's own summary leads them
+        # instead of being replaced.
+        bullets.insert(0, body)
+    if bullets:
+        entry["bullets"] = bullets
+    if body is None and not heading:
+        body = _first(content, _NAME_KEYS, 5_000)
+    if body is None and not heading:
+        # Facts with other keys: their text values, labelled by nothing, in order.
+        body = _text([v for v in content.values() if isinstance(v, str)], 5_000)
+    # An experience with no description has nothing to say beyond its heading;
+    # a body equal to the heading renders no second paragraph.
+    entry["body"] = body or heading or "Untitled fact"
+    return entry
+
+
 def _seed_sections(db: Session, user_id: str, ids: list[str]) -> list[dict]:
     if not ids:
         return []
@@ -101,61 +311,33 @@ def _seed_sections(db: Session, user_id: str, ids: list[str]) -> list[dict]:
     )
     if {item.id for item in items} != set(ids):
         raise InvalidEvidenceReferenceError
+    by_id = {item.id: item for item in items}
+    ordered = [by_id[item_id] for item_id in dict.fromkeys(ids)]
     sections = []
-    for position, item in enumerate(items):
-        body = str(item.content.get("statement") or item.content.get("name") or item.content)
-        entry = {
-            "id": f"entry-{item.id}",
-            "evidence_item_id": item.id,
-            "body": body,
-            "position": 0,
-        }
-        heading, subheading = _seed_heading(item.kind, item.content)
-        if heading:
-            entry["heading"] = heading
-        if subheading:
-            entry["subheading"] = subheading
+    for kind, section_kind, title in _SEED_SECTIONS:
+        group = [item for item in ordered if item.kind == kind]
+        if not group:
+            continue
         sections.append(
             {
-                "id": f"seed-{item.id}",
-                "kind": _section_kind(item.kind),
-                "title": item.kind.replace("-", " ").title(),
+                "id": f"seed-{kind}",
+                "kind": section_kind,
+                "title": title,
                 "visible": True,
-                "position": position,
-                "entries": [entry],
+                "position": len(sections),
+                "entries": [_seed_entry(item, position) for position, item in enumerate(group)],
             }
         )
-    return sections
+    # The same validation a client-supplied section gets, before anything is stored.
+    return [CvSection.model_validate(section).model_dump() for section in sections]
 
 
-def _seed_heading(kind: str, content: dict) -> tuple[str | None, str | None]:
-    """Best-effort heading/subheading extraction from evidence content (heuristic).
-
-    Evidence content shapes are user/import-authored and not schema-enforced
-    beyond "non-empty dict", so this only reads common, plausible keys and
-    never raises on a mismatch.
-    """
-    if not isinstance(content, dict):
-        return None, None
-    if kind == "experience":
-        heading = content.get("role") or content.get("title") or content.get("position")
-        subheading = content.get("company") or content.get("employer") or content.get("organization")
-        return heading, subheading
-    if kind == "education":
-        heading = content.get("degree") or content.get("program")
-        subheading = content.get("school") or content.get("institution") or content.get("university")
-        return heading, subheading
-    return None, None
-
-
-def _section_kind(kind: str) -> str:
-    return {
-        "achievement": "achievements",
-        "skill": "skills",
-        "project": "projects",
-        "certification": "certifications",
-        "preference": "custom",
-    }.get(kind, kind)
+def _default_header(db: Session, user_id: str) -> dict:
+    """A new CV's header starts with the account's name, so the paper never opens with
+    the internal document name."""
+    user = db.get(User, user_id)
+    name = (user.full_name or "").strip()[:120] if user else ""
+    return CvHeader(name=name or None).model_dump()
 
 
 def create_document(db: Session, user_id: str, body: CvDocumentCreate) -> CvDocument:
@@ -165,7 +347,10 @@ def create_document(db: Session, user_id: str, body: CvDocumentCreate) -> CvDocu
             raise InvalidEvidenceReferenceError
         sections = _seed_sections(db, user_id, body.seed_evidence_item_ids)
     _validate_evidence(db, user_id, sections)
-    document = CvDocument(user_id=user_id, name=body.name, sections=deepcopy(sections))
+    header = body.header.model_dump() if body.header is not None else _default_header(db, user_id)
+    document = CvDocument(
+        user_id=user_id, name=body.name, sections=deepcopy(sections), header=header
+    )
     document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
     db.add(document)
     db.commit()
@@ -217,11 +402,15 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
                     "entries": entries,
                 }
             )
+        header = body.header.model_dump()
+        if header["name"] is None:
+            header["name"] = _default_header(db, user_id)["name"]
         document = CvDocument(
             user_id=user_id,
             name=body.name,
             source_import_id=import_id,
             sections=deepcopy(sections),
+            header=header,
         )
         document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
         db.add(document)
@@ -239,10 +428,18 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
 
 
 def update_document(
-    db: Session, document: CvDocument, *, name=None, sections=None, style: CvStyle | None = None
+    db: Session,
+    document: CvDocument,
+    *,
+    name=None,
+    sections=None,
+    style: CvStyle | None = None,
+    header: CvHeader | None = None,
 ):
     if name is not None:
         document.name = name
+    if header is not None:
+        document.header = header.model_dump()
     if sections is not None:
         already_linked = {
             entry["evidence_item_id"]
@@ -384,6 +581,8 @@ def delete_documents(db: Session, user_id: str) -> int:
 def export_documents(db: Session, user_id: str) -> CvDocumentsExport:
     documents = list_documents(db, user_id)
     result = CvDocumentsExport(
-        exported_at=datetime.now(UTC), document_count=len(documents), documents=documents
+        exported_at=datetime.now(UTC),
+        document_count=len(documents),
+        documents=[serialize_document(document) for document in documents],
     )
     return result

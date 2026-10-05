@@ -147,7 +147,12 @@ export function OnboardingTour({
         <h2 className="app-tour__title">{current.title}</h2>
         <p className="app-tour__body">{current.body}</p>
         <div className="app-tour__footer">
-          <Button type="button" size="sm" onClick={next}>
+          {isLast ? null : (
+            <Button type="button" variant="ghost" size="sm" onClick={onSkip}>
+              Skip
+            </Button>
+          )}
+          <Button type="button" variant="secondary" size="sm" onClick={next}>
             {isLast ? 'Got it' : 'Next'}
           </Button>
         </div>

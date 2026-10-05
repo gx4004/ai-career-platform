@@ -1,7 +1,9 @@
 /*
- * The app shell: sidebar (desktop and tablet), top bar and tab bar (phones), the ⌘K palette, brand mark.
- * Controls inside it are kit components; this file only lays them out. Kit CSS loads after this file, so a rule
- * that adjusts a kit component here doubles its class (`.kit-button.app-…`) to win at equal weight.
+ * The app shell (Sticker): sidebar (desktop), icon rail (tablet and CV Studio), top bar and floating tab tray
+ * (phones), the Tools sheet, the ⌘K palette, the cookie sticker, brand mark. Controls inside it are kit
+ * components; this file only lays them out. Kit CSS loads after this file, so a rule that adjusts a kit
+ * component here doubles its class (`.kit-button.app-…`) to win at equal weight.
+ * Measurements come from the mockup (designlab/sticker/styles.css, "APP SHELL" and "MOBILE"); tokens only.
  */
 
 /* ── Frame ─────────────────────────────────────────────────────────── */
@@ -15,7 +17,7 @@
 .app-inset {
   flex: 1 1 0;
   min-width: 0;
-  background: var(--background);
+  background: var(--ground);
 }
 
 .app-main {
@@ -25,7 +27,7 @@
   width: 100%;
   min-width: 0;
   min-height: 100svh;
-  background: var(--background);
+  background: var(--ground);
 }
 
 .app-content {
@@ -33,21 +35,70 @@
   min-width: 0;
 }
 
-/* The app pads below the cookie notice so the last rows of a page stay reachable. */
-html:has(.cookie-banner) .app-main {
-  padding-bottom: 7rem;
-}
-
 .kit-button.app-skip-link {
   position: fixed;
-  inset-block-start: var(--space-3);
-  inset-inline-start: var(--space-3);
+  inset-block-start: var(--s3);
+  inset-inline-start: var(--s3);
   z-index: var(--z-tooltip);
-  transform: translateY(calc(-100% - var(--space-4)));
+  transform: translateY(calc(-100% - var(--s4)));
 }
 
 .kit-button.app-skip-link:focus-visible {
   transform: none;
+}
+
+/* The skip link moves focus to whichever element is the page's main landmark. */
+.app-content :is(main, [role='main']):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+/* ── Offline / outage banner ───────────────────────────────────────── */
+
+.app-service-banner {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s3);
+  box-sizing: border-box;
+  padding: var(--s2) var(--s4);
+  border-block-end: var(--bw) solid var(--ink);
+  background: var(--lemon);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.app-service-banner__icon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.app-service-banner__text {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+}
+
+.app-service-banner__text > strong {
+  font-weight: var(--fw-bold);
+}
+
+/* Phones: the top bar is the sticky one; the banner scrolls away under it. */
+@media (max-width: 639px) {
+  .app-service-banner {
+    position: static;
+    align-items: flex-start;
+    padding-inline: var(--s4);
+  }
+
+  .app-service-banner .kit-button {
+    align-self: center;
+  }
 }
 
 /* ── Brand mark and lockup ─────────────────────────────────────────── */
@@ -55,45 +106,56 @@ html:has(.cookie-banner) .app-main {
 .cw-brand-lockup {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s3);
   min-width: 0;
   max-width: 100%;
-  color: var(--text-strong);
+  color: var(--ink);
 }
 
+/* A tangerine sticker tilted -6deg with an ink check; size comes from --cw-brand-mark-size (38px by default). */
 .cw-brand-mark {
-  display: block;
+  display: grid;
   flex: none;
-  width: var(--cw-brand-mark-size, 1.5rem);
-  height: var(--cw-brand-mark-size, 1.5rem);
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--cw-brand-mark-size, 2.375rem);
+  height: var(--cw-brand-mark-size, 2.375rem);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-sm);
+  background: var(--tangerine);
+  box-shadow: var(--sh-1);
+  transform: rotate(-6deg);
 }
 
-.cw-brand-mark__tile {
-  fill: var(--accent);
-}
-
-.cw-brand-mark__ink {
-  fill: var(--surface-raised);
+.cw-brand-mark > svg {
+  width: 63%;
+  height: 63%;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .cw-brand-wordmark {
-  font-family: var(--font-serif);
-  font-size: var(--cw-brand-wordmark-size, 1.125rem);
-  font-weight: var(--fw-semibold);
+  font-family: var(--font-display);
+  font-size: var(--cw-brand-wordmark-size, 1.1875rem);
+  font-stretch: 100%;
+  font-weight: var(--fw-black);
   line-height: 1;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   white-space: nowrap;
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────── */
 
 .app-sidebar {
-  --app-sidebar-w: 15rem;
-  --app-sidebar-rail: 3.5rem;
+  --app-sidebar-w: var(--sidebar-w);
+  --app-sidebar-rail: var(--rail-w);
 
   position: sticky;
   inset-block-start: 0;
-  z-index: var(--z-sticky);
+  z-index: var(--z-nav); /* above the outage banner, so the collapse sticker on the edge is never painted over */
   display: flex;
   flex: none;
   flex-direction: column;
@@ -101,7 +163,7 @@ html:has(.cookie-banner) .app-main {
   box-sizing: border-box;
   width: var(--app-sidebar-w);
   height: 100svh;
-  border-inline-end: 1px solid var(--sidebar-border);
+  border-inline-end: var(--bw) solid var(--sidebar-border);
   background: var(--sidebar);
   color: var(--sidebar-foreground);
 }
@@ -114,24 +176,22 @@ html:has(.cookie-banner) .app-main {
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-3) var(--space-2);
+  gap: var(--s4);
+  padding: var(--s5) var(--s4) var(--s4);
 }
 
 .app-sidebar__brand-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-height: var(--kit-h-lg);
+  min-height: 2.375rem;
 }
 
 .app-sidebar__brand {
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: var(--space-1);
-  border-radius: var(--radius-md);
+  padding: 0 var(--s1);
+  border-radius: var(--r-sm);
   color: inherit;
   text-decoration: none;
 }
@@ -141,14 +201,48 @@ html:has(.cookie-banner) .app-main {
   outline-offset: var(--focus-ring-offset);
 }
 
-.app-sidebar[data-state='collapsed'] .app-sidebar__brand-row {
-  flex-direction: column;
-  gap: var(--space-2);
+/*
+ * The collapse control is a small sticker hanging on the sidebar's right edge. Beside the wordmark there is
+ * no room for it (the wordmark alone takes 170 of the 230px), and putting it in the row made the two overlap.
+ */
+.kit-button.app-sidebar__trigger {
+  --kit-button-h: 1.75rem;
+
+  position: absolute;
+  inset-block-start: calc(var(--s5) + 5px);
+  inset-inline-end: -1rem;
+  padding: 0;
 }
 
+@media (pointer: coarse) {
+  .kit-button.app-sidebar__trigger {
+    --kit-button-h: var(--touch-target);
+
+    inset-block-start: calc(var(--s5) - 3px);
+    inset-inline-end: calc(var(--touch-target) / -2);
+  }
+}
+
+/* Search: a quiet ground-coloured field, not a raised button. */
 .kit-button.app-sidebar__search {
+  --kit-button-bg: var(--ground);
+  --kit-button-hover-bg: var(--lemon-soft);
+  --kit-button-fg: var(--ink-2);
+  --kit-button-shadow: none;
+  --kit-button-shadow-hover: none;
+  --kit-button-lift: 0px;
+  --kit-button-press: 0px;
+  --kit-button-px: var(--s3);
+
   inline-size: 100%;
   justify-content: flex-start;
+  font-size: 0.875rem;
+  font-weight: var(--fw-medium);
+}
+
+.kit-button.app-sidebar__search > svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .app-sidebar__search-kbd {
@@ -158,7 +252,7 @@ html:has(.cookie-banner) .app-main {
 .app-sidebar__content {
   flex: 1 1 auto;
   min-height: 0;
-  padding: var(--space-1) var(--space-3) var(--space-3);
+  padding: 0 var(--s4) var(--s3);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -170,15 +264,16 @@ html:has(.cookie-banner) .app-main {
 }
 
 .app-sidebar__group + .app-sidebar__group {
-  margin-block-start: var(--space-4);
+  margin-block-start: 2px;
 }
 
 .app-sidebar__group-label {
-  padding: var(--space-1) var(--space-2);
-  color: var(--text-soft);
-  font-size: var(--fs-micro);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-micro);
+  margin: var(--s2) 0 6px;
+  padding: 0 var(--s3);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-bold);
+  line-height: 1;
 }
 
 .app-sidebar__menu {
@@ -191,23 +286,24 @@ html:has(.cookie-banner) .app-main {
   list-style: none;
 }
 
+/* Rest: a transparent 2px border so the active item's outline does not shift anything. */
 .app-sidebar__button {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s3);
   box-sizing: border-box;
   inline-size: 100%;
-  min-height: var(--kit-h-md);
+  min-height: var(--touch-target);
   margin: 0;
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-md);
+  padding: 0 var(--s3);
+  border: var(--bw) solid transparent;
+  border-radius: var(--r-md);
   background: transparent;
-  color: var(--sidebar-foreground);
-  font-family: var(--font-sans);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  line-height: 1.2;
   text-align: start;
   text-decoration: none;
   cursor: pointer;
@@ -215,13 +311,20 @@ html:has(.cookie-banner) .app-main {
   -webkit-tap-highlight-color: transparent;
 }
 
+.app-sidebar__button--tool {
+  min-height: 2.5rem;
+}
+
+@media (pointer: coarse) {
+  .app-sidebar__button--tool {
+    min-height: var(--touch-target);
+  }
+}
+
 .app-sidebar__button > svg {
   flex: none;
-  width: 1rem;
-  height: 1rem;
-  color: var(--text-soft);
-  stroke-width: 1.75;
-  transition: var(--transition-colors);
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .app-sidebar__button > span:not([class]),
@@ -234,17 +337,12 @@ html:has(.cookie-banner) .app-main {
 
 @media (hover: hover) {
   .app-sidebar__button:hover {
-    background: var(--surface-hover);
-    color: var(--text-strong);
-  }
-
-  .app-sidebar__button:hover > svg {
-    color: var(--text-body);
+    background: var(--lemon-soft);
   }
 }
 
 .app-sidebar__button:active {
-  background: var(--surface-active);
+  background: var(--lemon-soft);
 }
 
 .app-sidebar__button:focus-visible {
@@ -252,36 +350,20 @@ html:has(.cookie-banner) .app-main {
   outline-offset: var(--focus-ring-offset);
 }
 
+/* Active: lemon, 2px ink outline, the small hard shadow. The ink outline and the heavier weight carry it, not colour alone. */
 .app-sidebar__button[data-active='true'] {
-  position: relative;
-  background: var(--accent-subtle);
-  color: var(--text-strong);
-  font-weight: var(--fw-semibold);
+  border-color: var(--ink);
+  background: var(--lemon);
+  box-shadow: var(--sh-1);
+  font-weight: var(--fw-bold);
 }
 
-/* A marker on the start edge, like a selected Row's bar, so the current page never depends on tint alone. */
-.app-sidebar__button[data-active='true']::before {
-  content: '';
-  position: absolute;
-  inset-block: var(--space-2);
-  inset-inline-start: 0;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--accent);
-}
-
-.app-sidebar__button[data-active='true'] > svg {
-  color: var(--accent);
-}
-
-@media (hover: hover) {
-  .app-sidebar__button[data-active='true']:hover {
-    background: var(--accent-selected);
-  }
-
-  .app-sidebar__button[data-active='true']:hover > svg {
-    color: var(--accent);
-  }
+/* While the session resolves, the owner-only rows hold their place as quiet bars. */
+.app-sidebar__placeholder {
+  min-height: var(--touch-target);
+  border-radius: var(--r-md);
+  background: var(--stone-soft);
+  list-style: none;
 }
 
 /* ── Sidebar footer: account and legal ─────────────────────────────── */
@@ -290,13 +372,33 @@ html:has(.cookie-banner) .app-main {
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3) var(--space-3);
-  border-block-start: 1px solid var(--sidebar-border);
+  gap: var(--s3);
+  padding: var(--s3) var(--s4) var(--s5);
 }
 
-.app-sidebar__account {
-  min-height: var(--kit-h-lg);
+/* The account button: white, outlined, the small shadow, a lilac avatar. */
+.app-sidebar__button.app-sidebar__account {
+  min-height: 3.25rem;
+  padding-block: var(--s2);
+  border-color: var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  font-weight: var(--fw-bold);
+}
+
+@media (hover: hover) {
+  .app-sidebar__button.app-sidebar__account:hover {
+    background: var(--lemon-soft);
+  }
+}
+
+.app-sidebar__button.app-sidebar__account[aria-expanded='true'] {
+  background: var(--lemon-soft);
+}
+
+.app-sidebar__account .kit-avatar {
+  --kit-avatar-size: 2rem;
 }
 
 .app-sidebar__account-name {
@@ -305,71 +407,104 @@ html:has(.cookie-banner) .app-main {
 
 .app-sidebar__account > .app-sidebar__account-chevron {
   flex: none;
+  width: 1rem;
+  height: 1rem;
   margin-inline-start: auto;
-  color: var(--text-soft);
+}
+
+.app-sidebar__account-placeholder {
+  min-height: 3.25rem;
+  border-radius: var(--r-md);
+  background: var(--stone-soft);
 }
 
 .app-sidebar__legal {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-3);
-  padding-inline: var(--space-2);
+  gap: 0 var(--s3);
+  padding-inline: var(--s1);
 }
 
 .app-sidebar__legal a {
-  border-radius: var(--radius-sm);
-  color: var(--text-soft);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
+  padding-block: 6px;
+  border-radius: var(--r-xs);
+  color: var(--ink-3);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-micro);
   text-decoration: none;
 }
 
 @media (hover: hover) {
   .app-sidebar__legal a:hover {
-    color: var(--text-strong);
+    color: var(--ink);
     text-decoration: underline;
   }
 }
 
 .app-sidebar__legal a:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+  outline-offset: 0;
 }
 
-.app-account-menu {
+/* Account menu: it opens upward from the footer and is as wide as the button. */
+.kit-menu.app-account-menu {
   min-width: var(--radix-dropdown-menu-trigger-width);
 }
 
 .app-account__who {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
+/* Names and addresses have no length limit on the server: two lines of name, one of email, never a tall menu. */
 .app-account__name {
-  color: var(--text-strong);
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
   font-size: var(--fs-body);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-body);
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .app-account__email {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
   font-weight: var(--fw-regular);
-  overflow-wrap: anywhere;
+  line-height: var(--lh-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ── Icon rail (collapsed sidebar) ─────────────────────────────────── */
+/* ── Icon rail (CV Studio, tablets, collapsed) ─────────────────────── */
 
-.app-sidebar[data-state='collapsed'] .app-sidebar__header,
+.app-sidebar[data-state='collapsed'] .app-sidebar__header {
+  align-items: center;
+  padding-inline: var(--s2);
+}
+
 .app-sidebar[data-state='collapsed'] .app-sidebar__content,
 .app-sidebar[data-state='collapsed'] .app-sidebar__footer {
   align-items: center;
-  padding-inline: calc((var(--app-sidebar-rail) - var(--kit-h-md)) / 2);
+  padding-inline: var(--s2);
 }
 
 .app-sidebar[data-state='collapsed'] .app-sidebar__content {
   align-items: stretch;
+}
+
+.app-sidebar[data-state='collapsed'] .cw-brand-lockup {
+  --cw-brand-mark-size: 2rem;
+}
+
+.app-sidebar[data-state='collapsed'] .app-sidebar__brand {
+  padding: 0;
 }
 
 .app-sidebar[data-state='collapsed'] .app-sidebar__group-label,
@@ -378,21 +513,24 @@ html:has(.cookie-banner) .app-main {
 }
 
 /* A short rule marks where the next group begins now that its label is gone. */
-.app-sidebar[data-state='collapsed'] .app-sidebar__group + .app-sidebar__group {
-  margin-block-start: var(--space-2);
-  padding-block-start: var(--space-2);
-  border-block-start: 1px solid var(--sidebar-border);
+.app-sidebar[data-state='collapsed'] .app-sidebar__group + .app-sidebar__group::before {
+  display: block;
+  width: 2rem;
+  margin: var(--s2) auto;
+  border-block-start: var(--bw) solid var(--line);
+  content: '';
 }
 
+/* 48px square targets, no labels (they stay in the accessibility tree: the link is named by its text). */
 .app-sidebar[data-state='collapsed'] .app-sidebar__button {
   justify-content: center;
-  inline-size: var(--kit-h-md);
+  inline-size: 3rem;
+  min-height: 3rem;
   margin-inline: auto;
   padding: 0;
 }
 
-/* Labels stay in the accessibility tree: the link is named by its text. */
-.app-sidebar[data-state='collapsed'] .app-sidebar__button > span:not(.kit-avatar),
+.app-sidebar[data-state='collapsed'] .app-sidebar__button > span:not(.kit-avatar):not(.kit-tool-tile),
 .app-sidebar[data-state='collapsed'] .app-sidebar__search-label,
 .app-sidebar[data-state='collapsed'] .app-sidebar__search-kbd,
 .app-sidebar[data-state='collapsed'] .app-sidebar__account > .app-sidebar__account-chevron {
@@ -407,14 +545,44 @@ html:has(.cookie-banner) .app-main {
   clip-path: inset(50%);
 }
 
+/* In the rail the tool tiles lose their fill and outline: the icon alone, 22px. */
+.app-sidebar[data-state='collapsed'] .kit-tool-tile {
+  --kit-tile-size: 1.375rem;
+  --kit-tile-icon: 1.375rem;
+
+  border-color: transparent;
+  background: transparent;
+}
+
+.app-sidebar[data-state='collapsed'] .app-sidebar__button > svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
 .app-sidebar[data-state='collapsed'] .kit-button.app-sidebar__search {
+  --kit-button-h: 3rem;
   --kit-button-px: 0;
 
-  inline-size: var(--kit-h-md);
+  inline-size: 3rem;
   justify-content: center;
 }
 
-/* Every rail control is a square the size of a touch target on touch, the brand link included. */
+/* The account is just the avatar, 44px, at the bottom of the rail. */
+.app-sidebar[data-state='collapsed'] .app-sidebar__button.app-sidebar__account {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-sidebar[data-state='collapsed'] .app-sidebar__account .kit-avatar {
+  --kit-avatar-size: 2.75rem;
+}
+
+.app-sidebar[data-state='collapsed'] .app-sidebar__account-placeholder {
+  inline-size: 3rem;
+}
+
+/* Every rail control stays a touch target on touch. */
 @media (pointer: coarse) {
   .app-sidebar__brand {
     justify-content: center;
@@ -423,7 +591,7 @@ html:has(.cookie-banner) .app-main {
   }
 }
 
-/* ── Phone top bar ─────────────────────────────────────────────────── */
+/* ── Phone top bar (m-head) ────────────────────────────────────────── */
 
 .app-topbar {
   position: sticky;
@@ -432,11 +600,10 @@ html:has(.cookie-banner) .app-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 3rem;
-  padding: var(--space-1) var(--space-4);
-  border-block-end: 1px solid var(--border-soft);
-  background: var(--background);
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-block-end: var(--bw) solid var(--ink);
+  background: var(--surface);
 }
 
 .app-topbar__brand {
@@ -444,59 +611,78 @@ html:has(.cookie-banner) .app-main {
   align-items: center;
   min-width: var(--touch-target);
   min-height: var(--touch-target);
-  border-radius: var(--radius-md);
+  border-radius: var(--r-md);
   color: inherit;
+  text-decoration: none;
 }
 
 .app-topbar__brand:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(var(--focus-ring-width) * -1);
+  outline-offset: var(--s1);
 }
 
-/* The avatar sits optically on the page gutter, not 8px inside it (the button is 44px, the avatar 28px). */
+.app-topbar .cw-brand-lockup {
+  --cw-brand-mark-size: 2rem;
+  --cw-brand-wordmark-size: 1.0625rem;
+}
+
+.app-topbar__end {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+/* The avatar button is 44px around a 36px disc: pull it so the disc sits on the page gutter. */
+.app-topbar__end > .kit-button--ghost:last-child,
 .app-topbar > .kit-button {
-  margin-inline-end: calc(var(--space-2) * -1);
+  margin-inline-end: calc(var(--s1) * -1);
 }
 
-.app-topbar .cw-brand-mark {
-  width: 1.75rem;
-  height: 1.75rem;
+/* 320px: five things do not fit; the wordmark gives way, the mark and the link name stay. */
+@media (max-width: 359px) {
+  .app-topbar .cw-brand-wordmark {
+    display: none;
+  }
 }
 
-/* ── Phone tab bar and More sheet ──────────────────────────────────── */
+/* ── Phone tab tray ────────────────────────────────────────────────── */
 
 .app-tabbar {
   position: fixed;
-  inset-inline: 0;
-  inset-block-end: 0;
+  inset-inline: var(--s2);
+  inset-block-end: calc(var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px));
   z-index: var(--z-nav);
-  display: flex;
-  align-items: stretch;
-  height: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px));
-  padding-block-end: env(safe-area-inset-bottom, 0px);
-  border-block-start: 1px solid var(--border-soft);
-  background: var(--surface-raised);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 5px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
 }
 
 .app-tabbar__item {
-  position: relative;
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  box-sizing: border-box;
   min-width: 0;
-  min-height: var(--touch-target);
+  min-height: 56px;
   margin: 0;
-  padding: var(--space-1) 0;
-  border: 0;
-  background: none;
-  color: var(--text-muted);
-  font-family: var(--font-sans);
+  padding: 0;
+  border: var(--bw) solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
   font-size: var(--fs-micro);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-micro);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  letter-spacing: -0.01em;
   text-decoration: none;
   cursor: pointer;
   transition: var(--transition-colors);
@@ -504,48 +690,129 @@ html:has(.cookie-banner) .app-main {
 }
 
 .app-tabbar__item > svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  stroke-width: 1.75;
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.app-tabbar__item > span {
+  white-space: nowrap;
 }
 
 .app-tabbar__item:active {
-  background: var(--surface-active);
+  background: var(--lemon-soft);
 }
 
 .app-tabbar__item:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(var(--focus-ring-width) * -1);
+  outline-offset: 0;
 }
 
-/* Colour plus a bar and a heavier label: the active tab never depends on colour alone. */
+/* Active: lemon, outlined, the small shadow, heavier label. Never rotated. */
 .app-tabbar__item[data-active='true'] {
-  color: var(--accent);
-  font-weight: var(--fw-semibold);
+  border-color: var(--ink);
+  background: var(--lemon);
+  box-shadow: var(--sh-1);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
-.app-tabbar__item[data-active='true']::before {
-  content: '';
-  position: absolute;
-  inset-block-start: -1px;
-  inset-inline: var(--space-4);
-  height: 2px;
-  background: var(--accent);
+/* Below 390px "Applications" (69px at 12px/600) no longer fits its tab (66px of text room at 375, 53 at 320): the short word is drawn, the link keeps its aria-label. */
+@media (max-width: 389px) {
+  .app-tabbar__item > span[data-short] {
+    font-size: 0;
+  }
+
+  .app-tabbar__item > span[data-short]::after {
+    content: attr(data-short);
+    font-size: var(--fs-micro);
+  }
 }
 
-.app-more {
+/* ── Tools sheet (More) ────────────────────────────────────────────── */
+
+/* The sheet's title is silent, so the heading row starts right under the grab bar, level with the close button. */
+.kit-panel__body.app-more {
   display: flex;
   flex-direction: column;
-  gap: var(--space-section);
+  gap: var(--s4);
+  padding: var(--s2) var(--s4) var(--s6);
 }
 
-/* The two short groups sit side by side so the whole sheet fits without scrolling. */
-.app-more__groups {
+.app-more__tools,
+.app-more__links {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-  gap: var(--space-section) var(--space-4);
-  /* Half-width columns: let a row's text column shrink instead of wrapping the icon above it. */
-  --kit-row-body-min: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A tile is a kit Sticker (plate, outline, shadow) with a StretchedLink inside; only the layout is set here. */
+.app-more .app-more__tile {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  padding: 0 var(--s3);
+  border-radius: var(--r-md);
+  --kit-sticker-shadow: none; /* the white tiles are flat in the mockup; the six tool tiles keep the sticker shadow */
+}
+
+.app-more .app-more__tile--tool {
+  --kit-sticker-shadow: var(--sh-1);
+  min-height: 4rem;
+  padding: var(--s2) var(--s3);
+}
+
+.app-more .app-more__tile > .kit-stretched {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  inline-size: 100%;
+  min-width: 0;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  border-radius: inherit;
+}
+
+.app-more .app-more__tile > .kit-stretched > svg {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.app-more .app-more__tile > .kit-stretched .kit-avatar {
+  --kit-avatar-size: 2rem;
+}
+
+.app-more__tile-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-more__tile--tool .app-more__tile-label {
+  overflow: visible;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+/* The group headings name the lists for assistive tech; the tiles themselves are the visible grouping. */
+.app-more__group > .kit-section__head {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 /* ── ⌘K palette ────────────────────────────────────────────────────── */
@@ -553,23 +820,24 @@ html:has(.cookie-banner) .app-main {
 .kit-dialog.app-palette {
   inset-block: min(12vh, 6rem) auto;
   margin-block: 0;
-  max-height: calc(100dvh - min(12vh, 6rem) - var(--space-4));
+  max-height: calc(100dvh - min(12vh, 6rem) - var(--s4));
   overflow: hidden;
 }
 
+/* The field, then a 2px ink rule, then the results. */
 .app-palette__search {
   flex: none;
-  padding: var(--space-3);
+  padding: var(--s3);
+  border-block-end: var(--bw) solid var(--ink);
 }
 
 .app-palette__results {
   flex: 1 1 auto;
   min-height: 0;
   max-height: min(24rem, 55dvh);
-  padding: var(--space-2) var(--space-2) var(--space-3);
+  padding: var(--s2) var(--s2) var(--s3);
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-block-start: 1px solid var(--border-soft);
 }
 
 .app-palette__results:focus-visible {
@@ -578,15 +846,34 @@ html:has(.cookie-banner) .app-main {
 }
 
 .app-palette__heading {
-  padding: var(--space-3) var(--space-2) var(--space-1);
-  color: var(--text-soft);
-  font-size: var(--fs-micro);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-micro);
+  padding: var(--s3) var(--s2) var(--s1);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-bold);
+  line-height: 1;
 }
 
 .app-palette__group:first-child > .app-palette__heading {
-  padding-block-start: var(--space-1);
+  padding-block-start: var(--s1);
+}
+
+/* Rows are 44px outlined-on-highlight tiles, not a ruled list: the highlighted one is the active-nav look. */
+.kit-dialog.app-palette .kit-row {
+  min-height: var(--touch-target);
+  margin-block: 2px;
+  padding: 0 var(--s3);
+  border: var(--bw) solid transparent;
+  border-radius: var(--r-md);
+}
+
+.kit-dialog.app-palette .kit-row + .kit-row {
+  border-top: var(--bw) solid transparent;
+}
+
+.kit-dialog.app-palette .kit-row[data-selected] {
+  border-color: var(--ink);
+  background: var(--lemon);
+  box-shadow: var(--sh-1);
 }
 
 @media (pointer: coarse) {
@@ -598,120 +885,148 @@ html:has(.cookie-banner) .app-main {
 .app-palette__meta {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s2);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
 }
 
 .app-palette__meta > svg {
-  width: 0.875rem;
-  height: 0.875rem;
-  color: var(--text-soft);
+  width: 1rem;
+  height: 1rem;
+  color: var(--ink);
 }
 
 .app-palette__results .kit-row__leading > svg {
-  width: 1rem;
-  height: 1rem;
-  color: var(--text-soft);
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--ink);
 }
 
-/* ── Legacy page frames (pages not yet on the kit Page) ────────────── */
-
-/* The skip link moves focus to whichever element is the page's main landmark. */
-.app-content :is(main, [role='main']):focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(var(--focus-ring-width) * -1);
-}
-
-/* Legacy frames that do not clear the phone tab bar themselves (the kit Page does). */
-/* ── Cookie notice: a compact corner card; two equal-weight choices ── */
+/* ── Cookie notice: a compact corner sticker; two equal-weight choices ── */
 
 .cookie-banner {
   position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-4);
+  right: var(--s4);
+  bottom: var(--s4);
   z-index: var(--z-banner);
-  width: min(calc(100% - var(--space-8)), 22rem);
+  width: min(calc(100% - var(--s8)), 22rem);
 }
 
 .cookie-banner__inner {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-overlay);
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-3);
 }
 
 .cookie-banner__text {
   margin: 0;
+  color: var(--ink);
   font-size: var(--fs-meta);
   line-height: 1.5;
-  color: var(--text-body);
+}
+
+.cookie-banner__short {
+  display: none;
+}
+
+/* "Learn more" is an inline link in the sentence (exempt from the 44px target): a 44px line box would make the sticker tall. */
+.cookie-banner__text .kit-button--link {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  vertical-align: baseline;
 }
 
 .cookie-banner__actions {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--s2);
 }
 
+/* The notice never sits on a page's last rows or on the footer links: the page gets room under it. */
+html:has(.cookie-banner) .app-main {
+  padding-bottom: 7rem;
+}
+
+html:has(.cookie-banner):not(:has(.app-main)) body {
+  padding-bottom: 7rem;
+}
+
+/* Phones: one slim sticker above the tab tray, full width, the short wording, buttons beside the text. */
 @media (max-width: 639px) {
   .cookie-banner {
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: var(--s2);
+    bottom: var(--s2);
+    left: var(--s2);
     width: auto;
   }
 
   html:has(.app-tabbar) .cookie-banner {
-    bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + var(--s2) + env(safe-area-inset-bottom, 0px));
   }
 
   .cookie-banner__inner {
     flex-direction: row;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-4);
-    border-width: 1px 0 0;
-    border-radius: 0;
-    box-shadow: none;
+    gap: var(--s3);
+    padding: var(--s2) var(--s3);
+    box-shadow: var(--sh-2);
   }
 
   .cookie-banner__text {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  .cookie-banner__actions {
-    flex-direction: column;
-    gap: var(--space-2);
+  .cookie-banner__long {
+    display: none;
+  }
+
+  .cookie-banner__short {
+    display: inline;
+  }
+
+  html:has(.cookie-banner) .app-main {
+    padding-bottom: 5rem;
+  }
+
+  html:has(.cookie-banner):not(:has(.app-main)) body {
+    padding-bottom: 6rem;
   }
 }
 
-/* Route-level pending state (lazy chunk loading), shown by router.tsx. */
+/* ── Route-level pending state (lazy chunk loading), shown by router.tsx ── */
 
 .route-pending {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  gap: var(--s3);
   min-height: 40vh;
-  color: var(--text-soft);
-  font-size: 0.8125rem;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
 }
 
 .route-pending-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--divider);
-  border-top-color: var(--accent);
+  flex: none;
+  box-sizing: border-box;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 3px solid var(--line);
+  border-top-color: var(--ink);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-  flex-shrink: 0;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

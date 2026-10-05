@@ -1,45 +1,222 @@
-/* Admin: page layout hooks only. The shell is the app's sidebar; pages, tables, stats, dialogs and buttons are kit components. */
+/*
+ * Admin: page layout hooks only. The shell is the app's sidebar; pages, tables, panels, stats, dialogs and
+ * buttons are kit components. This is the calm end of the Sticker language: flat panels and tables, no tilt,
+ * no shadow, ink and tool colours carrying the numbers.
+ */
 
 /* The title of the phone top bar sits beside the brand mark and takes the room before the menu button. */
 .admin-topbar__label {
   flex: 1 1 auto;
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-semibold);
 }
 
-/* Dashboard: two sections side by side while they fit, stacked when they do not. */
+/* ── Dashboard ──────────────────────────────────────────────────────────────────────────── */
+
+/* The four numbers, one panel each: four across, two by two on a phone. */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s5);
+}
+
+@media (max-width: 860px) {
+  .admin-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s3);
+  }
+}
+
+/* Activity and tools on the left, system health beside them while they fit. */
 .admin-columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
-  gap: var(--space-section) var(--space-12);
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: var(--space-section) var(--s7);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .admin-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.admin-column {
+  display: grid;
+  gap: var(--space-section);
+  min-width: 0;
 }
 
 .admin-columns > * {
   min-width: 0;
 }
 
-/* The four numbers: a row on a wide page, a balanced two by two on a phone. */
-@media (max-width: 767px) {
-  .kit-cluster.admin-stats,
-  .kit-skeleton.admin-stats {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/* Runs per day: an ink line over a soft area, the last day a tangerine dot. */
+.admin-activity {
+  display: grid;
+  gap: var(--s4);
 }
+
+.admin-activity--loading {
+  min-block-size: 11.5rem;
+}
+
+.admin-activity__chart {
+  display: grid;
+  gap: var(--s1);
+  max-inline-size: 30rem;
+}
+
+.admin-spark {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.admin-spark__area {
+  fill: var(--tangerine-soft);
+  stroke: none;
+}
+
+.admin-spark__line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.admin-spark__dot {
+  fill: var(--tangerine);
+  stroke: var(--ink);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.admin-activity__axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+.admin-activity__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s7);
+  margin: 0;
+}
+
+.admin-activity__facts > div {
+  display: grid;
+  gap: var(--s1);
+}
+
+.admin-activity__facts dt {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
+}
+
+.admin-activity__facts dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.admin-activity__note {
+  margin: 0;
+}
+
+/* Runs by tool: a tile, the name, then a bar in the tool's colour proportional to the busiest tool. */
+.kit-list.admin-tools > .kit-row {
+  flex-wrap: nowrap;
+}
+
+.admin-tools .kit-row__body {
+  flex-basis: 0;
+}
+
+.kit-row__meta.admin-bar-col {
+  display: grid;
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
+  gap: var(--s3);
+  align-items: center;
+  inline-size: clamp(6rem, 34%, 14rem);
+}
+
+.admin-bar {
+  display: block;
+  box-sizing: border-box;
+  block-size: 10px;
+  border: var(--bw-thin) solid var(--ink);
+  border-radius: 5px;
+  background: var(--tone, var(--stone));
+}
+
+.admin-count {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: var(--numeric-tabular);
+  text-align: end;
+}
+
+/* System health: the seal that stamps in, then the facts. */
+.admin-health__verdict {
+  display: flex;
+  gap: var(--s4);
+  align-items: center;
+  margin-block-end: var(--s2);
+  padding-block-end: var(--s4);
+  border-block-end: var(--bw) solid var(--line);
+}
+
+.admin-health__verdict > :first-child {
+  flex: none;
+  padding: 0 var(--s2) var(--s2) 0;
+}
+
+.admin-health__title {
+  margin: 0 0 var(--s1);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-title);
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────────────────────── */
 
 /* A date after a right-aligned number: keep them apart so "0  Oct 3" does not read as one cell. */
 @container kit-table (min-width: 40rem) {
   .admin-after-number {
-    padding-inline-start: var(--space-4);
+    padding-inline-start: var(--s4);
   }
+}
+
+/* A tool tile before the title of a run; long unbroken labels break instead of widening the table. */
+.admin-run {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  min-width: 0;
+}
+
+.admin-run > :last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Table cells: a quiet second line under the value. */
 .admin-subline {
   display: block;
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: var(--fs-meta);
   font-weight: var(--fw-regular);
   line-height: var(--lh-meta);
@@ -49,16 +226,12 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--space-1);
+  gap: var(--s1);
   text-align: end;
 }
 
 .admin-muted {
-  color: var(--text-muted);
-}
-
-.admin-failed {
-  color: var(--danger-fg);
+  color: var(--ink-3);
 }
 
 .admin-mono {
@@ -77,14 +250,22 @@
 .admin-json-viewer {
   max-block-size: 26rem;
   margin: 0;
-  padding: var(--space-3);
+  padding: var(--s3);
   overflow: auto;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-  color: var(--text-body);
+  border: var(--bw) solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--stone-soft);
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: var(--fs-meta);
   line-height: 1.5;
   white-space: pre;
+}
+
+/* A failed fetch: the reason in words, the recorded error class under it in small mono. */
+.admin-reason {
+  display: block;
+  margin-block-start: var(--s1);
+  color: var(--danger-ink);
+  font-weight: var(--fw-semibold);
 }

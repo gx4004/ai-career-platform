@@ -1,20 +1,79 @@
 /* ═══════════════════════════════════════════════════
-   Tool input pages. The page, header, form fields, lists and buttons
-   are kit components; this file only holds the run loader (the kit has
-   no spinner or progress piece) and two layout helpers.
+   Tool input pages. The page, header, Panel, form fields, lists and buttons
+   are kit components; this file only holds placement (the form column, the
+   notice stack), the working panel (the kit has no loader) and the small
+   spinner of the resume reader.
    ═══════════════════════════════════════════════════ */
+
+/* Guest / hand-off / re-generate notices sit together right under the header, and closer to the form than the page gap. */
+.tool-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin-block-end: calc(var(--s4) * -1);
+}
+
+.tool-notices:empty {
+  display: none;
+}
+
+/* The form and the working panel that replaces it share one body padding, so the swap does not shift the layout. */
+.tool-form,
+.tool-loading__body {
+  padding: var(--s6);
+}
+
+@media (max-width: 860px) {
+  .tool-form,
+  .tool-loading__body {
+    padding: var(--s5) var(--s4);
+  }
+}
+
+/* The form is one Panel: fields 24px apart, the submit last. */
+.tool-form {
+  display: grid;
+  gap: var(--s6);
+}
 
 /* A text-only action at the start of a column: the link variant has no padding, so it lines up with the fields above. On touch it gets the full tap height the variant leaves out. */
 @media (pointer: coarse) {
   .kit-button.tool-link {
-    min-height: var(--kit-h-lg);
+    min-block-size: var(--kit-h-lg);
   }
 }
 
-/* The "attach to an application" sub-form: indented under its checkbox behind a hairline, so it reads as part of that choice. */
+/* The "attach to an application" sub-form: indented under its checkbox behind a rule, so it reads as part of that choice. */
 .tool-attach {
-  padding-inline-start: var(--space-4);
-  border-inline-start: 1px solid var(--border-soft);
+  padding-inline-start: var(--s4);
+  border-inline-start: var(--bw) solid var(--line);
+}
+
+/* What was read from an uploaded file: a few lines, clamped, so a wrong extraction is obvious at a glance. */
+.tool-extract__body {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s4);
+}
+
+.tool-extract__title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.tool-extract__text {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
 }
 
 .tool-spinner {
@@ -22,11 +81,11 @@
   flex: none;
   inline-size: 0.875rem;
   block-size: 0.875rem;
-  margin-inline-end: var(--space-2);
+  margin-inline-end: var(--s2);
   vertical-align: -0.125rem;
-  border: 2px solid var(--border-strong);
-  border-block-start-color: var(--accent);
-  border-radius: var(--radius-pill);
+  border: var(--bw) solid var(--line);
+  border-block-start-color: var(--ink);
+  border-radius: var(--r-pill);
   animation: tool-spin 800ms linear infinite;
 }
 
@@ -36,30 +95,52 @@
   }
 }
 
-/* The loader takes the form's footprint, so the page does not collapse to one line while a run is in flight. */
+/* ── Working panel: the same Panel the form was in (its height is set inline from the form), a tool tile that wobbles, the typical steps, a stepped track ── */
+
 .tool-loading {
   display: grid;
   align-content: center;
-  min-block-size: 20rem;
+}
+
+.tool-loading__body {
+  container-type: inline-size;
 }
 
 .cinematic-loader {
   display: grid;
-  gap: var(--space-3);
-  max-inline-size: 28rem;
+  gap: var(--s5);
+}
+
+.cinematic-main {
+  display: grid;
+  align-content: start;
+  gap: var(--s5);
+  min-inline-size: 0;
+}
+
+/* Wide enough: the status and track on the left, the steps beside them, so the panel is no taller than the form it replaced. */
+@container (min-width: 36rem) {
+  .cinematic-loader {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--s8);
+  }
+}
+
+/* One column (a phone): tighter rhythm, so the panel is not much taller than the shortest form it replaced. */
+@container (max-width: 35.999rem) {
+  .cinematic-loader,
+  .cinematic-main {
+    gap: var(--s4);
+  }
 }
 
 .cinematic-line {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--s4);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-}
-
-.cinematic-line > .tool-spinner {
-  margin-block-start: 0.1875rem;
-  margin-inline-end: 0;
 }
 
 .cinematic-status {
@@ -73,40 +154,120 @@
 }
 
 .cinematic-status__lead {
-  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-title);
+  letter-spacing: var(--ls-title);
 }
 
 .cinematic-status__step {
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
 }
 
-/* One segment per step, filled as steps pass: no inline width, and the bar only ever moves by whole steps. */
+/* The track: 20px, white, ink outline, an ink fill that advances by whole steps. The last step is only reached when the run really returns. */
 .cinematic-progress {
+  box-sizing: border-box;
+  block-size: 1.25rem;
+  overflow: hidden;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+
+.cinematic-progress__fill {
+  display: block;
+  inline-size: calc(var(--cin-filled, 0) / var(--cin-total, 1) * 100%);
+  block-size: 100%;
+  border-inline-end: var(--bw) solid var(--ink);
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  background: var(--ink);
+  transition: inline-size 400ms var(--ease-out);
+}
+
+.cinematic-steps {
+  display: grid;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cinematic-step {
+  position: relative;
   display: flex;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: 2rem;
+  color: var(--ink-3);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-body);
 }
 
-.cinematic-progress__step {
-  flex: 1;
-  block-size: 0.25rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  transition: background-color 400ms var(--ease-out);
+.cinematic-step[data-state='done'] {
+  color: var(--ink-2);
 }
 
-.cinematic-progress__step[data-filled] {
-  background: var(--accent);
+.cinematic-step[data-state='current'] {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
-/* Feedback, not decoration: the spinner slows down under reduced motion instead of stopping, the bar just jumps. */
+/* The current step's disc wears a dotted ring: the one thing that moves attention here. */
+.cinematic-step[data-state='current'] .kit-number-disc::after {
+  content: '';
+  position: absolute;
+  inset: -5px auto auto -5px;
+  inline-size: calc(100% + 10px);
+  block-size: calc(100% + 10px);
+  box-sizing: border-box;
+  border: var(--bw-thin) dotted var(--ink);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.cinematic-step .kit-number-disc {
+  position: relative;
+}
+
+.cinematic-step__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 35.999rem) {
+  .cinematic-step {
+    min-block-size: 1.75rem;
+  }
+}
+
+/* Feedback, not decoration: the tile wobbles only while a run is in flight and only when motion is allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  .cinematic-tile {
+    animation: tool-wobble 2400ms var(--ease-out) infinite alternate;
+  }
+}
+
+@keyframes tool-wobble {
+  from {
+    transform: rotate(-7deg);
+  }
+
+  to {
+    transform: rotate(-1deg);
+  }
+}
+
+/* Under reduced motion the spinner slows down instead of stopping, and the bar just jumps. */
 @media (prefers-reduced-motion: reduce) {
   .tool-spinner {
     animation-duration: 2.4s;
   }
 
-  .cinematic-progress__step {
+  .cinematic-progress__fill {
     transition: none;
   }
 }

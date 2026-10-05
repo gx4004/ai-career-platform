@@ -12,6 +12,7 @@ import {
   PageHeader,
   Stack,
   Table,
+  useToast,
 } from '#/components/kit'
 import type { TableColumn } from '#/components/kit'
 import {
@@ -19,6 +20,7 @@ import {
   setDiscoverySourceKillSwitch,
 } from '#/lib/api/admin'
 import type { DiscoverySource } from '#/lib/api/discoverySchemas'
+import { describeFailure } from './source-failure'
 import { adminDate, adminDateTime } from './toolLabel'
 
 /** A URL breaks after its slashes, never in the middle of a word. */
@@ -46,6 +48,7 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
 
 export function AdminDiscoverySourcesPage() {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['admin-discovery-sources'],
     queryFn: getAdminDiscoverySources,
@@ -55,13 +58,22 @@ export function AdminDiscoverySourcesPage() {
   const killSwitch = useMutation({
     mutationFn: ({ sourceId, tripped }: { sourceId: string; tripped: boolean }) =>
       setDiscoverySourceKillSwitch(sourceId, tripped),
-    onSuccess: () => {
+    onSuccess: (source, { tripped }) => {
       queryClient.invalidateQueries({ queryKey: ['admin-discovery-sources'] })
+      toast({
+        tone: 'success',
+        title: tripped ? `Kill switch tripped for ${source.display_name}` : `Kill switch cleared for ${source.display_name}`,
+      })
     },
   })
 
   const pendingId =
     killSwitch.isPending && killSwitch.variables ? killSwitch.variables.sourceId : null
+  // One change at a time, and a new one starts from a clean slate: no stale failure notice from the last click.
+  const change = (sourceId: string, tripped: boolean) => {
+    killSwitch.reset()
+    killSwitch.mutate({ sourceId, tripped })
+  }
 
   const sources = data?.items ?? []
   const sharedOwner = sharedValue(sources, (source) => source.owner)
@@ -141,8 +153,9 @@ export function AdminDiscoverySourcesPage() {
         <KillSwitchControl
           source={source}
           busy={pendingId === source.id}
-          onTrip={() => killSwitch.mutate({ sourceId: source.id, tripped: true })}
-          onClear={() => killSwitch.mutate({ sourceId: source.id, tripped: false })}
+          locked={killSwitch.isPending}
+          onTrip={() => change(source.id, true)}
+          onClear={() => change(source.id, false)}
         />
       ),
     },
@@ -181,6 +194,7 @@ export function AdminDiscoverySourcesPage() {
         ) : (
           <Table
             caption="Discovery sources"
+            density="compact"
             columns={columns}
             rows={sources}
             getRowId={(source) => source.id}
@@ -200,16 +214,27 @@ export function AdminDiscoverySourcesPage() {
 
 function LastFetch({ source }: { source: DiscoverySource }) {
   if (!source.last_fetched_at) {
-    return <span className="admin-muted">Never fetched</span>
+    return <Badge tone="neutral">Never fetched</Badge>
   }
-  const failed = source.last_outcome !== 'ok'
+  const reason = describeFailure(source.last_outcome)
+  const count = source.listing_count
   return (
     <div>
-      <span className={failed ? 'admin-failed' : undefined}>{failed ? source.last_outcome : 'OK'}</span>
+      {reason ? <Badge tone="danger">Failed</Badge> : <Badge tone="success">OK</Badge>}
+      {reason ? (
+        <>
+          <span className="admin-reason">{reason}</span>
+        </>
+      ) : null}
       <MetaRow>
         {adminDateTime(source.last_fetched_at)}
-        {`${source.listing_count ?? 0} listings`}
+        {count === null || count === undefined ? 'No listing count yet' : `${count} ${count === 1 ? 'listing' : 'listings'}`}
       </MetaRow>
+      {reason ? (
+        <Disclosure variant="inline" title="Error detail">
+          <p className="admin-subline admin-mono admin-wrap">{source.last_outcome}</p>
+        </Disclosure>
+      ) : null}
     </div>
   )
 }
@@ -217,11 +242,13 @@ function LastFetch({ source }: { source: DiscoverySource }) {
 function KillSwitchControl({
   source,
   busy,
+  locked,
   onTrip,
   onClear,
 }: {
   source: DiscoverySource
   busy: boolean
+  locked: boolean
   onTrip: () => void
   onClear: () => void
 }) {
@@ -229,7 +256,7 @@ function KillSwitchControl({
     const canClear = source.terms_status === 'accepted'
     return (
       <div className="admin-action">
-        <Button size="sm" variant="secondary" disabled={!canClear} loading={busy} onClick={onClear}>
+        <Button size="sm" variant="secondary" disabled={!canClear || locked} loading={busy} onClick={onClear}>
           Clear kill switch
         </Button>
         {!canClear ? <span className="admin-subline">Accept terms review to clear.</span> : null}
@@ -237,7 +264,7 @@ function KillSwitchControl({
     )
   }
   return (
-    <Button size="sm" variant="secondary" loading={busy} onClick={onTrip}>
+    <Button size="sm" variant="secondary" loading={busy} disabled={locked} onClick={onTrip}>
       Trip kill switch
     </Button>
   )

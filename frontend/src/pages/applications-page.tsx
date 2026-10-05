@@ -2,10 +2,11 @@ import { useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, MoreHorizontal, Pin } from 'lucide-react'
+import { Briefcase, ChevronDown, MoreHorizontal, Pin } from 'lucide-react'
 import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
 import { WhatsWorkingPanel } from '#/components/applications/WhatsWorkingPanel'
 import { StageMenu } from '#/components/applications/StageMenu'
+import { cardUrgency, urgencySortKey } from '#/components/applications/deadlines'
 import {
   STAGES,
   STATUSES,
@@ -13,7 +14,6 @@ import {
   applicationTitle,
   formatDate,
   stageOf,
-  stageTone,
   timeAgo,
   roleOnly,
 } from '#/components/applications/stages'
@@ -29,6 +29,7 @@ import {
   Count,
   EmptyState,
   ErrorState,
+  FitStamp,
   MetaRow,
   Notice,
   Page,
@@ -37,10 +38,12 @@ import {
   Segmented,
   Skeleton,
   Stack,
+  StageMark,
+  Sticker,
   StretchedLink,
   Table,
 } from '#/components/kit'
-import type { TableColumn } from '#/components/kit'
+import type { TableColumn, TableSort } from '#/components/kit'
 import { listApplications, updateApplication } from '#/lib/api/client'
 import type { ApplicationCard, ApplicationList, ApplicationStatus } from '#/lib/api/schemas'
 import { APPLICATION_BOARD_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
@@ -132,7 +135,11 @@ export function ApplicationsPage() {
       <PageHeader
         title="Your applications"
         meta={query.isPending ? [<Skeleton key="meta" size="meta" width="7rem" />] : items.length ? summaryMeta(items) : undefined}
-        actions={<Button asChild size="sm"><Link to="/discovery">Find jobs</Link></Button>}
+        actions={
+          <Button asChild size="sm" variant={query.isSuccess && items.length === 0 ? 'secondary' : 'primary'}>
+            <Link to="/discovery">Find jobs</Link>
+          </Button>
+        }
       />
 
       {moveError ? (
@@ -144,7 +151,7 @@ export function ApplicationsPage() {
           <p className="kit-sr-only" role="status">Loading applications</p>
           <div className="camp-board" aria-busy="true">
             {STAGES.filter((stage) => !compact || stage.id === STAGES[0].id).map((stage) => (
-              <Column key={stage.id} title={stage.label} compact={compact}>
+              <Column key={stage.id} stage={stage.id} title={stage.label} compact={compact}>
                 {Array.from({ length: stage.id === 'saved' ? 2 : 1 }, (_, index) => (
                   <Skeleton key={index} variant="block" width="100%" height={CARD_HEIGHT} />
                 ))}
@@ -160,10 +167,7 @@ export function ApplicationsPage() {
           retrying={query.isFetching}
         />
       ) : items.length === 0 ? (
-        <EmptyState
-          title="No applications yet"
-          description="Add a job from Discover, or let us prepare applications for you below."
-        />
+        <FirstJob />
       ) : (
         <Stack gap={3}>
           <Stack gap={2}>
@@ -177,7 +181,7 @@ export function ApplicationsPage() {
               {STAGES.filter((stage) => !compact || stage.id === shownStage).map((stage) => {
                 const cards = byStage(stage.id)
                 return (
-                  <Column key={stage.id} title={stage.label} count={cards.length} compact={compact}>
+                  <Column key={stage.id} stage={stage.id} title={stage.label} count={cards.length} compact={compact}>
                     {cards.length ? (
                       <ol className="camp-col__list" role="list">
                         {cards.map((card) => (
@@ -209,13 +213,19 @@ export function ApplicationsPage() {
   )
 }
 
-/** A board column: a heading with its count and the cards under it. On a phone the stage switcher names it. */
+/**
+ * A board column: the stage's count block and name as the heading, the cards under it. The name comes
+ * first in the DOM ("Saved 2" to assistive tech) and the block first on screen. On a phone the stage
+ * switcher names the column.
+ */
 function Column({
+  stage,
   title,
   count,
   compact,
   children,
 }: {
+  stage: Stage
   title: string
   count?: number
   compact: boolean
@@ -223,9 +233,42 @@ function Column({
 }) {
   if (compact) return <section aria-label={title}>{children}</section>
   return (
-    <Section headingLevel={2} title={title} count={count} rule={false}>
+    <Section
+      headingLevel={2}
+      className="camp-col"
+      title={
+        <span className="camp-col__title">
+          {title}
+          {count !== undefined ? ' ' : null}
+          {count !== undefined ? <StageMark stage={stage} variant="count" count={count} /> : null}
+        </span>
+      }
+      rule={false}
+    >
       {children}
     </Section>
+  )
+}
+
+/** The first-run board: one lemon card with the ways in. */
+function FirstJob() {
+  return (
+    <Sticker tone="lemon" className="camp-first">
+      <div>
+        <h2 className="camp-first__title">Add your first job</h2>
+        <p className="camp-first__lead">
+          No applications yet. Each one you add gets its own page to prepare, track and apply from.
+        </p>
+      </div>
+      <div className="camp-first__actions">
+        <Button asChild>
+          <Link to="/discovery"><Briefcase aria-hidden="true" /> Find a job in Discover</Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link to="/job-match">Paste or import a posting</Link>
+        </Button>
+      </div>
+    </Sticker>
   )
 }
 
@@ -242,8 +285,6 @@ function nextParts(card: ApplicationCard): string[] {
   if (card.deadline && card.status === 'saved') return [`Apply by ${formatDate(card.deadline)}`]
   return []
 }
-
-const nextStep = (card: ApplicationCard) => nextParts(card).join(' · ') || null
 
 function BoardCard({
   card,
@@ -262,6 +303,7 @@ function BoardCard({
   const ready = card.status === 'saved' && card.ready
   const questions = card.status === 'saved' ? card.open_question_count : 0
   const showStatus = closed || card.status === 'no_reply'
+  const urgent = cardUrgency(card)
   return (
     <Card aria-busy={moving || undefined}>
       <CardHeader>
@@ -284,9 +326,13 @@ function BoardCard({
         </MetaRow>
       ) : null}
       {next.length ? <MetaRow>{next}</MetaRow> : null}
-      {showStatus || ready || questions > 0 ? (
+      {urgent || showStatus || ready || questions > 0 ? (
         <Cluster gap={1} className="camp-card__badges">
-          {showStatus ? <Badge size="sm">{STATUS_LABELS[card.status]}</Badge> : null}
+          {/* Rose is time pressure: a date within a week, or already past. */}
+          {urgent ? <Badge size="sm" tone="rose">{urgent.text}</Badge> : null}
+          {showStatus ? (
+            <Badge size="sm" tone={card.status === 'no_reply' ? 'lilac' : 'stone'}>{STATUS_LABELS[card.status]}</Badge>
+          ) : null}
           {ready ? <Badge size="sm" tone="success">Ready to apply</Badge> : null}
           {questions > 0 ? <Badge size="sm" tone="warning">{questions === 1 ? '1 question' : `${questions} questions`}</Badge> : null}
         </Cluster>
@@ -303,6 +349,27 @@ function BoardCard({
   )
 }
 
+/** What the list's Next step column says for a card: its task and date, else what waits on the owner. */
+function nextText(card: ApplicationCard): string | null {
+  const parts = nextParts(card)
+  if (parts.length) return parts.join(' · ').replace(/^Next: /, '')
+  if (card.status === 'saved' && card.open_question_count > 0) {
+    return `${card.open_question_count} ${card.open_question_count === 1 ? 'question' : 'questions'} to answer`
+  }
+  if (card.status === 'saved' && card.ready) return 'Ready to apply'
+  if (card.no_reply_suggested) return 'No reply yet?'
+  return null
+}
+
+const SORTERS: Record<string, (a: ApplicationCard, b: ApplicationCard) => number> = {
+  role: (a, b) => roleOnly(applicationTitle(a), a.company).localeCompare(roleOnly(applicationTitle(b), b.company)),
+  company: (a, b) => (a.company ?? '').localeCompare(b.company ?? ''),
+  fit: (a, b) => (a.match_score ?? -1) - (b.match_score ?? -1),
+  next: (a, b) => urgencySortKey(a) - urgencySortKey(b),
+  activity: (a, b) =>
+    new Date(a.last_activity_at ?? a.updated_at).getTime() - new Date(b.last_activity_at ?? b.updated_at).getTime(),
+}
+
 function ApplicationsTable({
   items,
   moving,
@@ -312,13 +379,19 @@ function ApplicationsTable({
   moving: (card: ApplicationCard) => boolean
   onMove: (card: ApplicationCard, status: ApplicationStatus) => void
 }) {
+  // The list opens answering "what do I do next": soonest date first, closed last.
+  const [sort, setSort] = useState<TableSort>({ id: 'next', direction: 'asc' })
   const order = (card: ApplicationCard) => STATUSES.indexOf(card.status)
-  const rows = [...items].sort((a, b) => order(a) - order(b))
+  const compare = SORTERS[sort.id] ?? SORTERS.next
+  const rows = [...items]
+    .sort((a, b) => order(a) - order(b))
+    .sort((a, b) => (sort.direction === 'asc' ? compare(a, b) : compare(b, a)))
   const columns: TableColumn<ApplicationCard>[] = [
     {
       id: 'role',
       header: 'Role',
       primary: true,
+      sortable: true,
       cell: (card) => {
         const title = roleOnly(applicationTitle(card), card.company)
         return (
@@ -331,10 +404,29 @@ function ApplicationsTable({
         )
       },
     },
-    { id: 'company', header: 'Company', cell: (card) => <span className="camp-wrap">{card.company ?? '–'}</span> },
-    { id: 'fit', header: 'Skills fit', numeric: true, cell: (card) => (card.match_score !== null ? `${card.match_score}%` : '–') },
-    { id: 'next', header: 'Next step', cell: (card) => <span className="camp-wrap">{nextStep(card)?.replace(/^Next: /, '') ?? '–'}</span> },
-    { id: 'activity', header: 'Last activity', cell: (card) => timeAgo(card.last_activity_at ?? card.updated_at) },
+    { id: 'company', header: 'Company', sortable: true, cell: (card) => <span className="camp-wrap">{card.company ?? '–'}</span> },
+    {
+      id: 'fit',
+      header: 'Skills fit',
+      sortable: true,
+      cell: (card) => (card.match_score !== null ? <FitStamp value={card.match_score} size="sm" /> : '–'),
+    },
+    {
+      id: 'next',
+      header: 'Next step',
+      sortable: true,
+      cell: (card) => {
+        const urgent = cardUrgency(card)
+        const text = nextText(card)
+        return (
+          <span className="camp-next">
+            <span className="camp-wrap">{text ?? '–'}</span>
+            {urgent ? <Badge size="sm" tone="rose">{urgent.text}</Badge> : null}
+          </span>
+        )
+      },
+    },
+    { id: 'activity', header: 'Last activity', sortable: true, cell: (card) => timeAgo(card.last_activity_at ?? card.updated_at) },
     {
       id: 'stage',
       header: 'Stage',
@@ -346,7 +438,7 @@ function ApplicationsTable({
         return (
           <StageMenu status={card.status} onMove={(status) => onMove(card, status)} disabled={moving(card)}>
             <Button variant="ghost" size="sm" aria-label={`Move ${title}`}>
-              <Badge tone={stageTone(card.status)}>{STATUS_LABELS[card.status]}</Badge>
+              <StageMark stage={stageOf(card.status)} label={STATUS_LABELS[card.status]} />
               <ChevronDown aria-hidden="true" />
             </Button>
           </StageMenu>
@@ -360,6 +452,8 @@ function ApplicationsTable({
       columns={columns}
       rows={rows}
       getRowId={(card) => card.id}
+      sort={sort}
+      onSortChange={setSort}
       getRowProps={(card) => ({ 'aria-busy': moving(card) || undefined })}
     />
   )

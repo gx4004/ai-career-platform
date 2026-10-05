@@ -6,55 +6,138 @@ import { JobImportCard } from '#/components/tooling/JobImportCard'
 
 const importJobUrlMock = vi.hoisted(() => vi.fn())
 const importJobTextMock = vi.hoisted(() => vi.fn())
-const getHistoryWorkspacesMock = vi.hoisted(() => vi.fn())
+const listApplicationsMock = vi.hoisted(() => vi.fn())
+let sessionStatus: 'guest' | 'authenticated' = 'authenticated'
 
+vi.mock('#/hooks/useSession', () => ({
+  useSession: () => ({ status: sessionStatus, openAuthDialog: vi.fn() }),
+}))
 vi.mock('#/lib/api/client', () => ({
   importJobUrl: importJobUrlMock,
   importJobText: importJobTextMock,
-  getHistoryWorkspaces: getHistoryWorkspacesMock,
+  listApplications: listApplicationsMock,
 }))
 
-function renderCard(onImported = vi.fn()) {
+const FALLBACK = 'Could not extract the job description. Please copy and paste it.'
+
+function renderCard(onImported = vi.fn(), onSubmit = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return {
     onImported,
+    onSubmit,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <JobImportCard onImported={onImported} />
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            onSubmit()
+          }}
+        >
+          <JobImportCard onImported={onImported} />
+          <button type="submit">Run the tool</button>
+        </form>
       </QueryClientProvider>,
     ),
   }
+}
+
+const application = {
+  id: 'app-1',
+  label: 'Run label that must not be shown',
+  title: 'Senior Backend Engineer',
+  company: 'Northwind Labs',
+  status: 'saved',
+}
+
+function typeUrl(value = 'https://jobs.example.com/backend') {
+  fireEvent.change(screen.getByPlaceholderText('Job posting URL'), { target: { value } })
 }
 
 describe('JobImportCard', () => {
   afterEach(() => {
     importJobUrlMock.mockReset()
     importJobTextMock.mockReset()
-    getHistoryWorkspacesMock.mockReset()
-    getHistoryWorkspacesMock.mockResolvedValue({ items: [], total: 0 })
+    listApplicationsMock.mockReset()
+    sessionStatus = 'authenticated'
   })
 
-  describe('R13 campaign attachment', () => {
+  describe('importing from a URL', () => {
+    it('hands a real description to the page', async () => {
+      importJobUrlMock.mockResolvedValue({ job_description: 'A real posting with plenty of detail about the role.' })
+      const { onImported } = renderCard()
+      typeUrl()
+      fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+      await waitFor(() => expect(onImported).toHaveBeenCalledWith('A real posting with plenty of detail about the role.'))
+      expect(screen.queryByText("Couldn't read that page")).toBeNull()
+    })
 
-    it('keeps populate-only import by default and exposes explicit campaign attachment', async () => {
-      getHistoryWorkspacesMock.mockResolvedValue({
-        items: [{ id: 'ws-1', label: 'Example campaign' }], total: 1,
-      })
+    it.each([
+      ['the paste-fallback sentence', FALLBACK],
+      ['an empty page', ''],
+      ['whitespace only', '   \n'],
+    ])('leaves the job description alone and says so for %s (D03)', async (_name, description) => {
+      importJobUrlMock.mockResolvedValue({ job_description: description })
+      const { onImported } = renderCard()
+      typeUrl()
+      fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+      expect(await screen.findByText("Couldn't read that page")).toBeTruthy()
+      expect(onImported).not.toHaveBeenCalled()
+    })
+
+    it('imports on Enter without submitting the tool form behind it', async () => {
+      importJobUrlMock.mockResolvedValue({ job_description: 'A real posting with plenty of detail about the role.' })
+      const { onImported, onSubmit } = renderCard()
+      typeUrl()
+      fireEvent.keyDown(screen.getByPlaceholderText('Job posting URL'), { key: 'Enter' })
+      await waitFor(() => expect(importJobUrlMock).toHaveBeenCalled())
+      await waitFor(() => expect(onImported).toHaveBeenCalled())
+      expect(onSubmit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('attaching to an application', () => {
+    it('is not offered to guests, who have no applications', () => {
+      sessionStatus = 'guest'
       renderCard()
-      expect(getHistoryWorkspacesMock).not.toHaveBeenCalled()
+      expect(screen.queryByLabelText(/Attach to one of your applications/i)).toBeNull()
+      expect(listApplicationsMock).not.toHaveBeenCalled()
+    })
+
+    it('lists real applications by title and company, not run labels (D17), and confirms the attach', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
+      importJobTextMock.mockResolvedValue({ job_description: 'A sufficiently detailed pasted listing description.' })
+      const { onImported } = renderCard()
+      expect(listApplicationsMock).not.toHaveBeenCalled()
       fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
-      expect(await screen.findByRole('option', { name: 'Example campaign' })).toBeTruthy()
-      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'ws-1' } })
+      expect(await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })).toBeTruthy()
+      expect(screen.queryByRole('option', { name: /Run label/ })).toBeNull()
+      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
       fireEvent.change(screen.getByLabelText('Job title'), { target: { value: 'Engineer' } })
       fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Example Corp' } })
       fireEvent.change(screen.getByLabelText('Pasted listing text'), { target: { value: 'A sufficiently detailed pasted listing description.' } })
       fireEvent.click(screen.getByRole('button', { name: 'Attach pasted listing' }))
       await waitFor(() => expect(importJobTextMock).toHaveBeenCalledWith({
-          campaign_id: 'ws-1', job_title: 'Engineer', company_name: 'Example Corp',
-          job_description: 'A sufficiently detailed pasted listing description.',
-        }, expect.anything()))
+        campaign_id: 'app-1', job_title: 'Engineer', company_name: 'Example Corp',
+        job_description: 'A sufficiently detailed pasted listing description.',
+      }, expect.anything()))
+      expect(await screen.findByText('Listing attached to Senior Backend Engineer at Northwind Labs.')).toBeTruthy()
+      expect(onImported).toHaveBeenCalled()
+    })
+
+    it('shows the reason an attach failed, not a generic line', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
+      importJobTextMock.mockRejectedValue(new Error('Application not found'))
+      renderCard()
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
+      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
+      fireEvent.change(screen.getByLabelText('Job title'), { target: { value: 'Engineer' } })
+      fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Example Corp' } })
+      fireEvent.change(screen.getByLabelText('Pasted listing text'), { target: { value: 'A sufficiently detailed pasted listing description.' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Attach pasted listing' }))
+      expect(await screen.findByText('Application not found')).toBeTruthy()
     })
   })
 })

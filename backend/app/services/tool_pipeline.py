@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 from collections.abc import Awaitable, Callable
@@ -7,12 +8,15 @@ from contextvars import ContextVar
 from time import perf_counter
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
 from app.models.user import User
 from app.services.evidence_injection import load_profile_for_injection
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.llm_budget import reserve_anonymous_model_call
 from app.services.observability import (
     log_tool_run_completed,
     log_tool_run_failed,
@@ -37,6 +41,67 @@ _result_degraded: ContextVar[bool] = ContextVar("tool_result_degraded", default=
 def mark_result_degraded() -> None:
     """Flag the current run's result as a degraded fallback so it is not cached."""
     _result_degraded.set(True)
+
+
+# The six user-facing tools take a resume of at least 50 characters (and three of
+# them a job description of at least 20) at the schema layer, but that counts raw
+# characters: whitespace, punctuation and stripped injection text count too.
+# Only those six tools reject input with nothing meaningful left once sanitized;
+# other callers (the application reviewer, CV tailoring) deliberately run on thin
+# or empty text and report it themselves.
+_USER_FACING_TOOLS = frozenset(
+    {"resume", "job-match", "cover-letter", "interview", "career", "portfolio"}
+)
+_JD_REQUIRED_TOOLS = frozenset({"job-match", "cover-letter", "interview"})
+# Meaningful = enough letters/digits AND enough distinct ones, so a few repeated
+# words ("pirate. pirate. ...") left behind by stripping injection text, or a wall
+# of punctuation, never passes just by being long. Distinct characters rather than
+# distinct words keeps unspaced scripts working.
+_MIN_RESUME_ALNUM = 20
+_MIN_RESUME_DISTINCT = 10
+_MIN_JD_ALNUM = 8
+_MIN_JD_DISTINCT = 5
+
+
+def _is_meaningful(text: str, *, min_alnum: int, min_distinct: int) -> bool:
+    alnum = [c.lower() for c in text if c.isalnum()]
+    return len(alnum) >= min_alnum and len(set(alnum)) >= min_distinct
+
+
+def _clean_inputs(
+    tool_name: str,
+    resume_text: str,
+    job_description: str | None,
+    feedback: str | None,
+) -> tuple[str, str | None, str | None]:
+    """Sanitize user text and reject input with nothing meaningful left to score."""
+    clean_resume = sanitize_user_input(resume_text)
+    clean_jd = sanitize_user_input(job_description) if job_description else None
+    clean_feedback = sanitize_user_input(feedback) if feedback else None
+
+    if tool_name in _USER_FACING_TOOLS:
+        if not clean_resume:
+            raise HTTPException(status_code=422, detail="resume text is required")
+        if not _is_meaningful(
+            clean_resume, min_alnum=_MIN_RESUME_ALNUM, min_distinct=_MIN_RESUME_DISTINCT
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="resume text has too little usable content once unsupported text is removed",
+            )
+        if tool_name in _JD_REQUIRED_TOOLS and job_description:
+            if not clean_jd:
+                raise HTTPException(status_code=422, detail="job description is required")
+            if not _is_meaningful(clean_jd, min_alnum=_MIN_JD_ALNUM, min_distinct=_MIN_JD_DISTINCT):
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "job description has too little usable content "
+                        "once unsupported text is removed"
+                    ),
+                )
+    # Optional job description that cleaned to nothing: treat as not provided.
+    return clean_resume, clean_jd or None, clean_feedback or None
 
 
 async def run_tool_pipeline(
@@ -64,12 +129,17 @@ async def run_tool_pipeline(
     if current_user is not None:
         # Invalid or cross-owner revision lineage is request validation, not a
         # started tool run. Keep it outside the failure telemetry boundary.
-        require_valid_parent_run(
+        await run_in_threadpool(
+            require_valid_parent_run,
             db,
             current_user=current_user,
             tool_name=tool_name,
             parent_run_id=parent_run_id,
         )
+    # Likewise unusable input (nothing meaningful once sanitized) is a 422, not a run.
+    clean_resume, clean_jd, clean_feedback = _clean_inputs(
+        tool_name, resume_text, job_description, feedback
+    )
 
     started_at = perf_counter()
     try:
@@ -78,9 +148,9 @@ async def run_tool_pipeline(
             service_fn=service_fn,
             service_kwargs=service_kwargs,
             label_fn=label_fn,
-            resume_text=resume_text,
-            job_description=job_description,
-            feedback=feedback,
+            resume_text=clean_resume,
+            job_description=clean_jd,
+            feedback=clean_feedback,
             parent_run_id=parent_run_id,
             workspace_id=workspace_id,
             linked_context_ids=linked_context_ids,
@@ -130,10 +200,8 @@ async def _run_tool_pipeline_after_validation(
         linked_context_count=len(linked_ids),
     )
 
-    # Sanitize
-    clean_resume = sanitize_user_input(resume_text)
-    clean_jd = sanitize_user_input(job_description) if job_description else None
-    clean_feedback = sanitize_user_input(feedback) if feedback else None
+    # Inputs arrive already sanitized and validated by run_tool_pipeline.
+    clean_resume, clean_jd, clean_feedback = resume_text, job_description, feedback
 
     # Update service_kwargs with sanitized values
     if "resume_text" in service_kwargs:
@@ -150,21 +218,34 @@ async def _run_tool_pipeline_after_validation(
     # payload, so tools behave exactly as with inline inputs until the user
     # confirms evidence.
     profile_version: str | None = None
+    user_scope = "guest"
     if current_user is not None:
-        evidence_payload, profile_version = load_profile_for_injection(db, current_user.id)
+        user_scope = current_user.id
+        # Blocking DB read, off the event loop. It also ends the read
+        # transaction (and the auth lookup before it) so the pooled connection
+        # is not pinned for the whole model call.
+        evidence_payload, profile_version = await run_in_threadpool(
+            _load_profile_and_release_connection, db, user_scope
+        )
         if not evidence_payload.is_empty() and _accepts_evidence_profile(service_fn):
             service_kwargs["evidence_profile"] = evidence_payload
 
     # Cache check — scope by user_id so authenticated users never see another user's
     # cached result (defense-in-depth: tools are deterministic from inputs, but mixing
     # cache scopes across accounts complicates audit and personalization later).
+    #
+    # Feedback and Re-generate (a parent run) both ask for a fresh generation,
+    # so neither reads or writes the cache.
     cached = None
     content_hash = None
-    if settings.RESULT_CACHE_ENABLED and not clean_feedback:
+    # A guest has no run lineage to re-generate from, so a parent id is ignored
+    # (not honoured as a cache bypass) for them.
+    regenerating = current_user is not None and bool(parent_run_id)
+    if settings.RESULT_CACHE_ENABLED and not clean_feedback and not regenerating:
         hash_kwargs: dict[str, str] = {}
         if cache_extra_keys:
             hash_kwargs.update(cache_extra_keys)
-        hash_kwargs["user_scope"] = current_user.id if current_user else "guest"
+        hash_kwargs["user_scope"] = user_scope
         # A per-router `cache_extra_keys={"model": settings.LLM_MODEL}` only
         # busts the cache on a model *string* change. It cannot by itself
         # distinguish providers that can share a model string (google vs.
@@ -190,16 +271,15 @@ async def _run_tool_pipeline_after_validation(
     if cached is not None:
         result = {**cached}
     else:
-        result = await service_fn(**service_kwargs)
-        # A heuristic-only fallback must not be cached, or one LLM outage would
-        # keep serving the degraded answer for the whole TTL.
-        if content_hash is not None and not _result_degraded.get():
-            try:
-                set_cached_result(content_hash, result)
-            except Exception:  # noqa: BLE001
-                logger.warning("Result cache write failed; result is not cached", exc_info=True)
+        result = await _generate_once(
+            content_hash=content_hash,
+            service_fn=service_fn,
+            service_kwargs=service_kwargs,
+            anonymous=current_user is None,
+        )
 
-    run = persist_tool_run(
+    run_id = await run_in_threadpool(
+        _persist_run,
         db,
         current_user=current_user if persist_run else None,
         tool_name=tool_name,
@@ -214,7 +294,7 @@ async def _run_tool_pipeline_after_validation(
     response = build_tool_response(
         result,
         tool_name=tool_name,
-        history_id=run.id if run else None,
+        history_id=run_id,
         access_mode=access_mode,
     )
     if not persist_run and current_user is not None:
@@ -225,10 +305,94 @@ async def _run_tool_pipeline_after_validation(
         tool_name=tool_name,
         access_mode=access_mode,
         duration_ms=completed_duration_ms,
-        saved=run is not None,
+        saved=run_id is not None,
     )
 
     return response
+
+
+def _load_profile_and_release_connection(db: Session, user_id: str):
+    """Read the Evidence Profile, then give the connection back to the pool.
+
+    The auth lookup and this read leave a transaction open that would otherwise
+    pin one pooled connection for the whole (seconds-long) model call. A session
+    with unflushed changes is left alone: ending its transaction would discard
+    them.
+    """
+    payload = load_profile_for_injection(db, user_id)
+    if not (db.new or db.dirty or db.deleted):
+        db.rollback()
+    return payload
+
+
+def _persist_run(db: Session, **kwargs: Any) -> str | None:
+    run = persist_tool_run(db, **kwargs)
+    return run.id if run else None
+
+
+class _LeaderAborted(Exception):
+    """The request that was generating this result was cancelled; waiters retry."""
+
+
+# content hash -> the future of the generation currently running for it.
+_inflight: dict[str, asyncio.Future[dict[str, Any]]] = {}
+
+
+async def _generate_once(
+    *,
+    content_hash: str | None,
+    service_fn: Callable[..., Awaitable[dict[str, Any]]],
+    service_kwargs: dict[str, Any],
+    anonymous: bool,
+) -> dict[str, Any]:
+    """Run the service, sharing one model call between identical in-flight requests.
+
+    Single-flight is keyed on the cache key, so a double-click (or two tabs) is
+    one provider call and one bill. Requests that bypass the cache (Re-generate,
+    feedback) have no key and always generate.
+    """
+    if content_hash is None:
+        return await _call_service(service_fn, service_kwargs, anonymous)
+
+    while True:
+        pending = _inflight.get(content_hash)
+        if pending is None:
+            break
+        try:
+            return {**(await asyncio.shield(pending))}
+        except _LeaderAborted:
+            continue
+
+    future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+    _inflight[content_hash] = future
+    try:
+        result = await _call_service(service_fn, service_kwargs, anonymous)
+        # A heuristic-only fallback must not be cached, or one LLM outage would
+        # keep serving the degraded answer for the whole TTL.
+        if not _result_degraded.get():
+            try:
+                set_cached_result(content_hash, result)
+            except Exception:  # noqa: BLE001
+                logger.warning("Result cache write failed; result is not cached", exc_info=True)
+        future.set_result(result)
+        return result
+    except BaseException as exc:
+        future.set_exception(_LeaderAborted() if isinstance(exc, asyncio.CancelledError) else exc)
+        future.exception()  # mark retrieved: there may be no waiter to raise it
+        raise
+    finally:
+        if _inflight.get(content_hash) is future:
+            del _inflight[content_hash]
+
+
+async def _call_service(
+    service_fn: Callable[..., Awaitable[dict[str, Any]]],
+    service_kwargs: dict[str, Any],
+    anonymous: bool,
+) -> dict[str, Any]:
+    if anonymous:
+        reserve_anonymous_model_call()
+    return await service_fn(**service_kwargs)
 
 
 def _accepts_evidence_profile(fn: Callable[..., Any]) -> bool:

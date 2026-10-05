@@ -22,6 +22,7 @@ export function JobMatchToolPage() {
         <ToolPageLoading toolId="job-match" mutationDone={!mutation.isPending} />
       ) : (
         <ToolForm
+          toolId="job-match"
           label={`${tool.label} input form`}
           onSubmit={handleSubmit}
           submitLabel={tool.entryPointLabel}

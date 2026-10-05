@@ -1,6 +1,26 @@
+import { Briefcase, ClipboardCheck, FileText } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { formatRunDate } from '#/components/dashboard/RunRow'
-import { tools } from '#/lib/tools/registry'
+import type { Tone } from '#/components/kit/tone'
+import { toolList, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
+
+/** Tool ids the backend records that the registry does not list (application drafts, the reviewer, CV tailoring). */
+const EXTRA_TOOL_VISUALS: Record<string, { icon: LucideIcon }> = {
+  'application-drafts': { icon: Briefcase },
+  'application-reviewer': { icon: ClipboardCheck },
+  'cv-tailoring': { icon: FileText },
+}
+
+/** Every tool id the run filter offers: the six tools, then the backend-only kinds, so no run is unreachable. */
+export const ADMIN_TOOL_IDS: string[] = [...toolList.map((tool) => tool.id), ...Object.keys(EXTRA_TOOL_VISUALS)]
+
+/** The tile of a tool: its own colour and icon, or a stone tile for the backend-only kinds (colour is never invented for them). */
+export function toolVisual(id: string): { tone: Tone; icon: LucideIcon } {
+  const known = tools[id as ToolId]
+  if (known) return { tone: known.tone, icon: known.icon }
+  return { tone: 'stone', icon: EXTRA_TOOL_VISUALS[id]?.icon ?? FileText }
+}
 
 /** Registry name for a tool id; backend-only ids fall back to "Application drafts". */
 export function toolLabel(id: string): string {

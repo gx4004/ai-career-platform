@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CalendarClock, Check, Copy, ExternalLink, Trash2 } from 'lucide-react'
 import {
+  Badge,
   Button,
   Card,
   CardActions,
@@ -14,6 +15,7 @@ import {
   DateField,
   EmptyState,
   Field,
+  FitStamp,
   Input,
   KeyValue,
   List,
@@ -36,6 +38,8 @@ import {
 } from '#/lib/api/client'
 import type { ApplicationDetail, ApplicationEvent, ApplicationStatus, ApplicationUpdate } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
+import { ApplicationPanel } from './ApplicationPanel'
+import { dueText, daysUntil, SOON_DAYS } from './deadlines'
 import { STATUS_LABELS, formatDate, timeAgo } from './stages'
 
 type Props = { application: ApplicationDetail }
@@ -58,7 +62,7 @@ export function DocumentsPanel({ application }: Props) {
   const { selected_materials: selected, available_materials: available, drafts } = application
   const draftCover = drafts?.cover_letter
   return (
-    <Section title="What you're sending" description="Pick the version of each document that goes with this application.">
+    <ApplicationPanel title="What you're sending" description="Pick the version of each document that goes with this application.">
       <Stack gap={4}>
         <MaterialRow
           label="CV version" field="cv_variant_id" value={selected.cv_variant?.id ?? ''} pending={materials.isPending}
@@ -100,7 +104,7 @@ export function DocumentsPanel({ application }: Props) {
         </p>
         {materials.isError ? <Notice tone="danger">Your choice couldn't be saved. Try again.</Notice> : null}
       </Stack>
-    </Section>
+    </ApplicationPanel>
   )
 }
 
@@ -190,7 +194,7 @@ export function JobPanel({ application }: Props) {
   const listing = application.listing
   const long = (listing?.description.length ?? 0) > 700
   return (
-    <Section
+    <ApplicationPanel
       title="Job description"
       description={listing ? `${listing.title} at ${listing.company} · saved ${formatDate(listing.retrieved_at)}` : undefined}
       actions={listing?.source_url ? (
@@ -219,7 +223,7 @@ export function JobPanel({ application }: Props) {
           description="Save the job from Job Discovery or import it in Job Match to keep the description here."
         />
       )}
-    </Section>
+    </ApplicationPanel>
   )
 }
 
@@ -236,7 +240,7 @@ export function TasksPanel({ application }: Props) {
   const open = application.tasks.filter((task) => !task.completed)
   const done = application.tasks.filter((task) => task.completed)
   return (
-    <Section title="Tasks">
+    <ApplicationPanel title="Tasks">
       <Stack gap={3}>
         <form
           className="camp-task-form"
@@ -268,7 +272,12 @@ export function TasksPanel({ application }: Props) {
                 </RowBody>
                 {task.deadline ? (
                   <RowMeta>
-                    <span className="camp-due"><CalendarClock aria-hidden="true" />{formatDate(task.deadline)}</span>
+                    <span className="camp-next">
+                      <span className="camp-due"><CalendarClock aria-hidden="true" />{formatDate(task.deadline)}</span>
+                      {!task.completed && daysUntil(task.deadline) <= SOON_DAYS ? (
+                        <Badge size="sm" tone="rose">{dueText(daysUntil(task.deadline))}</Badge>
+                      ) : null}
+                    </span>
                   </RowMeta>
                 ) : null}
                 <RowActions>
@@ -291,7 +300,7 @@ export function TasksPanel({ application }: Props) {
         )}
         {write.isError ? <Notice tone="danger">That change couldn't be saved. Try again.</Notice> : null}
       </Stack>
-    </Section>
+    </ApplicationPanel>
   )
 }
 
@@ -387,18 +396,83 @@ const OUTCOMES: Partial<Record<ApplicationStatus, string>> = {
   withdrawn: 'You withdrew',
 }
 
+/** The date as the date field wants it (YYYY-MM-DD, local). */
+function toDateInput(iso: string | null) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+// What the date means depends on where the application is. Applied ones have no date to set.
+const DEADLINE_LABELS: Partial<Record<ApplicationStatus, string>> = { saved: 'Apply by', offer: 'Reply by' }
+
+/**
+ * The application's own date: when to apply by (Saved) or when to reply (Offer). The board's "Apply by"
+ * line, its rose due chips and the dashboard's Needs action all read it; this is the one place to set it.
+ */
+function DeadlineEditor({ application }: Props) {
+  const save = useApplicationUpdate(application.id)
+  const label = DEADLINE_LABELS[application.status] ?? 'Deadline'
+  const saved = toDateInput(application.deadline)
+  const [value, setValue] = useState(saved)
+  const days = application.deadline ? daysUntil(application.deadline) : null
+  const urgentDays = days !== null && days <= SOON_DAYS && application.status in DEADLINE_LABELS ? days : null
+  const changed = value !== saved
+  // Midday keeps a date-only choice on the same calendar day in any timezone.
+  const commit = (next: string) => save.mutate({ deadline: next ? new Date(`${next}T12:00:00`).toISOString() : null })
+  return (
+    <Field label={label} id="application-deadline">
+      <div className="camp-deadline">
+        <DateField value={value} onValueChange={setValue} aria-describedby="application-deadline-state" />
+        <div className="camp-deadline__actions">
+          {changed ? (
+            <Button type="button" size="sm" variant="secondary" loading={save.isPending} disabled={!value} onClick={() => commit(value)}>
+              Save date
+            </Button>
+          ) : null}
+          {saved && !changed ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              loading={save.isPending}
+              onClick={() => {
+                setValue('')
+                commit('')
+              }}
+            >
+              Clear
+            </Button>
+          ) : null}
+          {urgentDays !== null ? (
+            <Badge tone="rose" size="sm">{dueText(urgentDays, application.status === 'offer' ? 'Reply' : undefined)}</Badge>
+          ) : null}
+        </div>
+        <p id="application-deadline-state" className={save.isError ? 'camp-note' : 'kit-sr-only'} role="status">
+          {save.isError ? "The date couldn't be saved. Try again." : save.isSuccess ? 'Date saved.' : ''}
+        </p>
+      </div>
+    </Field>
+  )
+}
+
 export function FactsPanel({ application }: Props) {
   const { listing } = application
   const rows: Array<{ label: string; value: ReactNode }> = [
-    ...(application.match_score !== null ? [{ label: 'Skills fit', value: `${application.match_score}% when saved` }] : []),
+    ...(application.match_score !== null
+      ? [{ label: 'Skills fit', value: <span className="camp-fit"><FitStamp value={application.match_score} size="sm" /> when saved</span> }]
+      : []),
     ...(OUTCOMES[application.status] ? [{ label: 'Outcome', value: OUTCOMES[application.status] }] : []),
-    ...(application.deadline && !application.applied_at ? [{ label: 'Apply by', value: formatDate(application.deadline) }] : []),
     ...(listing ? [{ label: 'Saved', value: formatDate(listing.retrieved_at) }] : []),
     { label: 'Last activity', value: timeAgo(application.last_activity_at ?? application.updated_at) },
   ]
+  // Only Saved and Offer have a date to set; any other stage shows one that is already there.
+  const showDeadline = application.status in DEADLINE_LABELS || (application.deadline && !application.applied_at)
   return (
-    <Section title="Details">
+    <ApplicationPanel title="Details">
       <KeyValue items={rows} labelWidth="6.5rem" />
-    </Section>
+      {showDeadline ? <DeadlineEditor key={application.deadline ?? 'none'} application={application} /> : null}
+    </ApplicationPanel>
   )
 }

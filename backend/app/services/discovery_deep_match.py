@@ -10,11 +10,13 @@ one shown.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.cv_document import CvDocument, CvVariant
+from app.models.cv_document import CvDocument
 from app.models.discovery_personalization import DiscoveryDeepMatchLink
 from app.models.tool_run import ToolRun
 from app.models.user import User
@@ -74,6 +76,28 @@ def linked_deep_match(db: Session, user_id: str, listing_id: str) -> DiscoveryDe
     )
 
 
+def _aware(moment: datetime) -> datetime:
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def newest_cv_text(db: Session, user_id: str) -> str:
+    """The text of the owner's newest CV, edits included; empty when they have none.
+
+    A CV is the live document (what the owner last edited) or a variant snapshot
+    of it; whichever was written last wins, and one with no text is skipped, so a
+    document started blank is not "a CV" until it has content.
+    """
+    candidates: list[tuple[datetime, object]] = []
+    for document in db.query(CvDocument).filter(CvDocument.user_id == user_id):
+        candidates.append((_aware(document.updated_at), document.sections))
+        candidates.extend((_aware(variant.created_at), variant.sections) for variant in document.variants)
+    for _written, sections in sorted(candidates, key=lambda item: item[0], reverse=True):
+        text = cv_variant_text(sections).strip()
+        if text:
+            return text
+    return ""
+
+
 async def deep_match(db: Session, user: User, listing_id: str) -> DiscoveryDeepMatch:
     """Run Job Match for a visible listing, or return the run already linked to it."""
     row = visible_listing(db, user.id, listing_id)
@@ -83,14 +107,7 @@ async def deep_match(db: Session, user: User, listing_id: str) -> DiscoveryDeepM
     if existing is not None:
         return existing
 
-    variant = (
-        db.query(CvVariant)
-        .join(CvDocument, CvVariant.document_id == CvDocument.id)
-        .filter(CvDocument.user_id == user.id)
-        .order_by(CvVariant.created_at.desc())
-        .first()
-    )
-    cv_text = cv_variant_text(variant.sections).strip() if variant else ""
+    cv_text = newest_cv_text(db, user.id)
     if not cv_text:
         raise NoCvError
 

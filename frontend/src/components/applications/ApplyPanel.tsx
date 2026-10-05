@@ -1,20 +1,24 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2, X } from 'lucide-react'
-import { Badge, Button, Cluster, Disclosure, Field, KeyValue, Lead, Notice, Section, Stack, Textarea } from '#/components/kit'
+import { Link } from '@tanstack/react-router'
+import { Badge, Button, Cluster, Disclosure, Field, KeyValue, Lead, MetaRow, Notice, ScoreSeal, Stack, Textarea } from '#/components/kit'
 import {
   autofillApplication,
   cancelAutofill,
+  createApplicationTask,
+  getApplicationDetails,
   getAutofillStatus,
   markApplicationApplied,
   prepareApplication,
   saveApplicationAnswers,
   updateApplication,
 } from '#/lib/api/client'
-import type { ApplicationDetail, AutofillRunStatus } from '#/lib/api/schemas'
+import type { ApplicationDetail, ApplicationDetails, AutofillRunStatus } from '#/lib/api/schemas'
 import { isAutopilotExperimentEnabled } from '#/lib/flags/featureFlags'
-import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
-import { applyLink, formatDate } from './stages'
+import { APPLICATION_DETAILS_QUERY_KEY, applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
+import { ApplicationPanel } from './ApplicationPanel'
+import { applyLink, formatDate, roleOnly, applicationTitle } from './stages'
 
 function errorMessage(error: unknown, fallback: string) {
   // The server's 409 details are written for the owner ("Answer the open questions…").
@@ -50,24 +54,38 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
 
   if (application.applied_at) {
     return (
-      <Section title={`You applied on ${formatDate(application.applied_at)}`}>
-        <Stack gap={3}>
-          <Lead>What you sent is saved below, exactly as it was when you marked it applied.</Lead>
-          {application.no_reply_suggested ? (
-            <Notice
-              action={
-                <Button size="sm" variant="secondary" loading={noReply.isPending} disabled={noReply.isPending} onClick={() => noReply.mutate()}>
-                  Mark no reply
-                </Button>
-              }
-            >
-              No reply yet?
-            </Notice>
-          ) : null}
-          {failed ? <Notice tone="danger">{errorMessage(failed.error, "That didn't save. Try again.")}</Notice> : null}
-          {application.snapshot ? <SentApplication content={application.snapshot.content} /> : null}
-        </Stack>
-      </Section>
+      <ApplicationPanel title={`You applied on ${formatDate(application.applied_at)}`} tone="mint" className="camp-applied">
+        <div className="camp-applied__layout">
+          {/* The big moment of the loop: the seal stamps in once, right after "Mark as applied", never on a revisit. */}
+          <ScoreSeal
+            className="camp-applied__seal"
+            value="✓"
+            unit="Applied"
+            size="sm"
+            tone="lilac"
+            label="Application status"
+            reveal={applied.isSuccess ? 'stamp' : 'none'}
+          />
+          <Stack gap={3}>
+            <Lead>What you sent is saved below, exactly as it was when you marked it applied.</Lead>
+            {application.snapshot ? <SentSummary content={application.snapshot.content} /> : null}
+            {application.no_reply_suggested ? (
+              <Notice
+                action={
+                  <Button size="sm" variant="secondary" loading={noReply.isPending} disabled={noReply.isPending} onClick={() => noReply.mutate()}>
+                    Mark no reply
+                  </Button>
+                }
+              >
+                No reply yet?
+              </Notice>
+            ) : null}
+            {failed ? <Notice tone="danger">{errorMessage(failed.error, "That didn't save. Try again.")}</Notice> : null}
+            <NextSteps application={application} />
+            {application.snapshot ? <SentApplication content={application.snapshot.content} /> : null}
+          </Stack>
+        </div>
+      </ApplicationPanel>
     )
   }
 
@@ -85,8 +103,10 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
   // One primary action: prepare, then answer, then apply on the employer's site.
   const primary = !prepared ? 'prepare' : unanswered.length ? 'answer' : link ? 'apply' : 'applied'
 
+  // Lemon while it waits on the owner's answers, mint once it is ready: colour by meaning.
+  const tone = prepared ? (unanswered.length ? 'lemon' : 'mint') : undefined
   return (
-    <Section title={title}>
+    <ApplicationPanel title={title} tone={tone}>
       <Stack gap={4}>
         <Lead>{description}</Lead>
         {application.open_questions.length ? (
@@ -139,8 +159,25 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
           <AutofillBlock applicationId={application.id} blocked={unanswered.length > 0} />
         ) : null}
       </Stack>
-    </Section>
+    </ApplicationPanel>
   )
+}
+
+/**
+ * The standing answer (Account, "Your standing answers") that fits a mandatory-stop question, or null.
+ * Matched on the server's category, never on guesses about the wording beyond visa vs authorization.
+ */
+function standingAnswer(question: { question: string; category: string }, details: ApplicationDetails | undefined): string | null {
+  if (!details) return null
+  const pick = (value: string | undefined) => (value && value.trim() ? value.trim() : null)
+  if (question.category === 'salary') return pick(details.salary_expectation)
+  if (question.category === 'relocation') return pick(details.relocation)
+  if (question.category === 'work_authorization') {
+    return /visa|sponsor/i.test(question.question)
+      ? pick(details.visa_sponsorship) ?? pick(details.work_authorization)
+      : pick(details.work_authorization)
+  }
+  return null
 }
 
 function QuestionsForm({
@@ -155,9 +192,13 @@ function QuestionsForm({
   onSave: (answers: Record<string, string>) => void
 }) {
   const [draft, setDraft] = useState<Record<string, string>>(() => ({ ...application.answers }))
+  // Typed once on Account; offered here as an editable suggestion, never filled in without a click.
+  const standing = useQuery({ queryKey: APPLICATION_DETAILS_QUERY_KEY, queryFn: getApplicationDetails, retry: false })
   const changed = application.open_questions.some(
     (question) => (draft[question.key] ?? '').trim() !== (application.answers[question.key] ?? ''),
   )
+  const fullMap = (values: Record<string, string>) =>
+    Object.fromEntries(application.open_questions.map((question) => [question.key, (values[question.key] ?? '').trim()]))
   return (
     <form
       className="camp-questions"
@@ -165,30 +206,54 @@ function QuestionsForm({
       onSubmit={(event) => {
         event.preventDefault()
         // The full map: a blank answer removes it on the server.
-        onSave(Object.fromEntries(application.open_questions.map((question) => [question.key, (draft[question.key] ?? '').trim()])))
+        onSave(fullMap(draft))
       }}
     >
-      {application.open_questions.map((question) => (
-        <Field
-          key={question.key}
-          id={`answer-${question.key}`}
-          label={
-            <>
-              {question.question}
-              {question.answered ? <CircleCheck className="camp-answered" aria-hidden="true" /> : null}
-            </>
-          }
-        >
-          <Textarea
-            autosize
-            rows={2}
-            maxRows={10}
-            maxLength={5000}
-            value={draft[question.key] ?? ''}
-            onChange={(event) => setDraft((current) => ({ ...current, [question.key]: event.target.value }))}
-          />
-        </Field>
-      ))}
+      {application.open_questions.map((question) => {
+        const suggestion = (draft[question.key] ?? '').trim() ? null : standingAnswer(question, standing.data)
+        return (
+          <Field
+            key={question.key}
+            id={`answer-${question.key}`}
+            label={
+              <>
+                {question.question}
+                {question.answered ? <CircleCheck className="camp-answered" aria-hidden="true" /> : null}
+              </>
+            }
+          >
+            <Textarea
+              autosize
+              rows={2}
+              maxRows={10}
+              maxLength={5000}
+              value={draft[question.key] ?? ''}
+              onChange={(event) => setDraft((current) => ({ ...current, [question.key]: event.target.value }))}
+            />
+            {suggestion ? (
+              <div className="camp-suggest">
+                <p className="camp-note">
+                  <Badge size="sm" tone="white">From your details</Badge> {suggestion}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={saving}
+                  aria-label={`Use your standing answer for: ${question.question}`}
+                  onClick={() => {
+                    const next = { ...draft, [question.key]: suggestion }
+                    setDraft(next)
+                    onSave(fullMap(next))
+                  }}
+                >
+                  Use this answer
+                </Button>
+              </div>
+            ) : null}
+          </Field>
+        )
+      })}
       <div>
         <Button type="submit" variant={primary ? 'primary' : 'secondary'} size="sm" disabled={saving || !changed}>
           {saving ? 'Saving…' : 'Save answers'}
@@ -249,6 +314,71 @@ function AutofillBlock({ applicationId, blocked }: { applicationId: string; bloc
           <p>Nothing was submitted. Check the browser window and press submit when you're happy.</p>
         </Notice>
       ) : null}
+    </Stack>
+  )
+}
+
+/** What was frozen when it was marked applied, at a glance: the job, the CV, the letter and how many answers. */
+function SentSummary({ content }: { content: Record<string, unknown> }) {
+  const listing = content.listing as { title?: string; company?: string } | null
+  const cv = content.cv_variant as { name?: string } | null
+  const cover = content.cover_letter as { source?: string } | null
+  const answers = (content.answers as unknown[] | undefined) ?? []
+  const facts = [
+    listing?.title ? `Job: ${[listing.title, listing.company].filter(Boolean).join(', ')}` : null,
+    `CV: ${cv?.name || 'none chosen'}`,
+    `Cover letter: ${cover ? (cover.source === 'prepared' ? 'prepared draft' : 'your own') : 'none'}`,
+    answers.length ? `${answers.length} ${answers.length === 1 ? 'answer' : 'answers'}` : null,
+  ].filter((fact): fact is string => fact !== null)
+  return (
+    <MetaRow aria-label="What was sent">
+      {facts.map((fact) => (
+        <span key={fact}>{fact}</span>
+      ))}
+    </MetaRow>
+  )
+}
+
+const WEEK_MS = 7 * 86_400_000
+
+/** After applying: the two moves that matter next, a follow-up in a week and interview prep. */
+function NextSteps({ application }: { application: ApplicationDetail }) {
+  const queryClient = useQueryClient()
+  const waiting = application.status === 'applied' || application.status === 'no_reply'
+  const role = roleOnly(applicationTitle(application), application.company)
+  const followUp = application.tasks.find((task) => /follow.?up/i.test(task.title) && !task.completed)
+  const dueDate = new Date(Date.now() + WEEK_MS)
+  dueDate.setHours(12, 0, 0, 0)
+  const add = useMutation({
+    mutationFn: () => createApplicationTask(application.id, { title: `Follow up on ${role}`, deadline: dueDate.toISOString() }),
+    onSuccess: () => invalidateApplications(queryClient),
+  })
+  if (!waiting) return null
+  const interview = application.selected_materials.interview
+  return (
+    <Stack gap={2}>
+      <p className="camp-note"><strong>What next</strong></p>
+      <Cluster gap={2}>
+        {followUp ? (
+          <p className="camp-note">
+            Follow-up task added{followUp.deadline ? ` for ${formatDate(followUp.deadline)}` : ''}.
+          </p>
+        ) : (
+          <Button type="button" size="sm" variant="secondary" loading={add.isPending} onClick={() => add.mutate()}>
+            Follow up in a week ({formatDate(dueDate.toISOString())})
+          </Button>
+        )}
+        {interview ? (
+          <Button asChild size="sm" variant="secondary">
+            <Link to="/interview/result/$historyId" params={{ historyId: interview.id }}>Open your interview prep</Link>
+          </Button>
+        ) : (
+          <Button asChild size="sm" variant="secondary">
+            <Link to="/interview">Prepare for interviews</Link>
+          </Button>
+        )}
+      </Cluster>
+      {add.isError ? <Notice tone="danger">The follow-up couldn't be added. Try again.</Notice> : null}
     </Stack>
   )
 }

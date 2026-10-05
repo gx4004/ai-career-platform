@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import { AdminUsersPage } from '#/pages/admin/admin-users-page'
 
 const getAdminUsersMock = vi.hoisted(() => vi.fn())
@@ -22,12 +23,15 @@ const user = (id: string, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
-function renderPage(items: unknown[], total = items.length) {
+function renderPage(items: unknown[], total = items.length, currentUserId?: string) {
   getAdminUsersMock.mockResolvedValue({ items, total, page: 1, page_size: 20 })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (currentUserId) client.setQueryData(['current-user'], { id: currentUserId })
   render(
     <QueryClientProvider client={client}>
-      <AdminUsersPage />
+      <ToastProvider>
+        <AdminUsersPage />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -46,24 +50,63 @@ describe('AdminUsersPage', () => {
     expect(screen.getByText('2 users')).toBeTruthy()
   })
 
-  it('badges only the admins; members are plain text', async () => {
+  it('badges the role of every user: Admin in tangerine, Member in stone', async () => {
     renderPage([user('u-1'), user('u-2', { is_admin: true })])
     await screen.findByText('u-1@example.com')
     expect(screen.getAllByText('Admin')).toHaveLength(1)
-    expect(screen.getByText('Member')).toBeTruthy()
+    expect(screen.getByText('Admin').closest('[data-tone]')?.getAttribute('data-tone')).toBe('tangerine')
+    expect(screen.getByText('Member').closest('[data-tone]')?.getAttribute('data-tone')).toBe('stone')
   })
 
-  it('promotes another user', async () => {
+  it('asks before promoting, and changes nothing when the question is cancelled', async () => {
+    renderPage([user('u-1', { full_name: 'Ada Lovelace' })])
+    fireEvent.click(await screen.findByRole('button', { name: 'Make admin' }))
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Make Ada Lovelace an admin?' }))
+    expect(setAdminStatusMock).not.toHaveBeenCalled()
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(setAdminStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('promotes another user once the question is confirmed, and says it was done', async () => {
     renderPage([user('u-1')])
     fireEvent.click(await screen.findByRole('button', { name: 'Make admin' }))
+    const dialog = within(await screen.findByRole('alertdialog'))
+    fireEvent.click(dialog.getByRole('button', { name: 'Make admin' }))
     await waitFor(() => expect(setAdminStatusMock).toHaveBeenCalledWith('u-1', true))
+    expect(await screen.findByText('u-1@example.com is now an admin')).toBeTruthy()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 
-  it('says so when a role change is refused, as the server does for your own account', async () => {
-    setAdminStatusMock.mockRejectedValue(new Error('400'))
-    renderPage([user('me', { is_admin: true })])
+  it('asks before taking admin away', async () => {
+    renderPage([user('u-1', { is_admin: true })])
     fireEvent.click(await screen.findByRole('button', { name: 'Remove admin' }))
+    expect(await screen.findByRole('alertdialog', { name: 'Remove admin from u-1@example.com?' })).toBeTruthy()
+  })
+
+  it('keeps the role button off your own row', async () => {
+    renderPage([user('me', { is_admin: true }), user('u-2')], 2, 'me')
+    await screen.findByText('me@example.com')
+    expect(screen.getByText('This is you')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /admin/i })).toHaveLength(2) // the other row's button and the filter chip
+  })
+
+  it('says so when a role change is refused', async () => {
+    setAdminStatusMock.mockRejectedValue(new Error('400'))
+    renderPage([user('u-2', { is_admin: true })])
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove admin' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove admin' }))
     expect(await screen.findByText('That role change could not be saved.')).toBeTruthy()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  })
+
+  it('narrows the loaded page to admins, and says it only looks at this page', async () => {
+    renderPage([user('u-1'), user('u-2', { is_admin: true })])
+    await screen.findByText('u-1@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Admins only' }))
+    expect(screen.queryByText('u-1@example.com')).toBeNull()
+    expect(screen.getByText('u-2@example.com')).toBeTruthy()
+    expect(screen.getByText('1 admin among the 2 users on this page')).toBeTruthy()
   })
 
   it('searches by email on submit', async () => {
@@ -81,7 +124,9 @@ describe('AdminUsersPage', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
-        <AdminUsersPage />
+        <ToastProvider>
+          <AdminUsersPage />
+        </ToastProvider>
       </QueryClientProvider>,
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))

@@ -1,9 +1,29 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoginPage } from '#/pages/login-page'
 
 const sessionStatus = vi.hoisted(() => ({ current: 'guest' as 'guest' | 'authenticated' }))
+const registerMock = vi.hoisted(() => vi.fn(async () => undefined))
+const logoutMock = vi.hoisted(() => vi.fn(async () => undefined))
+const getAuthProvidersMock = vi.hoisted(() => vi.fn())
+const pendingIntent = vi.hoisted(() => ({ current: null as null | Record<string, unknown> }))
+
+vi.mock('#/lib/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/api/client')>()),
+  getAuthProviders: getAuthProvidersMock,
+  requestPasswordReset: vi.fn(),
+}))
+vi.mock('#/lib/auth/pendingIntent', () => ({ readPendingIntent: () => pendingIntent.current }))
+
+let client = new QueryClient()
+function Wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+}
+function render(ui: ReactNode) {
+  return baseRender(ui, { wrapper: Wrapper })
+}
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -31,12 +51,21 @@ vi.mock('#/hooks/useSession', () => ({
     providers: [],
     authError: '',
     login: vi.fn(async () => undefined),
-    register: vi.fn(async () => undefined),
+    register: registerMock,
+    logout: logoutMock,
+    googleLogin: vi.fn(),
     openAuthDialog: vi.fn(),
   }),
 }))
 
 describe('LoginPage', () => {
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    getAuthProvidersMock.mockReset().mockResolvedValue({ providers: ['google'] })
+    pendingIntent.current = null
+    sessionStatus.current = 'guest'
+  })
+
   it('renders the shared auth surface under the brand, with a link home', () => {
     const { container, queryByText } = render(<LoginPage />)
 
@@ -92,7 +121,7 @@ describe('LoginPage', () => {
     expect(screen.getByRole('tab', { name: 'Sign in' })).toBeTruthy()
   })
 
-  it('puts a Google sign-in error under the tabs, above the form it concerns', () => {
+  it('puts a Google sign-in error under the tabs, above the form it concerns', async () => {
     sessionStatus.current = 'guest'
     window.history.replaceState({}, '', '/login?oauth_error=auth_failed')
     try {
@@ -101,10 +130,58 @@ describe('LoginPage', () => {
       const notice = screen.getByRole('alert')
       expect(notice.textContent).toContain('Google sign-in failed')
       expect(tabs.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      const google = screen.getByRole('button', { name: 'Sign in with Google' })
+      const google = await screen.findByRole('button', { name: 'Sign in with Google' })
       expect(notice.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     } finally {
       window.history.replaceState({}, '', '/')
     }
+  })
+
+  it('offers no Google button when the deployment has no Google', async () => {
+    getAuthProvidersMock.mockResolvedValue({ providers: [] })
+    render(<LoginPage />)
+    await waitFor(() => expect(getAuthProvidersMock).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Google/ })).toBeNull()
+  })
+
+  it('does not offer to sign up with Google: a first account is made with email', async () => {
+    render(<LoginPage />)
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Create account' }))
+    await waitFor(() => expect(getAuthProvidersMock).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Google/ })).toBeNull()
+  })
+
+  it('says where sign-in will take a visitor whose session ended', async () => {
+    pendingIntent.current = { to: '/resume/result/abc', reason: 'session-expired', createdAt: Date.now() }
+    render(<LoginPage />)
+    expect((await screen.findByTestId('auth-intent')).textContent).toContain('Your session ended')
+  })
+
+  it('names the tool a guest result will return to', async () => {
+    pendingIntent.current = { to: '/resume', reason: 'guest-demo-result', toolId: 'resume', createdAt: Date.now() }
+    render(<LoginPage />)
+    expect((await screen.findByTestId('auth-intent')).textContent).toContain('Resume Analyzer')
+  })
+
+  it('stamps a seal on the signed-in page right after an account is created, and not on a plain visit', async () => {
+    const { container, rerender } = render(<LoginPage />)
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Create account' }))
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'sufficiently-long-pass' } })
+    fireEvent.click(screen.getByRole('checkbox'))
+    sessionStatus.current = 'authenticated'
+    fireEvent.click(screen.getByRole('button', { name: 'Create free account' }))
+    await waitFor(() => expect(registerMock).toHaveBeenCalled())
+    rerender(<LoginPage />)
+    expect(await screen.findByRole('heading', { name: "You're already signed in" })).toBeTruthy()
+    expect(container.querySelector('.auth-stamp .kit-seal')).toBeTruthy()
+    expect(screen.getByText(/Your account is ready/)).toBeTruthy()
+  })
+
+  it('lets a signed-in visitor sign out from the already-signed-in page', () => {
+    sessionStatus.current = 'authenticated'
+    render(<LoginPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(logoutMock).toHaveBeenCalled()
   })
 })

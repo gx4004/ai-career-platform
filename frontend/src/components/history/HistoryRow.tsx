@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, MoreHorizontal, Pencil, Star, Trash2 } from 'lucide-react'
 import {
+  Badge,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -14,12 +15,13 @@ import {
   Row,
   RowActions,
   RowBody,
+  RowLeading,
   RowMeta,
   RowReveal,
   RowSubtitle,
   RowTitle,
+  ToolTile,
 } from '#/components/kit'
-import { formatRunDate } from '#/components/dashboard/RunRow'
 import type { ToolRunSummary } from '#/lib/api/schemas'
 import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
 import { getNextStepToolId } from '#/lib/tools/runMetadata'
@@ -27,6 +29,13 @@ import { getToolByHistoryName, toolList } from '#/lib/tools/registry'
 
 export function runLabel(item: ToolRunSummary) {
   return item.label || item.metadata.primary_recommendation_title || 'Untitled run'
+}
+
+/** The row sits under its day heading, so it only needs the time of day. */
+function formatRunTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
 type Rename = {
@@ -45,6 +54,7 @@ type Rename = {
  */
 export function HistoryRow({
   item,
+  parentLabel,
   rename,
   continuing,
   deleting,
@@ -54,6 +64,8 @@ export function HistoryRow({
   onDelete,
 }: {
   item: ToolRunSummary
+  /** The label of the run this one re-generates, when that run is on the same page. */
+  parentLabel?: string | null
   /** Set while this row is being renamed. */
   rename: Rename | null
   continuing: boolean
@@ -91,8 +103,13 @@ export function HistoryRow({
     wasRenaming.current = renaming
   }, [renaming])
 
+  const isRevision = Boolean(item.parent_run_id)
+
   return (
     <Row className="history-row">
+      <RowLeading>
+        <ToolTile size="md" tone={registryTool?.tone ?? 'stone'} icon={display.icon} />
+      </RowLeading>
       <RowBody>
         {rename ? (
           <form
@@ -137,6 +154,12 @@ export function HistoryRow({
             )}
             <RowSubtitle>
               <MetaRow>
+                {isRevision ? (
+                  <Badge tone="lilac" size="sm">
+                    Revision
+                    {parentLabel ? <span className="kit-sr-only"> of {parentLabel}</span> : null}
+                  </Badge>
+                ) : null}
                 {toolText}
                 {workspaceLabel && workspaceLabel !== label ? (
                   <span className="history-row__clamp">{`Workspace: ${workspaceLabel}`}</span>
@@ -151,8 +174,8 @@ export function HistoryRow({
       </RowBody>
       {rename ? null : (
         <RowMeta>
-          {item.is_favorite ? <Star size={12} className="history-row__star" fill="currentColor" aria-hidden /> : null}
-          <time dateTime={item.created_at}>{formatRunDate(item.created_at)}</time>
+          {item.is_favorite ? <Star size={14} className="history-row__star" fill="currentColor" aria-hidden /> : null}
+          <time dateTime={item.created_at}>{formatRunTime(item.created_at)}</time>
         </RowMeta>
       )}
       {rename ? null : (
@@ -207,7 +230,7 @@ export function HistoryRow({
           }
         >
           {nextTool ? (
-            <Button variant="ghost" size="sm" disabled={continuing} onClick={onContinue}>
+            <Button className="history-row__continue" variant="ghost" size="sm" disabled={continuing} onClick={onContinue}>
               {continuing ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
             </Button>
           ) : null}

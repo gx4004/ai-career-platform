@@ -1,22 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileUp, Trash2 } from 'lucide-react'
+import { Download, FileUp, ListChecks, Plus, Trash2, X } from 'lucide-react'
 import {
-  Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, Page, PageHeader, Section, Skeleton, Stack,
+  Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, Page, PageHeader, Panel, PanelBody,
+  PanelHeader, ScoreSeal, Section, Skeleton, Stack, Sticker, useToast,
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
   confirmEvidenceItem,
   confirmEvidenceItems,
+  createEvidenceItem,
   deleteEvidenceItem,
   deleteEvidenceProfile,
   importEvidenceFromResume,
   listEvidenceItems,
   updateEvidenceItem,
 } from '#/lib/api/client'
-import type { EvidenceItem } from '#/lib/api/schemas'
+import type { EvidenceItem, EvidenceKind } from '#/lib/api/schemas'
 import {
   KIND_SINGULAR_LABELS,
   PROVENANCE_DESCRIPTIONS,
@@ -27,9 +29,27 @@ import {
   groupItemsByKind,
 } from '#/lib/profile/evidence'
 import { EVIDENCE_QUERY_KEY, invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
+import { AddFactDialog } from '#/components/profile/AddFactDialog'
+import { useCareerDataExport } from '#/components/profile/DataControls'
 import { EditFactDialog } from '#/components/profile/EditFactDialog'
 import { FactRow } from '#/components/profile/FactRow'
 import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
+
+/** How long Save all waits before it writes, so the toast's Undo is a real undo. */
+const SAVE_ALL_UNDO_MS = 6000
+/** How long a fact that just landed (or was linked to) keeps its quiet highlight. */
+const MOMENT_MS = 3200
+
+/** Two facts say the same thing when their kind and their words match, whatever their order or case. */
+function factSignature(item: EvidenceItem): string {
+  const words = contentEntries(item.content)
+    .map((entry) => entry.value.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+  return `${item.kind}|${words.join('|')}`
+}
+
+type ImportOutcome = { found: number; skipped: number; message?: string }
 
 /** The first non-empty value: how a fact is named in buttons and menus. */
 function previewText(item: EvidenceItem): string {
@@ -68,15 +88,24 @@ function evidenceRow(item: EvidenceItem) {
 export function EvidenceProfilePage() {
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const exporter = useCareerDataExport()
   const isAuthenticated = status === 'authenticated'
   const { hasResume, resumeText } = useResumeCarry()
-  const [importNotice, setImportNotice] = useState<string | null>(null)
+  const [importOutcome, setImportOutcome] = useState<ImportOutcome | null>(null)
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<EvidenceItem | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<EvidenceItem | null>(null)
   const [purgeOpen, setPurgeOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  // Save all waits a few seconds so Undo can be honest; the ids wait here, shown as saved, until it writes.
+  const [queuedIds, setQueuedIds] = useState<string[]>([])
+  const queue = useRef<{ ids: string[]; timer: number } | null>(null)
+  const [arrivedIds, setArrivedIds] = useState<ReadonlySet<string>>(new Set())
+  const [foundId, setFoundId] = useState<string | null>(null)
 
   const itemsQuery = useQuery({
     queryKey: EVIDENCE_QUERY_KEY,
@@ -93,14 +122,39 @@ export function EvidenceProfilePage() {
   }
 
   // Import stores every extracted fact as a suggestion; nothing is trusted
-  // until the owner saves it (D-062).
+  // until the owner saves it (D-062). A fact the profile already holds is not suggested twice: the
+  // API has no de-duplication yet, so the copies it just made are removed here.
   const importMutation = useMutation({
     mutationFn: () => importEvidenceFromResume(resumeText),
     onSuccess: async ({ items: imported }) => {
-      setImportNotice(
-        imported.length === 0
-          ? 'We could not find any facts in your CV to suggest.'
-          : `Added ${imported.length} ${imported.length === 1 ? 'suggestion' : 'suggestions'} to review.`,
+      const known = queryClient.getQueryData<EvidenceItem[]>(EVIDENCE_QUERY_KEY) ?? []
+      const knownIds = new Set(known.map((item) => item.id))
+      const seen = new Set(known.map(factSignature))
+      const fresh: EvidenceItem[] = []
+      const duplicates: EvidenceItem[] = []
+      for (const item of imported) {
+        const signature = factSignature(item)
+        if (knownIds.has(item.id) || !seen.has(signature)) {
+          seen.add(signature)
+          fresh.push(item)
+        } else {
+          duplicates.push(item)
+        }
+      }
+      if (duplicates.length > 0) {
+        await Promise.allSettled(duplicates.map((item) => deleteEvidenceItem(item.id)))
+      }
+      setImportOutcome(
+        fresh.length > 0
+          ? { found: fresh.length, skipped: duplicates.length }
+          : {
+              found: 0,
+              skipped: duplicates.length,
+              message:
+                imported.length === 0
+                  ? 'We could not find any facts in your CV to suggest.'
+                  : 'Everything in your CV is already on your profile.',
+            },
       )
       await queryClient.invalidateQueries({ queryKey: EVIDENCE_QUERY_KEY })
     },
@@ -118,6 +172,7 @@ export function EvidenceProfilePage() {
     mutationFn: (ids: string[]) => confirmEvidenceItems(ids),
     onSuccess: invalidateProfile,
     onError: (error) => reportError(error, 'Could not save every suggestion.'),
+    onSettled: () => setQueuedIds([]),
   })
 
   // Dismissing a suggestion deletes it; no trace is kept.
@@ -140,6 +195,20 @@ export function EvidenceProfilePage() {
       setEditError(error instanceof Error ? error.message : 'Could not save your changes.'),
   })
 
+  // A fact typed by hand is `user-entered`, which the API stores as saved.
+  const addMutation = useMutation({
+    mutationFn: ({ kind, content }: { kind: EvidenceKind; content: Record<string, string> }) =>
+      createEvidenceItem({ kind, content, provenance: 'user-entered' }),
+    onSuccess: async (created) => {
+      setAddOpen(false)
+      setAddError(null)
+      await invalidateProfile()
+      setFoundId(created.id)
+      toast({ tone: 'success', title: 'Saved to your profile' })
+    },
+    onError: (error) => setAddError(error instanceof Error ? error.message : 'Could not save the fact.'),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteEvidenceItem(id),
     onSuccess: invalidateProfile,
@@ -154,7 +223,60 @@ export function EvidenceProfilePage() {
     onSettled: () => setPurgeOpen(false),
   })
 
-  const items = itemsQuery.data ?? []
+  // Leaving the page (or closing the tab) with a Save all still waiting writes it now: the owner asked for it.
+  const flushQueue = useCallback(() => {
+    const waiting = queue.current
+    if (!waiting) return
+    window.clearTimeout(waiting.timer)
+    queue.current = null
+    confirmEvidenceItems(waiting.ids)
+      .then(() => invalidateEvidenceCaches(queryClient, { rankingMayChange: true }))
+      .catch(() => {})
+  }, [queryClient])
+
+  useEffect(() => {
+    window.addEventListener('pagehide', flushQueue)
+    return () => {
+      window.removeEventListener('pagehide', flushQueue)
+      flushQueue()
+    }
+  }, [flushQueue])
+
+  function saveAll(newIds: string[]) {
+    // A second Save all inside the window joins the first batch instead of replacing it.
+    const ids = [...new Set([...(queue.current?.ids ?? []), ...newIds])]
+    if (queue.current) window.clearTimeout(queue.current.timer)
+    const waiting = { ids, timer: 0 }
+    const write = () => {
+      queue.current = null
+      saveAllMutation.mutate(ids)
+    }
+    waiting.timer = window.setTimeout(write, SAVE_ALL_UNDO_MS)
+    queue.current = waiting
+    setQueuedIds(ids)
+    toast({
+      id: 'profile-save-all',
+      tone: 'success',
+      title: `Saved ${ids.length} ${ids.length === 1 ? 'fact' : 'facts'}`,
+      duration: SAVE_ALL_UNDO_MS,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          if (queue.current) window.clearTimeout(queue.current.timer)
+          queue.current = null
+          setQueuedIds([])
+        },
+      },
+    })
+  }
+
+  // The list as the owner sees it: facts waiting in a Save all already read as saved.
+  const items = useMemo(() => {
+    const data = itemsQuery.data ?? []
+    if (queuedIds.length === 0) return data
+    const queued = new Set(queuedIds)
+    return data.map((item) => (queued.has(item.id) ? { ...item, confirmation_state: 'confirmed' as const } : item))
+  }, [itemsQuery.data, queuedIds])
   const counts = useMemo(() => countByState(items), [items])
   // Suggestions are listed once, here; the kind groups show saved facts only.
   const suggestions = useMemo(
@@ -166,6 +288,49 @@ export function EvidenceProfilePage() {
     [items],
   )
   const canImport = hasResume && resumeText.length >= 50
+
+  // A fact that newly appears among the saved ones lands with a short flourish (saved, added, completed).
+  const savedIds = useMemo(
+    () => new Set(items.filter((item) => item.confirmation_state === 'confirmed').map((item) => item.id)),
+    [items],
+  )
+  const previousSaved = useRef<ReadonlySet<string> | null>(null)
+  useEffect(() => {
+    if (!itemsQuery.data) return
+    const before = previousSaved.current
+    previousSaved.current = savedIds
+    if (!before) return
+    const landed = [...savedIds].filter((id) => !before.has(id))
+    if (landed.length === 0) return
+    setArrivedIds(new Set(landed))
+    const timer = window.setTimeout(() => setArrivedIds(new Set()), MOMENT_MS)
+    return () => window.clearTimeout(timer)
+  }, [savedIds, itemsQuery.data])
+
+  // "Show me": scroll to the fact a link pointed at, focus it, and let go of the highlight shortly after.
+  // The row may not exist until the list refetches, so this waits for it once, then never moves focus again.
+  const focusedFoundId = useRef<string | null>(null)
+  useEffect(() => {
+    if (!foundId) {
+      focusedFoundId.current = null
+      return
+    }
+    if (focusedFoundId.current === foundId) return
+    const row = document.getElementById(`fact-${foundId}`)
+    if (!row) return
+    focusedFoundId.current = foundId
+    row.scrollIntoView?.({ block: 'center' })
+    row.focus({ preventScroll: true })
+  }, [foundId, items])
+  useEffect(() => {
+    if (!foundId) return
+    const timer = window.setTimeout(() => setFoundId(null), MOMENT_MS)
+    return () => window.clearTimeout(timer)
+  }, [foundId])
+
+  function momentOf(item: EvidenceItem) {
+    return foundId === item.id ? ('found' as const) : arrivedIds.has(item.id) ? ('arrived' as const) : undefined
+  }
 
   function openEditor(item: EvidenceItem) {
     setEditError(null)
@@ -193,6 +358,7 @@ export function EvidenceProfilePage() {
     )
   }
 
+  const isEmpty = itemsQuery.isSuccess && items.length === 0
   const meta = itemsQuery.isError
     ? []
     : itemsQuery.data
@@ -204,73 +370,120 @@ export function EvidenceProfilePage() {
         : []
       : [<Skeleton key="count" size="meta" width="7rem" />]
 
+  const importAction = canImport ? (
+    <Button size={isEmpty ? 'md' : 'sm'} loading={importMutation.isPending} onClick={() => importMutation.mutate()}>
+      <FileUp aria-hidden="true" /> Import from your CV
+    </Button>
+  ) : (
+    <Button asChild size={isEmpty ? 'md' : 'sm'}>
+      <Link to="/resume"><FileUp aria-hidden="true" /> Upload a CV</Link>
+    </Button>
+  )
+
   return (
     <Page>
       <PageHeader
         title="Your profile"
         meta={meta}
         actions={
-          canImport ? (
-            <Button size="sm" loading={importMutation.isPending} onClick={() => importMutation.mutate()}>
-              <FileUp aria-hidden="true" /> Import from your CV
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setAddError(null)
+                setAddOpen(true)
+              }}
+            >
+              <Plus aria-hidden="true" /> Add a fact
             </Button>
-          ) : (
-            <Button asChild size="sm">
-              <Link to="/resume"><FileUp aria-hidden="true" /> Upload a CV</Link>
-            </Button>
-          )
+            {isEmpty ? null : importAction}
+          </>
         }
       />
 
-      {actionError || importNotice ? (
-        <Stack gap={2}>
-          {actionError ? <Notice tone="danger" onDismiss={() => setActionError(null)}>{actionError}</Notice> : null}
-          {importNotice ? <Notice onDismiss={() => setImportNotice(null)}>{importNotice}</Notice> : null}
-        </Stack>
+      {actionError ? (
+        <Notice tone="danger" onDismiss={() => setActionError(null)}>{actionError}</Notice>
+      ) : null}
+
+      {importOutcome && importOutcome.found > 0 ? (
+        <Sticker as="section" size="md" tone="white" className="profile-stamp" role="status" aria-label="Import result">
+          <div className="profile-stamp__seal" aria-hidden="true">
+            <ScoreSeal value={importOutcome.found} unit="facts" label="Facts found" tone="mint" size={132} reveal="stamp" />
+          </div>
+          <div className="profile-stamp__text">
+            <p className="profile-stamp__title">
+              {importOutcome.found} {importOutcome.found === 1 ? 'fact' : 'facts'} found
+            </p>
+            <p>
+              Added {importOutcome.found} {importOutcome.found === 1 ? 'suggestion' : 'suggestions'} to review.
+              {importOutcome.skipped > 0
+                ? ` ${importOutcome.skipped} you already have ${importOutcome.skipped === 1 ? 'was' : 'were'} skipped.`
+                : ''}
+            </p>
+          </div>
+          <Button iconOnly size="sm" variant="ghost" aria-label="Dismiss" onClick={() => setImportOutcome(null)}>
+            <X aria-hidden="true" />
+          </Button>
+        </Sticker>
+      ) : importOutcome ? (
+        <Notice onDismiss={() => setImportOutcome(null)}>{importOutcome.message}</Notice>
+      ) : null}
+
+      {isEmpty ? (
+        <Sticker as="section" size="md" tone="lemon" tilt={-1} className="profile-import" aria-labelledby="profile-import-title">
+          <h2 id="profile-import-title" className="profile-import__title">Import from your CV</h2>
+          <p>We read your CV and suggest the facts in it. Nothing counts until you save it.</p>
+          {importAction}
+        </Sticker>
       ) : null}
 
       <div className="profile-layout" data-split={suggestions.length > 0 ? 'true' : undefined}>
         {suggestions.length > 0 ? (
-          <Section
-            className="profile-suggestions"
-            title="Suggestions to review"
-            description="From your CV or a tool result. Nothing counts until you save it."
-            actions={
-              suggestions.length > 1 ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  loading={saveAllMutation.isPending}
-                  onClick={() => saveAllMutation.mutate(suggestions.map((item) => item.id))}
-                >
-                  Save all
-                </Button>
-              ) : undefined
-            }
-          >
-            <List aria-label="Suggestions to review" className="profile-suggestions__list">
-              {suggestions.map((item) => {
-                const { lead, details } = evidenceRow(item)
-                const busy = pendingItemId === item.id
-                return (
-                  <FactRow
-                    key={item.id} title={lead} details={details} busy={busy}
-                    editLabel={`Edit: ${previewText(item)}`} onEdit={() => openEditor(item)}
-                    primary={(
-                      <>
-                        <Button size="sm" variant="secondary" disabled={busy} aria-label={`Save: ${previewText(item)}`} onClick={() => withPending(item, saveMutation.mutate)}>
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" disabled={busy} aria-label={`Dismiss: ${previewText(item)}`} onClick={() => withPending(item, dismissMutation.mutate)}>
-                          Dismiss
-                        </Button>
-                      </>
-                    )}
-                  />
-                )
-              })}
-            </List>
-          </Section>
+          <Panel as="section" flush className="profile-suggestions" aria-labelledby="profile-suggestions-title">
+            <PanelHeader
+              title={<span id="profile-suggestions-title">Suggestions to review</span>}
+              count={suggestions.length}
+              countTone="lemon"
+              actions={
+                suggestions.length > 1 ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={saveAllMutation.isPending}
+                    onClick={() => saveAll(suggestions.map((item) => item.id))}
+                  >
+                    Save all
+                  </Button>
+                ) : undefined
+              }
+            />
+            <PanelBody flush>
+              <p className="profile-suggestions__note">From your CV or a tool. Nothing counts until you save it.</p>
+              <List framed={false} aria-label="Suggestions to review" className="profile-suggestions__list">
+                {suggestions.map((item) => {
+                  const { lead, details } = evidenceRow(item)
+                  const busy = pendingItemId === item.id
+                  return (
+                    <FactRow
+                      key={item.id} id={`fact-${item.id}`} moment={momentOf(item)} title={lead} details={details} busy={busy}
+                      editLabel={`Edit: ${previewText(item)}`} onEdit={() => openEditor(item)}
+                      primary={(
+                        <>
+                          <Button size="sm" variant="secondary" disabled={busy} aria-label={`Save: ${previewText(item)}`} onClick={() => withPending(item, saveMutation.mutate)}>
+                            Save
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={busy} aria-label={`Dismiss: ${previewText(item)}`} onClick={() => withPending(item, dismissMutation.mutate)}>
+                            Dismiss
+                          </Button>
+                        </>
+                      )}
+                    />
+                  )
+                })}
+              </List>
+            </PanelBody>
+          </Panel>
         ) : null}
 
         {itemsQuery.isError ? (
@@ -282,6 +495,7 @@ export function EvidenceProfilePage() {
           />
         ) : (
           <Section
+            id="saved-facts"
             title="Saved facts"
             description={groups.length > 0 ? 'CV Studio and the tools only use saved facts. Edit one to correct it.' : undefined}
           >
@@ -289,10 +503,11 @@ export function EvidenceProfilePage() {
               <List aria-label="Saved facts" aria-busy="true" className="profile-skeleton"><Skeleton variant="row" as="li" count={4} /></List>
             ) : groups.length === 0 ? (
               <EmptyState
+                icon={<ListChecks />}
                 title={items.length === 0 ? 'No facts yet' : 'Nothing saved yet'}
                 description={
                   items.length === 0
-                    ? 'Your profile fills up as you import a CV or save a result from one of the tools. Anything added arrives as a suggestion until you save it.'
+                    ? 'Facts you type in are saved straight away. Anything imported from a CV or a tool arrives as a suggestion until you save it.'
                     : 'Save a suggestion and it shows up here.'
                 }
               />
@@ -304,16 +519,19 @@ export function EvidenceProfilePage() {
                       {group.items.map((item) => {
                         const { lead, details } = evidenceRow(item)
                         const busy = pendingItemId === item.id || deleteTarget?.id === item.id
+                        const moment = momentOf(item)
                         return (
                           <FactRow
-                            key={item.id} title={lead} details={details} busy={busy}
+                            key={item.id} id={`fact-${item.id}`} moment={moment} title={lead} details={details} busy={busy}
                             editLabel={`Edit: ${previewText(item)}`} onEdit={() => openEditor(item)}
                             reveal={(
                               <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={`Delete: ${previewText(item)}`} onClick={() => setDeleteTarget(item)}>
                                 <Trash2 aria-hidden="true" />
                               </Button>
                             )}
-                          />
+                          >
+                            {arrivedIds.has(item.id) ? <Badge tone="mint" size="sm" role="status">Saved</Badge> : null}
+                          </FactRow>
                         )
                       })}
                     </List>
@@ -325,20 +543,43 @@ export function EvidenceProfilePage() {
         )}
       </div>
 
-      <SkillsToBuildSection />
+      <SkillsToBuildSection onShowEvidence={setFoundId} />
 
-      {items.length > 0 ? (
-        <Section
-          title="Delete your whole profile"
-          rule={false}
-          description="Permanently removes every fact above. This takes effect immediately and cannot be undone."
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => setPurgeOpen(true)}>
-              <Trash2 aria-hidden="true" /> Delete profile
-            </Button>
-          }
-        />
+      {itemsQuery.isSuccess ? (
+        <Panel as="section" className="profile-danger" aria-labelledby="profile-danger-title">
+          <PanelBody>
+            <div className="profile-danger__body">
+              <div>
+                <h2 id="profile-danger-title" className="kit-panel-surface__title profile-danger__title">Your data</h2>
+                <p>
+                  {items.length > 0
+                    ? 'Download a copy of everything you saved, or permanently remove every fact above. Deleting takes effect immediately and cannot be undone.'
+                    : 'Download a copy of everything you saved on Career Workbench.'}
+                </p>
+                {exporter.error ? <Notice tone="danger" onDismiss={exporter.clearError}>{exporter.error}</Notice> : null}
+              </div>
+              <div className="profile-danger__actions">
+                <Button variant="secondary" size="sm" loading={exporter.pending} onClick={() => void exporter.run()}>
+                  <Download aria-hidden="true" /> Download my data
+                </Button>
+                {items.length > 0 ? (
+                  <Button variant="secondary" size="sm" onClick={() => setPurgeOpen(true)}>
+                    <Trash2 aria-hidden="true" /> Delete profile
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </PanelBody>
+        </Panel>
       ) : null}
+
+      <AddFactDialog
+        open={addOpen}
+        submitting={addMutation.isPending}
+        error={addError}
+        onOpenChange={setAddOpen}
+        onSubmit={(kind, content) => addMutation.mutate({ kind, content })}
+      />
 
       <EditFactDialog
         item={editTarget}

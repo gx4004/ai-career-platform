@@ -32,9 +32,16 @@ vi.mock('#/components/app/AppBrandLockup', () => ({
   AppBrandLockup: () => <div data-testid="brand-lockup" />,
 }))
 
-vi.mock('#/components/landing/LandingTubelightNavbar', () => ({
-  LandingTubelightNavbar: ({
+const sessionState = vi.hoisted(() => ({ status: 'guest' as 'guest' | 'authenticated' }))
+
+vi.mock('#/hooks/useSession', () => ({
+  useSession: () => ({ status: sessionState.status }),
+}))
+
+vi.mock('#/components/landing/LandingNavbar', () => ({
+  LandingNavbar: ({
     items,
+    signedIn,
     ctaLabel,
     ctaTo,
     signInLabel,
@@ -42,13 +49,14 @@ vi.mock('#/components/landing/LandingTubelightNavbar', () => ({
     brand,
   }: {
     items: Array<{ label: string; href?: string; to?: string }>
+    signedIn?: boolean
     ctaLabel: string
     ctaTo?: string
     signInLabel?: string
     signInTo?: string
     brand: ReactNode
   }) => (
-    <div data-testid="experiment-navbar">
+    <div data-testid="experiment-navbar" data-signed-in={String(Boolean(signedIn))}>
       {brand}
       <nav>
         {items.map((item) => (
@@ -102,6 +110,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  sessionState.status = 'guest'
   document.body.className = ''
   window.history.replaceState({}, '', '/')
 })
@@ -118,7 +127,7 @@ describe('LandingExperimentPage', () => {
     expect(screen.getByRole('link', { name: 'Tools' }).getAttribute('href')).toBe('#landing-tools')
     expect(screen.getByRole('link', { name: 'FAQ' }).getAttribute('href')).toBe('#landing-faq')
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login')
-    expect(screen.getByRole('link', { name: 'Get started' }).getAttribute('href')).toBe('/dashboard')
+    expect(screen.getByRole('link', { name: 'Get started' }).getAttribute('href')).toBe('/resume')
     expect(screen.getByTestId('landing-hero')).toBeTruthy()
     expect(screen.getByTestId('landing-feature-steps')).toBeTruthy()
     expect(screen.getByTestId('landing-tool-grid')).toBeTruthy()
@@ -144,6 +153,12 @@ describe('LandingExperimentPage', () => {
       ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     }
   }, 20000)
+
+  it('tells the navbar when the visitor is already signed in', () => {
+    sessionState.status = 'authenticated'
+    render(<LandingExperimentPage />)
+    expect(screen.getByTestId('experiment-navbar').getAttribute('data-signed-in')).toBe('true')
+  })
 
   it('preserves intentional hash navigation instead of forcing scroll to top', () => {
     window.history.replaceState({}, '', '/#landing-tools')

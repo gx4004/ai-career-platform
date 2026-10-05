@@ -4,12 +4,14 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Briefcase,
   CornerDownLeft,
-  LayoutDashboard,
+  LogIn,
+  LogOut,
+  PanelLeft,
   Search,
   Settings,
   ShieldCheck,
-  SquareKanban,
   UserRound,
 } from 'lucide-react'
 import {
@@ -25,11 +27,16 @@ import {
   RowLeading,
   RowMeta,
   RowTitle,
+  ToolTile,
 } from '#/components/kit'
+import type { Tone } from '#/components/kit'
+import { useOptionalSidebar } from '#/components/ui/sidebar'
 import { useSession } from '#/hooks/useSession'
-import { listApplications } from '#/lib/api/client'
-import { navGroups } from '#/lib/navigation/navGroups'
+import { getHistory, listApplications } from '#/lib/api/client'
+import { dashboardDestination, navGroups } from '#/lib/navigation/navGroups'
 import { APPLICATION_BOARD_QUERY_KEY } from '#/lib/query/applicationCaches'
+import { formatRunDate } from '#/lib/tools/runLabel'
+import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
 import { toolList } from '#/lib/tools/registry'
 
 /** Event the sidebar's search button dispatches to open the palette. */
@@ -39,15 +46,21 @@ export function openCommandPalette() {
   window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))
 }
 
+/** A result either opens a page (`to`) or does something (`run`, the Actions group). */
 type PaletteItem = {
   id: string
   group: string
   label: string
   hint?: string
   icon: LucideIcon
-  to: string
+  /** Tools show their colour tile instead of a bare icon. */
+  tone?: Tone
+  to?: string
+  run?: () => void
   keywords?: string
 }
+
+const RECENT_RUNS_QUERY_KEY = ['command-palette', 'recent-runs'] as const
 
 function matches(item: PaletteItem, query: string) {
   if (!query) return true
@@ -71,7 +84,8 @@ export function CommandPalette() {
   const [listEl, setListEl] = useState<HTMLDivElement | null>(null)
   const [scrollable, setScrollable] = useState(false)
   const navigate = useNavigate()
-  const { user } = useSession()
+  const { user, logout, openAuthDialog } = useSession()
+  const sidebar = useOptionalSidebar()
   const listId = useId()
 
   useEffect(() => {
@@ -104,9 +118,26 @@ export function CommandPalette() {
     staleTime: 30_000,
   })
 
+  // Saved runs are real data: the newest dozen, filtered as you type like everything else.
+  const runs = useQuery({
+    queryKey: RECENT_RUNS_QUERY_KEY,
+    queryFn: () => getHistory({ page_size: 12 }),
+    enabled: open && Boolean(user),
+    staleTime: 30_000,
+  })
+
+  const toggleSidebar = sidebar?.toggleSidebar
+  const sidebarCollapsed = sidebar?.state === 'collapsed'
   const items = useMemo<PaletteItem[]>(() => {
     const pages: PaletteItem[] = [
-      { id: 'dashboard', group: 'Go to', label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard', keywords: 'home today' },
+      {
+        id: 'dashboard',
+        group: 'Go to',
+        label: dashboardDestination.label,
+        icon: dashboardDestination.icon,
+        to: dashboardDestination.route,
+        keywords: 'home today',
+      },
     ]
     for (const group of navGroups) {
       if (group.id === 'job-search' && !user) continue
@@ -132,19 +163,58 @@ export function CommandPalette() {
       group: 'Tools',
       label: tool.label,
       icon: tool.icon,
+      tone: tool.tone,
       to: tool.route,
     }))
+    const actions: PaletteItem[] = [
+      user
+        ? { id: 'sign-out', group: 'Actions', label: 'Sign out', icon: LogOut, run: () => void logout(), keywords: 'log out logout' }
+        : {
+            id: 'sign-in',
+            group: 'Actions',
+            label: 'Sign in',
+            icon: LogIn,
+            run: () => openAuthDialog({ to: window.location.pathname }),
+            keywords: 'log in login account',
+          },
+    ]
+    if (toggleSidebar) {
+      actions.push({
+        id: 'toggle-sidebar',
+        group: 'Actions',
+        label: sidebarCollapsed ? 'Expand the sidebar' : 'Collapse the sidebar',
+        hint: '⌘B',
+        icon: PanelLeft,
+        run: toggleSidebar,
+        keywords: 'navigation menu rail',
+      })
+    }
     const apps: PaletteItem[] = (applications.data?.items ?? []).map((item) => ({
       id: `app-${item.id}`,
       group: 'Applications',
       label: item.title ?? item.label ?? 'Untitled application',
       hint: item.company ?? undefined,
-      icon: SquareKanban,
+      icon: Briefcase,
       to: `/campaigns/${item.id}`,
       keywords: item.status,
     }))
-    return [...pages, ...tools, ...apps]
-  }, [applications.data, user])
+    const saved: PaletteItem[] = []
+    for (const run of runs.data?.items ?? []) {
+      const href = historyRunHref(run)
+      if (!href) continue
+      const display = historyToolDisplay(run.tool_name)
+      saved.push({
+        id: `run-${run.id}`,
+        group: 'Recent runs',
+        label: run.label?.trim() || run.metadata?.summary_headline?.trim() || display.label,
+        hint: `${display.label} · ${formatRunDate(run.created_at)}`,
+        icon: display.icon,
+        to: href,
+        keywords: display.label,
+      })
+    }
+    return [...pages, ...tools, ...actions, ...apps, ...saved]
+  }, [applications.data, runs.data, user, logout, openAuthDialog, toggleSidebar, sidebarCollapsed])
 
   const visible = useMemo(() => items.filter((item) => matches(item, query.trim())), [items, query])
 
@@ -180,7 +250,8 @@ export function CommandPalette() {
   const go = (item: PaletteItem | undefined) => {
     if (!item) return
     setOpen(false)
-    void navigate({ to: item.to })
+    if (item.run) item.run()
+    else if (item.to) void navigate({ to: item.to })
   }
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -203,15 +274,14 @@ export function CommandPalette() {
       <DialogContent size="md" showClose={false} className="app-palette">
         <DialogTitle visuallyHidden>Search</DialogTitle>
         <DialogDescription visuallyHidden>
-          Jump to a page, tool or application. Use the arrow keys and Enter.
+          Jump to a page, tool, application or saved run, or run an action. Use the arrow keys and Enter.
         </DialogDescription>
         <div className="app-palette__search">
           <Input
-            size="lg"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search"
+            placeholder="Search or jump to…"
             aria-label="Search"
             autoComplete="off"
             spellCheck={false}
@@ -229,7 +299,7 @@ export function CommandPalette() {
             <EmptyState
               role="status"
               title={`No results for “${query}”`}
-              description="Try a page, tool or application name."
+              description="Try a page, tool, application or run name."
             />
           ) : (
             <div id={listId} role="listbox" aria-label="Results">
@@ -258,7 +328,7 @@ export function CommandPalette() {
                       onClick={() => go(item)}
                     >
                       <RowLeading>
-                        <item.icon aria-hidden />
+                        {item.tone ? <ToolTile tone={item.tone} icon={item.icon} size="sm" /> : <item.icon aria-hidden />}
                       </RowLeading>
                       <RowBody>
                         <RowTitle>{item.label}</RowTitle>

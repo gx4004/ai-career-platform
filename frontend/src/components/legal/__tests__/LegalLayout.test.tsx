@@ -42,4 +42,31 @@ describe('LegalLayout', () => {
     ])
     expect(screen.getAllByRole('navigation')).toHaveLength(1)
   })
+
+  it('builds a contents rail from the h2 headings and gives each one an id', () => {
+    render(
+      <LegalLayout title="Privacy Policy">
+        <h2>1. Who we are</h2>
+        <p>Text.</p>
+        <h2>2. What data we collect</h2>
+        <p>Text.</p>
+        <h2>3. Contact</h2>
+        <p>Text.</p>
+      </LegalLayout>,
+    )
+    const rail = within(screen.getByRole('navigation', { name: 'On this page' }))
+    expect(rail.getAllByRole('link').map((link) => link.textContent)).toEqual(['1. Who we are', '2. What data we collect', '3. Contact'])
+    expect(rail.getByRole('link', { name: '1. Who we are' }).getAttribute('href')).toBe('#legal-who-we-are')
+    expect(screen.getByRole('heading', { level: 2, name: '1. Who we are' }).id).toBe('legal-who-we-are')
+  })
+
+  it('skips the rail on a page with only a couple of sections', () => {
+    render(
+      <LegalLayout title="Imprint">
+        <h2>Contact</h2>
+        <p>Text.</p>
+      </LegalLayout>,
+    )
+    expect(screen.queryByRole('navigation', { name: 'On this page' })).toBeNull()
+  })
 })

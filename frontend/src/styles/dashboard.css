@@ -1,33 +1,340 @@
 /*
  * Dashboard layout and the first-run guides (tour card, welcome dialog). Everything the page shows
- * is a kit component; this file only places them.
+ * is a kit component; this file places them (grid, the needs-action sticker layout, the pipeline bar)
+ * and never restyles one. Kit CSS loads after this file, so rules that must beat a kit rule use two classes.
  */
 
-/* Pipeline counts: equal columns, three to a row in the narrow rail, one row when there is room. */
-.dash-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
-  gap: var(--space-4) var(--space-3);
+/* Main column 1.55fr, rail 1fr (dashboard.html); stacked below 56rem of container width. */
+@container kit-split (min-width: 56rem) {
+  .dash-split .kit-split__layout {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    gap: var(--s7);
+  }
 }
 
 .dash-notice {
-  margin-block-start: var(--space-3);
+  margin-block-start: var(--s3);
+}
+
+/* ── Needs action: stickers of equal height, tilted a hair, then rows for the rest ───────── */
+
+.dash-needs {
+  display: grid;
+  gap: var(--s5);
+}
+
+.dash-actions {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: var(--s5);
+  margin: 0;
+  padding: 2px 6px 6px 0; /* the plates and their shadows hang a few px outside */
+  list-style: none;
+}
+
+.dash-actions > :nth-child(odd) {
+  --kit-tilt: -0.6deg;
+}
+
+.dash-actions > :nth-child(even) {
+  --kit-tilt: 0.6deg;
+}
+
+.kit-sticker.dash-act {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2) var(--s6);
+  padding: var(--s5) var(--s6);
+}
+
+.dash-act__main {
+  display: grid;
+  gap: var(--s2);
+  justify-items: start;
+  min-width: 0;
+}
+
+.dash-act__icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-inline-end: 4px;
+  vertical-align: -2px;
+}
+
+.dash-act__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--fw-black);
+  font-size: var(--fs-section);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.kit-sticker.dash-act .kit-stretched::after {
+  border-radius: var(--r-lg); /* the focus ring follows the plate's corners */
+}
+
+.dash-act__company {
+  margin: 0;
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+
+.dash-act__side {
+  position: relative; /* above the title's stretched link, so the button is its own target */
+  z-index: 1;
+  display: grid;
+  justify-items: end;
+  gap: var(--s2);
+  text-align: end;
+}
+
+.dash-act__todo {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+
+/* The Stat of a deadline: number over its label, set at the end, label in ink on the tone fill. */
+.kit-stat.dash-date-stamp {
+  align-items: flex-end;
+  text-align: end;
+}
+
+.kit-stat.dash-date-stamp .kit-stat__label {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+}
+
+.kit-stat.dash-date-stamp .kit-stat__value {
+  justify-content: flex-end;
+}
+
+@media (max-width: 639px) {
+  /* Phones (mobile.html): untilted and compact; badge, title, then company with the move or the date on one row. */
+  .dash-actions {
+    gap: var(--s4);
+  }
+
+  .dash-actions > :nth-child(n) {
+    --kit-tilt: 0deg;
+  }
+
+  .kit-sticker.dash-act {
+    gap: var(--s2) var(--s3);
+    padding: var(--s3) var(--s4);
+    align-items: end;
+  }
+
+  .dash-act__main {
+    display: contents;
+  }
+
+  .dash-act__main > .kit-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .dash-act__title {
+    grid-column: 1 / -1;
+    font-size: 1.1875rem;
+  }
+
+  .dash-act__company {
+    grid-column: 1;
+    align-self: center;
+  }
+
+  .dash-act__side {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: center;
+  }
+
+  .dash-act__todo {
+    display: none;
+  }
+
+  .kit-stat.dash-date-stamp {
+    flex-direction: row-reverse;
+    align-items: baseline;
+    gap: var(--s2);
+  }
+
+  .kit-stat.dash-date-stamp .kit-stat__number {
+    font-size: 2rem;
+    line-height: 2rem;
+  }
+}
+
+/* ── Best matches: "8 of 8 skills" over its pips ────────────────────────────────────────── */
+
+.dash-skills {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 7rem;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+}
+
+/* Phones (mobile.html): stamp and full-width title on top, the pips and Add on the line under it. */
+@container kit-list (max-width: 31.9375rem) {
+  .kit-row.dash-match:has(> .kit-row__actions) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: var(--s3);
+    row-gap: var(--s2);
+  }
+
+  .kit-row.dash-match:has(> .kit-row__actions) > .kit-row__leading {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin-inline-end: 0;
+  }
+
+  .kit-row.dash-match:has(> .kit-row__actions) > .kit-row__body {
+    grid-column: 2 / -1;
+    grid-row: 1;
+  }
+
+  .kit-row.dash-match:has(> .kit-row__actions) > .kit-row__meta {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .kit-row.dash-match > .kit-row__actions {
+    grid-column: 3;
+    grid-row: 2;
+    margin-inline-start: 0;
+  }
+}
+
+/* ── Pipeline: a bar per stage, proportional to the busiest stage ────────────────────────── */
+
+/* Mark, name and bar always share one line: the rail is narrow, the name is short. */
+.kit-list.dash-pipeline > .kit-row {
+  flex-wrap: nowrap;
+}
+
+.dash-pipeline .kit-row__body {
+  flex-basis: 0;
+}
+
+.kit-row__meta.dash-bar-col {
+  flex: none;
+  inline-size: 112px;
+  text-align: start;
+}
+
+.dash-bar {
+  display: block;
+  box-sizing: border-box;
+  block-size: 10px;
+  border: var(--bw-thin) solid var(--ink);
+  border-radius: 5px;
+  background: var(--tone, var(--stone));
+}
+
+/* The reply rate, with the numbers behind it, inside the panel's mint footer. */
+.dash-reply.kit-panel-surface__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.dash-reply__text {
+  display: grid;
+  gap: 2px;
+}
+
+.dash-reply__text span {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+}
+
+/* A score beside a run: the number is display type on the tool's colour. */
+.kit-badge.dash-score {
+  padding-inline: var(--s3);
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: var(--fw-black);
+  font-variant-numeric: var(--numeric-tabular);
+  letter-spacing: -0.01em;
+}
+
+/* ── First steps ─────────────────────────────────────────────────────────────────────────── */
+
+.dash-steps {
+  display: grid;
+  gap: var(--s5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+.dash-step__body {
+  display: grid;
+  gap: var(--s2);
+  justify-items: start;
+  min-width: 0;
+}
+
+.dash-step__body > * {
+  max-inline-size: 100%;
+}
+
+.dash-step__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  line-height: 1.15;
+  letter-spacing: var(--ls-title);
+}
+
+.dash-step__text {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.dash-step[data-state='next'] .dash-step__title {
+  color: var(--ink-2);
+}
+
+/* The upload sits inside its step: the dropzone fills the step's column. */
+.dash-step__body .dash-upload {
+  inline-size: 100%;
 }
 
 .dash-upload {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--s3);
 }
 
-/* ── First-run tour ───────────────────────────────────────────────── */
+/* ── First-run tour: one spotlight ───────────────────────────────────────────────────────── */
 
+/* The ring is the spotlight: ink ring, lemon halo, and the rest of the page dimmed (it never takes a click). */
 .app-tour__ring {
   position: fixed;
   z-index: var(--z-popover);
   box-sizing: border-box;
-  border: 2px solid var(--accent);
-  border-radius: var(--radius-lg);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow:
+    0 0 0 2px var(--lemon),
+    0 0 0 100vmax var(--surface-scrim);
   pointer-events: none;
 }
 
@@ -35,13 +342,13 @@
   position: fixed;
   z-index: var(--z-popover);
   box-sizing: border-box;
-  width: min(20rem, calc(100vw - var(--space-8)));
-  padding: var(--space-2) var(--space-4) var(--space-4);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  background: var(--surface-overlay);
-  box-shadow: var(--shadow-overlay);
-  color: var(--text-body);
+  width: min(20rem, calc(100vw - var(--s7)));
+  padding: var(--s3) var(--s5) var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-3);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
@@ -50,41 +357,49 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-inline-end: calc(var(--space-2) * -1);
+  margin-inline-end: calc(var(--s2) * -1);
 }
 
 .app-tour__count {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: var(--numeric-tabular);
   line-height: var(--lh-meta);
 }
 
 .app-tour__title {
   margin: 0;
-  color: var(--text-strong);
-  font-size: var(--fs-section);
-  font-weight: var(--fw-semibold);
-  line-height: var(--lh-section);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: 1.15;
+  letter-spacing: var(--ls-title);
 }
 
 .app-tour__body {
-  margin: var(--space-1) 0 0;
-  color: var(--text-muted);
+  margin: var(--s1) 0 0;
+  color: var(--ink-2);
 }
 
 .app-tour__footer {
   display: flex;
-  justify-content: flex-end;
-  margin-block-start: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-block-start: var(--s3);
 }
 
-/* ── Welcome dialog (Settings replays it) ─────────────────────────── */
+/* ── Welcome dialog (Settings replays it) ────────────────────────────────────────────────── */
 
 .onboarding__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: var(--numeric-tabular);
   line-height: var(--lh-meta);
 }

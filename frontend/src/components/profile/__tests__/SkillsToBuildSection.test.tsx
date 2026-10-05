@@ -53,12 +53,12 @@ function WarmEvidenceConsumer() {
   return null
 }
 
-function renderSection() {
+function renderSection(onShowEvidence?: (id: string) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <WarmEvidenceConsumer />
-      <SkillsToBuildSection />
+      <SkillsToBuildSection onShowEvidence={onShowEvidence} />
     </QueryClientProvider>,
   )
 }
@@ -81,15 +81,48 @@ describe('SkillsToBuildSection', () => {
     expect(within(learn).getByText('Added to your profile')).toBeTruthy()
   })
 
-  it('completing a skill saves it and refreshes the profile', async () => {
-    renderSection()
+  it('completing a skill asks what was done, saves it with those words and refreshes the profile', async () => {
+    updateItemMock.mockImplementation((id: string) => Promise.resolve(makeItem({ id, state: 'completed', evidence_item_id: 'e9' })))
+    const onShow = vi.fn()
+    renderSection(onShow)
 
     const reword = await screen.findByRole('list', { name: 'Reword existing content' })
     await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(1))
     fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
 
-    await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'completed' }))
+    const dialog = await screen.findByRole('dialog', { name: 'What did you do?' })
+    expect(updateItemMock).not.toHaveBeenCalled()
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /What you did/ }), { target: { value: 'Rewrote the summary' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark complete' }))
+
+    await waitFor(() =>
+      expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'completed', notes: 'Rewrote the summary' }),
+    )
     await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('dialog', { name: 'Added to your profile' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Show me the fact' }))
+    expect(onShow).toHaveBeenCalledWith('e9')
+  })
+
+  it('completing with nothing written leaves the notes alone and says a suggestion was added', async () => {
+    updateItemMock.mockImplementation((id: string) => Promise.resolve(makeItem({ id, state: 'completed', evidence_item_id: 'e9' })))
+    renderSection()
+
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark complete' }))
+
+    await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'completed' }))
+    expect(await screen.findByRole('dialog', { name: 'Suggestion added' })).toBeTruthy()
+  })
+
+  it('other status changes save at once', async () => {
+    renderSection()
+
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'in_progress' } })
+
+    await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'in_progress' }))
   })
 
   it('edits the target date and notes by opening the skill', async () => {

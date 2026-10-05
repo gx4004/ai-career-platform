@@ -11,6 +11,7 @@ import {
   Skeleton,
   Split,
   Stack,
+  StageMark,
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { deleteApplication, getApplication, updateApplication } from '#/lib/api/client'
@@ -21,7 +22,7 @@ import { ApplicationHeader } from './ApplicationHeader'
 import { ApplyPanel } from './ApplyPanel'
 import { DocumentChecks } from './DocumentChecks'
 import { StageMenu } from './StageMenu'
-import { STATUS_LABELS } from './stages'
+import { STATUS_LABELS, stageOf } from './stages'
 
 /** One application on one page: apply, documents, job, tasks, notes, activity. */
 export function ApplicationPage({ applicationId }: { applicationId: string }) {
@@ -94,8 +95,8 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
         onError={setIdentityError}
         stageControl={
           <StageMenu status={application.status} onMove={(next) => stage.mutate(next)} disabled={stage.isPending}>
-            <Button variant="secondary" size="sm" aria-label={`Change stage, currently ${STATUS_LABELS[application.status]}`}>
-              {STATUS_LABELS[application.status]} <ChevronDown aria-hidden="true" />
+            <Button variant="ghost" size="sm" aria-label={`Change stage, currently ${STATUS_LABELS[application.status]}`}>
+              <StageMark stage={stageOf(application.status)} label={STATUS_LABELS[application.status]} /> <ChevronDown aria-hidden="true" />
             </Button>
           </StageMenu>
         }

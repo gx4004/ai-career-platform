@@ -22,6 +22,8 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+beforeEach(() => localStorage.clear())
+
 const review = {
   findings: [
     {
@@ -253,7 +255,7 @@ describe('DocumentChecks', () => {
 
     fireEvent.click(within(finding).getByRole('button', { name: 'Hide' }))
     expect(screen.queryByRole('article')).toBeNull()
-    expect(screen.getByText('All clear. Nice work.')).toBeTruthy()
+    expect(screen.getByText('You hid everything the checks found.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Check again' })).toBeTruthy()
   })
 
@@ -262,5 +264,31 @@ describe('DocumentChecks', () => {
     renderReviewer()
     fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Add the job posting before checking')
+  })
+  it('remembers a hidden finding for this application after a reload, and shows how many checks are clear', async () => {
+    const first = renderReviewer()
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
+    expect(await screen.findByRole('meter', { name: '5 of 6 checks clear' })).toBeTruthy()
+    fireEvent.click(within(await screen.findByRole('article')).getByRole('button', { name: 'Hide' }))
+    // Hiding tidies the list; it does not make the check pass.
+    expect(screen.getByRole('meter', { name: '5 of 6 checks clear' })).toBeTruthy()
+    first.unmount()
+
+    renderReviewer()
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
+    await screen.findByText('You hid everything the checks found.')
+    expect(screen.queryByRole('article')).toBeNull()
+  })
+
+  it('quotes the exact words a finding points at, highlighted', async () => {
+    api.reviewApplication.mockResolvedValue({
+      findings: [{ ...review.findings[0], locations: ['Cover letter:chars 20-45:Reduced migration time by 30%'] }],
+    })
+    renderReviewer()
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
+
+    const quote = await screen.findByText('Reduced migration time by 30%')
+    expect(quote.tagName).toBe('MARK')
+    expect(quote.closest('li')?.textContent).toContain('Cover letter')
   })
 })

@@ -1,7 +1,26 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Badge, List, Row, RowBody, RowMeta, RowSubtitle, RowTitle, Section } from '#/components/kit'
-import type { BadgeTone, SectionProps } from '#/components/kit'
+import { Link } from '@tanstack/react-router'
+import { Check } from 'lucide-react'
+import {
+  Badge,
+  Button,
+  JumpNav,
+  List,
+  Row,
+  RowBody,
+  RowLeading,
+  RowMeta,
+  RowSubtitle,
+  RowTitle,
+  Section,
+  ToolTile,
+} from '#/components/kit'
+import type { BadgeTone, SectionProps, Tone } from '#/components/kit'
+import { request } from '#/lib/api/client'
+import { isDemoHistoryId } from '#/lib/tools/demoRuns'
+import { tools } from '#/lib/tools/registry'
+import type { ToolDefinition } from '#/lib/tools/registry'
 
 /** Shared building blocks for the result report layout (see results.css). */
 
@@ -12,12 +31,12 @@ export function slugify(text: string) {
     .replace(/^-+|-+$/g, '')
 }
 
-/** The id a result Section gets from its title, so the table of contents can link to it. */
+/** The id a result Section gets from its title, so the jump nav can link to it. */
 export function sectionId(title: string) {
   return `sec-${slugify(title)}`
 }
 
-/** A kit Section that the table of contents can find: its id comes from its title. */
+/** A kit Section that the jump nav can find: its id comes from its title. */
 export function ReportSection({ title, ...props }: Omit<SectionProps, 'id' | 'title'> & { title: string }) {
   return <Section id={sectionId(title)} data-toc-title={title} title={title} {...props} />
 }
@@ -25,9 +44,12 @@ export function ReportSection({ title, ...props }: Omit<SectionProps, 'id' | 'ti
 /**
  * What the report page around a result view needs to know about it. Practice mode takes over the
  * report; while it runs the page's Re-generate button steps back so the practice card holds the
- * view's one primary button.
+ * view's one primary button. `reveal` is true on the one mount that follows a run that just
+ * finished: the seal stamps in and the Fix-first stickers slap on.
  */
-export const ResultChromeContext = createContext<{ setPracticing: (practicing: boolean) => void } | null>(null)
+export const ResultChromeContext = createContext<{ setPracticing: (practicing: boolean) => void; reveal: boolean } | null>(
+  null,
+)
 
 /** Tell the report page that the view is (or is no longer) in a focused task. */
 export function useReportPracticing(practicing: boolean) {
@@ -39,15 +61,59 @@ export function useReportPracticing(practicing: boolean) {
   }, [practicing, setPracticing])
 }
 
+/** True while the signature reveal plays (never outside the report page, never on a revisit). */
+export function useResultReveal() {
+  return useContext(ResultChromeContext)?.reveal ?? false
+}
+
 const SEVERITY: Record<string, { label: string; tone: BadgeTone }> = {
   high: { label: 'High', tone: 'danger' },
   medium: { label: 'Medium', tone: 'warning' },
-  low: { label: 'Low', tone: 'neutral' },
+  low: { label: 'Low', tone: 'lilac' },
 }
 
-export function SeverityBadge({ level }: { level: string }) {
-  const entry = SEVERITY[level] ?? SEVERITY.medium
-  return <Badge tone={entry.tone}>{entry.label}</Badge>
+/**
+ * High, Medium or Low. Rose, lemon and lilac on the page; white on a lemon sticker, where a lemon
+ * badge would vanish.
+ */
+export function SeverityBadge({ level, onSticker = false }: { level: string; onSticker?: boolean }) {
+  const key = level in SEVERITY ? level : 'medium'
+  const entry = SEVERITY[key]
+  return (
+    <Badge tone={onSticker ? 'white' : entry.tone} data-severity={key}>
+      {entry.label}
+    </Badge>
+  )
+}
+
+const GOOD_WORDS = /\b(strong|good|solid|excellent|great|ready|high|foundation|identified|clear)\b/i
+const FAIR_WORDS = /\b(borderline|fair|moderate|developing|partial|mixed|needs|gap-first|advisory)\b/i
+const WEAK_WORDS = /\b(weak|poor|stretch|low|unlikely|thin|risky)\b/i
+
+/**
+ * The colour of a verdict sticker, by meaning: mint good, lemon borderline, rose weak. The words win
+ * (a Job Match "borderline" is lemon whatever its score); without a recognisable word the score decides.
+ */
+export function verdictTone(verdict: string, score?: number | null): Tone {
+  const text = verdict.trim()
+  if (WEAK_WORDS.test(text)) return 'rose'
+  if (FAIR_WORDS.test(text)) return 'lemon'
+  if (GOOD_WORDS.test(text)) return 'mint'
+  if (typeof score === 'number' && Number.isFinite(score)) {
+    if (score >= 75) return 'mint'
+    if (score >= 50) return 'lemon'
+    return 'rose'
+  }
+  return 'white'
+}
+
+/** The mint tick of a strengths row: the number disc's shape with a check in it. */
+export function CheckDisc() {
+  return (
+    <span className="kit-number-disc" data-tone="mint" aria-hidden="true">
+      <Check strokeWidth={3} size={16} />
+    </span>
+  )
 }
 
 export type ResultItem = {
@@ -60,6 +126,10 @@ export type ResultItem = {
   meta?: ReactNode
   /** More content under the detail (a KeyValue of "Why it matters / Fix"). */
   body?: ReactNode
+  /** Something in front of the text (a tick), instead of the list's number. */
+  leading?: ReactNode
+  /** lg: a 17px title, for a row that is a statement on its own (a strength). */
+  titleSize?: 'md' | 'lg'
 }
 
 /**
@@ -71,18 +141,21 @@ export function ResultList({
   numbered = false,
   label,
   density,
+  framed,
 }: {
   items: ResultItem[]
   numbered?: boolean
   label: string
   density?: 'compact' | 'comfortable'
+  framed?: boolean
 }) {
   return (
-    <List numbered={numbered} aria-label={label}>
+    <List numbered={numbered} aria-label={label} framed={framed}>
       {items.map((item) => (
         <Row key={item.key} density={density} className={item.body ? 'result-row--stacked' : undefined}>
+          {item.leading ? <RowLeading>{item.leading}</RowLeading> : null}
           <RowBody>
-            <RowTitle>{item.title}</RowTitle>
+            <RowTitle size={item.titleSize}>{item.title}</RowTitle>
             {item.detail ? <RowSubtitle>{item.detail}</RowSubtitle> : null}
             {item.body}
           </RowBody>
@@ -113,10 +186,9 @@ export function Lines({ items }: { items: string[] }) {
   )
 }
 
-/** Table of contents built from the rendered result Sections (those carrying data-toc-title). */
-export function ResultToc({ containerRef }: { containerRef: RefObject<HTMLElement | null> }) {
-  const [entries, setEntries] = useState<Array<{ id: string; title: string }>>([])
-  const [active, setActive] = useState<string | null>(null)
+/** Jump nav built from the rendered result Sections (those carrying data-toc-title). */
+export function ResultJumpNav({ containerRef }: { containerRef: RefObject<HTMLElement | null> }) {
+  const [entries, setEntries] = useState<Array<{ id: string; label: string }>>([])
 
   useEffect(() => {
     const el = containerRef.current
@@ -124,10 +196,10 @@ export function ResultToc({ containerRef }: { containerRef: RefObject<HTMLElemen
     const scan = () => {
       const next = Array.from(el.querySelectorAll<HTMLElement>('section[data-toc-title]')).map((s) => ({
         id: s.id,
-        title: s.dataset.tocTitle ?? '',
+        label: s.dataset.tocTitle ?? '',
       }))
       setEntries((prev) =>
-        prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.title === next[i].title)
+        prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.label === next[i].label)
           ? prev
           : next,
       )
@@ -138,48 +210,165 @@ export function ResultToc({ containerRef }: { containerRef: RefObject<HTMLElemen
     return () => observer.disconnect()
   }, [containerRef])
 
-  useEffect(() => {
-    if (entries.length === 0 || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(
-      (records) => {
-        const visible = records.filter((r) => r.isIntersecting)
-        if (visible.length > 0) setActive(visible[0].target.id)
-      },
-      { rootMargin: '0px 0px -70% 0px' },
-    )
-    for (const entry of entries) {
-      const node = document.getElementById(entry.id)
-      if (node) observer.observe(node)
-    }
-    return () => observer.disconnect()
-  }, [entries])
+  if (entries.length < 3) return null
+  return <JumpNav aria-label="On this page" items={entries} />
+}
 
-  if (entries.length < 4) return null
-
+/**
+ * Where to go from here: the registry's two next tools for this one, each opening with the resume
+ * and job the workflow already carries. Not a list of suggestions made up per result.
+ */
+export function WhatNext({ tool }: { tool: ToolDefinition }) {
+  const actions = tool.nextActions.filter((action) => action.to !== tool.id)
+  if (actions.length === 0) return null
   return (
-    <nav className="result-toc" aria-label="On this page">
-      <p className="result-toc__title">On this page</p>
-      <List aria-label="Sections">
-        {entries.map((entry) => (
-          <Row key={entry.id} density="compact" selected={active === entry.id} interactive>
-            <RowBody>
-              <RowTitle asChild>
-                <a
-                  href={`#${entry.id}`}
-                  aria-current={active === entry.id ? 'location' : undefined}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    document.getElementById(entry.id)?.scrollIntoView({ block: 'start' })
-                    setActive(entry.id)
-                  }}
-                >
-                  {entry.title}
-                </a>
-              </RowTitle>
-            </RowBody>
-          </Row>
-        ))}
+    <Section id="what-next" title="What next">
+      <List aria-label="What next">
+        {actions.map((action) => {
+          const target = tools[action.to]
+          return (
+            <Row key={action.to}>
+              <RowLeading>
+                <ToolTile tone={target.tone} icon={target.icon} size="lg" />
+              </RowLeading>
+              <RowBody>
+                <RowTitle size="lg">{action.label}</RowTitle>
+                <RowSubtitle>{target.summary}</RowSubtitle>
+              </RowBody>
+              <RowMeta>
+                <Button asChild variant="secondary" size="sm">
+                  <Link to={target.route}>Open {target.label}</Link>
+                </Button>
+              </RowMeta>
+            </Row>
+          )
+        })}
       </List>
-    </nav>
+    </Section>
   )
+}
+
+/* ── Cover-letter edits ──
+ * The letter is editable on the result page. Edits are saved as you type: to the run when the
+ * backend accepts them, always to this tab's session storage (so a reload keeps them; a closed tab does not, as for every guest result).
+ * Copy, Download and PDF read the last edited version from here.
+ */
+
+export type LetterDraft = { opening: string; body: string[]; closing: string }
+export type LetterSaveState = 'idle' | 'saving' | 'saved' | 'saved-local' | 'error'
+
+const LETTER_KEY = 'cw:letter-edit:'
+const editedLetterTexts = new Map<string, string>()
+const letterFlushers = new Map<string, () => Promise<void>>()
+
+export function readLetterDraft(runId: string): LetterDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(LETTER_KEY + runId)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<LetterDraft>
+    if (typeof parsed.opening !== 'string' || typeof parsed.closing !== 'string' || !Array.isArray(parsed.body)) return null
+    return { opening: parsed.opening, closing: parsed.closing, body: parsed.body.map((p) => String(p)) }
+  } catch {
+    return null
+  }
+}
+
+function writeLetterDraft(runId: string, draft: LetterDraft) {
+  try {
+    window.sessionStorage.setItem(LETTER_KEY + runId, JSON.stringify(draft))
+  } catch {
+    // storage blocked: the edit still reaches the server for a saved run
+  }
+}
+
+function clearLetterDraft(runId: string) {
+  try {
+    window.sessionStorage.removeItem(LETTER_KEY + runId)
+  } catch {
+    // ignore
+  }
+}
+
+/** The edited text of a run's letter while its page is open (undefined when it was not edited). */
+export function editedLetterText(runId: string | undefined) {
+  return runId ? editedLetterTexts.get(runId) : undefined
+}
+
+export function setEditedLetterText(runId: string, text: string | null) {
+  if (text === null) editedLetterTexts.delete(runId)
+  else editedLetterTexts.set(runId, text)
+}
+
+/** Save any pending edit of this run's letter now (the PDF export waits for it). */
+export async function flushLetterEdits(runId: string) {
+  await letterFlushers.get(runId)?.()
+}
+
+async function saveLetterToServer(runId: string, draft: LetterDraft) {
+  await request(`/history/${runId}/letter`, {
+    method: 'PATCH',
+    body: { opening: draft.opening, body_points: draft.body, closing: draft.closing },
+  })
+}
+
+const AUTOSAVE_MS = 900
+
+/**
+ * Autosave for the letter's paragraphs. `edited` is false until the person changes something, so
+ * opening a result never writes. Returns the state to show ("Saved", "Saved on this device"...).
+ */
+export function useLetterAutosave(runId: string | undefined, draft: LetterDraft, edited: boolean, persistToServer: boolean) {
+  const [state, setState] = useState<LetterSaveState>('idle')
+  const latest = useRef(draft)
+  latest.current = draft
+  const dirty = useRef(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const save = useCallback(async () => {
+    if (!runId || !dirty.current) return
+    dirty.current = false
+    const snapshot = latest.current
+    writeLetterDraft(runId, snapshot)
+    if (!persistToServer || isDemoHistoryId(runId)) {
+      setState('saved-local')
+      return
+    }
+    setState('saving')
+    try {
+      await saveLetterToServer(runId, snapshot)
+      clearLetterDraft(runId)
+      setState('saved')
+    } catch (error) {
+      const status = (error as { status?: number } | null)?.status
+      // No save endpoint on this server: the edit stays on this device and says so.
+      setState(status === 404 || status === 405 || status === 501 ? 'saved-local' : 'error')
+    }
+  }, [persistToServer, runId])
+
+  useEffect(() => {
+    if (!runId || !edited) return
+    dirty.current = true
+    setState('saving')
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => void save(), AUTOSAVE_MS)
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+    }
+  }, [draft.opening, draft.closing, draft.body, edited, runId, save])
+
+  useEffect(() => {
+    if (!runId) return
+    letterFlushers.set(runId, async () => {
+      if (timer.current) clearTimeout(timer.current)
+      await save()
+    })
+    return () => {
+      letterFlushers.delete(runId)
+      // Leaving the page with an unsaved edit: save it on the way out.
+      if (timer.current) clearTimeout(timer.current)
+      void save()
+    }
+  }, [runId, save])
+
+  return state
 }

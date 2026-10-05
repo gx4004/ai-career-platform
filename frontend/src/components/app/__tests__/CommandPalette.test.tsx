@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommandPalette, openCommandPalette } from '#/components/app/CommandPalette'
 
 const navigate = vi.hoisted(() => vi.fn())
+const logout = vi.hoisted(() => vi.fn())
 const sessionUser = vi.hoisted(() => ({ current: { id: 'u1', email: 'a@example.com', is_admin: false } as { id: string; email: string; is_admin: boolean } | null }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -11,11 +12,26 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('#/hooks/useSession', () => ({
-  useSession: () => ({ user: sessionUser.current }),
+  useSession: () => ({ user: sessionUser.current, logout, openAuthDialog: vi.fn() }),
 }))
 
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
+  getHistory: vi.fn(async () => ({
+    items: [
+      {
+        id: 'run-1',
+        tool_name: 'resume',
+        label: 'Resume Analysis (77/100)',
+        is_favorite: false,
+        created_at: '2026-10-03T10:00:00Z',
+        metadata: {},
+      },
+    ],
+    total: 1,
+    page: 1,
+    page_size: 12,
+  })),
   listApplications: vi.fn(async () => ({
     items: [{ id: 'app-1', title: 'Platform Engineer', label: null, company: 'Harbor Health', status: 'saved' }],
     total: 1,
@@ -133,5 +149,42 @@ describe('CommandPalette', () => {
 
     act(() => openCommandPalette())
     expect((screen.getByRole('combobox', { name: 'Search' }) as HTMLInputElement).value).toBe('')
+  })
+
+  it('has an Actions group: Sign out signs out, and does nothing else', async () => {
+    renderPalette()
+    act(() => openCommandPalette())
+
+    const input = await screen.findByRole('combobox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'sign out' } })
+    const actions = screen.getByRole('group', { name: 'Actions' })
+    expect(within(actions).getByRole('option', { name: /Sign out/ })).toBeTruthy()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(logout).toHaveBeenCalledTimes(1)
+    expect(navigate).not.toHaveBeenCalled()
+    expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  it('finds a saved run by its tool and opens its result page', async () => {
+    renderPalette()
+    act(() => openCommandPalette())
+
+    const input = await screen.findByRole('combobox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'analysis' } })
+    const runs = await screen.findByRole('group', { name: 'Recent runs' })
+    fireEvent.click(within(runs).getByRole('option', { name: /Resume Analysis \(77\/100\)/ }))
+
+    expect(navigate).toHaveBeenCalledWith({ to: '/resume/result/run-1' })
+  })
+
+  it('offers Sign in instead of Sign out to guests', () => {
+    sessionUser.current = null
+    renderPalette()
+    act(() => openCommandPalette())
+
+    const actions = screen.getByRole('group', { name: 'Actions' })
+    expect(within(actions).getByRole('option', { name: /Sign in/ })).toBeTruthy()
+    expect(within(actions).queryByRole('option', { name: /Sign out/ })).toBeNull()
   })
 })

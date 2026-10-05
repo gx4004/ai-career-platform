@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2, X } from 'lucide-react'
 import {
-  Badge, Button, Cluster, ConfirmDialog, EmptyState, Field, Input, Section, Stack, Textarea,
+  Badge, Button, Cluster, ConfirmDialog, Disclosure, EmptyState, Field, Input, Section, Stack, Textarea,
 } from '#/components/kit'
 import type { CvEntry, CvSection } from '#/lib/api/schemas'
 import {
@@ -76,6 +76,8 @@ function StructuredEntry({ section, entry, index, onSections }: {
     <article aria-label={cardTitle}>
       <Section
         headingLevel={3}
+        size="sm"
+        className="cvs-entry"
         title={cardTitle}
         actions={<EntryTools
           name={cardTitle} index={index} count={section.entries.length}
@@ -122,8 +124,8 @@ function StructuredEntry({ section, entry, index, onSections }: {
   )
 }
 
-function FreeformEntry({ section, entry, index, onSections }: {
-  section: CvSection; entry: CvEntry; index: number; onSections: SectionsChange
+function FreeformEntry({ section, entry, index, onSections, inline }: {
+  section: CvSection; entry: CvEntry; index: number; onSections: SectionsChange; inline: boolean
 }) {
   const only = section.entries.length === 1
   const label = only ? `${section.title} text` : `${section.title} entry ${index + 1}`
@@ -134,6 +136,15 @@ function FreeformEntry({ section, entry, index, onSections }: {
       onChange={(event) => onSections((s) => updateEntry(s, section.id, entry.id, { body: event.target.value }))}
     />
   )
+  if (only && inline) {
+    // The open row's header already names the section.
+    return (
+      <Stack gap={2}>
+        {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
+        {text}
+      </Stack>
+    )
+  }
   if (only) {
     return (
       <Section headingLevel={3} size="sm" title={sectionLabels[section.kind]} rule={false}>
@@ -147,6 +158,8 @@ function FreeformEntry({ section, entry, index, onSections }: {
   return (
     <Section
       headingLevel={3}
+      size="sm"
+      className="cvs-entry"
       title={`Entry ${index + 1}`}
       actions={<EntryTools
         name={label} index={index} count={section.entries.length}
@@ -162,7 +175,11 @@ function FreeformEntry({ section, entry, index, onSections }: {
   )
 }
 
-export function CvSectionEditor({ section, onSections, onBack }: { section: CvSection; onSections: SectionsChange; onBack: () => void }) {
+export function CvSectionEditor({ section, onSections, onBack, inline = false }: {
+  section: CvSection; onSections: SectionsChange; onBack: () => void
+  /** Unfolded inside its row of the sections list (the row's header folds it back): no "All sections" button. */
+  inline?: boolean
+}) {
   const [confirmRemove, setConfirmRemove] = useState(false)
   const structured = isStructuredKind(section.kind)
   const customTitle = section.title.trim() !== sectionLabels[section.kind]
@@ -173,18 +190,24 @@ export function CvSectionEditor({ section, onSections, onBack }: { section: CvSe
     else onSections((sections) => removeSection(sections, section.id))
   }
 
+  const renameField = (
+    <Field label="Section name">
+      <Input
+        value={section.title} maxLength={120}
+        onChange={(event) => onSections((sections) => sections.map((item) => item.id === section.id ? { ...item, title: event.target.value } : item))}
+      />
+    </Field>
+  )
+
   return (
-    <Stack gap={6} role="group" aria-label={sectionLabels[section.kind]}>
-      <Cluster justify="between" gap={3}>
-        <Button type="button" variant="ghost" size="sm" onClick={onBack}><ArrowLeft aria-hidden="true" /> All sections</Button>
-        <Button type="button" variant="ghost" size="sm" onClick={remove}><Trash2 aria-hidden="true" /> Remove section</Button>
-      </Cluster>
-      <Field label="Section name">
-        <Input
-          value={section.title} maxLength={120}
-          onChange={(event) => onSections((sections) => sections.map((item) => item.id === section.id ? { ...item, title: event.target.value } : item))}
-        />
-      </Field>
+    <Stack gap={inline ? 4 : 6} role="group" aria-label={sectionLabels[section.kind]}>
+      {inline ? null : (
+        <Cluster justify="between" gap={3}>
+          <Button type="button" variant="ghost" size="sm" onClick={onBack}><ArrowLeft aria-hidden="true" /> All sections</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={remove}><Trash2 aria-hidden="true" /> Remove section</Button>
+        </Cluster>
+      )}
+      {inline ? null : renameField}
       {customTitle || !section.visible ? (
         <Cluster gap={2}>
           {customTitle ? <Badge size="sm">{sectionLabels[section.kind]}</Badge> : null}
@@ -194,12 +217,15 @@ export function CvSectionEditor({ section, onSections, onBack }: { section: CvSe
       {section.entries.length === 0 ? <EmptyState size="inline" title="Nothing here yet." /> : null}
       {section.entries.map((entry, index) => structured
         ? <StructuredEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} />
-        : <FreeformEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} />)}
-      <div>
+        : <FreeformEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} inline={inline} />)}
+      <div className="cvs-editor__foot">
         <Button type="button" variant="secondary" size="sm" onClick={() => onSections((sections) => addEntry(sections, section.id))}>
           <Plus aria-hidden="true" /> {addLabel}
         </Button>
+        {inline ? <Button type="button" variant="ghost" size="sm" onClick={remove}><Trash2 aria-hidden="true" /> Remove section</Button> : null}
       </div>
+      {inline ? <Disclosure variant="inline" title="Rename section">{renameField}</Disclosure> : null}
+      {inline ? <p className="cvs-hint">The page updates as you type.</p> : null}
       <ConfirmDialog
         open={confirmRemove} onOpenChange={setConfirmRemove}
         title={`Remove the ${section.title} section?`}

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import { EvidenceProfilePage } from '#/components/profile/EvidenceProfilePage'
 
@@ -9,6 +10,8 @@ const api = vi.hoisted(() => ({
   listEvidenceItems: vi.fn(),
   confirmEvidenceItem: vi.fn(),
   confirmEvidenceItems: vi.fn(),
+  createEvidenceItem: vi.fn(),
+  exportCareerData: vi.fn(),
   importEvidenceFromResume: vi.fn(),
   updateEvidenceItem: vi.fn(),
   deleteEvidenceItem: vi.fn(),
@@ -20,7 +23,10 @@ const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
 const resumeCarry = vi.hoisted(() => ({ resumeText: '' }))
 
-vi.mock('#/lib/api/client', () => api)
+vi.mock('#/lib/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/api/client')>()),
+  ...api,
+}))
 
 vi.mock('#/lib/api/development', () => ({
   getDevelopmentPlan: getDevelopmentPlanMock,
@@ -78,7 +84,9 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <WarmRecommendationsConsumer />
-      <EvidenceProfilePage />
+      <ToastProvider>
+        <EvidenceProfilePage />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -90,6 +98,8 @@ describe('EvidenceProfilePage', () => {
     api.listEvidenceItems.mockReset().mockResolvedValue({ items })
     api.confirmEvidenceItem.mockReset().mockResolvedValue(makeItem({ confirmation_state: 'confirmed' }))
     api.confirmEvidenceItems.mockReset().mockResolvedValue({ items: [] })
+    api.createEvidenceItem.mockReset().mockResolvedValue(makeItem({ id: 'new', kind: 'skill', content: { name: 'Rust' }, confirmation_state: 'confirmed', provenance: 'user-entered' }))
+    api.exportCareerData.mockReset().mockResolvedValue({ schema_version: 'career-data-export/v1' })
     api.importEvidenceFromResume.mockReset().mockResolvedValue({ items: [] })
     api.updateEvidenceItem.mockReset().mockResolvedValue(makeItem({ confirmation_state: 'confirmed' }))
     api.deleteEvidenceItem.mockReset().mockResolvedValue(undefined)
@@ -125,7 +135,10 @@ describe('EvidenceProfilePage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Save: Backend Engineer' }))
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Could not save.')
+    // The toast provider keeps its own empty alert region, so look at what every alert says.
+    await waitFor(() =>
+      expect(screen.getAllByRole('alert').map((node) => node.textContent).join(' ')).toContain('Could not save.'),
+    )
   })
 
   it('dismissing a suggestion inline deletes it', async () => {
@@ -137,12 +150,82 @@ describe('EvidenceProfilePage', () => {
     expect(api.confirmEvidenceItem).not.toHaveBeenCalled()
   })
 
-  it('saves every suggestion in one call', async () => {
+  describe('Save all', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('waits a few seconds so Undo is real, then saves every suggestion in one call', async () => {
+      renderPage()
+      const saveAll = await screen.findByRole('button', { name: 'Save all' })
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+
+      fireEvent.click(saveAll)
+      // The facts already read as saved; nothing has been written yet.
+      expect(screen.queryByRole('list', { name: 'Suggestions to review' })).toBeNull()
+      expect(api.confirmEvidenceItems).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(6100)
+      await waitFor(() => expect(api.confirmEvidenceItems).toHaveBeenCalledWith(['e1', 'e2']))
+    })
+
+    it('Undo cancels the write and brings the suggestions back', async () => {
+      renderPage()
+      const saveAll = await screen.findByRole('button', { name: 'Save all' })
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+
+      fireEvent.click(saveAll)
+      fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+      await vi.advanceTimersByTimeAsync(7000)
+
+      expect(api.confirmEvidenceItems).not.toHaveBeenCalled()
+      expect(screen.getByRole('list', { name: 'Suggestions to review' })).toBeTruthy()
+    })
+  })
+
+  it('adds a fact by hand as a user-entered fact', async () => {
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Save all' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a fact' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: ' Rust ' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save fact' }))
 
-    await waitFor(() => expect(api.confirmEvidenceItems).toHaveBeenCalledWith(['e1', 'e2']))
+    await waitFor(() =>
+      expect(api.createEvidenceItem).toHaveBeenCalledWith({ kind: 'skill', content: { name: 'Rust' }, provenance: 'user-entered' }),
+    )
+  })
+
+  it('will not add an empty fact', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a fact' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save fact' }))
+
+    expect(await within(dialog).findByText('Write the fact first.')).toBeTruthy()
+    expect(api.createEvidenceItem).not.toHaveBeenCalled()
+  })
+
+  it('offers Download my data beside Delete profile', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Download my data/ }))
+    await waitFor(() => expect(api.exportCareerData).toHaveBeenCalledOnce())
+  })
+
+  it('removes the copies an import made of facts the profile already holds', async () => {
+    resumeCarry.resumeText = 'x'.repeat(80)
+    api.importEvidenceFromResume.mockResolvedValue({
+      items: [makeItem({ id: 'copy', kind: 'skill', content: { level: 'advanced', name: 'typescript' } }), makeItem({ id: 'new', kind: 'skill', content: { name: 'Rust' } })],
+    })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Import from your CV/ }))
+
+    await waitFor(() => expect(api.deleteEvidenceItem).toHaveBeenCalledWith('copy'))
+    expect(api.deleteEvidenceItem).not.toHaveBeenCalledWith('new')
+    expect(await screen.findByText(/1 you already have was skipped/)).toBeTruthy()
   })
 
   it('edits a saved fact through one labelled field per value', async () => {

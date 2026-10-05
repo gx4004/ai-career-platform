@@ -388,3 +388,114 @@ def test_list_hides_internal_application_drafts_and_keeps_counts_correct(
     favorites = client.get(f"{PREFIX}?favorite=true", headers=auth_headers).json()
     assert favorites["total"] == 1
     assert favorites["items"][0]["label"] == "Match B"
+
+
+# ── Paging, search, naming and speed of the history list ──
+
+
+def test_second_page_and_numeric_search_work_over_http(client, auth_headers, test_user, db):
+    for i in range(14):
+        _create_run(db, test_user.id, label=f"Resume run {i}")
+    _create_run(db, test_user.id, label="Round 66 prep")
+
+    page_two = client.get(f"{PREFIX}?page=2&page_size=10", headers=auth_headers).json()
+    assert page_two["page"] == 2 and len(page_two["items"]) == 5 and page_two["has_more"] is False
+
+    found = client.get(f"{PREFIX}?q=66", headers=auth_headers).json()
+    assert [item["label"] for item in found["items"]] == ["Round 66 prep"]
+
+
+def test_search_treats_percent_and_underscore_as_plain_characters(
+    client, auth_headers, test_user, db
+):
+    _create_run(db, test_user.id, label="Backend 100% match")
+    _create_run(db, test_user.id, label="Frontend role")
+    _create_run(db, test_user.id, label="snake_case notes")
+    _create_run(db, test_user.id, label="snakeXcase notes")
+
+    def labels(query: str) -> list[str]:
+        response = client.get(PREFIX, params={"q": query}, headers=auth_headers)
+        return sorted(item["label"] for item in response.json()["items"])
+
+    assert labels("%") == ["Backend 100% match"]
+    assert labels("_") == ["snake_case notes"]
+    assert labels("e_c") == ["snake_case notes"]
+
+
+@pytest.mark.parametrize("body", [{}, {"label": None}, {"label": ""}, {"label": "   "}])
+def test_a_run_cannot_be_renamed_to_nothing(client, auth_headers, test_user, db, body):
+    run = _create_run(db, test_user.id, label="Keep me")
+
+    response = client.patch(f"{PREFIX}/{run.id}", json=body, headers=auth_headers)
+
+    assert response.status_code == 422
+    db.refresh(run)
+    assert run.label == "Keep me"
+
+
+def test_rename_trims_the_label(client, auth_headers, test_user, db):
+    run = _create_run(db, test_user.id, label="Old")
+
+    response = client.patch(f"{PREFIX}/{run.id}", json={"label": "  New name  "}, headers=auth_headers)
+
+    assert response.status_code == 200 and response.json()["label"] == "New name"
+
+
+def test_list_rows_say_which_run_they_revise(client, auth_headers, test_user, db):
+    parent = _create_run(db, test_user.id, label="First")
+    child = _create_run(db, test_user.id, label="Re-generated", parent_run_id=parent.id)
+
+    items = {i["id"]: i for i in client.get(PREFIX, headers=auth_headers).json()["items"]}
+
+    assert items[child.id]["parent_run_id"] == parent.id
+    assert items[parent.id]["parent_run_id"] is None
+
+
+def test_the_list_page_size_is_capped_so_one_page_stays_small(client, auth_headers):
+    assert client.get(f"{PREFIX}?page_size=50", headers=auth_headers).status_code == 200
+    assert client.get(f"{PREFIX}?page_size=51", headers=auth_headers).status_code == 422
+
+
+def test_listing_history_issues_a_constant_number_of_statements(
+    client, auth_headers, test_user, db
+):
+    """No per-row queries: a page of runs costs the same statements whatever its size."""
+    from sqlalchemy import event
+
+    from app.models.campaign_listing import CampaignListing
+    from tests.conftest import engine as test_engine
+
+    def _make_run(index: int) -> None:
+        workspace = Workspace(user_id=test_user.id, label=f"Workspace {index}")
+        db.add(workspace)
+        db.commit()
+        listing = CampaignListing(
+            workspace_id=workspace.id, title="Staff Engineer", company="Acme", description="Own it."
+        )
+        db.add(listing)
+        db.commit()
+        workspace.current_listing_id = listing.id
+        db.commit()
+        _create_run(db, test_user.id, workspace_id=workspace.id, label=f"Run {index}")
+
+    def _selects() -> list[str]:
+        captured: list[str] = []
+
+        def _record(_conn, _cursor, statement, _params, _context, _executemany):
+            if statement.lstrip().lower().startswith("select"):
+                captured.append(statement)
+
+        event.listen(test_engine, "after_cursor_execute", _record)
+        try:
+            assert client.get(PREFIX, headers=auth_headers).status_code == 200
+        finally:
+            event.remove(test_engine, "after_cursor_execute", _record)
+        return captured
+
+    _make_run(0)
+    small = _selects()
+    for index in range(1, 8):
+        _make_run(index)
+    large = _selects()
+
+    assert len(small) == len(large)

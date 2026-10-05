@@ -64,4 +64,42 @@ describe('ToolGridSheet authenticated workspace navigation', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Career Path' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
+
+  it('renders the tools as colour tiles in a list of links, one tone each', () => {
+    render(<ToolGridSheet open onOpenChange={vi.fn()} showAuthenticatedLinks />)
+
+    const tiles = screen.getByRole('list', { name: 'Tools' }).querySelectorAll('li.app-more__tile--tool')
+    expect([...tiles].every((tile) => tile.querySelector('a[href]'))).toBe(true)
+    expect([...tiles].map((tile) => tile.getAttribute('data-tone'))).toEqual([
+      'tangerine',
+      'mint',
+      'lilac',
+      'lemon',
+      'rose',
+      'aqua',
+    ])
+  })
+
+  it('adds Search and the account to the You group when the caller provides them', () => {
+    const onSearch = vi.fn()
+    const onOpenChange = vi.fn()
+    vi.useFakeTimers()
+    render(
+      <ToolGridSheet open onOpenChange={onOpenChange} showAuthenticatedLinks accountName="Ada Lovelace" onSearch={onSearch} />,
+    )
+
+    expect(screen.getByRole('link', { name: 'Ada Lovelace' }).getAttribute('href')).toBe('/account')
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    vi.runAllTimers()
+    expect(onSearch).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('offers neither without them (guests)', () => {
+    render(<ToolGridSheet open onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    expect(screen.queryByRole('link', { name: '/account' })).toBeNull()
+  })
 })

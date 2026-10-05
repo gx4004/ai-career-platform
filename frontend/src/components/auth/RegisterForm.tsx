@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button, Checkbox, Field, Input, Notice } from '#/components/kit'
-import { GoogleButton } from '#/components/auth/GoogleButton'
+import { Button, Checkbox, Field, Input } from '#/components/kit'
+import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
 import { PasswordInput } from '#/components/auth/PasswordInput'
 import { useSession } from '#/hooks/useSession'
 import { newPasswordSchema } from '#/lib/api/schemas'
@@ -19,10 +19,14 @@ function resolveSignupSurfaceTool() {
 
 export function RegisterForm({
   onSuccess,
+  onRegistering,
 }: {
   onSuccess?: () => void
+  /** True while the account is being created, false again if that failed. A page that celebrates the new account needs it before the session flips. */
+  onRegistering?: (registering: boolean) => void
 }) {
-  const { register, googleLogin, authError } = useSession()
+  const { register } = useSession()
+  const signUp = useFormFailure()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,10 +37,6 @@ export function RegisterForm({
 
   return (
     <div className="auth-form">
-      <GoogleButton onClick={() => googleLogin()}>Sign up with Google</GoogleButton>
-
-      <p className="auth-divider">or continue with email</p>
-
       <form
         className="auth-form__fields"
         onSubmit={async (event) => {
@@ -49,6 +49,8 @@ export function RegisterForm({
           }
           setPasswordError('')
           setLoading(true)
+          signUp.clear()
+          onRegistering?.(true)
           // Capture the originating surface before `register` completes — a
           // successful signup consumes and clears the pending intent.
           const signupSurfaceTool = resolveSignupSurfaceTool()
@@ -64,14 +66,16 @@ export function RegisterForm({
             // prompt was raised from; absent for a direct registration). Google
             // OAuth never reaches here — first-time OAuth users are redirected to
             // this email form to create the account (signup_via_email_required),
-            // so every account creation flows through this call site.
+            // so every account creation flows through this call site (and this
+            // form offers no Google button for that reason).
             trackTelemetry({
               event_name: 'auth_signup_source',
               tool_id: signupSurfaceTool,
             })
             onSuccess?.()
-          } catch {
-            // Error displayed via session authError state
+          } catch (error) {
+            onRegistering?.(false)
+            signUp.fail(error, 'Sign-up failed. Please try again.')
           } finally {
             setLoading(false)
           }
@@ -85,7 +89,7 @@ export function RegisterForm({
             autoComplete="name"
           />
         </Field>
-        <Field label="Email" id="register-email">
+        <Field label="Email" id="register-email" error={signUp.failure?.fields.email}>
           <Input
             type="email"
             size="lg"
@@ -99,8 +103,8 @@ export function RegisterForm({
         <Field
           label="Password"
           id="register-password"
-          help={passwordError ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
-          error={passwordError || undefined}
+          help={passwordError || signUp.failure?.fields.password ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
+          error={passwordError || signUp.failure?.fields.password || undefined}
         >
           <PasswordInput
             size="lg"
@@ -128,8 +132,8 @@ export function RegisterForm({
             </>
           }
         />
-        {authError ? <Notice tone="danger">{authError}</Notice> : null}
-        <Button type="submit" size="lg" className="auth-wide" loading={loading} disabled={!tosAccepted}>
+        <FormFailureNotice failure={signUp.failure} remaining={signUp.remaining} />
+        <Button type="submit" size="lg" className="auth-wide" loading={loading} disabled={!tosAccepted || signUp.remaining > 0}>
           Create free account
         </Button>
       </form>

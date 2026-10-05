@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -43,3 +43,7 @@ class User(Base):
     development_items = relationship(
         "DevelopmentItem", back_populates="user", cascade="all, delete-orphan"
     )
+
+
+# One account per address whatever its capitalisation, legacy rows included.
+Index("uq_users_email_lower", func.lower(User.email), unique=True)

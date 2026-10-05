@@ -29,10 +29,12 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, token_version: int = 0) -> str:
+    """Short-lived session token. ``tv`` ties it to the user's token_version so a
+    password reset or logout revokes tokens already issued."""
     now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": subject, "exp": expire, "iat": now}
+    payload = {"sub": subject, "exp": expire, "iat": now, "tv": token_version}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -119,16 +121,22 @@ def clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(key="cw_refresh", path="/api/v1/auth/refresh")
 
 
-def decode_token(token: str) -> str | None:
+def decode_access_claims(token: str) -> dict | None:
+    """Return {sub, tv} for a valid access token, else None."""
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
-        if payload.get("type") == "refresh":
-            return None
-        return payload.get("sub")
     except JWTError:
         return None
+    if payload.get("type") == "refresh" or not payload.get("sub"):
+        return None
+    return {"sub": payload["sub"], "tv": payload.get("tv", 0)}
+
+
+def decode_token(token: str) -> str | None:
+    claims = decode_access_claims(token)
+    return claims["sub"] if claims else None
 
 
 def get_current_user(
@@ -146,15 +154,19 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
-    user_id = decode_token(token)
-    if user_id is None:
+    claims = decode_access_claims(token)
+    if claims is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == claims["sub"]).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
+    if claims["tv"] != (user.token_version or 0):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
         )
     if not user.is_active:
         raise HTTPException(
@@ -195,12 +207,14 @@ def get_optional_current_user(
     if token is None:
         return None
 
-    user_id = decode_token(token)
-    if user_id is None:
+    claims = decode_access_claims(token)
+    if claims is None:
         return None
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == claims["sub"]).first()
     if user is None or not user.is_active:
+        return None
+    if claims["tv"] != (user.token_version or 0):
         return None
 
     return user

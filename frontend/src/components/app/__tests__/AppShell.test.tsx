@@ -36,6 +36,10 @@ vi.mock('#/components/app/MobileNav', () => ({
   MobileNav: () => <div data-testid="mobile-nav" />,
 }))
 
+vi.mock('#/components/app/ServiceBanner', () => ({
+  ServiceBanner: () => <div data-testid="service-banner" />,
+}))
+
 vi.mock('#/components/app/Topbar', () => ({
   Topbar: () => <div data-testid="topbar" />,
 }))
@@ -52,11 +56,17 @@ vi.mock('#/components/ui/sidebar', () => ({
   SidebarProvider: ({
     children,
     defaultOpen,
+    railRoute,
   }: {
     children: ReactNode
     defaultOpen?: boolean
+    railRoute?: boolean
   }) => (
-    <div data-testid="sidebar-provider" data-default-open={String(Boolean(defaultOpen))}>
+    <div
+      data-testid="sidebar-provider"
+      data-default-open={String(Boolean(defaultOpen))}
+      data-rail-route={String(Boolean(railRoute))}
+    >
       {children}
     </div>
   ),
@@ -158,6 +168,45 @@ describe('AppShell', () => {
     expect(screen.queryByTestId('mobile-nav')).toBeNull()
     expect(screen.getByTestId('auth-dialog')).toBeTruthy()
     expect(screen.getByTestId('page-child')).toBeTruthy()
+  })
+
+  it('asks for the icon rail on CV Studio only', () => {
+    mockPathname.current = '/cv-studio'
+    const { unmount } = render(
+      <AppShell>
+        <div />
+      </AppShell>,
+    )
+    expect(screen.getByTestId('sidebar-provider').getAttribute('data-rail-route')).toBe('true')
+    unmount()
+
+    mockPathname.current = '/dashboard'
+    render(
+      <AppShell>
+        <div />
+      </AppShell>,
+    )
+    expect(screen.getByTestId('sidebar-provider').getAttribute('data-rail-route')).toBe('false')
+  })
+
+  it('shows the offline banner slot in the shell, and no second sign-in dialog on /login', () => {
+    mockPathname.current = '/dashboard'
+    const { unmount } = render(
+      <AppShell>
+        <div />
+      </AppShell>,
+    )
+    expect(screen.getByTestId('service-banner')).toBeTruthy()
+    unmount()
+
+    mockPathname.current = '/login'
+    render(
+      <AppShell>
+        <div data-testid="page-child" />
+      </AppShell>,
+    )
+    expect(screen.getByTestId('page-child')).toBeTruthy()
+    expect(screen.queryByTestId('auth-dialog')).toBeNull()
   })
 
   it('starts the sidebar as an icon rail on tablets and expanded on desktops', () => {

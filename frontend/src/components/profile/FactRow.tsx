@@ -14,6 +14,8 @@ export function FactRow({
   onEdit,
   details,
   busy = false,
+  id,
+  moment,
   primary,
   reveal,
   children,
@@ -24,13 +26,17 @@ export function FactRow({
   onEdit: () => void
   details?: ReactNode
   busy?: boolean
+  /** Anchor for deep links ("show me the new fact"): the row can be scrolled to and focused. */
+  id?: string
+  /** arrived: the row has just landed in this list (saved, added); found: a link pointed here. Both are short and quiet. */
+  moment?: 'arrived' | 'found'
   primary?: ReactNode
   reveal?: ReactNode
   /** Sits between the text and the actions (a skill's status). */
   children?: ReactNode
 }) {
   return (
-    <Row aria-busy={busy || undefined}>
+    <Row id={id} tabIndex={id ? -1 : undefined} aria-busy={busy || undefined} data-moment={moment}>
       <RowBody>
         <RowTitle>{title}</RowTitle>
         {details ? <RowSubtitle>{details}</RowSubtitle> : null}

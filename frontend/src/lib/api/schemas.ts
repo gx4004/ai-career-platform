@@ -271,11 +271,17 @@ export const discoveryListingSchema = z.strictObject({
   // Two separate signals, never blended (#414). skills_fit is null without
   // confirmed evidence; preference_hits are confirmed preference keywords the
   // listing mentions.
+  // Also null when the listing names no skills (matched and missing are then
+  // empty): nothing to compare, which is not a 0% fit.
   skills_fit: z.number().int().min(0).max(100).nullable(),
+  // How many listing keywords the fit rests on: low is under four, high six+.
+  fit_confidence: z.enum(['low', 'medium', 'high']).nullable().default(null),
   matched_skills: z.array(z.string()),
   missing_skills: z.array(z.string()),
   preference_hits: z.array(z.string()),
   similar_applications: similarApplicationsSchema.nullable().default(null),
+  // The owner's application for this listing when they already added it.
+  application_id: z.string().nullable().default(null),
   source_name: z.string(),
   source_url: httpsUrlSchema,
 })
@@ -337,6 +343,25 @@ export const discoveryPersonalizationExportSchema = z.strictObject({
 })
 export type DiscoveryDismissal = z.infer<typeof discoveryDismissalSchema>
 
+// GET /discovery/dismissals: the hidden jobs, newest hidden first, each
+// restorable with DELETE /discovery/dismissals/{listing_id}. Mirrors
+// HiddenListingPage in backend/app/schemas/discovery_recommendations.py.
+export const hiddenListingSchema = z.strictObject({
+  listing_id: z.string(),
+  title: z.string(),
+  company: z.string(),
+  location: z.string().nullable().default(null),
+  remote: z.boolean().nullable().default(null),
+  posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
+  hidden_at: z.iso.datetime({ offset: true }),
+})
+export const hiddenListingPageSchema = z.strictObject({
+  items: z.array(hiddenListingSchema),
+  total: z.number().int().nonnegative(),
+})
+export type HiddenListing = z.infer<typeof hiddenListingSchema>
+export type HiddenListingPage = z.infer<typeof hiddenListingPageSchema>
+
 // R11 resume import (#146): extracted facts are stored as `imported`,
 // `unconfirmed` suggestions and reviewed on the profile (D-062).
 export const evidenceImportRequestSchema = z.strictObject({
@@ -392,16 +417,31 @@ export const cvSectionSchema = z.strictObject({
   position: z.number().int().nonnegative(),
   entries: z.array(cvEntrySchema).max(200).default([]),
 })
+// The candidate's name, headline and contact details; every part is optional.
+export const cvHeaderSchema = z.strictObject({
+  name: z.string().min(1).max(120).nullable().default(null),
+  headline: z.string().min(1).max(200).nullable().default(null),
+  email: z.string().min(1).max(200).nullable().default(null),
+  phone: z.string().min(1).max(40).nullable().default(null),
+  location: z.string().min(1).max(200).nullable().default(null),
+  links: z.array(z.string().min(1).max(200)).max(6).default([]),
+})
+export type CvHeader = z.infer<typeof cvHeaderSchema>
+const emptyCvHeader = (): CvHeader => ({
+  name: null, headline: null, email: null, phone: null, location: null, links: [],
+})
 export const cvDocumentCreateSchema = z.strictObject({
   name: z.string().min(1).max(120),
   sections: z.array(cvSectionSchema).max(50).default([]),
   seed_evidence_item_ids: z.array(z.string()).max(200).default([]),
+  header: cvHeaderSchema.optional(),
 })
 export type CvDocumentCreate = z.input<typeof cvDocumentCreateSchema>
 export const cvDocumentUpdateSchema = z.strictObject({
   name: z.string().min(1).max(120).optional(),
   sections: z.array(cvSectionSchema).max(50).optional(),
   style: cvStyleSchema.optional(),
+  header: cvHeaderSchema.optional(),
 }).refine((value) => Object.keys(value).length > 0)
 export const cvVariantCreateSchema = z.strictObject({
   name: z.string().min(1).max(120),
@@ -417,6 +457,7 @@ export const cvDocumentSchema = z.object({
     template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const,
     density: 'normal' as const, ats_mode: false,
   })),
+  header: cvHeaderSchema.default(emptyCvHeader),
   created_at: z.iso.datetime({ offset: true }), updated_at: z.iso.datetime({ offset: true }),
   tailoring_model_runs: z.number().int().nonnegative(), tailoring_model_run_limit: z.literal(10),
   variants: z.array(cvVariantSchema),
@@ -474,9 +515,26 @@ export const developmentLoopExportSchema = z
       value.recommendation_count === value.recommendations.length,
   )
 
+export const accountExportSchema = z.strictObject({
+  id: z.string(), email: z.string(), full_name: z.string().nullish(),
+  created_at: z.iso.datetime({ offset: true }).nullish(),
+})
+export const savedRunExportSchema = z.strictObject({
+  id: z.string(), tool_name: z.string(), label: z.string().nullish(),
+  is_favorite: z.boolean().default(false), parent_run_id: z.string().nullish(),
+  workspace_id: z.string().nullish(), feedback_text: z.string().nullish(),
+  result_payload: z.record(z.string(), z.unknown()),
+  created_at: z.iso.datetime({ offset: true }).nullish(),
+})
+export const runsExportSchema = z.strictObject({
+  run_count: z.number().int().nonnegative(), runs: z.array(savedRunExportSchema),
+}).refine((value) => value.run_count === value.runs.length)
+
 export const careerDataExportSchema = z.strictObject({
   schema_version: z.literal('career-data-export/v1'),
   exported_at: z.iso.datetime(),
+  account: accountExportSchema.nullish(),
+  runs: runsExportSchema.optional(),
   item_count: z.number().int().nonnegative(), items: z.array(evidenceItemSchema),
   cv_documents: cvDocumentsExportSchema,
   personalization: discoveryPersonalizationExportSchema,
@@ -568,6 +626,7 @@ export const cvImportProposalSchema = z.strictObject({
   filename: z.string().min(1).max(255), import_id: z.uuid(),
   name: z.string().min(1).max(120),
   sections: z.array(cvImportSectionSchema).max(50), warnings: z.array(z.string()).max(20),
+  header: cvHeaderSchema.default(emptyCvHeader),
 })
 export const cvImportAcceptSchema = cvImportProposalSchema
 export type CvImportProposal = z.infer<typeof cvImportProposalSchema>
@@ -644,6 +703,8 @@ export const toolRunSummarySchema = z.object({
   saved: z.boolean().default(true),
   access_mode: z.enum(['authenticated', 'guest_demo']).default('authenticated'),
   locked_actions: z.array(z.string()).default([]),
+  // The run this one re-generates (absent on an older API): lets list rows tag revisions.
+  parent_run_id: z.string().nullable().optional(),
   metadata: z
     .object({
       summary_headline: z.string().nullable().optional(),
@@ -842,7 +903,7 @@ export const loginRequestSchema = z.object({
 export const registerRequestSchema = z.object({
   email: z.email(),
   password: newPasswordSchema,
-  full_name: z.string().nullable().optional(),
+  full_name: z.string().max(200).nullable().optional(),
   tos_accepted: z.boolean().refine(value => value, {
     message: 'You must accept the Terms of Service',
   }),

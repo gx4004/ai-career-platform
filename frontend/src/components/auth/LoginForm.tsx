@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Button, Field, Input, Notice, Section, Stack } from '#/components/kit'
 import { RESET_COPY } from '#/components/auth/auth-copy'
+import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
 import { GoogleButton } from '#/components/auth/GoogleButton'
 import { PasswordInput } from '#/components/auth/PasswordInput'
+import { devResetPath } from '#/components/auth/devResetLink'
+import { useGoogleEnabled } from '#/components/auth/useGoogleEnabled'
 import { useSession } from '#/hooks/useSession'
 import { requestPasswordReset } from '#/lib/api/client'
 
@@ -14,7 +17,7 @@ export function LoginForm({
   /** Reports the password-reset step opening and closing. A container that heads the form with it passes this and the form drops its own title. */
   onResetChange?: (resetting: boolean) => void
 }) {
-  const { login, googleLogin, authError } = useSession()
+  const { login, googleLogin } = useSession()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -23,7 +26,10 @@ export function LoginForm({
   const [resetEmail, setResetEmail] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
   const [resetMessage, setResetMessage] = useState('')
-  const [resetError, setResetError] = useState('')
+  const [devLink, setDevLink] = useState<string | null>(null)
+  const googleEnabled = useGoogleEnabled()
+  const signIn = useFormFailure()
+  const reset = useFormFailure()
 
   function setReset(next: boolean) {
     setShowReset(next)
@@ -32,25 +38,40 @@ export function LoginForm({
 
   if (showReset) {
     const body = resetMessage ? (
-      <Notice tone="success">{resetMessage}</Notice>
+      <Stack gap={3}>
+        <Notice tone="success">{resetMessage}</Notice>
+        {devLink ? (
+          <Notice
+            title="Development only"
+            action={
+              <Button asChild size="sm" variant="secondary">
+                <a href={devLink}>Open reset link</a>
+              </Button>
+            }
+          >
+            No email goes out without a mail key, so the link is here instead.
+          </Notice>
+        ) : null}
+      </Stack>
     ) : (
       <form
         className="auth-form__fields"
         onSubmit={async (event) => {
           event.preventDefault()
           setResetLoading(true)
-          setResetError('')
+          reset.clear()
           try {
             const result = await requestPasswordReset({ email: resetEmail })
             setResetMessage(result.message || 'Check your email for a reset link.')
+            setDevLink(devResetPath(result))
           } catch (error) {
-            setResetError(error instanceof Error ? error.message : 'Something went wrong.')
+            reset.fail(error)
           } finally {
             setResetLoading(false)
           }
         }}
       >
-        <Field label="Email" id="reset-email">
+        <Field label="Email" id="reset-email" error={reset.failure?.fields.email}>
           <Input
             type="email"
             size="lg"
@@ -61,8 +82,8 @@ export function LoginForm({
             required
           />
         </Field>
-        {resetError ? <Notice tone="danger">{resetError}</Notice> : null}
-        <Button type="submit" size="lg" className="auth-wide" loading={resetLoading}>
+        <FormFailureNotice failure={reset.failure} remaining={reset.remaining} />
+        <Button type="submit" size="lg" className="auth-wide" loading={resetLoading} disabled={reset.remaining > 0}>
           Send reset link
         </Button>
       </form>
@@ -84,7 +105,8 @@ export function LoginForm({
           onClick={() => {
             setReset(false)
             setResetMessage('')
-            setResetError('')
+            setDevLink(null)
+            reset.clear()
           }}
         >
           Back to sign in
@@ -95,26 +117,31 @@ export function LoginForm({
 
   return (
     <div className="auth-form">
-      <GoogleButton onClick={() => googleLogin()}>Sign in with Google</GoogleButton>
-
-      <p className="auth-divider">or continue with email</p>
+      {googleEnabled ? (
+        <>
+          <GoogleButton onClick={() => googleLogin()}>Sign in with Google</GoogleButton>
+          <p className="auth-hint">New here? Create your account with email first.</p>
+          <p className="auth-divider">or continue with email</p>
+        </>
+      ) : null}
 
       <form
         className="auth-form__fields"
         onSubmit={async (event) => {
           event.preventDefault()
           setLoading(true)
+          signIn.clear()
           try {
             await login({ email, password })
             onSuccess?.()
-          } catch {
-            // Error displayed via session authError state
+          } catch (error) {
+            signIn.fail(error, 'Sign-in failed. Please try again.')
           } finally {
             setLoading(false)
           }
         }}
       >
-        <Field label="Email" id="login-email">
+        <Field label="Email" id="login-email" error={signIn.failure?.fields.email}>
           <Input
             type="email"
             size="lg"
@@ -126,7 +153,7 @@ export function LoginForm({
           />
         </Field>
         <Stack gap={1}>
-          <Field label="Password" id="login-password">
+          <Field label="Password" id="login-password" error={signIn.failure?.fields.password}>
             <PasswordInput
               size="lg"
               shown={showPassword}
@@ -138,12 +165,12 @@ export function LoginForm({
               required
             />
           </Field>
-          <Button type="button" variant="ghost" className="auth-forgot" onClick={() => setReset(true)}>
+          <Button type="button" variant="link" className="auth-forgot" onClick={() => setReset(true)}>
             Forgot password?
           </Button>
         </Stack>
-        {authError ? <Notice tone="danger">{authError}</Notice> : null}
-        <Button type="submit" size="lg" className="auth-wide" loading={loading}>
+        <FormFailureNotice failure={signIn.failure} remaining={signIn.remaining} />
+        <Button type="submit" size="lg" className="auth-wide" loading={loading} disabled={signIn.remaining > 0}>
           Sign in
         </Button>
       </form>

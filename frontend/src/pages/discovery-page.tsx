@@ -1,23 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, EyeOff, FileText, MoreHorizontal, Search } from 'lucide-react'
+import { ArrowUpRight, Check, EyeOff, FileText, MoreHorizontal, Plus, Search } from 'lucide-react'
 import {
   Badge,
   Button,
   Checkbox,
   Cluster,
+  Count,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   EmptyState,
   ErrorState,
+  FitStamp,
   Input,
   KeyValue,
   KeyValueRow,
   List,
-  MetaRow,
   Notice,
   Page,
   PageHeader,
@@ -25,11 +26,11 @@ import {
   Row,
   RowActions,
   RowBody,
+  RowLeading,
   RowMeta,
   RowReveal,
   RowSubtitle,
   RowTitle,
-  ScoreBar,
   Section,
   Select,
   Sheet,
@@ -54,7 +55,11 @@ import {
 } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
 import type { DiscoveryDeepMatch, DiscoveryListing } from '#/lib/api/schemas'
-import { SkillsFit } from '#/components/discovery/JobParts'
+import { HiddenJobsSheet } from '#/components/discovery/HiddenJobsSheet'
+import { hiddenJobsQuery } from '#/components/discovery/hiddenJobs'
+import { FitReasons, JobMeta, SkillTally } from '#/components/discovery/JobParts'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
+import { invalidateApplications } from '#/lib/query/applicationCaches'
 import { DISCOVERY_RECOMMENDATIONS_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
 
@@ -120,6 +125,10 @@ export function DiscoveryPage() {
   // The drawer keeps showing the job it was showing while it fades out.
   const [drawerListing, setDrawerListing] = useState<DiscoveryListing | null>(null)
   const [checkingId, setCheckingId] = useState<string | null>(null)
+  const adopting = useRef(false)
+  const [hiddenOpen, setHiddenOpen] = useState(false)
+  const [calloutDismissed, setCalloutDismissed] = useState(true)
+  useEffect(() => setCalloutDismissed(readCalloutDismissed()), [])
   // The undo toast is about this page's list: it does not follow the person to another route.
   useEffect(() => () => dismiss('discovery-hidden'), [dismiss])
   const q = useDebounced(filters.q.trim())
@@ -156,9 +165,12 @@ export function DiscoveryPage() {
     resultsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
   }
 
+  // The list, its detail drawers and the hidden-jobs list all sit under the recommendations prefix.
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: LISTINGS_KEY })
+    queryClient.invalidateQueries({ queryKey: DISCOVERY_RECOMMENDATIONS_QUERY_KEY })
   }
+  const hiddenJobs = useQuery(hiddenJobsQuery())
+  const hiddenCount = hiddenJobs.data?.total ?? 0
   const undoHide = useMutation({
     mutationFn: (listingId: string) => undismissDiscoveryRecommendation(listingId),
     onSuccess: refresh,
@@ -172,6 +184,7 @@ export function DiscoveryPage() {
         id: 'discovery-hidden',
         icon: <EyeOff aria-hidden="true" />,
         title: `Hid “${listing.title}”.`,
+        description: 'Find it again under Hidden.',
         duration: null,
         action: { label: 'Undo', onClick: () => undoHide.mutate(listing.listing_id) },
       })
@@ -182,7 +195,11 @@ export function DiscoveryPage() {
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
     // A refused or failed request is shown, not repeated behind the person's back.
     retry: false,
-    onSuccess: (application) => {
+    onSuccess: (application, listingId) => {
+      // The list remembers it: coming back shows "Added", never "Add" again.
+      queryClient.setQueriesData({ queryKey: LISTINGS_KEY }, (current) => markAdded(current, listingId, application.id))
+      void invalidateApplications(queryClient)
+      toast({ tone: 'success', title: 'Added to your applications', description: application.title ?? undefined })
       navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } })
     },
   })
@@ -253,7 +270,13 @@ export function DiscoveryPage() {
     onTailor: tailor,
     onDeepMatch: deepMatch,
     onViewDeepMatch: openDeepMatch,
-    onAdopt: (listing) => adopt.mutate(listing.listing_id),
+    // One request at a time: a double click must not send a second POST. The mutation state lags a
+    // render behind the click, so the guard is a ref.
+    onAdopt: (listing) => {
+      if (adopting.current) return
+      adopting.current = true
+      adopt.mutate(listing.listing_id, { onSettled: () => { adopting.current = false } })
+    },
     onHide: (listing) => hide.mutate(listing),
     adoptingId: adopt.isPending ? adopt.variables : undefined,
     hidingId: hide.isPending ? hide.variables?.listing_id : undefined,
@@ -266,11 +289,27 @@ export function DiscoveryPage() {
       + (data.total > 0 && !hasEvidence ? ' · newest first' : '')
     : listings.isPending ? 'Loading jobs…' : undefined
 
-  const headerAction = data && !hasEvidence ? (
-    <Button asChild size="sm"><Link to="/profile">Open my profile</Link></Button>
-  ) : (
-    <Button asChild size="sm" variant="secondary"><Link to="/campaigns">My applications</Link></Button>
+  const headerAction = (
+    <Cluster gap={2} justify="end">
+      {hiddenCount > 0 ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          aria-label={`Hidden jobs, ${hiddenCount}`}
+          onClick={() => setHiddenOpen(true)}
+        >
+          <EyeOff aria-hidden="true" /> Hidden <Count value={hiddenCount} />
+        </Button>
+      ) : null}
+      <Button asChild size="sm" variant="secondary"><Link to="/campaigns">My applications</Link></Button>
+    </Cluster>
   )
+  const showCallout = data !== undefined && !hasEvidence && !calloutDismissed
+  const dismissCallout = () => {
+    setCalloutDismissed(true)
+    writeCalloutDismissed()
+  }
 
   return (
     <Page>
@@ -320,7 +359,7 @@ export function DiscoveryPage() {
                 value={filters.sort}
                 onChange={(event) => update({ sort: event.target.value as Filters['sort'] })}
               >
-                <option value="best_match">Best skills fit</option>
+                <option value="best_match">Best fit</option>
                 <option value="newest">Newest</option>
               </Select>
             ) : undefined
@@ -330,6 +369,16 @@ export function DiscoveryPage() {
           onClearFilters={() => setFilters({ ...EMPTY_FILTERS, q: filters.q })}
         />
 
+        {showCallout ? (
+          <Notice
+            className="disc-callout"
+            title="Add your skills to see fit scores"
+            onDismiss={dismissCallout}
+            action={<Button asChild size="sm"><Link to="/profile">Open my profile</Link></Button>}
+          >
+            Confirm your skills in your profile and every job here gets a fit score, with the skills you match and the ones to add.
+          </Notice>
+        ) : null}
         {adopt.isError ? (
           <Notice tone="danger" onDismiss={() => adopt.reset()}>
             That job could not be added to your applications. Try again.
@@ -367,12 +416,21 @@ export function DiscoveryPage() {
         ) : items.length === 0 ? (
           filtered ? (
             <EmptyState
+              icon={<Search aria-hidden="true" />}
               title="No jobs match these filters"
-              description="Try fewer words, a wider location, or a longer time range."
+              description={`Try fewer words, a wider location, or a longer time range.${hiddenCount > 0 ? ' Jobs you hid are not counted.' : ''}`}
               action={<Button type="button" size="sm" variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Clear all filters</Button>}
+            />
+          ) : hiddenCount > 0 ? (
+            <EmptyState
+              icon={<EyeOff aria-hidden="true" />}
+              title="No jobs left to show"
+              description={`You hid ${hiddenCount} ${hiddenCount === 1 ? 'job' : 'jobs'}. Restore ${hiddenCount === 1 ? 'it' : 'any'} to see ${hiddenCount === 1 ? 'it' : 'them'} again.`}
+              action={<Button type="button" size="sm" variant="secondary" onClick={() => setHiddenOpen(true)}>Review hidden jobs</Button>}
             />
           ) : (
             <EmptyState
+              icon={<Search aria-hidden="true" />}
               title="No jobs yet"
               description="New openings are added every day. Add the ones you like to Applications, where we help you prepare each one."
             />
@@ -381,13 +439,28 @@ export function DiscoveryPage() {
           <>
             <List aria-label="Jobs" boxed aria-busy={listings.isPlaceholderData}>
               {items.map((listing) => (
-                <JobRow key={listing.listing_id} listing={listing} actions={actions} selected={openListing?.listing_id === listing.listing_id} />
+                <JobRow key={listing.listing_id} listing={listing} actions={actions} scored={hasEvidence} selected={openListing?.listing_id === listing.listing_id} />
               ))}
             </List>
             <Pagination page={page} pageCount={lastPage} onPageChange={goToPage} />
           </>
         )}
       </Stack>
+
+      <HiddenJobsSheet
+        open={hiddenOpen}
+        onOpenChange={setHiddenOpen}
+        items={hiddenJobs.data?.items ?? []}
+        loading={hiddenJobs.isPending}
+        failed={hiddenJobs.isError}
+        onRetry={() => void hiddenJobs.refetch()}
+        restoringId={undoHide.isPending ? undoHide.variables : undefined}
+        onRestore={(job) =>
+          undoHide.mutate(job.listing_id, {
+            onSuccess: () => toast({ tone: 'success', title: `Restored “${job.title}”.` }),
+          })
+        }
+      />
 
       <Sheet open={openListing !== null} onOpenChange={(open) => { if (!open) setOpenListing(null) }}>
         <SheetContent size="lg">
@@ -411,11 +484,72 @@ type JobActions = {
   deepMatchFailure: { listingId?: string; title?: string; needsCv: boolean } | null
 }
 
-function JobRow({ listing, actions, selected }: { listing: DiscoveryListing; actions: JobActions; selected: boolean }) {
+const CALLOUT_KEY = 'cw:discovery-skills-callout'
+
+function readCalloutDismissed(): boolean {
+  try {
+    return window.localStorage.getItem(CALLOUT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeCalloutDismissed() {
+  try {
+    window.localStorage.setItem(CALLOUT_KEY, '1')
+  } catch {
+    // Private mode or blocked storage: the callout simply shows again next visit.
+  }
+}
+
+/** Stamps `application_id` onto the cached page(s) and detail of one listing. */
+function markAdded(current: unknown, listingId: string, applicationId: string): unknown {
+  if (!current || typeof current !== 'object') return current
+  const data = current as { items?: DiscoveryListing[]; listing_id?: string }
+  if (Array.isArray(data.items)) {
+    return { ...data, items: data.items.map((item) => (item.listing_id === listingId ? { ...item, application_id: applicationId } : item)) }
+  }
+  return data.listing_id === listingId ? { ...data, application_id: applicationId } : current
+}
+
+/** Added to Applications: the row says so (the mint "Added" mark in its meta line) and opens it, and never offers Add again. */
+function OpenApplication({ listing }: { listing: DiscoveryListing }) {
+  if (!listing.application_id) return null
   return (
-    <Row selected={selected} aria-current={selected ? 'true' : undefined}>
+    <Button asChild size="sm" variant="secondary">
+      <Link
+        to="/campaigns/$campaignId"
+        params={{ campaignId: listing.application_id }}
+        aria-label={`Open application for ${listing.title}`}
+      >
+        Open
+      </Link>
+    </Button>
+  )
+}
+
+function JobRow({
+  listing,
+  actions,
+  selected,
+  scored,
+}: {
+  listing: DiscoveryListing
+  actions: JobActions
+  selected: boolean
+  scored: boolean
+}) {
+  const isMobile = useBreakpoint() === 'mobile'
+  const skills = <SkillTally listing={listing} />
+  return (
+    <Row className="disc-row" selected={selected} aria-current={selected ? 'true' : undefined}>
+      {scored ? (
+        <RowLeading>
+          <FitStamp value={listing.skills_fit} size={isMobile ? 'sm' : 'md'} />
+        </RowLeading>
+      ) : null}
       <RowBody>
-        <RowTitle headingLevel={2} asChild>
+        <RowTitle size="lg" headingLevel={2} asChild>
           <button type="button" onClick={() => actions.onOpen(listing)}>
             {listing.title}
           </button>
@@ -423,23 +557,25 @@ function JobRow({ listing, actions, selected }: { listing: DiscoveryListing; act
         <RowSubtitle>
           <JobMeta listing={listing} source />
         </RowSubtitle>
+        <FitReasons listing={listing} />
       </RowBody>
-      {listing.skills_fit !== null ? (
-        <RowMeta>
-          <SkillsFit listing={listing} />
-        </RowMeta>
-      ) : null}
+      {skills ? <RowMeta>{skills}</RowMeta> : null}
       <RowActions reveal={false}>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          onClick={() => actions.onAdopt(listing)}
-          loading={actions.adoptingId === listing.listing_id}
-          aria-label="Add to applications"
-        >
-          Add
-        </Button>
+        {listing.application_id ? (
+          <OpenApplication listing={listing} />
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => actions.onAdopt(listing)}
+            loading={actions.adoptingId === listing.listing_id}
+            aria-label="Add to applications"
+          >
+            <Plus aria-hidden="true" />
+            Add
+          </Button>
+        )}
         <RowReveal>
           <JobOverflowMenu listing={listing} actions={actions} withDeepMatch />
         </RowReveal>
@@ -512,12 +648,15 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
   const detail = useQuery(detailQuery(listing.listing_id))
   const deepMatch = detail.data?.deep_match ?? null
   const failure = actions.deepMatchFailure?.listingId === listing.listing_id ? actions.deepMatchFailure : null
+  // The detail reply is fresher than the list row the drawer was opened from.
+  const applicationId = detail.data?.application_id ?? listing.application_id
+  const current = { ...listing, application_id: applicationId }
   return (
     <>
       <SheetHeader>
         <SheetTitle>{listing.title}</SheetTitle>
         <SheetDescription asChild>
-          <div><JobMeta listing={listing} source /></div>
+          <div><JobMeta listing={current} source /></div>
         </SheetDescription>
       </SheetHeader>
       <SheetBody>
@@ -572,14 +711,22 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
             Deep match
           </Button>
         )}
-        <Button
-          type="button"
-          className="disc-footer__add"
-          onClick={() => actions.onAdopt(listing)}
-          loading={actions.adoptingId === listing.listing_id}
-        >
-          Add to applications
-        </Button>
+        {applicationId ? (
+          <Button asChild className="disc-footer__add">
+            <Link to="/campaigns/$campaignId" params={{ campaignId: applicationId }}>
+              <Check aria-hidden="true" /> View application
+            </Link>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            className="disc-footer__add"
+            onClick={() => actions.onAdopt(current)}
+            loading={actions.adoptingId === listing.listing_id}
+          >
+            Add to applications
+          </Button>
+        )}
       </SheetFooter>
     </>
   )
@@ -611,12 +758,19 @@ function FitSection({
             Confirm your skills in your profile to see how well they fit this job.
           </Notice>
         ) : (
-          <ScoreBar
-            aria-label={`${listing.skills_fit}% skills fit, ${listing.matched_skills.length} of ${total} skill${total === 1 ? '' : 's'}`}
-            value={listing.skills_fit}
-            valueLabel={`${listing.skills_fit}% · ${listing.matched_skills.length} of ${total} skill${total === 1 ? '' : 's'}`}
-            lowTone="neutral"
-          />
+          <div className="disc-fit__head">
+            <FitStamp value={listing.skills_fit} />
+            <div className="disc-fit__text">
+              <p className="disc-fit__figure">
+                {listing.skills_fit}% skills fit
+                <span className="kit-sr-only">{`, ${listing.matched_skills.length} of ${total} skill${total === 1 ? '' : 's'}`}</span>
+              </p>
+              <SkillTally listing={listing} />
+              {listing.fit_confidence === 'low' ? (
+                <p className="disc-note">The posting names few skills, so read this score as a rough guide.</p>
+              ) : null}
+            </div>
+          </div>
         )}
         {hasRows ? (
           <KeyValue layout="stacked" divided={false}>
@@ -633,9 +787,9 @@ function FitSection({
                 </span>
               </KeyValueRow>
             ) : null}
-            {listing.skills_fit !== null ? <SkillRow label="Skills you match" items={listing.matched_skills} tone="neutral" /> : null}
-            {listing.skills_fit !== null ? <SkillRow label="Skills to add" items={listing.missing_skills} tone="warning" /> : null}
-            <SkillRow label="Matches your preferences" items={listing.preference_hits} tone="accent" />
+            {listing.skills_fit !== null ? <SkillRow label="Skills you match" items={listing.matched_skills} kind="match" /> : null}
+            {listing.skills_fit !== null ? <SkillRow label="Skills to add" items={listing.missing_skills} kind="missing" /> : null}
+            <SkillRow label="Matches your preferences" items={listing.preference_hits} kind="preference" />
           </KeyValue>
         ) : null}
       </Stack>
@@ -643,40 +797,18 @@ function FitSection({
   )
 }
 
-function SkillRow({ label, items, tone }: { label: string; items: string[]; tone: 'neutral' | 'warning' | 'accent' }) {
+/** Matched skills are mint, missing ones rose; the row label says which, so colour is never the only signal. */
+function SkillRow({ label, items, kind }: { label: string; items: string[]; kind: 'match' | 'missing' | 'preference' }) {
   if (items.length === 0) return null
   return (
     <KeyValueRow label={label}>
       <Cluster gap={1}>
-        {items.map((item) => <Badge key={item} tone={tone}>{item}</Badge>)}
+        {items.map((item) => (
+          <Badge key={item} tone={kind === 'match' ? 'mint' : kind === 'missing' ? 'rose' : 'white'}>{item}</Badge>
+        ))}
       </Cluster>
     </KeyValueRow>
   )
-}
-
-function JobMeta({ listing, source = false }: { listing: DiscoveryListing; source?: boolean }) {
-  const posted = relativeDays(listing.posted_at)
-  const saysRemote = /remote/i.test(listing.location ?? '')
-  return (
-    <MetaRow className="disc-meta">
-      <strong>{listing.company}</strong>
-      {listing.location}
-      {listing.remote && !saysRemote ? 'Remote' : null}
-      {posted}
-      {source ? `via ${listing.source_name}` : null}
-    </MetaRow>
-  )
-}
-
-function relativeDays(value: string | null, now = Date.now()): string | null {
-  if (!value) return null
-  const days = Math.floor((now - new Date(value).getTime()) / 86_400_000)
-  if (Number.isNaN(days)) return null
-  if (days <= 0) return 'Posted today'
-  if (days === 1) return 'Posted yesterday'
-  if (days < 30) return `Posted ${days} days ago`
-  const months = Math.floor(days / 30)
-  return months < 12 ? `Posted ${months} ${months === 1 ? 'month' : 'months'} ago` : 'Posted over a year ago'
 }
 
 function formatCount(value: number): string {

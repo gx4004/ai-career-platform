@@ -43,6 +43,16 @@ describe('DashboardResumeUpload', () => {
     expect(container.querySelector('[data-tour="hero-cta"]')).toBeTruthy()
   })
 
+  it('hands the made-up sample resume to the Resume Analyzer without any upload', () => {
+    renderUpload()
+    fireEvent.click(screen.getByRole('button', { name: 'Try with a sample resume' }))
+
+    expect(parseCvMock).not.toHaveBeenCalled()
+    expect(writeWorkflowContextMock.mock.calls[0]?.[0]).toMatchObject({ resumePendingReview: true })
+    expect(writeWorkflowContextMock.mock.calls[0]?.[0]?.resumeText).toContain('SAMPLE RESUME')
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/resume' })
+  })
+
   it('stores a pending-review handoff before navigating to the resume tool', async () => {
     parseCvMock.mockResolvedValue({ extracted_text: 'Parsed dashboard resume text', warnings: [] })
     renderUpload()

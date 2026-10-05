@@ -74,7 +74,7 @@ describe('ApplicationsPage', () => {
     const row = screen.getByRole('link', { name: 'Backend Engineer' }).closest('tr') as HTMLElement
     expect(within(row).getByText('Saved')).toBeTruthy()
     expect(within(row).getByText('Northwind')).toBeTruthy()
-    expect(within(row).getByText('81%')).toBeTruthy()
+    expect(within(row).getByRole('img', { name: '81% fit' })).toBeTruthy()
     expect(within(row).getByText(/Tailor CV/)).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'Next step' })).toBeTruthy()
   })
@@ -181,6 +181,53 @@ describe('ApplicationsPage', () => {
     renderBoard()
     expect(await screen.findByText(/No applications yet/)).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Prepare applications for me' })).toBeTruthy()
+  })
+
+  it('walks a first-time owner into their first job with a lemon card', async () => {
+    api.listApplications.mockResolvedValue({ items: [], total: 0 })
+    renderBoard()
+    expect(await screen.findByRole('heading', { name: 'Add your first job' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Find a job in Discover/ }).getAttribute('href')).toBe('/discovery')
+    expect(screen.getByRole('link', { name: 'Paste or import a posting' }).getAttribute('href')).toBe('/job-match')
+    // One filled button for the view: the card's, not the header's.
+    expect(screen.getByRole('link', { name: 'Find jobs' }).className).not.toContain('kit-button--primary')
+  })
+
+  it('marks a date inside a week, or past, with a rose chip on the card', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString()
+    const dated = [
+      { ...items[1], id: 'd-1', deadline: day(2) },
+      { ...items[2], id: 'd-2', deadline: day(-3) },
+      { ...items[0], id: 'd-3', deadline: day(30), next_task: null },
+    ]
+    api.listApplications.mockResolvedValue({ items: dated, total: 3 })
+    renderBoard()
+    const soon = (await screen.findByText('Platform Engineer')).closest('article') as HTMLElement
+    expect(within(soon).getByText('Due in 2 days').closest('.kit-badge')?.getAttribute('data-tone')).toBe('rose')
+    const late = screen.getByText('Python Developer').closest('article') as HTMLElement
+    expect(within(late).getByText('Overdue')).toBeTruthy()
+    const far = screen.getByText('Backend Engineer').closest('article') as HTMLElement
+    expect(within(far).queryByText(/^Due/)).toBeNull()
+  })
+
+  it('opens the list on what to do next, soonest date first with closed ones last, and sorts by any column', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString()
+    const rows = [
+      { ...base, id: 'l-1', title: 'Zeta Role', company: 'Zed', status: 'saved' },
+      { ...base, id: 'l-2', title: 'Alpha Role', company: 'Ay', status: 'rejected' },
+      { ...base, id: 'l-3', title: 'Mid Role', company: 'Em', status: 'saved', deadline: day(5) },
+      { ...base, id: 'l-4', title: 'Soon Role', company: 'Es', status: 'saved', deadline: day(1) },
+    ]
+    api.listApplications.mockResolvedValue({ items: rows, total: rows.length })
+    renderBoard()
+    await screen.findByText('Soon Role')
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }))
+    const names = () => within(screen.getByRole('table')).getAllByRole('link').map((link) => link.textContent)
+    expect(names()).toEqual(['Soon Role', 'Mid Role', 'Zeta Role', 'Alpha Role'])
+    expect(screen.getByRole('columnheader', { name: /Next step/ }).getAttribute('aria-sort')).toBe('ascending')
+
+    fireEvent.click(within(screen.getByRole('columnheader', { name: /^Role/ })).getByRole('button'))
+    expect(names()).toEqual(['Alpha Role', 'Mid Role', 'Soon Role', 'Zeta Role'])
   })
 })
 

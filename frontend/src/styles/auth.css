@@ -1,10 +1,15 @@
-/* Sign-in, register and reset password: brand and a way out at the top, one narrow column of form on paper. Forms, tabs, buttons and notices are kit components; also used inside the session-expired dialog. */
+/*
+ * Sign-in, register, forgot and reset password (Sticker). Brand and a way out at the top, one column on the
+ * ground: title, lead, then a white panel (radius 36, hard shadow) holding the folder tabs and the form.
+ * Forms, tabs, buttons, notices and the seal are kit components; this file is placement only. Also used
+ * inside the session-expired dialog.
+ */
 
 .auth-page {
   display: flex;
   flex-direction: column;
   min-height: 100svh;
-  background: var(--background);
+  background: var(--ground);
 }
 
 /* The cookie notice is fixed to the viewport: leave room under the form so it never covers the last controls. */
@@ -16,7 +21,17 @@ html:has(.cookie-banner) .auth-page {
   display: flex;
   flex: 1 1 auto;
   justify-content: center;
-  padding: clamp(var(--space-4), 6vh, var(--space-12)) var(--space-page-x) var(--space-12);
+  padding: clamp(var(--space-4), 5vh, var(--space-12)) var(--space-page-x) var(--space-16);
+}
+
+/* Wide screens: the form column keeps its measure and the aside takes the room beside it, on every auth surface. */
+.auth-page__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 30rem);
+  gap: var(--s9);
+  justify-content: center;
+  inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .auth-page__column {
@@ -24,13 +39,12 @@ html:has(.cookie-banner) .auth-page {
   flex-direction: column;
   gap: var(--space-6);
   inline-size: 100%;
-  max-inline-size: 26rem;
   min-inline-size: 0;
 }
 
 .auth-status {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-body);
 }
 
@@ -46,38 +60,142 @@ html:has(.cookie-banner) .auth-page {
   inline-size: 100%;
 }
 
-/* A ghost button's label sits inside its padding and border: pull it back so the text lines up with the form's edge.
-   The forgot-password button sits under the password field and lines up with the field. */
-.kit-button:is(.auth-guest, .auth-forgot) {
+/* The folder panel of the page surface is the one XL object: radius 36 and the big hard shadow. The dialog keeps
+   the plain panel because this is scoped to .auth-page. The attribute selector is repeated to outrank the kit's
+   folder-panel rule, which loads later with the same weight. The tab row clears the rounded corner. */
+.auth-page .kit-tabs[data-variant='folder'][data-auth-surface] > .kit-tabs__panel {
+  gap: var(--s4);
+  padding: var(--s6);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-3);
+}
+
+.auth-page .kit-tabs[data-variant='folder'][data-auth-surface] > .kit-tabs__list {
+  padding-inline: var(--s6);
+}
+
+/* The reset form's panel is the same XL object as the sign-in surface. */
+.kit-panel-surface.auth-panel {
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-3);
+}
+
+.auth-panel .kit-panel-surface__body {
+  padding: var(--s6);
+}
+
+/* A page-sized empty or error state in the column (signed in, invalid link) starts at the column top, like the form. */
+.auth-page__column .kit-empty[data-size='page'] {
+  padding-block-start: 0;
+}
+
+/* The forgot-password link sits under the password field and lines up with it. */
+.kit-button.auth-forgot,
+.kit-button.auth-guest {
   align-self: flex-start;
-  margin-inline-start: calc((var(--space-3) + 1px) * -1);
+}
+
+.auth-guest {
+  margin-block-start: var(--s1);
 }
 
 .auth-google-mark {
   flex: none;
 }
 
-/* "or continue with email": a hairline either side of quiet text. */
+.auth-hint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* "or continue with email": a dashed ink rule either side of quiet text. */
 .auth-divider {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-meta);
 }
 
 .auth-divider::before,
 .auth-divider::after {
   flex: 1 1 0;
-  block-size: 1px;
-  background: var(--border-soft);
+  block-size: 0;
+  border-block-start: var(--bw) dashed var(--ink);
   content: '';
 }
 
 .auth-form .kit-check__text a {
-  color: var(--accent);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* The stamp that confirms an account or a new password: the seal sits above the die-cut panel, tilted by its own rotation. */
+.auth-stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s6);
+}
+
+.auth-stamp .kit-seal {
+  margin-inline-start: var(--s2);
+}
+
+/* The aside is decoration for wide screens only. */
+.auth-aside {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .auth-page__layout {
+    grid-template-columns: minmax(0, 30rem) minmax(0, 26rem);
+    align-items: start;
+  }
+
+  .auth-aside p {
+    margin: 0;
+  }
+
+  .auth-aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s6);
+    padding: var(--s7) var(--s6);
+    border-radius: var(--r-xl);
+    background: var(--lilac-soft);
+    margin-block-start: var(--s9);
+  }
+}
+
+.auth-aside p.auth-aside__title {
+  margin-block-end: var(--s1);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: 1.1;
+}
+
+.auth-aside__tag {
+  align-self: flex-start;
+}
+
+.auth-aside__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
 }

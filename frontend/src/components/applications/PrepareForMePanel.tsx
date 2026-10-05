@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Checkbox, Chip, Cluster, Field, Input, Notice, Section, Skeleton, Stack } from '#/components/kit'
+import { Button, Checkbox, Chip, Cluster, Field, Input, Notice, Skeleton, Stack } from '#/components/kit'
 import { getApplicationPreferences, prepareApplicationsForMe, saveApplicationPreferences } from '#/lib/api/client'
 import type { ApplicationPreferences, ApplicationPreferencesUpdate, BulkPrepareResult } from '#/lib/api/schemas'
 import { APPLICATION_PREFERENCES_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
+import { ApplicationPanel } from './ApplicationPanel'
 
 /**
  * "Prepare applications for me": the owner says which jobs they want, then one
@@ -36,7 +37,7 @@ export function PrepareForMePanel() {
   }
 
   return (
-    <Section
+    <ApplicationPanel
       title="Prepare applications for me"
       description="Tell us what you're looking for. We pick the best matching jobs from Job Discovery and draft each application. You still check and send every one yourself."
     >
@@ -66,7 +67,7 @@ export function PrepareForMePanel() {
           ) : null}
         </Stack>
       </Stack>
-    </Section>
+    </ApplicationPanel>
   )
 }
 

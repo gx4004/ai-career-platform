@@ -9,6 +9,12 @@ HttpsUrl = Annotated[
 ]
 
 
+# How many listing keywords a skills fit rests on: "low" is fewer than four
+# (the fit is padded to four, so it never reads as a near-certain match), "high"
+# is six or more.
+FitConfidence = Literal["low", "medium", "high"]
+
+
 class SimilarApplications(BaseModel):
     """How the owner's own similar applications went (#417): x of n got a reply.
 
@@ -41,7 +47,10 @@ class DiscoveryListingItem(BaseModel):
     apply_url: HttpsUrl | None = None
     department: str | None = None
     # Skills fit: null when the user has no confirmed evidence to compare against.
+    # Also null when the listing names no skills at all (matched and missing are
+    # then both empty): there is nothing to compare, which is not a 0% fit.
     skills_fit: int | None = Field(default=None, ge=0, le=100)
+    fit_confidence: FitConfidence | None = None
     matched_skills: list[str]
     missing_skills: list[str]
     # Confirmed preference keywords this listing mentions; a separate signal.
@@ -49,6 +58,8 @@ class DiscoveryListingItem(BaseModel):
     # The owner's own outcomes for similar applications; null below the
     # sample thresholds. Independent of skills_fit.
     similar_applications: SimilarApplications | None = None
+    # The owner's application for this listing when they already added it.
+    application_id: str | None = None
     # Attribution: the job board the listing came from ("Greenhouse") and the
     # original listing link.
     source_name: str
@@ -92,3 +103,32 @@ class DiscoveryListingPage(BaseModel):
     has_evidence: bool
     # Company filter options across every visible listing; page 1 only.
     companies: list[str] | None = None
+
+
+class HiddenListingItem(BaseModel):
+    """A listing the owner hid from Discovery, with when they hid it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    listing_id: str
+    title: str
+    company: str
+    location: str | None = None
+    remote: bool | None = None
+    posted_at: datetime | None = None
+    hidden_at: datetime
+
+    @field_validator("posted_at", "hidden_at")
+    @classmethod
+    def require_offset(cls, value: datetime | None) -> datetime | None:
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
+
+class HiddenListingPage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Newest hidden first, capped; total counts every hidden listing still allowed.
+    items: list[HiddenListingItem]
+    total: int = Field(ge=0)

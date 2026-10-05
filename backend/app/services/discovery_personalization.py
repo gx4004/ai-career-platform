@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models.discovered_listing import DiscoveredListing
 from app.models.discovery_personalization import DiscoveryDeepMatchLink, DiscoveryDismissedListing
 from app.schemas.discovery_personalization import DismissalItem, PersonalizationExport
+from app.services.discovery_recommendations import is_live_listing
 
 
 class DiscoveredListingNotFoundError(Exception):
@@ -23,10 +23,10 @@ def _dismissal(db: Session, user_id: str, listing_id: str) -> DiscoveryDismissed
 
 
 def dismiss_recommendation(db: Session, user_id: str, listing_id: str) -> DismissalItem:
-    listing = (
-        db.query(DiscoveredListing).filter(DiscoveredListing.id == listing_id).one_or_none()
-    )
-    if listing is None:
+    # Same refusal as every other read: a listing the owner could never see is
+    # not confirmed to exist. A listing they already hid is still live, so
+    # hiding twice stays a no-op.
+    if not is_live_listing(db, listing_id):
         raise DiscoveredListingNotFoundError(listing_id)
     row = _dismissal(db, user_id, listing_id)
     if row is None:

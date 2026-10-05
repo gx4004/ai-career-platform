@@ -40,6 +40,46 @@ class DevelopmentLoopExport(BaseModel):
         return self
 
 
+class AccountExport(BaseModel):
+    """The account profile (never credentials)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    email: str
+    full_name: str | None = None
+    created_at: datetime | None = None
+
+
+class SavedRunExport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    tool_name: str
+    label: str | None = None
+    is_favorite: bool = False
+    parent_run_id: str | None = None
+    workspace_id: str | None = None
+    feedback_text: str | None = None
+    result_payload: dict
+    created_at: datetime | None = None
+
+
+class RunsExport(BaseModel):
+    """Every saved tool run the account owns, newest last."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_count: int = Field(ge=0)
+    runs: list[SavedRunExport]
+
+    @model_validator(mode="after")
+    def count_matches(self):
+        if self.run_count != len(self.runs):
+            raise ValueError("run_count must equal runs length")
+        return self
+
+
 class CareerDataExport(BaseModel):
     """Portable, schema-validated export of every structured career-data store."""
 
@@ -47,6 +87,8 @@ class CareerDataExport(BaseModel):
 
     schema_version: Literal["career-data-export/v1"] = "career-data-export/v1"
     exported_at: datetime
+    account: AccountExport | None = None
+    runs: RunsExport = Field(default_factory=lambda: RunsExport(run_count=0, runs=[]))
     item_count: int = Field(ge=0)
     items: list[EvidenceItemResponse]
     cv_documents: CvDocumentsExport

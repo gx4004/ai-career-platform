@@ -66,7 +66,8 @@ describe('RunList', () => {
   it('does not repeat the tool name when the label already says it', () => {
     items.current = [{ ...base, id: 'r1', tool_name: 'job-match', label: 'Job Match (75%)' }]
     renderList()
-    expect(screen.getByText('Job Match (75%)')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Job Match' })).toBeTruthy()
+    expect(screen.getByText('75%')).toBeTruthy()
     expect(screen.queryByText('Match')).toBeNull()
   })
 
@@ -75,6 +76,27 @@ describe('RunList', () => {
     renderList()
     expect(screen.getByText('Resume')).toBeTruthy()
     expect(screen.getByText(formatRunDate(base.created_at))).toBeTruthy()
+  })
+
+  it('draws the score as a pill in the tool colour and keeps the name as the link', () => {
+    items.current = [{ ...base, id: 'r1', tool_name: 'resume', label: 'Resume Analysis (77/100)' }]
+    renderList()
+    expect(screen.getByText('77/100').closest('.kit-badge')?.getAttribute('data-tone')).toBe('tangerine')
+    expect(screen.getByRole('link', { name: 'Resume Analysis' })).toBeTruthy()
+  })
+
+  it('leaves a label alone when its brackets are not a score', () => {
+    items.current = [{ ...base, id: 'r1', tool_name: 'resume', label: 'Backend resume (v2)' }]
+    renderList()
+    expect(screen.getByRole('link', { name: 'Backend resume (v2)' })).toBeTruthy()
+  })
+
+  it('draws nothing at all when asked to hide an empty list', () => {
+    items.current = []
+    const { container } = render(
+      <RunList title="Pick up" emptyTitle="Nothing yet" emptyText="x" queryParams={{ page: 1 }} hideWhenEmpty />,
+    )
+    expect(container.textContent).toBe('')
   })
 
   it('shows an empty state with its title and sentence', () => {

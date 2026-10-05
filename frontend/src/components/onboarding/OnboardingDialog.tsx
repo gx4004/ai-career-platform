@@ -11,6 +11,7 @@ import {
   DialogTitle,
   List,
   Notice,
+  NumberDisc,
   RadioGroup,
   RadioItem,
   Row,
@@ -18,6 +19,7 @@ import {
   RowLeading,
   RowSubtitle,
   RowTitle,
+  ToolTile,
 } from '#/components/kit'
 import { toolList } from '#/lib/tools/registry'
 
@@ -129,6 +131,7 @@ export function OnboardingDialog({
         </p>
         <DialogHeader>
           <p className="onboarding__progress">
+            <NumberDisc n={step + 1} size="sm" tone="lemon" />
             Step {step + 1} of {TOTAL_STEPS}
           </p>
           <DialogTitle>{copy.title}</DialogTitle>
@@ -164,7 +167,7 @@ export function OnboardingDialog({
               {toolList.map((tool) => (
                 <Row key={tool.id}>
                   <RowLeading>
-                    <tool.icon aria-hidden />
+                    <ToolTile tone={tool.tone} icon={tool.icon} size="md" />
                   </RowLeading>
                   <RowBody>
                     <RowTitle>{tool.label}</RowTitle>

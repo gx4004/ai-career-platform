@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.applications import ApplicationStatus, ListingResponse
 
@@ -46,12 +46,13 @@ class ToolRunSummary(BaseModel):
     locked_actions: list[str] = Field(default_factory=list)
     metadata: SavedRunMetadata = Field(default_factory=SavedRunMetadata)
     workspace: WorkspaceSummary | None = None
+    # The run this one re-generates, so list rows can tell revisions apart.
+    parent_run_id: str | None = None
 
     model_config = {"from_attributes": True}
 
 
 class ToolRunDetail(ToolRunSummary):
-    parent_run_id: str | None = None
     result_payload: dict = {}
 
 
@@ -77,7 +78,17 @@ class FavoriteRequest(BaseModel):
 
 
 class RunUpdateRequest(BaseModel):
-    label: str | None = Field(default=None, max_length=200)
+    """A run is renamed, never un-named: the label is required and non-blank."""
+
+    label: str = Field(max_length=200)
+
+    @field_validator("label")
+    @classmethod
+    def label_is_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("A run needs a name")
+        return value
 
 
 class WorkspaceUpdateRequest(BaseModel):

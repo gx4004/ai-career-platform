@@ -68,11 +68,16 @@ def test_clean_cv_passes_every_check_and_exposes_no_score(client, auth_headers):
 
 
 def test_cv_with_known_problems_fails_exactly_those_checks(client, auth_headers):
-    no_standard_sections = [_section("custom", "About", ["Worked on things."], 0)]
+    # No Experience section; Skills sits in the two-column sidebar, which the PDF
+    # reads before the main column, so it comes back ahead of the Summary.
+    sidebar_before_main = [
+        _section("summary", "Summary", ["Worked on things."], 0),
+        _section("skills", "Skills", ["Python"], 1),
+    ]
     payload = _check(
         client,
         auth_headers,
-        no_standard_sections,
+        sidebar_before_main,
         style={"template_id": "modern-two-column", "ats_mode": False},
     )
 

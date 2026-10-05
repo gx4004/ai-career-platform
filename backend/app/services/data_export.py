@@ -6,6 +6,7 @@ from app.models.application_preferences import ApplicationPreferences
 from app.models.campaign_listing import CampaignListing
 from app.models.gap_classification import GapClassification
 from app.models.tool_run import ToolRun
+from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.applications import (
     ApplicationExportItem,
@@ -15,7 +16,13 @@ from app.schemas.applications import (
     ListingResponse,
     RunExport,
 )
-from app.schemas.data_export import CareerDataExport, DevelopmentLoopExport
+from app.schemas.data_export import (
+    AccountExport,
+    CareerDataExport,
+    DevelopmentLoopExport,
+    RunsExport,
+    SavedRunExport,
+)
 from app.schemas.gap_classification import GapClassificationRead
 from app.services.application_details import export_details
 from app.services.applications import snapshot_response
@@ -37,6 +44,8 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
     )
     return CareerDataExport(
         exported_at=profile.exported_at,
+        account=_export_account(db, user_id),
+        runs=_export_runs(db, user_id),
         item_count=profile.item_count,
         items=profile.items,
         cv_documents=export_documents(db, user_id),
@@ -55,6 +64,43 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
         ),
         applications=export_applications(db, user_id),
     )
+
+
+def _export_account(db: Session, user_id: str) -> AccountExport | None:
+    user = db.get(User, user_id)
+    if user is None:
+        return None
+    return AccountExport(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        created_at=_as_utc(user.created_at),
+    )
+
+
+def _export_runs(db: Session, user_id: str) -> RunsExport:
+    """Every run the account owns, including those also attached to an application."""
+    rows = (
+        db.query(ToolRun)
+        .filter(ToolRun.user_id == user_id)
+        .order_by(ToolRun.created_at.asc(), ToolRun.id.asc())
+        .all()
+    )
+    runs = [
+        SavedRunExport(
+            id=run.id,
+            tool_name=run.tool_name,
+            label=run.label,
+            is_favorite=bool(run.is_favorite),
+            parent_run_id=run.parent_run_id,
+            workspace_id=run.workspace_id,
+            feedback_text=run.feedback_text,
+            result_payload=run.result_payload or {},
+            created_at=_as_utc(run.created_at),
+        )
+        for run in rows
+    ]
+    return RunsExport(run_count=len(runs), runs=runs)
 
 
 def export_applications(db: Session, user_id: str) -> ApplicationsExport:

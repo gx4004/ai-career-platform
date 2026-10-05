@@ -1,63 +1,260 @@
 /* ═══════════════════════════════════════════════════
-   Tool result pages. The frame, sections, lists, tables, badges and
-   buttons are all kit components; this file only holds what a report
-   needs beyond them: the rail's action stack, body text, the letter.
+   Tool result pages. The frame, sections, lists, tables, badges, stickers, the
+   score seal and the buttons are all kit components; this file only places them
+   (the hero grid, the Fix-first grid, the breakdown, the letter sheet, the build
+   path) and holds the few text styles a report needs beyond the kit.
    ═══════════════════════════════════════════════════ */
 
-/* ── Rail ── */
-.result-score {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
+/* ── Header actions: they wrap under the title on narrow screens ── */
 .result-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-inline-size: 0;
+  justify-content: flex-end;
 }
 
-.result-actions > :is(.kit-stack, .result-actions__main, .result-actions__more) {
-  align-self: stretch;
+/* The loading state keeps the seal's place so the report does not jump when it arrives. */
+.result-seal-skeleton,
+.result-seal-skeleton > .kit-skeleton__bar {
+  border-radius: 50%;
 }
 
-/* The same three rows on every tool: Re-generate with the favourite star, the exports in equal columns, then the way back. */
-.result-actions__main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-2);
+.result-seal-skeleton {
+  aspect-ratio: 1;
+  block-size: auto;
 }
 
-.result-actions__more {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: var(--space-2);
+/* An expired or missing result has no PageHeader above it: give it the header's top space. */
+.kit-page.result-state {
+  padding-block-start: var(--s8);
 }
 
-.result-actions__main > .kit-button:first-child,
-.result-actions__more > .kit-button {
-  inline-size: 100%;
-}
-
-/* The contents list needs the rail beside the main column; stacked under it, it would only repeat the page. */
-.result-toc {
-  display: none;
-}
-
-@container kit-split (min-width: 56rem) {
-  .result-toc {
-    display: block;
+@media (max-width: 860px) {
+  .kit-page.result-state {
+    padding-block-start: var(--s6);
   }
 }
 
-.result-toc__title {
-  margin: 0 0 var(--space-1);
-  color: var(--text-muted);
+/* What next: the tool title is a display line, as in the mockup. */
+#what-next .kit-row__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* ── The report: blocks 56px apart, anchors clear the sticky jump nav ── */
+.result-report {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s9);
+}
+
+.result-report [data-toc-title],
+.result-report #what-next {
+  scroll-margin-top: 72px;
+}
+
+/* ── Hero: the seal and what it says (left), the lead and the Fix-first stickers (right) ── */
+.result-hero {
+  display: grid;
+  grid-template-columns: 372px minmax(0, 1fr);
+  gap: var(--s8);
+  align-items: start;
+}
+
+.result-hero__side {
+  display: grid;
+  justify-items: center;
+  gap: var(--s5);
+  padding-top: var(--s2);
+  min-width: 0;
+}
+
+.result-hero__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s2);
+}
+
+.result-hero__facts {
+  inline-size: 100%;
+}
+
+.result-hero__lead {
+  display: grid;
+  gap: var(--s6);
+  align-content: start;
+  min-width: 0;
+}
+
+.result-verdict {
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.result-issues {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.result-issues b {
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-delta svg {
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+/* ── Fix first: two equal stickers (room around them for the hard shadow and the tilt) ── */
+.result-fixes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s6);
+  align-items: stretch;
+  margin: 0;
+  padding: var(--s2) 6px 6px 0;
+  list-style: none;
+}
+
+.result-fix {
+  display: grid;
+  gap: var(--s3);
+  align-content: start;
+  min-width: 0;
+}
+
+.result-fix__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.result-fix__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lead);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.result-fix__body {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+/* ── Score breakdown and the note beside it ── */
+.result-break {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--s8);
+  align-items: start;
+}
+
+.result-break__note {
+  max-inline-size: 34ch;
+  padding-block-start: var(--s2);
+}
+
+.result-lead-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 1.0625rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.result-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  margin: 0;
+  color: var(--ink-2);
   font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
+}
+
+.result-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.result-legend__item::before {
+  content: '';
+  inline-size: 12px;
+  block-size: 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 4px;
+  background: var(--ink);
+}
+
+.result-legend__item[data-tone='accent']::before {
+  background: var(--tangerine);
+}
+
+/* ── Refinement rows: what it is | why it matters | the fix ── */
+.result-refine {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s6);
+  align-items: start;
+}
+
+.result-refine__head {
+  display: grid;
+  justify-items: start;
+  gap: var(--s3);
+}
+
+.result-refine__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.result-refine__label {
+  display: block;
+  margin-block-end: 4px;
+  font-weight: 700;
+}
+
+.result-refine__why p,
+.result-refine__fix p {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
 }
 
 /* ── Rows that carry a block under their title (Why it matters / Fix): the status badge stays on the title line, and the block lines up with the title instead of sitting 8px inside it. ── */
@@ -73,15 +270,14 @@
 .result-prose {
   max-inline-size: 44rem;
   margin: 0;
-  color: var(--text-body);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: 1.6;
   text-wrap: pretty;
 }
 
 .result-prose[data-strong] {
-  color: var(--text-strong);
-  font-weight: var(--fw-medium);
+  font-weight: 600;
 }
 
 .result-lines {
@@ -96,38 +292,204 @@
 .result-note {
   max-inline-size: 44rem;
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
+  line-height: 1.5;
 }
 
-/* ── Cover letter ── */
-.result-letter {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.result-letter__date,
-.result-letter__sign {
+/* The dashed rule that closes a report. */
+.result-footnote {
+  max-inline-size: none;
   margin: 0;
-  color: var(--text-muted);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  padding-block-start: var(--s4);
+  border-block-start: var(--bw) dashed var(--ink);
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
-.result-letter__para {
+/* ── Career: the recommended direction ── */
+.result-direction {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--s4);
 }
 
-.result-letter__caption {
-  color: var(--text-muted);
+.result-direction__title {
+  margin: 0 0 var(--s1);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+/* ── Cover letter: a sheet of numbered sections, each with its reason in the margin ── */
+.result-sheet__page {
+  display: grid;
+  gap: var(--s6);
+}
+
+.result-sheet__date {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+}
+
+.result-sheet__section {
+  display: grid;
+  grid-template-columns: minmax(0, 68ch) minmax(14rem, 18rem);
+  gap: var(--s6);
+  align-items: start;
+}
+
+.result-sheet__main {
+  display: grid;
+  gap: var(--s3);
+  justify-items: start;
+  min-width: 0;
+}
+
+.result-sheet__main > .kit-textarea,
+.result-sheet__main > textarea {
+  inline-size: 100%;
+}
+
+.result-sheet__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-weight: 700;
+}
+
+.result-sheet__text {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.result-sheet__why {
   font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
+  line-height: 1.5;
 }
 
-.result-letter__sign {
-  margin-block-start: var(--space-3);
+.result-sheet__why p {
+  margin: 0;
+}
+
+.result-sheet__reqs,
+.result-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Long hiring signals and requirement names wrap inside their chip instead of pushing the page wider. */
+.result-sheet__reqs > li,
+.result-chips > li {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.result-sheet__reqs .kit-badge,
+.result-chips .kit-badge {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.result-sheet__sign {
+  margin: var(--s3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+/* ── Portfolio: a stepped path from foundational to advanced ── */
+.result-path {
+  display: grid;
+  gap: var(--s5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result-path__step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+/* The line that joins one step to the next, behind the disc. */
+.result-path__step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 21px;
+  inset-block: 44px calc(var(--s5) * -1);
+  inline-size: 2px;
+  background: var(--ink);
+}
+
+.result-path__step > .kit-number-disc {
+  position: relative;
+}
+
+.result-path__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.result-path__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+/* ── Narrow screens: everything stacks; the seal is centred over the lead ── */
+@media (max-width: 860px) {
+  .result-report {
+    gap: var(--s8);
+  }
+
+  .result-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s6);
+  }
+
+  .result-fixes {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline-end: 6px;
+  }
+
+  .result-break {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s5);
+  }
+
+  .result-refine {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s3);
+  }
+
+  .result-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1100px) {
+  .result-sheet__section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s3);
+  }
 }

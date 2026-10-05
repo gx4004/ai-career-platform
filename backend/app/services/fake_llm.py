@@ -12,6 +12,14 @@ caller's own ``user_prompt`` content where that content is available (e.g.
 CV Studio tailoring must cite the entry text verbatim, so the fixture reads it
 back out of the prompt instead of inventing text).
 
+Output is a pure function of the prompt: headline, verdict, issues, keywords,
+role/company, quoted resume facts, confirmed Evidence Profile facts and the
+regenerate feedback are all read back from the caller's own input, so two
+different resumes or postings never produce the same text, and the same input
+always produces the same output. Where a prompt carries a locked heuristic
+(score, verdict, baseline directions or projects) the fixture agrees with it
+rather than contradicting it.
+
 Every builder here returns data shaped to pass the *real* service-side
 normalization/validation in the corresponding ``app/services/*.py`` module —
 not a raw echo of the prompt. Nothing here marks a run as degraded: callers
@@ -30,7 +38,10 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
+
+from app.services.quality_signals import extract_job_keywords, extract_role_label, keyword_present
 
 # ---------------------------------------------------------------------------
 # Prompt-parsing helpers
@@ -84,8 +95,331 @@ def _string_list(value: Any) -> list[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
-def _first_or(items: list[str], default: str) -> str:
-    return items[0] if items else default
+# ---------------------------------------------------------------------------
+# Input-reading helpers
+#
+# The fixtures below are *derived from the caller's input*, not canned. These
+# helpers read back what every prompt builder already embeds: the resume and
+# job description text, the handoff/helper JSON, confirmed Evidence Profile
+# facts and regenerate feedback. Everything is a pure function of the prompt,
+# so the same input always produces the same output.
+# ---------------------------------------------------------------------------
+
+_KNOWN_HEADINGS = (
+    "Locked payload",
+    "Prepass evidence",
+    "Helper signals",
+    "Application handoff context",
+    "Detected sector",
+    "Candidate Resume",
+    "Resume",
+    "Job Description",
+    "Target Job Description",
+    "Stated target role",
+    "Target Role",
+    "Career Profile",
+    "Confirmed evidence profile",
+    "Unconfirmed profile items",
+    "User feedback on previous result",
+    "Interview Question",
+    "User Answer",
+    "Model Answer",
+)
+_HEADING_RE = re.compile(r"\n## (?:" + "|".join(re.escape(h) for h in _KNOWN_HEADINGS) + r")\b")
+_BLANK_VALUES = {"", "none", "none provided", "none provided.", "n/a", "na", "null", "(none)"}
+
+
+def _section(text: str, heading: str) -> str:
+    """Body of the ``## heading`` block, up to the next known ``## `` heading."""
+    match = re.search(r"(?:^|\n)## " + re.escape(heading) + r"[^\n]*\n", text)
+    if not match:
+        return ""
+    rest = text[match.end() :]
+    following = _HEADING_RE.search(rest)
+    return (rest[: following.start()] if following else rest).strip()
+
+
+def _is_blank(value: str) -> bool:
+    return value.strip().lower() in _BLANK_VALUES
+
+
+def _resume_text(user_prompt: str) -> str:
+    return _section(user_prompt, "Candidate Resume") or _section(user_prompt, "Resume")
+
+
+def _job_text(user_prompt: str) -> str:
+    text = _section(user_prompt, "Job Description") or _section(user_prompt, "Target Job Description")
+    return "" if _is_blank(text) else text
+
+
+def _feedback(user_prompt: str) -> str:
+    match = re.search(r"provided this feedback: (.*?)\nIncorporate this feedback", user_prompt, re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
+def _trim(text: str, limit: int = 140) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def _join(items: list[str], limit: int = 3) -> str:
+    items = [item for item in items if item][:limit]
+    if len(items) <= 1:
+        return "".join(items)
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _unique(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        key = item.strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(item.strip())
+    return result
+
+
+_NOT_NAME_WORDS = frozenset(
+    {
+        "engineer", "developer", "designer", "manager", "analyst", "scientist", "chef", "director",
+        "lead", "specialist", "consultant", "architect", "officer", "intern", "student",
+        "professional", "summary", "experience", "skills", "education", "resume", "cv",
+        "curriculum", "vitae", "profile", "contact", "objective", "senior", "junior",
+    }
+)  # fmt: skip
+_BULLET_RE = re.compile(r"^\s*[-•*–·]\s+(.*\S)\s*$")
+_SECTION_NAMES = frozenset(
+    {
+        "summary", "professional summary", "profile", "about", "experience", "work experience",
+        "professional experience", "work history", "employment", "skills", "technical skills",
+        "core competencies", "technologies", "projects", "education", "certifications",
+        "awards", "languages", "interests", "contact",
+    }
+)  # fmt: skip
+_PAST_TENSE_IRREGULAR = frozenset(
+    {
+        "led", "built", "ran", "wrote", "drove", "grew", "cut", "won", "made", "launched",
+        "shipped", "taught", "spun", "sold", "set", "put", "took", "gave", "brought", "kept",
+    }
+)  # fmt: skip
+
+
+def _looks_like_name(line: str) -> bool:
+    words = line.split()
+    if not 2 <= len(words) <= 4 or any(ch.isdigit() or ch in "@:|/" for ch in line):
+        return False
+    for word in words:
+        bare = word.strip(".,'-")
+        if not bare or not bare[0].isupper() or bare.lower() in _NOT_NAME_WORDS:
+            return False
+    return True
+
+
+def _role_line(line: str) -> tuple[str, str] | None:
+    """A ``Role at Employer`` line (not a bullet or a sentence)."""
+    if _BULLET_RE.match(line) or len(line) > 90 or line.endswith("."):
+        return None
+    for sep in (" at ", " @ ", " | "):
+        if sep in line:
+            role, _, employer = line.partition(sep)
+            role = role.strip()
+            employer = re.sub(r"\s*[\(,|]?\s*\(?\d{4}.*$", "", employer).strip(" ,;")
+            if 1 <= len(role.split()) <= 6 and 1 <= len(employer.split()) <= 6 and employer[:1].isalnum():
+                return role[:80], employer[:80]
+    return None
+
+
+def _past_tense(first_word: str) -> bool:
+    word = first_word.lower().strip(",")
+    return (word.endswith("ed") and len(word) > 3) or word in _PAST_TENSE_IRREGULAR
+
+
+@dataclass
+class _Bullet:
+    text: str
+    employer: str = ""
+
+    @property
+    def quantified(self) -> bool:
+        return bool(re.search(r"\d", self.text))
+
+    def quote(self) -> str:
+        """The bullet as an object of a sentence: a first-person sentence is quoted, other bullets read as clauses."""
+        text = self.text.rstrip(". ")
+        return f'"{text}"' if re.match(r"I\s", text) else self.clause()
+
+    def clause(self) -> str:
+        """The bullet as a first-person clause, quoting it when it is not a past-tense action."""
+        text = self.text.rstrip(". ")
+        if re.match(r"I\s", text):
+            # Prose resumes are already first person; quoting them would garble the sentence.
+            return text
+        if _past_tense(text.split(" ", 1)[0]):
+            return "I " + text[0].lower() + text[1:]
+        return f'my work included "{text}"'
+
+
+@dataclass
+class _Resume:
+    name: str = ""
+    lines: list[str] = field(default_factory=list)
+    bullets: list[_Bullet] = field(default_factory=list)
+    roles: list[tuple[str, str]] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)
+    education: str = ""
+    years: int | None = None
+    words: int = 0
+
+    @property
+    def quantified(self) -> list[_Bullet]:
+        return [bullet for bullet in self.bullets if bullet.quantified]
+
+    @property
+    def plain(self) -> list[_Bullet]:
+        return [bullet for bullet in self.bullets if not bullet.quantified]
+
+    @property
+    def current_title(self) -> str:
+        return self.roles[0][0] if self.roles else ""
+
+    def bullet_with(self, term: str) -> _Bullet | None:
+        needle = term.lower()
+        for bullet in self.bullets:
+            if needle in bullet.text.lower():
+                return bullet
+        return None
+
+
+def _parse_resume(text: str) -> _Resume:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    resume = _Resume(lines=lines, words=len(re.findall(r"\w+", text)))
+    if lines and _looks_like_name(lines[0]):
+        resume.name = lines[0]
+    employer = ""
+    for index, line in enumerate(lines):
+        bullet = _BULLET_RE.match(line)
+        if bullet:
+            if len(bullet.group(1)) >= 12:
+                resume.bullets.append(_Bullet(bullet.group(1).strip(), employer))
+            continue
+        role = _role_line(line)
+        if role:
+            resume.roles.append(role)
+            employer = role[1]
+        skills_match = re.match(r"^(?:technical |core )?(?:skills|technologies|competencies)\b\s*:?\s*(.*)$", line, re.I)
+        if skills_match and not resume.skills:
+            raw = skills_match.group(1) or (lines[index + 1] if index + 1 < len(lines) else "")
+            resume.skills = _split_skills(raw)
+        if re.match(r"^education\b\s*:?\s*(.*)$", line, re.I) and not resume.education:
+            inline = re.sub(r"^education\b\s*:?\s*", "", line, flags=re.I)
+            resume.education = inline or (lines[index + 1] if index + 1 < len(lines) else "")
+    if not resume.skills:
+        for line in lines:
+            if line.count(",") >= 2 and len(line) < 200 and not _BULLET_RE.match(line) and not line.endswith("."):
+                resume.skills = _split_skills(line)
+                break
+    if not resume.bullets:
+        # Prose resumes: treat number-bearing sentences as the quotable facts.
+        for line in lines:
+            for sentence in re.split(r"(?<=[.!?])\s+", line):
+                if re.search(r"\d", sentence) and len(sentence.split()) >= 6:
+                    resume.bullets.append(_Bullet(sentence.strip()))
+    years = re.search(r"(\d{1,2})\+?\s+years", text, re.I)
+    resume.years = int(years.group(1)) if years else None
+    return resume
+
+
+def _split_skills(raw: str) -> list[str]:
+    items = [item.strip(" .;") for item in re.split(r"[,|•;/]", raw)]
+    return _unique([item for item in items if 0 < len(item) <= 40 and item.lower() not in _SECTION_NAMES])[:12]
+
+
+_JOB_HEADER_RE = re.compile(
+    r"^(?:job\s+title\s*[:\-]\s*)?(?P<title>[^|@\n]{3,80}?)\s+(?:at|@|\|)\s+(?P<company>[A-Z0-9][^|\n,.;]{1,50})$"
+)
+
+
+def _job_header(job_description: str) -> tuple[str, str]:
+    """(title, company) from the posting's header, when it has one."""
+    company = ""
+    field_match = re.search(r"^\s*(?:company|employer|organi[sz]ation)\s*:\s*(.+)$", job_description, re.M | re.I)
+    if field_match:
+        company = field_match.group(1).strip()[:60]
+    for line in job_description.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        match = _JOB_HEADER_RE.match(line) if len(line) <= 120 else None
+        if match:
+            return match.group("title").strip(), company or match.group("company").strip()
+        break
+    return "", company
+
+
+def _role_label(job_description: str, handoff: dict | None = None) -> str:
+    label = str((handoff or {}).get("role_label") or "").strip()
+    if label and label.lower() != "this role":
+        return label
+    title, _company = _job_header(job_description)
+    return title or extract_role_label(job_description) or "this role"
+
+
+def _at(company: str) -> str:
+    return f" at {company}" if company else ""
+
+
+_GENERIC_ROLE = "this role"
+
+
+def _the_role(role: str) -> str:
+    return "this role" if role == _GENERIC_ROLE else f"the {role} role"
+
+
+def _the_posting(role: str) -> str:
+    return "The posting" if role == _GENERIC_ROLE else f"The {role} posting"
+
+
+def _as_role(role: str) -> str:
+    return "in the job" if role == _GENERIC_ROLE else f"as {role}"
+
+
+def _the_team(role: str) -> str:
+    return "the team" if role == _GENERIC_ROLE else f"the {role} team"
+
+
+def _confirmed_facts(user_prompt: str) -> list[str]:
+    """Plain-text statements of the *confirmed* Evidence Profile facts in the prompt."""
+    block = _section(user_prompt, "Confirmed evidence profile")
+    facts: list[str] = []
+    for line in block.splitlines():
+        match = re.match(r"^- \[([\w-]+)\]\s*(\{.*\})\s*$", line.strip())
+        if not match:
+            continue
+        try:
+            content = json.loads(match.group(2))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(content, dict):
+            text = _fact_text(match.group(1), content)
+            if text:
+                facts.append(text)
+    return facts
+
+
+def _fact_text(kind: str, content: dict) -> str:
+    values = {key: str(value).strip() for key, value in content.items() if str(value).strip()}
+    if kind == "experience" and values.get("role"):
+        return f"{values['role']} at {values['employer']}" if values.get("employer") else values["role"]
+    for key in ("statement", "name", "title", "summary", "target", "story"):
+        if values.get(key):
+            return values[key]
+    return ", ".join(values.values())
+
+
+def _top_resume_fact(resume: _Resume) -> str:
+    quantified = resume.quantified
+    return quantified[0].text.rstrip(". ") if quantified else (resume.bullets[0].text.rstrip(". ") if resume.bullets else "")
 
 
 # ---------------------------------------------------------------------------
@@ -94,79 +428,215 @@ def _first_or(items: list[str], default: str) -> str:
 
 _MARKER_RESUME = "You are an expert resume analyst and career advisor."
 
+_CATEGORY_ORDER = ["keywords", "impact", "structure", "clarity", "completeness"]
+_CATEGORY_LABEL = {
+    "keywords": "keyword match",
+    "impact": "measurable impact",
+    "structure": "structure",
+    "clarity": "clarity",
+    "completeness": "completeness",
+}
+_EXPECTED_SECTIONS = ["Summary", "Experience", "Skills", "Education"]
+
+
+def _severity(score: int) -> str:
+    return "high" if score < 55 else "medium" if score < 72 else "low"
+
+
+def _resume_headline(verdict: str, *, weakest: str, strength: str, focus: str, role: str, has_job: bool) -> str:
+    # Keyed on the locked verdict (the heuristic-score band), so the headline can
+    # never contradict the score the page shows next to it.
+    if verdict == "Strong foundation":
+        tail = f"{focus} is the one gap worth closing" if focus else "only light polish is left"
+        return f"Strong foundation: {strength}; {tail}."
+    if verdict == "Promising but uneven":
+        return f"Promising but uneven: {strength}, while {weakest} holds the resume back."
+    if not has_job:
+        return f"Not competitive yet: {weakest} needs clearer evidence before this resume reads as strong."
+    return f"Not competitive yet: {weakest} needs clearer evidence before this reads as a fit for {role}."
+
 
 def _resume_analyzer(system_prompt: str, user_prompt: str) -> dict:
+    locked = _json_after(user_prompt, "## Locked payload") or {}
     prepass = _json_after(user_prompt, "## Prepass evidence") or {}
+    resume = _parse_resume(_resume_text(user_prompt))
+    job_description = _job_text(user_prompt)
+    role = _role_label(job_description)
     missing = _string_list(prepass.get("missing_keywords"))
     matched = _string_list(prepass.get("matched_keywords"))
-    skills = _string_list(prepass.get("detected_skills"))
-    focus_keyword = _first_or(missing, _first_or(skills, "the target role's core requirements"))
+    skills = _string_list(prepass.get("detected_skills")) or resume.skills
+    detected_sections = _string_list(prepass.get("detected_sections"))
 
-    category_order = ["keywords", "impact", "structure", "clarity", "completeness"]
-    base_scores = {"keywords": 68, "impact": 72, "structure": 78, "clarity": 74, "completeness": 70}
-    if matched:
-        base_scores["keywords"] = min(92, base_scores["keywords"] + 6 * min(len(matched), 3))
+    # Agree with the heuristics: the fake "model" scores each category exactly as
+    # the locked baseline does, so the blended score (and therefore the verdict
+    # and headline written below) is the locked one.
+    locked_breakdown = {
+        str(item.get("key")): int(item.get("score", 70))
+        for item in (locked.get("score_breakdown") or [])
+        if isinstance(item, dict)
+    }
+    scores = {key: locked_breakdown.get(key, 70) for key in _CATEGORY_ORDER}
+    locked_summary = locked.get("summary") if isinstance(locked.get("summary"), dict) else {}
+    verdict = str(locked_summary.get("verdict") or "Promising but uneven")
+
+    quantified = resume.quantified
+    plain = resume.plain
+    focus = missing[0] if missing else ""
+    weakest_key = min(_CATEGORY_ORDER, key=lambda key: (scores[key], _CATEGORY_ORDER.index(key)))
+    strength = (
+        f"you already show {_join(matched, 3)}"
+        if matched
+        else f"{len(quantified)} bullets carry real numbers"
+        if quantified
+        else f"the {_join(skills, 3)} skills are visible"
+        if skills
+        else "the core sections are in place"
+    )
+
+    candidates: dict[str, dict] = {}
     if missing:
-        base_scores["keywords"] = max(45, base_scores["keywords"] - 4 * min(len(missing), 4))
-
-    issues = [
-        {
+        candidates["keywords"] = {
             "id": "keywords-close-the-gap",
-            "severity": "high" if missing else "low",
-            "category": "keywords",
-            "title": f"Direct evidence for {focus_keyword} is thin",
-            "why_it_matters": "Recruiters and ATS filters scan for this term before reading the rest of the resume.",
-            "evidence": f"The resume does not clearly show {focus_keyword} in a bullet or the summary.",
-            "fix": f"Add one bullet that names {focus_keyword} together with a concrete outcome.",
-        },
-        {
-            "id": "impact-quantify-outcomes",
-            "severity": "medium",
-            "category": "impact",
-            "title": "A few bullets still describe duties, not outcomes",
-            "why_it_matters": "Numbers make impact easy to trust at a glance.",
-            "evidence": "Several experience lines describe responsibilities without a measurable result.",
-            "fix": "Rewrite two bullets to lead with the outcome: scope, speed, revenue, or reliability.",
-        },
-    ]
-    strengths = [
-        f"Shows real experience with {', '.join(matched[:3])}." if matched else "Covers a clear, readable set of core sections.",
-        "Uses a scannable structure a recruiter can skim in under a minute.",
-    ]
-    if skills:
-        strengths.append(f"Surfaces relevant tooling, including {', '.join(skills[:3])}.")
+            "title": f"Direct evidence for {focus} is thin",
+            "why_it_matters": "Recruiters and ATS filters scan for the posting's own terms before reading the rest.",
+            "evidence": (
+                f"The posting asks for {_join(missing, 3)}; none of it appears in the resume"
+                + (f", although {_join(matched, 2)} does." if matched else ".")
+            ),
+            "fix": f"Add one bullet that names {focus} with a concrete outcome, only where it is true.",
+        }
+    elif job_description:
+        candidates["keywords"] = {
+            "id": "keywords-make-matches-visible",
+            "title": "Keyword coverage is good; make it visible early",
+            "why_it_matters": "Matches buried in the third role are easy to miss on a fast skim.",
+            "evidence": f"The resume already covers {_join(matched, 4) or 'the posting terms'} for {role}.",
+            "fix": "Echo the two strongest matches in the summary and the first experience bullets.",
+        }
+    else:
+        candidates["keywords"] = {
+            "id": "keywords-no-target",
+            "title": "No target posting to match against",
+            "why_it_matters": "Keyword fit is only meaningful against a specific job description.",
+            "evidence": f"The resume lists {_join(skills, 3) or 'few skills'}, but there is no posting to compare it with.",
+            "fix": "Paste the job description you are applying to and re-run the analysis.",
+        }
 
-    return {
+    if plain and len(quantified) < 3:
+        sample = plain[0].text.rstrip(". ")
+        candidates["impact"] = {
+            "id": "impact-quantify-outcomes",
+            "title": "Too few bullets lead with a result",
+            "why_it_matters": "Numbers make impact easy to trust at a glance.",
+            "evidence": f'Only {len(quantified)} of {len(resume.bullets)} bullets carry a number; "{_trim(sample, 110)}" states the work, not the result.',
+            "fix": f'Rewrite "{_trim(sample, 80)}" to lead with the outcome: scope, speed, revenue or reliability.',
+        }
+    else:
+        best = _top_resume_fact(resume)
+        candidates["impact"] = {
+            "id": "impact-lead-with-the-best-number",
+            "title": "Lead with your strongest number",
+            "why_it_matters": "The first bullet of each role gets the most attention.",
+            "evidence": f'"{_trim(best, 110)}" is the strongest result, but it is not the first thing a reader sees.' if best else "The resume has few concrete results to lead with.",
+            "fix": "Move the most convincing quantified bullet to the top of the most recent role.",
+        }
+
+    absent = [section for section in _EXPECTED_SECTIONS if section not in detected_sections]
+    if absent:
+        candidates["structure"] = {
+            "id": "structure-add-missing-section",
+            "title": f"No {absent[0]} section detected",
+            "why_it_matters": "Recruiters and parsers look for the standard sections first.",
+            "evidence": f"Detected sections: {', '.join(detected_sections) or 'none'}; {absent[0]} is missing.",
+            "fix": f"Add a clearly labelled {absent[0]} section.",
+        }
+    else:
+        candidates["structure"] = {
+            "id": "structure-keep-bullets-short",
+            "title": "Structure is clean; keep one achievement per bullet",
+            "why_it_matters": "Short, single-purpose bullets are what a skim actually reads.",
+            "evidence": f"All of {', '.join(detected_sections[:4])} are present, with {len(resume.bullets)} bullets in total.",
+            "fix": "Split any bullet that carries two achievements into two lines.",
+        }
+
+    if resume.words and resume.words < 180:
+        candidates["clarity"] = {
+            "id": "clarity-add-context",
+            "title": "Thin on context for each role",
+            "why_it_matters": "Without scope and ownership, strong results are hard to size.",
+            "evidence": f"The resume is about {resume.words} words long.",
+            "fix": "Add a line per role on team size, scope and what you owned.",
+        }
+    else:
+        summary_line = next((line for line in resume.lines if len(line.split()) >= 8 and not _BULLET_RE.match(line)), "")
+        candidates["clarity"] = {
+            "id": "clarity-sharpen-the-summary",
+            "title": "Sharpen the opening summary",
+            "why_it_matters": "The summary is read first and sets how the rest is judged.",
+            "evidence": f'The opening line, "{_trim(summary_line, 100)}", could name the target role and one headline result.' if summary_line else "There is no opening summary that frames the target role.",
+            "fix": f"Rewrite the summary in two lines: who you are for {role} and your strongest result.",
+        }
+
+    optional = [s for s in ("Projects", "Certifications") if s not in detected_sections]
+    candidates["completeness"] = {
+        "id": "completeness-fill-the-gaps",
+        "title": f"No {optional[0].lower()} section to back up the claims" if optional else "Completeness looks solid",
+        "why_it_matters": "Supporting sections give a reader a second place to find proof.",
+        "evidence": f"Present: {', '.join(detected_sections) or 'little'}; {optional[0]} is absent." if optional else f"Present: {', '.join(detected_sections)}.",
+        "fix": f"Add a short {optional[0]} section with one or two relevant items." if optional else "Keep every section current.",
+    }
+
+    ordered = sorted(_CATEGORY_ORDER, key=lambda key: (scores[key], _CATEGORY_ORDER.index(key)))
+    issues = [
+        {"severity": _severity(scores[key]), "category": key, **candidates[key]} for key in ordered[:4]
+    ]
+
+    strengths: list[str] = []
+    if quantified:
+        strengths.append(f'Quantified impact: "{_trim(quantified[0].text, 110)}"')
+    if matched:
+        strengths.append(f"Shows direct experience with {_join(matched, 4)}, as the posting asks.")
+    if skills:
+        strengths.append(f"Surfaces relevant tooling, including {_join(skills, 4)}.")
+    if resume.years:
+        strengths.append(f"States {resume.years} years of experience up front.")
+    if len(detected_sections) >= 4:
+        strengths.append(f"Covers the sections a recruiter scans first: {', '.join(detected_sections[:4])}.")
+    if not strengths:
+        strengths.append("Provides enough raw material to improve with more specific evidence.")
+
+    top_actions = [
+        {"title": issue["title"], "action": issue["fix"], "priority": issue["severity"]} for issue in issues[:3]
+    ]
+    result: dict[str, Any] = {
         "schema_version": "quality_v2",
         "summary": {
-            "headline": f"The resume already covers the basics; closing the gap on {focus_keyword} is the highest-leverage next edit.",
-            "verdict": "Promising but uneven" if missing else "Strong foundation",
-            "confidence_note": "Directional read from the resume text and job description you provided.",
-        },
-        "top_actions": [
-            {
-                "title": f"Prove {focus_keyword}",
-                "action": f"Add a specific, measurable bullet that demonstrates {focus_keyword}.",
-                "priority": "high" if missing else "medium",
-            },
-            {
-                "title": "Quantify two more bullets",
-                "action": "Attach a number, scope, or outcome to your strongest recent bullets.",
-                "priority": "medium",
-            },
-        ],
-        "llm_score_breakdown": [{"key": key, "score": base_scores[key]} for key in category_order],
-        "strengths": strengths[:5],
-        "issues": issues,
-        "role_fit": {
-            "target_role_label": prepass.get("target_role_label") or "the target role",
-            "fit_score": max(40, min(90, 55 + 6 * len(matched) - 5 * len(missing))),
-            "rationale": (
-                f"Matched signal for {', '.join(matched[:3]) or 'a few relevant areas'} already reads as credible, "
-                f"but {focus_keyword} needs clearer proof before this reads as a strong match."
+            "headline": _resume_headline(verdict, weakest=_CATEGORY_LABEL[weakest_key], strength=strength, focus=focus, role=role, has_job=bool(job_description)),
+            "verdict": verdict,
+            "confidence_note": (
+                "Directional read from the resume text and job description you provided."
+                if job_description
+                else "Directional read from the resume text alone; add a job description for a role-specific read."
             ),
         },
+        "top_actions": top_actions,
+        "llm_score_breakdown": [{"key": key, "score": scores[key]} for key in _CATEGORY_ORDER],
+        "strengths": strengths[:5],
+        "issues": issues,
     }
+    feedback = _feedback(user_prompt)
+    if feedback:
+        result["summary"]["confidence_note"] = f'Re-read with your note in mind: "{_trim(feedback, 100)}".'
+    if job_description:
+        result["role_fit"] = {
+            # target_role_label is deliberately omitted: the service fills it from the posting.
+            "fit_score": min(95, round((scores["keywords"] + sum(scores.values()) / len(scores)) / 2)),
+            "rationale": (
+                f"{_join(matched, 3) or 'A few relevant areas'} already read as credible"
+                + (f", but {_join(missing, 2)} needs clearer proof before this reads as a strong match." if missing else ".")
+            ),
+        }
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -175,31 +645,61 @@ def _resume_analyzer(system_prompt: str, user_prompt: str) -> dict:
 
 _MARKER_JOB_MATCH = "You are an expert job matching analyst."
 
+_SOFT_KEYWORDS = frozenset({"leadership", "communication", "mentoring", "collaboration", "stakeholder management", "ownership"})
+
+
+def _job_match_headline(verdict: str, *, matched: list[str], missing: list[str], role: str) -> str:
+    # Keyed on the locked verdict (score band), never on whether *any* keyword matched.
+    total = len(matched) + len(missing)
+    if verdict == "strong":
+        return f"You already cover {_join(matched, 3)}; a few edits make the fit for {role} easier to trust."
+    if verdict == "borderline":
+        return (
+            f"You match {len(matched)} of {total} requirements for {role}, but "
+            f"{_join(missing, 2) or 'the remaining requirements'} still need proof."
+        )
+    tail = f"; only {matched[0]} lines up" if matched else ""
+    return f"This reads as a stretch for {role}: {_join(missing, 3) or 'the core requirements'} are not evidenced in the resume{tail}."
+
 
 def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
+    locked = _json_after(user_prompt, "## Locked payload") or {}
     prepass = _json_after(user_prompt, "## Prepass evidence") or {}
+    resume = _parse_resume(_resume_text(user_prompt))
+    job_description = _job_text(user_prompt)
     matched = _string_list(prepass.get("matched_keywords"))
     missing = _string_list(prepass.get("missing_keywords"))
+    role = _role_label(job_description)
+    _title, company = _job_header(job_description)
+
+    verdict = str(locked.get("verdict") or "")
+    if verdict not in {"strong", "borderline", "stretch"}:
+        verdict = "strong" if len(matched) >= 2 * len(missing) and matched else "borderline" if matched else "stretch"
 
     requirements = []
-    for keyword in matched[:3]:
+    for index, keyword in enumerate(matched[:3]):
+        bullet = resume.bullet_with(keyword)
+        evidence = (
+            f'Resume: "{_trim(bullet.text, 90)}"' if bullet else f"{keyword} is listed in the skills and experience."
+        )
         requirements.append(
             {
                 "requirement": keyword,
-                "importance": "must",
+                "importance": "must" if index < 2 else "preferred",
                 "status": "matched",
-                "resume_evidence": f"The resume already references {keyword} directly.",
-                "suggested_fix": f"Keep {keyword} visible in both skills and your strongest bullet.",
+                "resume_evidence": evidence,
+                "suggested_fix": f"Keep {keyword} visible in the summary and your strongest bullet.",
             }
         )
-    for keyword in missing[:3]:
+    for index, keyword in enumerate(missing[:3]):
+        adjacent = resume.skills[index % len(resume.skills)] if resume.skills else ""
         requirements.append(
             {
                 "requirement": keyword,
-                "importance": "must",
+                "importance": "must" if index < 2 else "preferred",
                 "status": "missing",
-                "resume_evidence": f"No direct evidence for {keyword} was found in the resume.",
-                "suggested_fix": f"Add a bullet that proves {keyword} with a concrete example.",
+                "resume_evidence": f"No bullet mentions {keyword}" + (f"; the closest is your {adjacent} work." if adjacent else "."),
+                "suggested_fix": f"Add a bullet that proves {keyword} with scope and a measurable result.",
             }
         )
     if not requirements:
@@ -208,43 +708,54 @@ def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
                 "requirement": "Role alignment",
                 "importance": "preferred",
                 "status": "partial",
-                "resume_evidence": "The resume shows adjacent experience without an exact keyword match.",
-                "suggested_fix": "Mirror the job description's own language where it is honestly true.",
+                "resume_evidence": f"The resume shows adjacent experience for {role} without an exact keyword match.",
+                "suggested_fix": "Mirror the posting's own language where it is honestly true.",
             }
         )
 
     missing_keywords = [
         {
             "keyword": keyword,
-            "contextual_guidance": f"Work {keyword} into an existing bullet where it is genuinely true.",
+            "contextual_guidance": f"Work {keyword} into the {resume.bullets[index % len(resume.bullets)].employer or 'most recent'} bullets where it is true."
+            if resume.bullets
+            else f"Work {keyword} into an existing bullet where it is true.",
             "anti_stuffing_note": "Only add it if you can back it up in an interview.",
         }
-        for keyword in missing[:4]
+        for index, keyword in enumerate(missing[:4])
     ]
 
-    tailoring_actions = [
-        {
-            "section": "experience",
-            "keyword": keyword,
-            "action": f"Add a specific example that proves {keyword} with scope and outcome.",
-        }
-        for keyword in missing[:3]
-    ]
+    tailoring_actions = []
+    for index, keyword in enumerate(missing[:3]):
+        soft = keyword.lower() in _SOFT_KEYWORDS
+        target = resume.plain[index % len(resume.plain)] if resume.plain else None
+        tailoring_actions.append(
+            {
+                "section": "summary" if soft else "skills" if index == 2 else "experience",
+                "keyword": keyword,
+                "action": (
+                    f'Rework "{_trim(target.text, 70)}" to show {keyword} with its outcome.'
+                    if target
+                    else f"Add a specific example that proves {keyword} with scope and outcome."
+                ),
+            }
+        )
 
-    verdict = "strong" if len(matched) >= len(missing) and matched else "borderline"
+    summary_note = "Directional heuristic based on keyword and evidence overlap."
+    feedback = _feedback(user_prompt)
+    if feedback:
+        summary_note = f'Re-read with your note in mind: "{_trim(feedback, 100)}".'
+
     return {
         "schema_version": "quality_v2",
         "summary": {
-            "headline": "The resume aligns on the core requirements; a few targeted edits close the rest of the gap."
-            if matched
-            else "The resume reads as a stretch for this role without clearer targeted evidence.",
+            "headline": _job_match_headline(verdict, matched=matched, missing=missing, role=role),
             "verdict": verdict,
-            "confidence_note": "Directional heuristic based on keyword and evidence overlap.",
+            "confidence_note": summary_note,
         },
         "top_actions": [
             {
                 "title": f"Close the {missing[0]} gap" if missing else "Keep the strongest matches visible",
-                "action": tailoring_actions[0]["action"] if tailoring_actions else "Keep top matches in the summary and skills section.",
+                "action": tailoring_actions[0]["action"] if tailoring_actions else f"Keep {_join(matched, 2) or 'your top matches'} in the summary and skills section.",
                 "priority": "high" if missing else "medium",
             }
         ],
@@ -252,10 +763,10 @@ def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
         "requirements": requirements[:6],
         "missing_keywords": missing_keywords,
         "tailoring_actions": tailoring_actions[:4],
-        "interview_focus": (missing[:3] or matched[:3]) or ["Role-specific scope and ownership"],
+        "interview_focus": (missing[:3] or matched[:3]) or [f"Scope and ownership for {role}"],
         "recruiter_summary": (
-            f"This candidate shows evidence for {', '.join(matched[:3]) or 'some relevant experience'}, "
-            f"but still needs clearer proof for {', '.join(missing[:3]) or 'a few remaining requirements'} to read as a strong match."
+            f"For {role}{_at(company)}, this resume shows evidence for {_join(matched, 3) or 'some relevant experience'}"
+            + (f", but still needs clearer proof for {_join(missing, 3)} to read as a strong match." if missing else ".")
         ),
     }
 
@@ -267,59 +778,191 @@ def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
 _MARKER_COVER_LETTER = "You are an expert cover letter writer and application strategist."
 
 
+def _section_dict(text: str, why: str, requirements: list[str], evidence: list[str]) -> dict:
+    return {
+        "text": text,
+        "why_this_paragraph": why,
+        "requirements_used": requirements[:3],
+        "evidence_used": [item for item in evidence if item][:3],
+    }
+
+
 def _cover_letter(system_prompt: str, user_prompt: str) -> dict:
     locked = _json_after(user_prompt, "## Locked payload") or {}
+    handoff = _json_after(user_prompt, "## Application handoff context") or {}
     tone = str(locked.get("tone_used") or "Professional")
+    resume = _parse_resume(_resume_text(user_prompt))
+    job_description = _job_text(user_prompt)
+    role = _role_label(job_description, handoff)
+    _title, company = _job_header(job_description)
+    matched = _string_list(handoff.get("matched_keywords"))
+    missing = _string_list(handoff.get("priority_requirements")) or _string_list(handoff.get("missing_keywords"))
+    missing = [item for item in missing if item not in matched]
+    facts = _confirmed_facts(user_prompt)
+    feedback = _feedback(user_prompt)
+    wants_short = bool(re.search(r"short|concise|brief|trim|tighter|cut down", feedback, re.I))
+    wants_numbers = bool(re.search(r"metric|number|quantif|data|result", feedback, re.I))
 
-    opening = {
-        "text": (
-            "I'm writing to apply for this role. The overlap between what you're building and what I've "
-            "shipped recently made this one worth a direct, specific pitch rather than a generic cover letter."
-        ),
-        "why_this_paragraph": "Opens with a direct, specific hook instead of a generic greeting.",
-        "requirements_used": [],
-        "evidence_used": [],
-    }
-    body_points = [
+    quantified = resume.quantified
+    proof = quantified[0] if quantified else (resume.bullets[0] if resume.bullets else None)
+    proof2 = quantified[1] if len(quantified) > 1 else None
+    opening_proof = proof
+    if tone == "Confident" and proof and proof2:
+        # The opening leads with the best result, so the body moves on to the next one.
+        proof, proof2 = proof2, (quantified[2] if len(quantified) > 2 else None)
+    experience = f"{resume.years} years of experience" if resume.years else "my experience"
+    title = f" as a {resume.current_title}" if resume.current_title else ""
+    where = _at(company)
+    greeting = f"Dear {company} hiring team," if company else "Dear Hiring Manager,"
+    skills_phrase = _join(matched, 3) or _join(resume.skills, 3)
+    background = f"my background in {skills_phrase}" if skills_phrase else "my background"
+    has_standing = bool(resume.years or resume.current_title)
+
+    if tone == "Confident":
+        lead = f"{opening_proof.clause()[0].upper()}{opening_proof.clause()[1:]}" if opening_proof else "I deliver results"
+        opening_body = (
+            f"{lead.rstrip('.')}. That is the kind of result I would bring to {_the_role(role)}{where}, "
+            f"and it is why I am applying."
+        )
+    elif tone == "Warm":
+        opening_body = (
+            f"I was genuinely excited to see {'this opening' if role == _GENERIC_ROLE else f'the {role} opening'}{where}. "
+            f"{experience.capitalize() if resume.years else 'My experience'}{title} has taught me to care about "
+            f"{skills_phrase or 'the craft'} and the people I build it with, and that is what drew me to your team."
+        )
+    else:
+        opening_body = (
+            f"I am writing to apply for {'this position' if role == _GENERIC_ROLE else f'the {role} position'}{where}. "
+            + (f"With {experience}{title}, {background}" if has_standing else background.capitalize())
+            + " maps directly to what the role asks for."
+        )
+    opening = _section_dict(
+        f"{greeting}\n\n{opening_body}",
+        "Names the role and company, then states the closest match up front.",
+        matched,
+        [skills_phrase],
+    )
+
+    body_points: list[dict] = []
+    if proof:
+        place = f"At {proof.employer}, " if proof.employer else "In my recent work, "
+        sentence = f"{place}{proof.clause()}."
+        if proof2 and (wants_numbers or not wants_short):
+            sentence += f" I also {proof2.clause()[2:]}." if proof2.clause().startswith("I ") else f" Elsewhere, {proof2.clause()}."
+        if matched:
+            sentence += f" That is the same {_join(matched[:2], 2)} work your posting puts first."
+        body_points.append(
+            _section_dict(sentence, "Leads with the strongest quantified result from the resume.", matched, [proof.text, proof2.text if proof2 else ""])
+        )
+    else:
+        body_points.append(
+            _section_dict(
+                f"My resume shows hands-on work with {skills_phrase or 'the core requirements'}, and I would be glad to walk through the details.",
+                "Anchors the pitch in the skills the resume does show.",
+                matched,
+                [skills_phrase],
+            )
+        )
+
+    if facts:
+        extra = _join([_trim(fact, 140) for fact in facts], 2)
+        body_points.append(
+            _section_dict(
+                f"Beyond what is on my resume, I can also point to {extra}.",
+                "Adds proof the applicant has confirmed on their Evidence Profile.",
+                missing or matched,
+                facts[:2],
+            )
+        )
+    if missing and not wants_short:
+        adjacent = resume.skills[0] if resume.skills else (matched[0] if matched else "adjacent work")
+        body_points.append(
+            _section_dict(
+                f"I would rather be upfront that {_join(missing, 2)} {'are' if len(missing) > 1 else 'is'} not yet a headline item on my resume. "
+                f"The closest adjacent work is my {adjacent} experience, and I would ramp up on {missing[0]} quickly.",
+                "Addresses the biggest gap before it becomes an objection, without overstating fit.",
+                missing,
+                [adjacent],
+            )
+        )
+    elif not missing and not wants_short and resume.plain:
+        body_points.append(
+            _section_dict(
+                f"Beyond the headline numbers, {resume.plain[0].clause()}, which reflects how I work with the people around me.",
+                "Rounds out the pitch with a durable, less flashy strength.",
+                matched,
+                [resume.plain[0].text],
+            )
+        )
+    body_points = body_points[:3]
+
+    closing_text = {
+        "Confident": f"I would like to talk through how I can deliver the same for {_the_team(role)}{where}.",
+        "Warm": f"I would love the chance to talk with the {company + ' ' if company else ''}team about how I can contribute. Thank you for reading.",
+    }.get(
+        tone,
+        f"Thank you for your time and consideration. I would welcome the chance to discuss how my experience fits {_the_role(role)}{where}.",
+    )
+    closing = _section_dict(closing_text, "Ends with a concrete, low-friction next step.", missing or matched, [])
+
+    sign_off = f"\n\nSincerely,\n{resume.name}" if resume.name else ""
+    full_text = "\n\n".join([opening["text"], *[bp["text"] for bp in body_points], closing["text"]]) + sign_off
+
+    notes = [
         {
-            "text": (
-                "In my most recent role I owned a project end to end, from the first design decision to the "
-                "rollout, and the concrete result was a measurable improvement the team still points back to."
-            ),
-            "why_this_paragraph": "Leads with the strongest available proof point.",
+            "category": "tone",
+            "note": f"Written in a {tone.lower()} register to match the requested tone.",
             "requirements_used": [],
-            "evidence_used": [],
-        },
-        {
-            "text": (
-                "I also spend real time on the parts of the job that don't show up in a headline metric: "
-                "documentation, mentoring, and making sure the next person can pick up what I built."
-            ),
-            "why_this_paragraph": "Rounds out the pitch with durable, less flashy strengths.",
-            "requirements_used": [],
-            "evidence_used": [],
-        },
+            "source": "job-description",
+        }
     ]
-    closing = {
-        "text": "I'd welcome the chance to talk through how this experience maps onto your team's current priorities.",
-        "why_this_paragraph": "Ends with a concrete, low-friction next step.",
-        "requirements_used": [],
-        "evidence_used": [],
-    }
-    full_text = "\n\n".join([opening["text"], *[bp["text"] for bp in body_points], closing["text"]])
+    if facts:
+        notes.append(
+            {
+                "category": "evidence",
+                "note": f'Cites your confirmed profile evidence: "{_trim(facts[0], 100)}".',
+                "requirements_used": matched[:2],
+                "source": "resume",
+            }
+        )
+    if missing:
+        notes.append(
+            {
+                "category": "gap",
+                "note": f"Names {_join(missing, 2)} as a gap rather than claiming it.",
+                "requirements_used": missing[:2],
+                "source": "job-match",
+            }
+        )
+    if feedback:
+        if wants_short:
+            note = f'Made the letter shorter based on your feedback: "{_trim(feedback, 100)}".'
+        elif wants_numbers:
+            note = f'Put the quantified results first, as your feedback asked: "{_trim(feedback, 100)}".'
+        else:
+            note = f'Revised with your feedback in mind: "{_trim(feedback, 100)}".'
+        notes.insert(0, {"category": "tone", "note": note, "requirements_used": [], "source": "resume"})
 
+    lead_fact = _trim(_top_resume_fact(resume), 70)
     return {
         "schema_version": "quality_v2",
         "summary": {
-            "headline": "A grounded, role-specific draft ready for a quick personal pass before sending.",
+            "headline": (
+                f"A {tone.lower()} letter for {'this role' if role == _GENERIC_ROLE else role}{where}"
+                + (f' that leads with "{lead_fact}".' if lead_fact else ".")
+            ),
             "verdict": "Application-ready draft",
             "confidence_note": "Generated from the resume and job description you provided; review before sending.",
         },
         "top_actions": [
             {
-                "title": "Add one more concrete number",
-                "action": "Swap a general claim for a specific metric wherever you have one.",
-                "priority": "medium",
+                "title": f"Prove {missing[0]} in one sentence" if missing else "Add one more concrete number",
+                "action": (
+                    f"If you have real {missing[0]} experience, add one sentence naming it."
+                    if missing
+                    else "Swap a general claim for a specific metric wherever you have one."
+                ),
+                "priority": "high" if missing else "medium",
             }
         ],
         "opening": opening,
@@ -327,14 +970,7 @@ def _cover_letter(system_prompt: str, user_prompt: str) -> dict:
         "closing": closing,
         "full_text": full_text,
         "tone_used": tone,
-        "customization_notes": [
-            {
-                "category": "tone",
-                "note": f"Written in a {tone.lower()} register to match the requested tone.",
-                "requirements_used": [],
-                "source": "job-description",
-            }
-        ],
+        "customization_notes": notes[:4],
     }
 
 
@@ -347,108 +983,343 @@ _MARKER_INTERVIEW_PRACTICE = "You are an interview coach evaluating a practice a
 
 _QUESTION_COUNT_RE = re.compile(r"Generate exactly (\d+) questions")
 
+# (template, answer tail, structure, why asked). Each focus area gets a different
+# angle per round, so a deck never repeats one question with the topic swapped.
+_QUESTION_KINDS: list[tuple[str, str, list[str], str]] = [
+    (
+        "Tell me about a time you used {f} to deliver a measurable result.",
+        "I would set up the situation in one sentence, then spend most of the answer on what I personally did and the number that changed.",
+        ["Situation", "Action", "Result"],
+        "Tests whether your {f} story is concrete.",
+    ),
+    (
+        "Imagine a high-stakes deadline in your first month {r}{co} and {f} is the blocker. What do you do first?",
+        "I would size the risk, name the owner, and agree the smallest change that unblocks the deadline before I touch anything else.",
+        ["Diagnose", "Decide", "Communicate"],
+        "Shows how you prioritise under pressure.",
+    ),
+    (
+        "What is the hardest trade-off you have made involving {f}, and how did you decide?",
+        "I would name the two options, the constraint that forced the choice, and what I would still do differently.",
+        ["Options", "Constraint", "Decision"],
+        "Probes judgment, not just execution.",
+    ),
+    (
+        "How would you explain {f} to a teammate who has never worked with it?",
+        "I would start from the problem it solves, give one concrete example from my own work, and check understanding with a question.",
+        ["Problem", "Example", "Check"],
+        "Checks depth of understanding and communication.",
+    ),
+    (
+        "Describe a time {f} did not go as planned. What changed afterwards?",
+        "I would own the miss plainly, explain what the signals were, and show the process change that followed.",
+        ["What happened", "Why", "What changed"],
+        "Looks for honesty and learning.",
+    ),
+    (
+        "How would you measure whether your {f} work is succeeding in {tr}?",
+        "I would pick one leading and one lagging metric, say how often I would review them, and what would make me change course.",
+        ["Metric", "Baseline", "Review"],
+        "Tests whether you tie {f} to outcomes.",
+    ),
+    (
+        "Where will {f} matter most{co_or_team}, and how would you ramp up on it?",
+        "I would map where {f} touches the roadmap, talk to the people who own it today, and plan a first small win.",
+        ["Where", "Who", "First win"],
+        "Checks that you understand the job's real surface area.",
+    ),
+    (
+        "What would you do in your first 30 days to raise the bar on {f}?",
+        "I would audit the current state, fix one visible problem, and write down the standard I want the team to hold.",
+        ["Audit", "Quick win", "Standard"],
+        "Tests initiative and sequencing.",
+    ),
+]
+
+
+_GENERIC_FOCUS = ["Problem solving", "Ownership", "Collaboration", "Handling pressure"]
+
+
+def _focus_pool(handoff: dict, resume: _Resume) -> list[str]:
+    pool = _unique(_string_list(handoff.get("interview_focus")) + _string_list(handoff.get("priority_requirements")))
+    # Without a posting, fall back to what the resume itself shows, then to universal topics.
+    return pool[:4] or resume.skills[:4] or _GENERIC_FOCUS
+
 
 def _interview_questions(system_prompt: str, user_prompt: str) -> dict:
     match = _QUESTION_COUNT_RE.search(system_prompt)
     count = max(3, min(int(match.group(1)), 12)) if match else 5
 
     handoff = _json_after(user_prompt, "## Application handoff context") or {}
-    focus_pool = (
-        _string_list(handoff.get("interview_focus"))
-        or _string_list(handoff.get("priority_requirements"))
-        or ["your strongest relevant project"]
-    )
-    weak = _string_list(handoff.get("missing_keywords"))
+    resume = _parse_resume(_resume_text(user_prompt))
+    job_description = _job_text(user_prompt)
+    role = _role_label(job_description, handoff)
+    _title, company = _job_header(job_description)
+    co = _at(company)
+    co_or_team = co or " on this team"
+    pool = _focus_pool(handoff, resume)
+    weak = [item for item in _unique(_string_list(handoff.get("missing_keywords"))) if item in pool]
+    facts = _confirmed_facts(user_prompt)
+    feedback = _feedback(user_prompt)
+    adjacent = resume.skills[0] if resume.skills else (_string_list(handoff.get("matched_keywords")) or ["my recent work"])[0]
 
-    questions = []
-    for index in range(count):
-        focus_area = focus_pool[index % len(focus_pool)]
-        questions.append(
+    def grounding(focus: str) -> tuple[str, str]:
+        bullet = resume.bullet_with(focus)
+        if bullet:
+            place = f" at {bullet.employer}" if bullet.employer else ""
+            return f"I would use my work{place}: {bullet.quote()}.", bullet.text
+        if focus in weak:
+            return (
+                f"I would be upfront that {focus} is not a core part of my recent work, then describe the closest "
+                f"example, my {adjacent} experience, and how I would ramp up.",
+                "",
+            )
+        top = resume.quantified[0] if resume.quantified else None
+        if top:
+            return f"I would draw on {top.quote()} and connect it back to {focus}.", top.text
+        return f"I would anchor this in the closest project from my background to {focus}.", ""
+
+    def kind_question(focus: str, round_index: int, offset: int) -> dict:
+        is_weak = focus in weak
+        if is_weak and round_index == 0:
+            question = (
+                f"{_the_posting(role)} asks for {focus}, but your resume does not show it directly. "
+                f"How have you handled something similar, and how would you close the gap?"
+            )
+            tail = f"Then I would commit to a concrete first step on {focus} for the first month."
+            structure = ["Be upfront", "Closest example", "Ramp-up plan"]
+            why = f"Checks how you handle a gap in {focus}."
+        else:
+            template, tail_t, structure, why_t = _QUESTION_KINDS[(round_index + offset) % len(_QUESTION_KINDS)]
+            question = template.format(f=focus, r=_as_role(role), tr=_the_role(role), co=co, co_or_team=co_or_team)
+            tail = tail_t.format(f=focus)
+            why = why_t.format(f=focus)
+        lead, metric = grounding(focus)
+        return {
+            "question": question,
+            "answer": f"{lead} {tail}",
+            "key_points": [focus, _trim(metric, 60) or "Specific example", "Measurable outcome"],
+            "answer_structure": structure,
+            "follow_up_questions": [
+                f"What would you do differently on {focus} now?",
+                f"How did you know the {focus} work had succeeded?",
+            ],
+            "focus_area": focus,
+            "why_asked": why,
+            "practice_first": is_weak,
+        }
+
+    first_round = [kind_question(focus, 0, index) for index, focus in enumerate(pool)]
+
+    specials: list[dict] = []
+    for bullet in (resume.quantified or resume.bullets)[:3]:
+        place = f"At {bullet.employer}, your" if bullet.employer else "Your"
+        focus = next((item for item in pool + resume.skills if item.lower() in bullet.text.lower()), "Past impact")
+        specials.append(
             {
-                "question": f"Walk me through a time you demonstrated {focus_area}.",
+                "question": f'{place} resume says: "{_trim(bullet.text, 150)}" What was the hardest decision behind that result?',
                 "answer": (
-                    f"I'd anchor this in a specific project where {focus_area} mattered: what the starting "
-                    f"situation was, the decision I made, and the measurable outcome that followed."
+                    f"I would walk through the situation, the options we weighed and why I chose the path behind this: "
+                    f'"{_trim(bullet.text.rstrip(". "), 120)}".'
+                    if re.match(r"I\s", bullet.text)
+                    else f"I would walk through the situation, the options we weighed and why I chose the path that {bullet.text[0].lower() + bullet.text[1:].rstrip('. ')}."
                 ),
-                "key_points": [focus_area, "Specific example", "Measurable outcome"],
-                "answer_structure": ["Situation", "Task", "Action", "Result"],
-                "follow_up_questions": [
-                    f"What would you have done differently on {focus_area}?",
-                    f"How did you measure success for {focus_area}?",
-                ],
-                "focus_area": focus_area,
-                "why_asked": f"Checks whether you can make {focus_area} concrete and credible under follow-up.",
-                "practice_first": focus_area in weak or index == 0,
+                "key_points": [_trim(bullet.text, 60), "The decision", "What I would repeat"],
+                "answer_structure": ["Situation", "Options", "Decision", "Result"],
+                "follow_up_questions": ["Who disagreed, and how did you resolve it?", "What would you change on a second pass?"],
+                "focus_area": focus,
+                "why_asked": "Verifies the headline result on your resume.",
+                "practice_first": False,
             }
         )
+    for fact in facts[:2]:
+        specials.append(
+            {
+                "question": f'You confirmed this on your profile: "{_trim(fact, 140)}" How would you tell that story in two minutes?',
+                "answer": f'I would open with the outcome, "{_trim(fact, 100)}", then explain the situation and my role in it.',
+                "key_points": [_trim(fact, 60), "Outcome first", "My role"],
+                "answer_structure": ["Outcome", "Situation", "My role"],
+                "follow_up_questions": ["What was the hardest part?", "Who else was involved?"],
+                "focus_area": "Confirmed achievement",
+                "why_asked": "Tests that you can tell your best story crisply.",
+                "practice_first": False,
+            }
+        )
+
+    ordered: list[dict] = []
+    queue = iter(specials)
+    for index, item in enumerate(first_round):
+        ordered.append(item)
+        if index % 2 == 0:
+            special = next(queue, None)
+            if special:
+                ordered.append(special)
+    ordered.extend(queue)
+    round_index = 1
+    while len(ordered) < count and round_index <= len(_QUESTION_KINDS):
+        for index, focus in enumerate(pool):
+            ordered.append(kind_question(focus, round_index, index))
+        round_index += 1
+
+    seen: set[str] = set()
+    questions: list[dict] = []
+    for item in ordered:
+        if item["question"] not in seen:
+            seen.add(item["question"])
+            questions.append(item)
+    questions = questions[:count]
+
+    headline = (
+        f"{count} questions for {'this role' if role == _GENERIC_ROLE else role}{co}: gap topics ({_join(weak, 2)}) first, then your strongest stories."
+        if weak
+        else f"{count} questions for {'this role' if role == _GENERIC_ROLE else role}{co}, built around your strongest stories."
+    )
+    notes = []
+    top = _top_resume_fact(resume)
+    if top:
+        notes.append(f'Lead with the strongest matching story: "{_trim(top, 100)}".')
+    if weak:
+        notes.append(f"Be ready to be upfront about {_join(weak, 2)} and show how you would close the gap.")
+    if facts:
+        notes.append(f'Your confirmed evidence ("{_trim(facts[0], 80)}") is a safe story to reuse.')
+    if feedback:
+        notes.append(f'Adjusted for your note: "{_trim(feedback, 100)}".')
 
     return {
         "schema_version": "quality_v2",
         "summary": {
-            "headline": "A gap-first practice set focused on the role's highest-value themes.",
-            "verdict": "Gap-first practice plan",
+            "headline": headline,
+            "verdict": "Gap-first practice plan" if weak else "Confidence-building practice plan",
             "confidence_note": "Advisory practice plan based on resume and role signals.",
         },
         "top_actions": [
             {
-                "title": f"Rehearse {focus_pool[0]} out loud",
-                "action": "Practice your strongest story for this topic until it fits in under 90 seconds.",
+                "title": f"Rehearse {(weak or pool)[0]} out loud",
+                "action": (
+                    f"Practice your answer on {weak[0]} until it fits in under 90 seconds."
+                    if weak
+                    else f"Practice your strongest {pool[0]} story until it fits in under 90 seconds."
+                ),
                 "priority": "high",
             }
         ],
         "questions": questions,
         "focus_areas": [
             {
-                "title": focus_area,
-                "reason": f"The role leans heavily on {focus_area}; interviewers will probe for specifics.",
-                "requirements_used": [focus_area],
-                "practice_first": focus_area in weak,
+                "title": focus,
+                "reason": (
+                    f"{_the_posting(role)} names {focus}, and your resume does not show it yet."
+                    if focus in weak
+                    else f"{_the_role(role).capitalize()} leans on {focus}; interviewers will probe for specifics."
+                ),
+                "requirements_used": [focus],
+                "practice_first": focus in weak,
             }
-            for focus_area in focus_pool[:4]
+            for focus in pool
         ],
         "weak_signals_to_prepare": [
             {
                 "title": keyword,
-                "severity": "high",
-                "why_it_matters": f"No direct resume evidence for {keyword} was detected.",
-                "prep_action": f"Prepare one concrete example that proves {keyword} before the interview.",
+                "severity": "high" if index == 0 else "medium",
+                "why_it_matters": f"The posting asks for {keyword}; no resume evidence for it was detected.",
+                "prep_action": f"Prepare one example that links {keyword} to your {adjacent} experience.",
                 "related_requirements": [keyword],
             }
-            for keyword in weak[:4]
+            for index, keyword in enumerate(weak[:4])
         ],
-        "interviewer_notes": [
-            "Lead with the strongest matching story before moving into weaker or adjacent experience.",
-        ],
+        "interviewer_notes": notes[:4] or ["Lead with the strongest matching story before adjacent experience."],
     }
 
 
+_STOPWORDS = frozenset(
+    {
+        "about", "would", "could", "should", "their", "there", "which", "where", "while", "these",
+        "those", "describe", "explain", "time", "tell", "what", "when", "your", "you", "with",
+        "from", "that", "this", "have", "were", "been", "into", "than", "then", "them", "they",
+    }
+)  # fmt: skip
+_RESULT_VERBS = re.compile(
+    r"\b(reduced|cut|increased|improved|saved|shipped|launched|grew|delivered|lifted|raised|decreased|doubled|halved)\b", re.I
+)
+
+
 def _interview_practice_feedback(system_prompt: str, user_prompt: str) -> dict:
-    is_empty = "(No answer provided)" in user_prompt
-    if is_empty:
+    question = _section(user_prompt, "Interview Question")
+    answer = _section(user_prompt, "User Answer")
+    model_answer = _section(user_prompt, "Model Answer")
+    quoted_question = _trim(question, 110).rstrip(".?! ") or "this question"
+
+    if "(No answer provided)" in user_prompt or not answer:
         return {
             "strengths": [],
             "weaknesses": [],
             "suggestions": [
-                "Open with the specific situation and your role in it.",
+                f'Open with the specific situation behind "{quoted_question}" and your role in it.',
                 "State the concrete action you took, not just the goal.",
-                "Close with a measurable result and what you'd repeat or change.",
+                "Close with a measurable result and what you would repeat or change.",
             ],
-            "overall_feedback": "No answer was submitted; use the structure above to build one before your next attempt.",
+            "overall_feedback": (
+                f'No answer was submitted for "{quoted_question}". Use the structure above to build one before your next attempt.'
+            ),
             "is_empty_answer": True,
         }
+
+    words = answer.split()
+    count = len(words)
+    number = re.search(r"\b\d[\d,.]*\s?(?:%|percent)", answer) or re.search(r"\b\d[\d,.]*(?:\s+[a-z]+)?", answer)
+    result_verb = _RESULT_VERBS.search(answer)
+    i_count = len(re.findall(r"\bI\b", answer))
+    we_count = len(re.findall(r"\b(?:we|our|us)\b", answer, re.I))
+    topic_words = {
+        word for word in re.findall(r"[a-z]{5,}", question.lower()) if word not in _STOPWORDS
+    }
+    answer_words = set(re.findall(r"[a-z]{5,}", answer.lower()))
+    on_topic = topic_words & answer_words
+
+    strengths: list[str] = []
+    weaknesses: list[str] = []
+    suggestions: list[str] = []
+    if number:
+        strengths.append(f'You back the result with a number ("{number.group(0).strip(" .,")}"), which is what makes it believable.')
+    else:
+        weaknesses.append("The result has no number: say how much, how fast or how many.")
+        suggestions.append("Add one measurable outcome to close the answer, even a rough one.")
+    if result_verb:
+        strengths.append(f'You state an outcome with a clear verb ("{result_verb.group(0).lower()}").')
+    elif not number:
+        weaknesses.append("It describes the situation but never states what changed afterwards.")
+    if i_count >= 2 and i_count >= we_count:
+        strengths.append(f'Clear first-person ownership: "I" appears {i_count} times.')
+    elif we_count > i_count:
+        weaknesses.append('The answer leans on "we"; say what you personally did.')
+        suggestions.append('Swap one "we" for "I" and name your own decision.')
+    if count < 25:
+        weaknesses.append(f"At {count} words it is too short to show the situation, your action and the result; add detail.")
+        suggestions.append("Aim for 90 to 150 words: one line of setup, two of action, one of result.")
+    elif count > 180:
+        weaknesses.append(f"At {count} words it runs long; the action and result get buried under setup.")
+        suggestions.append("Trim the setup so the action and result get more airtime.")
+    else:
+        strengths.append(f"A good length: about {count} words, roughly {max(1, round(count / 130 * 60))} seconds spoken.")
+    if topic_words and not on_topic and count >= 40:
+        weaknesses.append(f'It does not speak to what the question asks ("{quoted_question}").')
+        suggestions.append("Restate the question's core in your first sentence, then answer it directly.")
+    if model_answer:
+        gaps = [w for w in re.findall(r"[a-z]{7,}", model_answer.lower()) if w not in answer_words and w not in _STOPWORDS]
+        if gaps:
+            suggestions.append(f'The reference answer also touches on "{gaps[0]}"; consider working it in.')
+    if not strengths:
+        strengths.append(f'Your opening, "{_trim(" ".join(words[:8]), 60)}", gives a clear place to start.')
+    if not suggestions:
+        suggestions.append("Practise saying it out loud to keep the delivery under two minutes.")
+
+    lead = weaknesses[0] if weaknesses else "nothing major to fix"
+    verdict = "A solid answer" if not weaknesses else "A start with clear fixes" if len(weaknesses) == 1 else "A rough first pass"
     return {
-        "strengths": [
-            "The answer stays grounded in a real, specific situation.",
-            "It states a concrete action rather than a vague intention.",
-        ],
-        "weaknesses": [
-            "The result is described qualitatively rather than with a number.",
-        ],
-        "suggestions": [
-            "Add one measurable outcome to close the answer.",
-            "Trim the setup so the action and result get more airtime.",
-        ],
-        "overall_feedback": "Solid, specific answer — tightening the setup and adding a number would make it land harder.",
+        "strengths": strengths[:4],
+        "weaknesses": weaknesses[:4],
+        "suggestions": suggestions[:4],
+        "overall_feedback": f'{verdict} on "{quoted_question}". Biggest fix: {(lead[0].lower() + lead[1:] if weaknesses else lead).rstrip(".")}.',
         "is_empty_answer": False,
     }
 
@@ -459,68 +1330,155 @@ def _interview_practice_feedback(system_prompt: str, user_prompt: str) -> dict:
 
 _MARKER_CAREER = "You are an expert career strategist."
 
+_MIN_DIRECTIONS = 3
+
+
+def _stated_target_role(user_prompt: str) -> str:
+    # The prompt builder writes the literal placeholder "None provided" when the
+    # user left the target blank; that is "no target", never a role to echo.
+    raw = _line_after(user_prompt, "## Stated target role\n")
+    return "" if _is_blank(raw) else raw
+
+
+def _top_up_directions(paths: list[dict], discipline: str, strengths: list[str]) -> list[dict]:
+    """Guarantee at least three distinct directions, derived from the discipline."""
+    existing = {str(path.get("role_title", "")).lower() for path in paths}
+    base = min((int(p.get("fit_score", 70)) for p in paths), default=72)
+    extras = [
+        (f"Senior {discipline.title()} Specialist", "3-6 months", "low"),
+        (f"{discipline.title()} Team Lead", "6-12 months", "medium"),
+        (f"{discipline.title()} Consultant", "6-9 months", "medium"),
+    ]
+    for offset, (title, timeline, risk) in enumerate(extras, start=1):
+        if len(paths) >= _MIN_DIRECTIONS:
+            break
+        if title.lower() in existing:
+            continue
+        paths.append(
+            {
+                "role_title": title,
+                "fit_score": max(35, base - 3 * offset),
+                "transition_timeline": timeline,
+                "rationale": f"A lateral option that reuses your {discipline} background.",
+                "strengths_to_leverage": strengths[:3] or ["Existing domain experience"],
+                "gaps_to_close": ["A visible proof project for the target scope"],
+                "risk_level": risk,
+            }
+        )
+    return paths
+
 
 def _career(system_prompt: str, user_prompt: str) -> dict:
+    locked = _json_after(user_prompt, "## Locked payload") or {}
     helper = _json_after(user_prompt, "## Helper signals") or {}
-    discipline_label = str(helper.get("discipline_label") or "your current discipline")
-    target_role = _line_after(user_prompt, "## Stated target role\n") or f"Senior {discipline_label}"
-    skills = _string_list(helper.get("detected_skills"))
+    resume = _parse_resume(_resume_text(user_prompt))
+    discipline = str(helper.get("discipline_label") or "your current discipline")
+    seniority = str(helper.get("seniority_label") or "").strip()
+    years = helper.get("years_experience") or resume.years
+    skills = _string_list(helper.get("detected_skills")) or resume.skills
+    target_role = _stated_target_role(user_prompt)
+    facts = _confirmed_facts(user_prompt)
+    feedback = _feedback(user_prompt)
 
-    paths = [
-        {
-            "role_title": target_role,
-            "fit_score": 78,
-            "transition_timeline": "3-6 months",
-            "rationale": f"Your background in {discipline_label} already covers most of what this role expects.",
-            "strengths_to_leverage": skills[:3] or ["Existing domain experience"],
-            "gaps_to_close": ["A visible proof project for the target scope"],
-            "risk_level": "low",
-        },
-        {
-            "role_title": f"Staff {discipline_label}",
-            "fit_score": 62,
-            "transition_timeline": "9-12 months",
-            "rationale": "A stretch option that pays off once the core gaps close.",
-            "strengths_to_leverage": skills[:2] or ["Track record of ownership"],
-            "gaps_to_close": ["Broader cross-team scope", "A track record at higher ambiguity"],
-            "risk_level": "medium",
-        },
+    # Start from the deterministic baseline directions (they already follow the
+    # resume's discipline, seniority and skills) and write the narrative on top.
+    paths = [dict(path) for path in (locked.get("paths") or []) if isinstance(path, dict) and path.get("role_title")]
+    paths = _top_up_directions(paths, discipline, skills)
+    if target_role and not any(str(p["role_title"]).lower() == target_role.lower() for p in paths):
+        paths.insert(
+            0,
+            {
+                "role_title": target_role,
+                "fit_score": max(40, int(paths[0].get("fit_score", 70)) - 2) if paths else 65,
+                "transition_timeline": "6-12 months",
+                "rationale": "The role you named, so the gaps below are measured against it.",
+                "strengths_to_leverage": skills[:3] or ["Existing domain experience"],
+                "gaps_to_close": ["A visible proof project for the target scope"],
+                "risk_level": "medium",
+            },
+        )
+    paths = paths[:5]
+
+    # Distinct, descending fit scores; the baseline can tie.
+    paths.sort(key=lambda path: int(path.get("fit_score", 0)), reverse=True)
+    for index in range(1, len(paths)):
+        if int(paths[index]["fit_score"]) >= int(paths[index - 1]["fit_score"]):
+            paths[index]["fit_score"] = max(1, int(paths[index - 1]["fit_score"]) - 1)
+
+    evidence = [bullet.text.rstrip(". ") for bullet in (resume.quantified or resume.bullets)]
+    for index, path in enumerate(paths):
+        if evidence:
+            path["rationale"] = (
+                f"{str(path.get('rationale', '')).rstrip()} "
+                f'Evidence from your resume: "{_trim(evidence[index % len(evidence)], 110)}".'
+            ).strip()
+
+    chosen = next((p for p in paths if target_role and str(p["role_title"]).lower() == target_role.lower()), paths[0])
+    role = str(chosen["role_title"])
+    fit = int(chosen["fit_score"])
+    strengths = _string_list(chosen.get("strengths_to_leverage")) or skills[:3]
+    gaps = _string_list(chosen.get("gaps_to_close")) or ["A visible proof project for the target scope"]
+    timeline = str(chosen.get("transition_timeline") or "3-6 months")
+
+    background = f"{years} years in {discipline}" if years else f"Your {discipline} background"
+    why_now = f"{background[0].upper() + background[1:]} and your {_join(strengths, 3)} already cover most of what {role} expects."
+    if evidence:
+        why_now += f' Your strongest proof today: "{_trim(evidence[0], 110)}".'
+    if facts:
+        why_now += f' You have also confirmed: "{_trim(facts[0], 100)}".'
+    if seniority:
+        why_now += f" That reads as a {seniority.lower()} profile."
+
+    gap_guides = [
+        "Ship one visible project or write-up that exercises {gap} end to end, then add it to your resume.",
+        "Lead a small change in your current team that needs {gap}, and record the measurable result.",
+        "Take a stretch task around {gap} and write up what you decided and why.",
     ]
+    skill_gaps = [
+        {
+            "skill": gap,
+            "urgency": "high" if index == 0 else "medium",
+            "why_it_matters": (
+                f"{role} hiring teams look for {gap}; your resume shows {strengths[0] if strengths else 'related work'} "
+                f"but no direct proof of {gap}."
+            ),
+            "how_to_build": gap_guides[index % len(gap_guides)].format(gap=gap),
+        }
+        for index, gap in enumerate(gaps[:3])
+    ]
+
+    other = next((str(p["role_title"]) for p in paths if p is not chosen), role)
+    next_steps = [
+        {"timeframe": "This month", "action": f"Write a one-page proof plan for {gaps[0]}, scoped for {role}."},
+        {"timeframe": "Next quarter", "action": f"Ship the {gaps[0]} proof piece and add it to your resume as a quantified bullet."},
+        {"timeframe": f"Within {timeline}", "action": f"Start applying for {role} roles, with {other} as your fallback target."},
+    ]
+
+    headline = (
+        f"{role} is the clearest next move: your {_join(strengths, 2)} already carry over, "
+        f"and the gaps ({_join(gaps, 2)}) are specific."
+    )
+    note = "Advisory, evidence-based read on your resume and target role."
+    if feedback:
+        note = f'Re-read with your note in mind: "{_trim(feedback, 100)}".'
     return {
         "schema_version": "planning_v1",
-        "summary": {
-            "headline": f"The clearest next move is {target_role}, and the gaps to close are specific and compact.",
-            "verdict": "Best next move identified",
-            "confidence_note": "Advisory, evidence-based read on your resume and target role.",
-        },
+        "summary": {"headline": headline, "verdict": "Best next move identified", "confidence_note": note},
         "top_actions": [
-            {
-                "title": "Close the top skill gap",
-                "action": paths[0]["gaps_to_close"][0],
-                "priority": "high",
-            }
+            {"title": f"Close the {gaps[0]} gap", "action": next_steps[0]["action"], "priority": "high"},
+            {"title": "Put the proof on your resume", "action": next_steps[1]["action"], "priority": "medium"},
         ],
         "recommended_direction": {
-            "role_title": target_role,
-            "fit_score": paths[0]["fit_score"],
-            "transition_timeline": paths[0]["transition_timeline"],
-            "why_now": f"Your {discipline_label} background is already close to this role's baseline expectations.",
-            "confidence": "medium",
+            "role_title": role,
+            "fit_score": fit,
+            "transition_timeline": timeline,
+            "why_now": why_now,
+            "confidence": "high" if fit >= 80 else "medium" if fit >= 65 else "low",
         },
         "paths": paths,
-        "target_skills": ["Systems design", "Stakeholder communication"],
-        "skill_gaps": [
-            {
-                "skill": paths[0]["gaps_to_close"][0],
-                "urgency": "high",
-                "why_it_matters": f"Without it, {target_role} will feel like a stretch instead of a clear next step.",
-                "how_to_build": "Ship one visible project that exercises this gap end to end.",
-            }
-        ],
-        "next_steps": [
-            {"timeframe": "This month", "action": f"Draft a one-page proof plan for {target_role}."},
-            {"timeframe": "Next quarter", "action": "Ship the proof project and add it to your resume."},
-        ],
+        "target_skills": _unique([gap for path in paths for gap in _string_list(path.get("gaps_to_close"))])[:6],
+        "skill_gaps": skill_gaps,
+        "next_steps": next_steps,
     }
 
 
@@ -530,65 +1488,111 @@ def _career(system_prompt: str, user_prompt: str) -> dict:
 
 _MARKER_PORTFOLIO = "You are an expert portfolio strategist and technical mentor."
 
+_COMPLEXITY_RANK = {"foundational": 1, "intermediate": 2, "advanced": 3}
+_STEP_REASONS = [
+    "Start here: {t} is the fastest credible proof for {r}{reuse}.",
+    "Build {t} next, once the first project gives you a stable story and reusable assets.",
+    "{t} comes last, once the earlier work has closed the biggest proof gaps.",
+    "Add {t} only after the earlier pieces are visible and polished.",
+]
+
 
 def _portfolio(system_prompt: str, user_prompt: str) -> dict:
-    target_role = _line_after(user_prompt, "## Target Role\n") or "the target role"
+    locked = _json_after(user_prompt, "## Locked payload") or {}
     helper = _json_after(user_prompt, "## Helper signals") or {}
+    target_role = _line_after(user_prompt, "## Target Role\n")
+    stated_role = not _is_blank(target_role)
+    target_role = target_role if stated_role else "the target role"
+    a_role = f"a {target_role}" if stated_role else target_role
+    resume = _parse_resume(_resume_text(user_prompt))
     focus_skills = _string_list(helper.get("focus_skills")) or ["Systems design", "Testing", "Communication"]
+    own_skills = _string_list(helper.get("detected_skills")) or resume.skills
+    feedback = _feedback(user_prompt)
 
-    projects = [
-        {
-            "project_title": "End-to-End Proof Project",
-            "description": (
-                f"Design and ship a small but complete system that demonstrates {focus_skills[0]} under "
-                f"realistic constraints, with a short write-up of the trade-offs you made."
-            ),
-            "skills": focus_skills[:4],
-            "complexity": "foundational",
-            "why_this_project": f"It gives a reviewer fast, concrete proof you can operate like a {target_role}.",
-            "deliverables": ["Working demo", "Short write-up", "Public repo"],
-            "hiring_signals": [f"Can own {focus_skills[0]} end to end", "Explains trade-offs clearly"],
-            "estimated_timeline": "2-3 weeks",
-        },
-        {
-            "project_title": "Depth Follow-Up Project",
-            "description": (
-                f"Extend the first project with one harder constraint that specifically targets {focus_skills[-1]}, "
-                f"and document what changed and why."
-            ),
-            "skills": focus_skills[1:5] or focus_skills,
-            "complexity": "intermediate",
-            "why_this_project": "Shows depth beyond a single surface-level project.",
-            "deliverables": ["Updated demo", "Before/after notes"],
-            "hiring_signals": ["Iterates on real feedback", "Handles added complexity without a rewrite"],
-            "estimated_timeline": "2-4 weeks",
-        },
-    ]
+    projects = [dict(p) for p in (locked.get("projects") or []) if isinstance(p, dict) and p.get("project_title")]
+    if len(projects) < 3:
+        # No usable baseline: shape three projects from the role and its focus skills.
+        projects = [
+            {
+                "project_title": f"{skill} proof project for {target_role}",
+                "description": f"Build a small, complete piece of work that demonstrates {skill} for {a_role}.",
+                "skills": focus_skills[:4],
+                "complexity": ["foundational", "intermediate", "advanced"][index],
+                "why_this_project": f"It gives a reviewer concrete proof of {skill}.",
+                "deliverables": ["Working demo", "Short write-up", "Public repo"],
+                "hiring_signals": [f"Can own {skill} end to end"],
+                "estimated_timeline": ["2-3 weeks", "3-4 weeks", "4-6 weeks"][index],
+            }
+            for index, skill in enumerate(focus_skills[:3])
+        ]
+
+    own_lower = {skill.lower() for skill in own_skills}
+    for project in projects:
+        overlap = next((s for s in _string_list(project.get("skills")) if s.lower() in own_lower), "")
+        bullet = resume.bullet_with(overlap) if overlap else None
+        if overlap:
+            quote = f' (your resume: "{_trim(bullet.text, 80)}")' if bullet else ""
+            project["description"] = f"{str(project.get('description', '')).rstrip()} It builds on the {overlap} work you already have{quote}."
+            project["_reuse"] = overlap
+    projects.sort(key=lambda p: _COMPLEXITY_RANK.get(str(p.get("complexity")), 99))
+    projects = projects[:4]
+
+    plan = []
+    for index, project in enumerate(projects):
+        reuse = f" and builds on your {project['_reuse']} experience" if project.get("_reuse") else ""
+        plan.append(
+            {
+                "order": index + 1,
+                "project_title": project["project_title"],
+                "reason": _STEP_REASONS[index].format(t=project["project_title"], r=target_role, reuse=reuse),
+            }
+        )
+    for project in projects:
+        project.pop("_reuse", None)
+
+    start = str(projects[0]["project_title"])
+    last = str(projects[-1]["project_title"])
+    note = "Advisory portfolio guidance based on resume evidence and role-fit heuristics."
+    if feedback:
+        note = f'Re-planned with your note in mind: "{_trim(feedback, 100)}".'
+    signals = _string_list(projects[0].get("hiring_signals"))
     return {
         "schema_version": "planning_v1",
         "summary": {
-            "headline": f"Two focused projects, sequenced to build the fastest credible proof for {target_role}.",
+            "headline": f"{len(projects)} projects for {target_role}, from {start} to {last}.",
             "verdict": "Proof roadmap ready",
-            "confidence_note": "Advisory portfolio guidance based on resume evidence and role-fit heuristics.",
+            "confidence_note": note,
         },
         "top_actions": [
             {
-                "title": f"Start {projects[0]['project_title']}",
-                "action": "Scope the first project down to something shippable in under three weeks.",
+                "title": f"Start {start}",
+                "action": f"Scope {start} down to something shippable in {projects[0].get('estimated_timeline') or 'a few weeks'}.",
                 "priority": "high",
-            }
+            },
+            {
+                "title": "Write it up as you go",
+                "action": f"Capture the trade-offs from {start} in a short write-up you can link from your resume.",
+                "priority": "medium",
+            },
         ],
         "target_role": target_role,
         "portfolio_strategy": {
             "headline": f"Build a compact proof set that makes you look credible for {target_role}.",
-            "focus": f"Prioritize {focus_skills[0]} first, then layer in {focus_skills[-1]}.",
-            "proof_goal": f"Make it easy for a reviewer to say this person can already operate like a {target_role}.",
+            "focus": f"Prioritize {focus_skills[0]} first, then layer in {focus_skills[min(2, len(focus_skills) - 1)]}"
+            + (f", building on your {_join(own_skills, 2)}." if own_skills else "."),
+            "proof_goal": (
+                f"Make it easy for a reviewer to say this person can already operate like {a_role}."
+                if stated_role
+                else "Make it easy for a reviewer to say this person already operates at the level the target role expects."
+            ),
         },
         "projects": projects,
-        "recommended_start_project": projects[0]["project_title"],
+        "recommended_start_project": start,
+        "sequence_plan": plan,
         "presentation_tips": [
-            "Lead with a 30-second demo before any code walkthrough.",
-            "Name the hardest trade-off you made and why you made it.",
+            f"Lead with a 30-second demo of {start} before any code walkthrough.",
+            f"Name the hardest trade-off you made in {last} and why.",
+            f"Tie each project back to {signals[0].lower() if signals else 'the role'} in the first line of the README.",
         ],
     }
 
@@ -603,42 +1607,111 @@ _MARKER_CV_TAILORING = "Propose only truthful reframing grounded in existing CV 
 def _cv_tailoring(system_prompt: str, user_prompt: str) -> dict:
     job_title = _line_after(user_prompt, "Target title:") or "the target role"
     sections = _json_after(user_prompt, "Structured document:\n") or []
+    job_text = user_prompt.split("Job description:\n", 1)[-1].split("\nStructured document:", 1)[0]
+    terms = extract_job_keywords(job_text, limit=12)
+
+    def change_for(section: dict, entry: dict, field: str, before: str, after: str, requirement: str) -> dict:
+        return {
+            "id": f"tailor-{section.get('id')}-{entry.get('id')}"[:100],
+            "section_id": section.get("id"),
+            "entry_id": entry.get("id"),
+            "field": field,
+            "before": before,
+            "after": after[:4999],
+            "job_requirement": requirement,
+            "evidence_item_ids": [],
+            "support": "document",
+        }
 
     changes: list[dict[str, Any]] = []
+    used: set[str] = set()
     for section in sections:
-        entries = section.get("entries") or []
-        if not entries:
-            continue
-        entry = entries[0]
-        bullets = entry.get("bullets") or []
-        # A bullet-bearing structured entry renders its bullets, not its body
-        # (#322), so the fixture targets the first bullet when there is one —
-        # exercising the same field the real model is asked to use — and
-        # falls back to body for freeform entries.
-        if bullets:
-            field, before = "bullets[0]", str(bullets[0])
-        else:
-            field, before = "body", str(entry.get("body", ""))
-        if not before:
-            continue
-        after = (before.rstrip(". ") + f", tailored to highlight fit for {job_title}.")[:4999]
-        changes.append(
-            {
-                "id": f"tailor-{section.get('id')}-{entry.get('id')}"[:100],
-                "section_id": section.get("id"),
-                "entry_id": entry.get("id"),
-                "field": field,
-                "before": before,
-                "after": after,
-                "job_requirement": f"Demonstrated fit for {job_title}",
-                "evidence_item_ids": [],
-                "support": "document",
-            }
-        )
-        if len(changes) >= 4:
-            break
+        for entry in (section.get("entries") or [])[:3]:
+            # A bullet-bearing structured entry renders its bullets, not its body
+            # (#322), so rewrite a bullet when there is one.
+            bullets = entry.get("bullets") or []
+            candidates = (
+                [(f"bullets[{index}]", str(text)) for index, text in enumerate(bullets[:6])]
+                if bullets
+                else [("body", str(entry.get("body", "")))]
+            )
+            for target, before in candidates:
+                if not before:
+                    continue
+                after, term = _reframe(before, terms, used, skills_list=section.get("kind") == "skills")
+                if term:
+                    used.add(term.lower())
+                    changes.append(change_for(section, entry, target, before, after, f"Demonstrated {term} experience"))
+                    break
+            if len(changes) >= 4:
+                return {"changes": changes}
 
+    if not changes:
+        # Nothing can be reordered to foreground a posting term without inventing
+        # a claim or padding the user's wording: propose the first entry unchanged and say so.
+        for section in sections:
+            for entry in (section.get("entries") or [])[:1]:
+                bullets = entry.get("bullets") or []
+                field, before = ("bullets[0]", str(bullets[0])) if bullets else ("body", str(entry.get("body", "")))
+                if before:
+                    requirement = f"General fit for {job_title}: no posting term appears here, so the wording is left as written."
+                    return {"changes": [change_for(section, entry, field, before, before, requirement)]}
     return {"changes": changes}
+
+
+_FRONTABLE_PREPOSITIONS = re.compile(r"\b(?:through|using|with|via|in|on|across|by)\s", re.I)
+
+
+def _lower_first(text: str) -> str:
+    first = text.split(" ", 1)[0]
+    return text if (first.isupper() and len(first) > 1) else text[:1].lower() + text[1:]
+
+
+def _front_phrase(text: str, term: str) -> str:
+    """Move the prepositional phrase that carries ``term`` to the front, keeping every word.
+
+    ``Built REST APIs in Python serving 3 million users.`` becomes
+    ``In Python, built REST APIs serving 3 million users.`` Returns "" when the term is
+    not in a movable phrase (already first, or no preposition leads into it).
+    """
+    body = text.rstrip(". ")
+    index = body.lower().find(term.lower())
+    if index < 0:
+        return ""
+    starts = [m.start() for m in _FRONTABLE_PREPOSITIONS.finditer(body) if 0 < m.start() < index and "," not in body[m.start() : index]]
+    if not starts:
+        return ""
+    start = starts[-1]
+    end = index + len(term)
+    trailing = re.match(r"\s+[\w-]+(?=\s*(?:,|$))", body[end:])
+    if trailing:
+        end += trailing.end()
+    head = body[:start].rstrip(" ,")
+    if len(head.split()) < 2:
+        return ""
+    tail = body[start:end]
+    return f"{tail[:1].upper()}{tail[1:]}, {_lower_first(head)}{body[end:]}."
+
+
+def _reframe(before: str, terms: list[str], used: set[str], *, skills_list: bool) -> tuple[str, str]:
+    """A truthful rewrite that foregrounds a posting term the text already contains.
+
+    It only reorders the user's own words (never adds or drops one).
+    """
+    for term in terms:
+        if term.lower() in used or not keyword_present(term, before):
+            continue
+        if skills_list:
+            # Reorder only: lead the list with the term, never add one.
+            parts = [part.strip() for part in before.split(",")]
+            lead = next((p for p in parts if keyword_present(term, p)), "")
+            if len(parts) < 2 or not lead or parts[0] == lead:
+                continue
+            return ", ".join([lead] + [p for p in parts if p != lead]), term
+        fronted = _front_phrase(before, term)
+        if fronted:
+            return fronted, term
+    return before, ""
 
 
 # ---------------------------------------------------------------------------
@@ -648,62 +1721,27 @@ def _cv_tailoring(system_prompt: str, user_prompt: str) -> dict:
 _MARKER_EVIDENCE_IMPORT = "You are an information-extraction assistant for a career workbench."
 
 
-_SECTION_HEADER_RE = re.compile(r"^[A-Z][A-Za-z ]{2,30}$")
-
-
-def _find_role_and_employer(lines: list[str]) -> tuple[str, str]:
-    """A "Role at Employer" / "Role | Employer" line, if the resume has one."""
-    for line in lines:
-        for sep in (" at ", " @ ", " | "):
-            if sep in line:
-                role, _, employer = line.partition(sep)
-                role, employer = role.strip(), employer.strip()
-                if role and employer:
-                    return role[:80], employer[:80]
-    return (lines[0][:80] if lines else "Professional experience"), "Employer named in the resume"
-
-
-def _find_skill_line(lines: list[str]) -> str:
-    """A comma-separated line (a skills list) over a prose sentence."""
-    for line in lines:
-        if line.count(",") >= 2 and len(line) < 200 and not _SECTION_HEADER_RE.match(line):
-            return line.split(",", 1)[0].strip()[:60]
-    return "Core professional skill"
-
-
-def _find_achievement_line(lines: list[str]) -> str:
-    """A quantified bullet (has a digit/%/$) rather than a plain section header."""
-    for line in lines:
-        if _SECTION_HEADER_RE.match(line):
-            continue
-        if re.search(r"[\d%$]", line) and len(line) > 15:
-            return line.lstrip("-•* ").strip()[:200]
-    return "A measurable outcome described in the resume."
-
-
 def _evidence_import(system_prompt: str, user_prompt: str) -> dict:
-    resume_text = user_prompt.split("RESUME TEXT:\n", 1)[-1]
-    lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
-    role, employer = _find_role_and_employer(lines)
+    # Only facts that are actually in the text: a thin resume yields fewer items,
+    # never placeholders (the prompt forbids padding with guesses).
+    resume = _parse_resume(user_prompt.split("RESUME TEXT:\n", 1)[-1])
+    proposals: list[dict] = []
 
-    proposals = [
-        {
-            "kind": "experience",
-            "content": {
-                "role": role,
-                "employer": employer,
-                "summary": "Role responsibilities and scope as described in the resume.",
-            },
-        },
-        {
-            "kind": "skill",
-            "content": {"name": _find_skill_line(lines)},
-        },
-        {
-            "kind": "achievement",
-            "content": {"statement": _find_achievement_line(lines)},
-        },
-    ]
+    for role, employer in resume.roles[:6]:
+        content = {"role": role, "employer": employer}
+        first = next((b.text for b in resume.bullets if b.employer == employer), "")
+        if first:
+            content["summary"] = _trim(first, 200)
+        proposals.append({"kind": "experience", "content": content})
+    for skill in resume.skills[:10]:
+        proposals.append({"kind": "skill", "content": {"name": skill}})
+    for bullet in resume.quantified[:5]:
+        content = {"statement": bullet.text[:200]}
+        if bullet.employer:
+            content["employer"] = bullet.employer
+        proposals.append({"kind": "achievement", "content": content})
+    if resume.education:
+        proposals.append({"kind": "education", "content": {"summary": resume.education[:200]}})
     return {"proposals": proposals}
 
 
@@ -716,33 +1754,63 @@ _MARKER_APPLICATION_DRAFTS = "You prepare an application's cover letter and scre
 
 
 def _application_drafts(system_prompt: str, user_prompt: str) -> dict:
-    role_line = _line_after(user_prompt, "# Role\n") or "this role"
+    role_line = f" {_line_after(user_prompt, '# Role' + chr(10))} "
+    title, _, company = role_line.partition(" at ")
+    title, company = title.strip(), company.strip()
+    listing = user_prompt.split("# Listing\n", 1)[-1].split("\n\n# Candidate CV", 1)[0]
+    cv_text = user_prompt.split("# Candidate CV\n", 1)[-1].split("\n\n# Evidence boundary", 1)[0]
+    resume = _parse_resume(cv_text)
+    if not title:
+        title = _job_header(listing)[0] or extract_role_label(listing) or ""
+    role = title or "this role"
+    shared = [term for term in extract_job_keywords(listing, limit=12) if keyword_present(term, cv_text)]
+    proof = resume.quantified[0] if resume.quantified else (resume.bullets[0] if resume.bullets else None)
+    proof2 = resume.quantified[1] if len(resume.quantified) > 1 else None
+
+    where = f" at {company}" if company else ""
+    sentences = [f"I'm applying for {_the_role(role)}{where}."]
+    if proof:
+        place = f"At {proof.employer}, " if proof.employer else "Recently, "
+        sentences.append(f"{place}{proof.clause()}.")
+    if shared:
+        sentences.append(f"That is the same {_join(shared, 3)} work the listing describes.")
+    sentences.append(f"I'd welcome the chance to talk through how that applies to {company or 'your team'}.")
+
+    fit_parts = [f"The scope of {_the_role(role)} lines up with work I have already done"]
+    if proof:
+        fit_parts.append(f": {proof.clause()}")
+    fit_answer = "".join(fit_parts) + (f". I also bring {_join(shared, 3)}." if shared else ".")
+
+    history: list[str] = []
+    if resume.years:
+        history.append(f"{resume.years} years of experience")
+    if resume.current_title:
+        history.append(f"most recently as {resume.current_title}" + (f" at {resume.roles[0][1]}" if resume.roles else ""))
+    experience_answer = ", ".join(history) if history else "My background is in the CV attached to this application"
+    if proof2:
+        experience_answer += f". I also {proof2.clause()[2:]}" if proof2.clause().startswith("I ") else f". {proof2.clause()}"
+    experience_answer = experience_answer[0].upper() + experience_answer[1:] + "."
     return {
         "cover_letter": {
-            "body": (
-                f"I'm applying for {role_line} because the scope maps closely onto work I've already shipped. "
-                "In my most recent role I owned a project end to end and the team still points back to the "
-                "result. I'd welcome the chance to talk through how that experience applies here."
-            ),
+            "body": " ".join(sentences),
             "support": "document",
             "evidence_item_ids": [],
         },
         "screening_answers": [
             {
                 "question": "Why are you a good fit for this role?",
-                "answer": "My most recent project overlaps directly with this role's core scope, and I delivered it end to end.",
+                "answer": fit_answer,
                 "support": "document",
                 "evidence_item_ids": [],
             },
             {
                 "question": "What relevant experience do you bring to this position?",
-                "answer": "I've owned similar scope before, from the initial design decision through rollout and follow-up.",
+                "answer": experience_answer,
                 "support": "document",
                 "evidence_item_ids": [],
             },
         ],
     }
-
 
 # ---------------------------------------------------------------------------
 # Dispatch

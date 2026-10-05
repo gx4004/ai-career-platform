@@ -27,11 +27,11 @@ vi.mock('@tanstack/react-router', () => ({
 vi.stubGlobal('IntersectionObserver', IntersectionObserverMock)
 
 describe('LandingCTA', () => {
-  it('renders one stable CTA to the dashboard', () => {
+  it('renders one stable CTA to the Resume Analyzer', () => {
     const { container } = render(<LandingCTA />)
 
     expect(screen.getByRole('link', { name: /Upload your resume/i }).getAttribute('href')).toBe(
-      '/dashboard',
+      '/resume',
     )
     expect(container.querySelector('.lp-entry-choice')).toBeNull()
     expect(container.querySelector('#landing-cta')).toBeTruthy()

@@ -13,16 +13,19 @@ Two independent lists, built from existing rules and never blended:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.campaign_listing import CampaignListing
 from app.models.workspace import Workspace
 from app.schemas.applications import ApplicationCard, ApplicationStatus
 from app.schemas.today import ActionItem, ActionReason, TodayPlan
-from app.services.applications import list_applications
+from app.services.applications import IS_APPLICATION, list_applications
 from app.services.discovery_recommendations import (
+    VisibleListing,
     best_matches,
     has_live_source,
     listing_item,
@@ -32,6 +35,8 @@ from app.services.discovery_recommendations import (
 MATCH_COUNT = 5
 ACTION_LIMIT = 6
 DEADLINE_WINDOW = timedelta(days=7)
+# At most this many already-added jobs are looked past to fill the match list.
+_MAX_SKIPPED = 50
 # Most urgent first; also the order of the list.
 _REASON_ORDER: dict[ActionReason, int] = {"interview": 0, "deadline": 1, "no_reply": 2}
 
@@ -50,16 +55,72 @@ def todays_plan(db: Session, user_id: str, *, now: datetime | None = None) -> To
 
 
 def _fresh_matches(db: Session, user_id: str, now: datetime):
-    added = set(
-        db.scalars(
-            select(Workspace.discovery_listing_id).where(
-                Workspace.user_id == user_id, Workspace.discovery_listing_id.is_not(None)
+    pipeline = _pipeline_keys(db, user_id)
+    # Ask for extra to still fill the list after skipping the jobs already in the
+    # pipeline; widen (bounded) while skipped jobs, such as one posting per
+    # location, keep crowding the top.
+    limit = MATCH_COUNT + min(pipeline.size, _MAX_SKIPPED)
+    while True:
+        ranked = best_matches(db, user_id, limit=limit, now=now)
+        fresh = [row for row in ranked if not pipeline.contains(row)]
+        if len(fresh) >= MATCH_COUNT or len(ranked) < limit or limit >= MATCH_COUNT + _MAX_SKIPPED:
+            return fresh[:MATCH_COUNT]
+        limit = min(limit * 2, MATCH_COUNT + _MAX_SKIPPED)
+
+
+@dataclass(frozen=True)
+class _Pipeline:
+    """What the owner's applications already say about which jobs they hold."""
+
+    size: int
+    # Adopted listings are recognised by row.application_id. Applications from
+    # pasted jobs or seeds carry no Discovery link, so the same job is also
+    # recognised by its company and title, or by its apply link.
+    jobs: frozenset[tuple[str, str]]
+    urls: frozenset[str]
+
+    def contains(self, row: VisibleListing) -> bool:
+        listing = row.listing
+        return (
+            row.application_id is not None
+            or (_fold(listing.company), _fold(listing.title)) in self.jobs
+            or any(
+                _url_key(url) in self.urls
+                for url in (listing.apply_url, row.attribution.source_url)
+                if url
             )
         )
-    )
-    # Ask for enough extra to still fill the list after skipping the added ones.
-    ranked = best_matches(db, user_id, limit=MATCH_COUNT + len(added), now=now)
-    return [row for row in ranked if row.listing_id not in added][:MATCH_COUNT]
+
+
+def _pipeline_keys(db: Session, user_id: str) -> _Pipeline:
+    rows = db.execute(
+        select(
+            Workspace.company,
+            Workspace.role,
+            CampaignListing.company,
+            CampaignListing.title,
+            CampaignListing.source_url,
+            CampaignListing.apply_url,
+        )
+        .outerjoin(CampaignListing, CampaignListing.id == Workspace.current_listing_id)
+        .where(Workspace.user_id == user_id, IS_APPLICATION)
+    ).all()
+    jobs: set[tuple[str, str]] = set()
+    urls: set[str] = set()
+    for company, role, pasted_company, pasted_title, source_url, apply_url in rows:
+        for pair in ((company, role), (pasted_company, pasted_title)):
+            if pair[0] and pair[1]:
+                jobs.add((_fold(pair[0]), _fold(pair[1])))
+        urls.update(_url_key(url) for url in (source_url, apply_url) if url)
+    return _Pipeline(len(rows), frozenset(jobs), frozenset(urls))
+
+
+def _fold(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def _url_key(url: str) -> str:
+    return url.strip().casefold().split("#", 1)[0].rstrip("/")
 
 
 def _needs_action(cards: list[ApplicationCard], now: datetime) -> list[ActionItem]:

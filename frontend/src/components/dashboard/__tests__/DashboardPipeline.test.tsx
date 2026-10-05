@@ -23,8 +23,9 @@ function renderPipeline() {
   )
 }
 
-/** "Saved, 2": the label is first in the DOM, so assistive technology reads the stat the same way. */
-const stat = (label: string) => screen.getByText(label).closest('dl') as HTMLElement
+/** One stage row: its count mark, its name, its bar. */
+const stage = (label: string) => screen.getByText(label).closest('li') as HTMLElement
+const barWidth = (label: string) => stage(label).querySelector<HTMLElement>('.dash-bar')?.style.inlineSize ?? null
 
 describe('DashboardPipeline', () => {
   beforeEach(() => {
@@ -41,12 +42,45 @@ describe('DashboardPipeline', () => {
     renderPipeline()
 
     expect(await screen.findByText('Saved')).toBeTruthy()
-    expect(within(stat('Saved')).getByText('2')).toBeTruthy()
-    expect(within(stat('Applied')).getByText('2')).toBeTruthy()
-    expect(within(stat('Closed')).getByText('2')).toBeTruthy()
-    expect(within(stat('Offer')).getByText('0')).toBeTruthy()
+    expect(within(stage('Saved')).getByText('2')).toBeTruthy()
+    expect(within(stage('Applied')).getByText('2')).toBeTruthy()
+    expect(within(stage('Closed')).getByText('2')).toBeTruthy()
+    expect(within(stage('Offer')).getByText('0')).toBeTruthy()
     expect(await screen.findByText('Reply rate')).toBeTruthy()
-    expect(within(stat('Reply rate')).getByText('50')).toBeTruthy()
+    expect(screen.getByRole('img', { name: /^Reply rate 50%/ })).toBeTruthy()
+  })
+
+  it('shows the reply rate with the numbers behind it, inside the panel', async () => {
+    getApplicationInsights.mockResolvedValue({ overall: { applied: 4, replied: 2, reply_rate: 50 } })
+    listApplications.mockResolvedValue({ items: [item('1', 'applied')], total: 1 })
+    renderPipeline()
+
+    expect(await screen.findByText('2 of 4 applications replied')).toBeTruthy()
+    const stamp = screen.getByRole('img', { name: 'Reply rate 50%, 2 of 4 applications replied' })
+    expect(stamp.closest('.kit-panel-surface')).toBe(screen.getByText('Saved').closest('.kit-panel-surface'))
+  })
+
+  it('draws bars in proportion to the busiest stage, with a floor, and none for an empty stage', async () => {
+    listApplications.mockResolvedValue({
+      items: [item('1', 'saved'), item('2', 'saved'), item('3', 'saved'), item('4', 'saved'), item('5', 'applied'), item('6', 'offer')],
+      total: 6,
+    })
+    renderPipeline()
+
+    await screen.findByText('Saved')
+    expect(barWidth('Saved')).toBe('100%')
+    expect(barWidth('Applied')).toBe('25%')
+    expect(barWidth('Offer')).toBe('25%')
+    expect(barWidth('Interviewing')).toBeNull()
+  })
+
+  it('marks every stage stone while there is nothing in the pipeline', async () => {
+    listApplications.mockResolvedValue({ items: [], total: 0 })
+    renderPipeline()
+
+    await screen.findByText('Saved')
+    const mark = stage('Offer').querySelector('.kit-stage-mark')
+    expect(mark?.getAttribute('data-tone')).toBe('stone')
   })
 
   it('leaves the reply rate out until there is one', async () => {

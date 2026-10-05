@@ -40,6 +40,41 @@
   }
 }
 
+/* A suggestion row stacks at every width: the text keeps the whole line, its answers (Save, Dismiss, Edit) sit
+   under it. Three controls beside the text would leave it a few characters wide on a phone. */
+.profile-suggestions .profile-suggestions__list > .kit-row:has(> .kit-row__actions) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2) 0;
+}
+
+.profile-suggestions .profile-suggestions__list > .kit-row > .kit-row__body {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.profile-suggestions .profile-suggestions__list > .kit-row > .kit-row__actions {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  margin: 0;
+}
+
+/* The panel's one action never wraps its label: the title and the count give way instead. */
+.profile-suggestions .kit-panel-surface__actions {
+  flex: none;
+  flex-wrap: nowrap;
+}
+
+.profile-suggestions .kit-panel-surface__actions .kit-button {
+  white-space: nowrap;
+}
+
+.profile-suggestions .kit-panel-surface__title {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 /* A fact's remaining values: kept as typed (line breaks included), long strings wrap. */
 .profile-line {
   white-space: pre-wrap;
@@ -53,4 +88,142 @@
 /* Loading rows end where the real ones do: the controls come in with the text, not as a trailing pill. */
 .profile-skeleton .kit-skeleton__trail {
   display: none;
+}
+
+/* The suggestions panel is the attention panel: a lemon-soft header (STICKER-SYSTEM 4.1 row 26) over white rows. */
+.profile-suggestions > .kit-panel-surface__header {
+  background: var(--lemon-soft);
+}
+
+.profile-suggestions__note {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: var(--bw) solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+}
+
+/* "N facts found": the seal stamps in beside what it counted. */
+.kit-sticker.profile-stamp {
+  display: flex;
+  max-inline-size: 44rem;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.profile-stamp__seal {
+  flex: none;
+}
+
+.profile-stamp__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.profile-stamp__text > p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.profile-stamp__text > .profile-stamp__title {
+  margin-block-end: var(--space-1);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+/* The empty profile's one call to action: the lemon sticker. */
+.kit-sticker.profile-import {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  max-inline-size: 36rem;
+}
+
+.profile-import > p {
+  margin: 0;
+}
+
+.profile-import__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+/* A fact that has just landed among the saved ones, or that a link pointed at. */
+.kit-row[data-moment='arrived'] {
+  animation: profile-land 420ms var(--ease-out) both;
+}
+
+.kit-row[data-moment='found'] {
+  background: var(--lemon-soft);
+}
+
+@keyframes profile-land {
+  from {
+    background: var(--mint-soft);
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+
+  60% {
+    background: var(--mint-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-row[data-moment='arrived'] {
+    animation: none;
+    background: var(--mint-soft);
+  }
+}
+
+/* Your data: dashed like every die-cut "careful" surface, the two controls side by side. */
+.kit-panel-surface.profile-danger {
+  border-style: dashed;
+}
+
+.profile-danger__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.profile-danger__body > div:first-child {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.profile-danger__body p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.kit-panel-surface__title.profile-danger__title {
+  margin-block-end: var(--space-1);
+}
+
+.profile-danger__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* The payoff in the "What did you do?" dialog. */
+.profile-payoff {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4) 0 var(--space-6);
+}
+
+@media (max-width: 639px) {
+  .profile-stamp {
+    flex-wrap: wrap;
+  }
 }

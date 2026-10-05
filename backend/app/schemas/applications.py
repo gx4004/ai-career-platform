@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
@@ -305,6 +306,28 @@ class ApplicationPreferencesResponse(ApplicationPreferencesBody):
     is_default: bool = False
 
 
+_URL_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
+# ``host:port[/path]`` only for a dotted host or localhost, so a script scheme
+# such as ``javascript:1/alert(1)`` can never pass as a port.
+_HOST_WITH_PORT = re.compile(
+    r"(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}(?::\d+)?(?:/\S*)?|localhost(?::\d+)?(?:/\S*)?",
+    re.IGNORECASE,
+)
+_EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _plain_link(value: str) -> str:
+    """Empty, a bare ``linkedin.com/in/me``, or http(s); never javascript:/data:/ftp:."""
+    if not value:
+        return value
+    if any(ch.isspace() or ord(ch) < 32 for ch in value):
+        raise ValueError("must be a web address without spaces")
+    if _URL_SCHEME.match(value) and not _HOST_WITH_PORT.fullmatch(value):
+        if not re.match(r"^https?://\S+$", value, re.IGNORECASE):
+            raise ValueError("must be an http or https address")
+    return value
+
+
 class ApplicationDetailsBody(BaseModel):
     """The owner's own contact details and standing answers, typed once (#374)."""
 
@@ -322,9 +345,34 @@ class ApplicationDetailsBody(BaseModel):
     salary_expectation: str = Field(default="", max_length=1000)
     relocation: str = Field(default="", max_length=1000)
 
+    @field_validator("email")
+    @classmethod
+    def _email_shape(cls, value: str) -> str:
+        if value and not _EMAIL_SHAPE.match(value):
+            raise ValueError("must be an email address")
+        return value
+
+    @field_validator("linkedin", "website")
+    @classmethod
+    def _links_are_plain(cls, value: str) -> str:
+        return _plain_link(value)
+
 
 class ApplicationDetailsResponse(ApplicationDetailsBody):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    # Stored rows predate the request checks; reading and exporting them must
+    # never fail, so the response only validates what it is given on the way in.
+    @field_validator("email")
+    @classmethod
+    def _email_shape(cls, value: str) -> str:
+        return value
+
+    @field_validator("linkedin", "website")
+    @classmethod
+    def _links_are_plain(cls, value: str) -> str:
+        return value
+
     # True until the owner saves once; name and email then come from the account.
     is_default: bool = False
 

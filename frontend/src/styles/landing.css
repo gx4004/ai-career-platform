@@ -1,766 +1,992 @@
 /* ─────────────────────────────────────────────────────────────
-   landing.css — public landing page, Editorial warm.
+   landing.css: the public landing page, Sticker.
 
-   Same brand as the app: paper surfaces, ink text, one forest
-   accent, Newsreader headlines, Instrument Sans UI. Roomier and
-   larger than the in-app pages, but no gradients, glows, motion
-   loops or decorative colour. Tokens come from theme.css.
+   Built from the kit (Sticker, ScoreSeal, ScoreBar, ToolTile, Panel, Disclosure,
+   Button): this file only places things (grids, offsets, the collage geometry) and
+   sets the landing's large display sizes. No entrance animation: the only motion is
+   hover and press on buttons, the navbar's background change, and the section links' smooth scroll
+   (LandingNavbar and the hero pass behavior: auto under reduced motion).
+   Mockup contract: designlab/sticker/landing.html. Tokens come from theme.css.
+
+   Kit rules load after this file, so an override of a kit class uses two classes
+   (.kit-sticker.lp-x) to win without !important.
    ───────────────────────────────────────────────────────────── */
 
 .landing-page {
   min-height: 100vh;
-  background: var(--background);
-  color: var(--text-body);
-  font-family: var(--font-sans);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-ui);
   overflow-x: clip;
 }
 
-.lp-container {
-  width: 100%;
-  max-width: 72rem;
+.lp-wrap {
+  width: min(1280px, 100% - 80px);
   margin-inline: auto;
-  padding-inline: var(--space-page-x);
+}
+
+/* Display type: the landing's large headings (hero 72, section 68). Kit page titles are 44. */
+.lp-display {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: var(--fw-black);
+  letter-spacing: -0.032em;
+  text-wrap: wrap;
+}
+
+.lp-display--l {
+  font-size: var(--fs-display-l);
+  line-height: 0.94;
+  letter-spacing: -0.03em;
+}
+
+.lp-body-l {
+  color: var(--ink-2);
+  font-size: 1.1875rem;
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 
 /* ─── Navbar ─────────────────────────────────────────────── */
-.landing-experiment-navbar {
+.lp-nav {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  background: var(--background);
-  border-bottom: 1px solid transparent;
-  transition: border-color var(--duration-fast) var(--ease-out);
+  border-bottom: var(--bw) solid transparent;
+  background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.landing-experiment-navbar[data-state='scrolled'] {
-  border-bottom-color: var(--border-soft);
+.lp-nav[data-state='scrolled'] {
+  border-bottom-color: var(--ink);
+  background: var(--surface);
 }
 
-.landing-experiment-navbar-inner {
+.lp-nav__inner {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
-  max-width: 72rem;
-  min-height: 3.5rem;
-  margin-inline: auto;
-  padding-inline: var(--space-page-x);
+  gap: var(--s7);
+  padding-block: var(--s5);
 }
 
-.landing-experiment-navbar-brand {
-  flex: 0 0 auto;
+.lp-nav__brand {
+  flex: none;
 }
 
-.landing-experiment-navbar-nav {
-  display: none;
-  flex: 1 1 auto;
-  gap: var(--space-1);
-  margin-inline-start: var(--space-4);
-}
-
-.landing-experiment-navbar-link {
+.lp-nav__brand-link {
   display: inline-flex;
   align-items: center;
-  min-height: var(--control-lg);
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  transition: var(--transition-colors);
+  min-height: var(--touch-target);
+  border-radius: var(--r-sm);
+  color: inherit;
+  text-decoration: none;
 }
 
-.landing-experiment-navbar-link--active {
-  color: var(--text-strong);
-  box-shadow: inset 0 -2px 0 var(--accent);
-  border-radius: 0;
+.lp-nav__links {
+  display: flex;
+  gap: var(--s1);
+  margin-inline-start: var(--s7);
+}
+
+.lp-nav__link {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: var(--touch-target);
+  padding-inline: var(--s4);
+  border: var(--bw) solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+
+.lp-nav__link[aria-current='location'] {
+  border-color: var(--ink);
+  background: var(--lemon);
+  box-shadow: var(--sh-1);
+  font-weight: var(--fw-bold);
 }
 
 @media (hover: hover) {
-  .landing-experiment-navbar-link:hover {
-    color: var(--text-strong);
+  .lp-nav__link:hover {
+    background: var(--lemon);
   }
 }
 
-.landing-experiment-navbar-cta-wrap {
+.lp-nav__end {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-inline-start: auto;
+}
+
+.kit-button.lp-nav__menu {
   display: none;
-  align-items: center;
-  gap: var(--space-2);
-  margin-inline-start: auto;
 }
 
-.landing-experiment-navbar-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--touch-target);
-  height: var(--touch-target);
-  margin-inline-start: auto;
-  margin-inline-end: calc(var(--space-2) * -1);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-strong);
-  cursor: pointer;
+.lp-menu {
+  display: grid;
+  gap: var(--s3);
 }
 
-.landing-experiment-navbar-toggle svg,
-.landing-experiment-navbar-close svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-@media (min-width: 768px) {
-  .landing-experiment-navbar-nav,
-  .landing-experiment-navbar-cta-wrap {
-    display: flex;
-  }
-
-  .landing-experiment-navbar-toggle {
-    display: none;
-  }
-}
-
-.landing-experiment-navbar-mobile {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-overlay);
-  overflow-y: auto;
-  background: var(--background);
-}
-
-.landing-experiment-navbar-close {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-3);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--touch-target);
-  height: var(--touch-target);
-  border: 0;
-  background: transparent;
-  color: var(--text-strong);
-  cursor: pointer;
-}
-
-.landing-experiment-navbar-mobile-body {
-  display: flex;
-  flex-direction: column;
-  padding: 4.5rem var(--space-page-x) var(--space-8);
-}
-
-.landing-experiment-navbar-mobile-link {
-  display: flex;
-  align-items: center;
-  min-height: 3.25rem;
-  border-bottom: 1px solid var(--border-soft);
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-size: var(--fs-title);
-}
-
-.landing-experiment-navbar-mobile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-top: var(--space-8);
-}
-
-.landing-experiment-navbar-cta--mobile {
+.kit-button.lp-menu__link {
+  justify-content: flex-start;
   inline-size: 100%;
 }
 
 /* ─── Sections ───────────────────────────────────────────── */
 .lp-section {
-  padding-block: clamp(3.5rem, 8vw, 6rem);
+  padding-block: var(--s10) var(--s9);
 }
 
-.lp-section--compact {
-  padding-block: clamp(2.5rem, 5vw, 3.5rem);
+#landing-journey.lp-section {
+  padding-block-start: var(--s7);
 }
 
-.lp-surface-lowest {
-  background: var(--surface-subtle);
-  border-block: 1px solid var(--border-soft);
+#landing-tools.lp-section,
+#landing-faq.lp-section {
+  padding-block-start: var(--s9);
 }
 
-.lp-section-h2,
-.lp-proof-h2,
-.lp-cta-h2 {
-  margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-display);
-  text-wrap: balance;
-}
-
-.lp-section-h2 {
-  font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
-  line-height: 1.15;
-}
-
-.lp-section-sub {
-  max-width: 40rem;
-  margin: var(--space-3) 0 0;
-  color: var(--text-muted);
-  font-size: 1.0625rem;
-  line-height: 1.55;
+.lp-section__head {
+  display: grid;
+  gap: var(--s4);
+  max-width: 760px;
+  margin-block-end: var(--s8);
 }
 
 /* ─── Hero ───────────────────────────────────────────────── */
 .lp-hero {
-  padding-block: clamp(2.5rem, 6vw, 5rem) clamp(2rem, 4vw, 3rem);
+  padding-block: var(--s7) var(--s9);
 }
 
 .lp-hero-grid {
   display: grid;
-  gap: var(--space-10);
+  grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+  gap: var(--s8);
   align-items: center;
-}
-
-@media (min-width: 960px) {
-  .lp-hero-grid {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: var(--space-16);
-  }
 }
 
 .lp-hero-copy {
+  display: grid;
+  gap: var(--s6);
+  justify-items: start;
   min-width: 0;
 }
 
-.lp-hero-eyebrow-row {
-  display: flex;
-  flex-wrap: wrap;
+.kit-sticker.lp-beta {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-5);
+  gap: var(--s2);
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-size: 0.875rem;
+  font-weight: var(--fw-bold);
+  --kit-tilt: -2deg;
 }
 
-.lp-hero-eyebrow {
-  color: var(--text-soft);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
+.lp-beta__dot {
+  flex: none;
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 50%;
+  background: var(--ink);
 }
 
 .lp-hero-h1 {
-  margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-size: clamp(2.5rem, 1.5rem + 3.8vw, 4.25rem);
-  font-weight: var(--fw-medium);
-  line-height: 1.06;
-  letter-spacing: -0.025em;
-}
-
-.lp-hero-accent {
-  color: var(--accent);
-  font-style: italic;
-}
-
-.lp-hero-line--mobile,
-.lp-hero-body--mobile {
-  display: none;
-}
-
-.lp-hero-line--mobile span {
-  display: block;
-}
-
-.lp-hero-br--mobile {
-  display: none;
-}
-
-@media (max-width: 640px) {
-  .lp-hero-line--desktop,
-  .lp-hero-body--desktop {
-    display: none;
-  }
-
-  .lp-hero-line--mobile {
-    display: block;
-  }
-
-  .lp-hero-body--mobile {
-    display: block;
-    font-size: 1.0625rem;
-  }
-
-  .lp-hero-br--mobile {
-    display: inline;
-  }
+  max-width: 12ch;
+  font-size: clamp(3rem, 5vw, var(--fs-hero));
+  line-height: 0.96;
 }
 
 .lp-hero-body {
-  max-width: 34rem;
-  margin: var(--space-6) 0 0;
-  color: var(--text-body);
-  font-size: 1.1875rem;
-  line-height: 1.55;
+  max-width: 34ch;
 }
 
 .lp-hero-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-8);
+  gap: var(--s5);
+  align-items: center;
+}
+
+.lp-reassure {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  font-weight: var(--fw-semibold);
+}
+
+.lp-reassure svg {
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
 }
 
 .lp-hero-image-wrap {
   display: block;
   min-width: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-xl);
+  color: inherit;
+  text-decoration: none;
 }
 
-.lp-hero-image-card {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-soft);
-  overflow: hidden;
+/* ─── Hero collage: a real report, composed in flow inside a container-query box ───
+   --u is one pixel of the 620px reference composition, so every offset below is the mockup's
+   number scaled to the box. The pieces sit in flow (never absolute but the tab), which is what
+   keeps them from overlapping when text wraps. Under 560px it stops being a composition. */
+.lp-collage {
+  container-type: inline-size;
+  position: relative;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-xl);
+  background: var(--lilac-soft);
 }
 
-.lp-hero-trust {
+.lp-collage__stage {
+  --u: calc(100cqw / 620);
+  display: flow-root;
+  position: relative;
+  padding-block-end: 16px;
+}
+
+.kit-sticker.lp-collage__tab {
+  position: absolute;
+  top: 26px;
+  left: calc(44 * var(--u));
+  z-index: 1;
+  padding: 4px 12px;
+  border-radius: var(--r-sm);
+  font-size: 0.875rem;
+  font-weight: var(--fw-bold);
+  --kit-tilt: -3deg;
+}
+
+.kit-sticker.lp-collage__card {
+  box-sizing: border-box;
+  inline-size: calc(520 * var(--u));
+  margin: 94px 0 0 calc(40 * var(--u));
+  padding: var(--s5) var(--s5) var(--s6);
+  --kit-tilt: 1deg;
+}
+
+.lp-collage__file {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-4);
-  margin-top: clamp(2.5rem, 5vw, 4rem);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border-soft);
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s5);
+  padding-block-end: var(--s4);
+  border-bottom: var(--bw) solid var(--line);
+  font-size: 0.875rem;
+  font-weight: var(--fw-bold);
 }
 
-.lp-hero-trust-label {
-  color: var(--text-soft);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
+.lp-collage__file svg {
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
 }
 
-.lp-hero-trust-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-muted);
-  font-size: var(--fs-body);
-}
-
-/* Product preview: the resume report, drawn in the page's own type */
-.lp-preview {
+.lp-collage__body {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, min(170px, 27.4cqw)) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: center;
 }
 
-.lp-preview-doc {
-  padding: var(--space-6);
-  border-inline-end: 1px solid var(--border-soft);
-  background: var(--surface-raised);
-}
-
-.lp-preview-doc p {
-  margin: 0;
-}
-
-.lp-preview-doc .lp-preview-name {
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-size: 1.5rem;
-  line-height: 1.2;
-}
-
-.lp-preview-doc .lp-preview-role {
-  margin-bottom: var(--space-5);
-  color: var(--text-soft);
-  font-size: var(--fs-body);
-}
-
-.lp-preview-doc .lp-preview-label {
-  margin-top: var(--space-4);
-  padding-bottom: var(--space-1);
-  border-bottom: 1px solid var(--border-soft);
-  color: var(--text-strong);
-  font-size: var(--fs-meta);
-  font-weight: var(--fw-semibold);
-}
-
-.lp-preview-doc .lp-preview-text {
-  margin-top: var(--space-2);
-  color: var(--text-muted);
-  font-size: var(--fs-meta);
-  line-height: 1.5;
-}
-
-.lp-preview-report {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-6);
-  padding: var(--space-6);
-  background: var(--surface-subtle);
-}
-
-.lp-preview-score {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.lp-preview-score-num {
-  color: var(--accent);
-  font-family: var(--font-serif);
-  font-size: 4rem;
-  font-variant-numeric: var(--numeric-display);
-  line-height: 1;
-}
-
-.lp-preview-score-of {
-  color: var(--text-soft);
-  font-size: var(--fs-body);
-}
-
-.lp-preview-bars {
+.lp-collage__bars {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--s4);
+  min-width: 0;
 }
 
-@media (max-width: 480px) {
-  .lp-preview {
-    grid-template-columns: 1fr;
-  }
-
-  .lp-preview-doc {
-    border-inline-end: 0;
-    border-bottom: 1px solid var(--border-soft);
-  }
-}
-
-/* ─── Social proof ───────────────────────────────────────── */
-.lp-proof {
-  max-width: 72rem;
-}
-
-.lp-proof-h2 {
-  font-size: clamp(1.5rem, 1.1rem + 1.5vw, 2rem);
-  line-height: 1.2;
-}
-
-.lp-proof-body {
-  max-width: 44rem;
-  margin: var(--space-3) 0 0;
-  color: var(--text-muted);
-  font-size: 1.0625rem;
-  line-height: 1.6;
-}
-
-/* ─── Workflow ───────────────────────────────────────────── */
-.lp-workflow-grid {
+.lp-collage__stickers {
   display: grid;
-  gap: var(--space-8);
-  margin: var(--space-12) 0 0;
-  padding: 0;
-  list-style: none;
+  grid-template-columns: minmax(0, 318fr) minmax(0, 212fr);
+  gap: 38px calc(36 * var(--u));
+  inline-size: calc(100% - 56 * var(--u));
+  margin: 40px 0 0 calc(28 * var(--u));
+  align-items: start;
 }
 
-@media (min-width: 800px) {
-  .lp-workflow-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-10);
-  }
+.kit-sticker.lp-collage__fix {
+  --kit-tilt: -2deg;
 }
 
-.lp-workflow-card {
+.kit-sticker.lp-collage__match {
+  margin-block-start: 18px;
+  --kit-tilt: 2deg;
+}
+
+.kit-sticker.lp-collage__strength {
+  grid-column: 1 / -1;
   display: flex;
-  flex-direction: column;
-  padding-top: var(--space-5);
-  border-top: 2px solid var(--text-strong);
+  align-items: flex-start;
+  gap: 10px;
+  inline-size: calc(340 * var(--u));
+  margin-inline-start: calc(48 * var(--u));
+  padding: var(--s3) var(--s4);
+  --kit-tilt: 1.2deg;
 }
 
-.lp-workflow-num {
-  color: var(--accent);
-  font-family: var(--font-serif);
+.lp-collage__fix .kit-badge {
+  margin-block-end: 10px;
+}
+
+.lp-collage__title {
+  margin: 0;
+  font-family: var(--font-display);
   font-size: var(--fs-title);
-  font-variant-numeric: var(--numeric-display);
+  font-weight: var(--fw-black);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
 }
 
-.lp-workflow-title {
-  margin: var(--space-2) 0 0;
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-size: 2rem;
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-display);
-  line-height: 1.15;
+.lp-collage__title--ui {
+  margin-block-end: var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0;
 }
 
-.lp-workflow-lead {
-  margin: var(--space-4) 0 0;
-  color: var(--text-strong);
-  font-size: 1.0625rem;
-  font-weight: var(--fw-semibold);
+.lp-collage__text {
+  margin-block-start: 6px;
+  font-size: 0.875rem;
   line-height: 1.4;
 }
 
-.lp-workflow-body {
-  margin: var(--space-2) 0 0;
-  color: var(--text-muted);
-  font-size: 1rem;
-  line-height: 1.6;
+.lp-collage__text--strong {
+  margin-block-start: 0;
+  font-weight: var(--fw-semibold);
+  line-height: 1.35;
 }
 
-/* ─── Tools ──────────────────────────────────────────────── */
-.lp-tools-eyebrow {
-  margin: 0 0 var(--space-3);
-  color: var(--text-soft);
+.lp-collage__strength b {
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
 }
 
-.lp-tools-list {
+.lp-collage__check {
   display: grid;
-  margin: var(--space-10) 0 0;
+  flex: none;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.lp-collage__check svg {
+  inline-size: 16px;
+  block-size: 16px;
+  stroke-width: 2.6;
+}
+
+/* Below 560px the collage is a plain stack: the card, then the three stickers in two columns. */
+@container (max-width: 559px) {
+  .lp-collage__stage {
+    display: grid;
+    gap: calc(var(--s7) + var(--s1));
+    padding: var(--s5);
+  }
+
+  .kit-sticker.lp-collage__tab {
+    position: relative;
+    inset: auto;
+    justify-self: start;
+  }
+
+  .kit-sticker.lp-collage__card {
+    inline-size: auto;
+    margin: 0;
+    --kit-tilt: 0.6deg;
+  }
+
+  .lp-collage__body {
+    grid-template-columns: minmax(0, min(150px, 38cqw)) minmax(0, 1fr);
+    gap: var(--s4);
+  }
+
+  .lp-collage__stickers {
+    inline-size: auto;
+    margin: 0;
+    gap: calc(var(--s7) + var(--s1));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .kit-sticker.lp-collage__fix {
+    --kit-tilt: -1deg;
+  }
+
+  .kit-sticker.lp-collage__match {
+    margin-block-start: 0;
+    --kit-tilt: 1deg;
+  }
+
+  .kit-sticker.lp-collage__strength {
+    inline-size: auto;
+    margin-inline-start: 0;
+    --kit-tilt: 0.6deg;
+  }
+}
+
+@container (max-width: 419px) {
+  .lp-collage__stickers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 399px) {
+  .lp-collage__body {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .lp-collage__bars {
+    inline-size: 100%;
+  }
+}
+
+/* ─── Built-for band + the honest note ───────────────────── */
+.lp-band {
+  padding-block-end: var(--s10);
+}
+
+.lp-band__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--s9);
+  align-items: center;
+}
+
+.lp-band__title {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-black);
+  letter-spacing: -0.015em;
+}
+
+.lp-band__for {
+  max-width: 52ch;
+  font-size: 1.1875rem;
+  line-height: 1.5;
+}
+
+.kit-sticker.lp-note {
+  padding: var(--s6);
+  --kit-tilt: 1.2deg;
+}
+
+.lp-note__title {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-black);
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+
+/* ─── Review. Aim. Build. ────────────────────────────────── */
+.lp-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s7);
+  align-items: start;
+  margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--border-strong);
 }
 
-@media (min-width: 800px) {
-  .lp-tools-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: var(--space-12);
-  }
-
-  .lp-tools-list > li:first-child {
-    grid-column: 1 / -1;
-  }
-}
-
-.lp-tool-card {
+.kit-sticker.lp-workflow-card {
   display: grid;
-  gap: var(--space-2);
-  height: 100%;
-  padding: var(--space-6) var(--space-2);
-  border-bottom: 1px solid var(--border-soft);
-  color: inherit;
-  transition: var(--transition-colors);
+  gap: var(--s4);
+  align-content: start;
 }
 
-@media (hover: hover) {
-  .lp-tool-card:hover {
-    background: var(--surface-tint);
-  }
-
-  .lp-tool-card:hover .lp-tool-title {
-    color: var(--accent);
-  }
+.lp-workflow-card:nth-child(1) {
+  padding-block-end: var(--s9);
 }
 
-.lp-tool-phase {
-  color: var(--text-soft);
+.lp-workflow-card:nth-child(2) {
+  margin-block-start: var(--s9);
+  padding-block-end: var(--s6);
+}
+
+.lp-workflow-card:nth-child(3) {
+  margin-block-start: var(--s7);
+  padding-block-end: var(--s8);
+}
+
+.lp-workflow-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: var(--fw-black);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.lp-workflow-lead {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+}
+
+.lp-workflow-body {
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+.lp-step__ui {
+  display: grid;
+  gap: var(--s3);
+  margin-block-start: var(--s3);
+  padding: var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.lp-step__ui--fit {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+}
+
+.lp-step__job {
+  display: block;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.lp-step__skills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-block-start: var(--s1);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   font-variant-numeric: var(--numeric-tabular);
 }
 
-.lp-tool-title {
-  margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-size: 1.5rem;
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-title);
-  line-height: 1.2;
-  transition: var(--transition-colors);
+.lp-step__ui--tools {
+  gap: var(--s2);
 }
 
-.lp-tool-card--featured .lp-tool-title {
-  font-size: 2rem;
+.lp-step__tool {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.875rem;
+  font-weight: var(--fw-bold);
+}
+
+/* ─── Tools: the ruled list ──────────────────────────────── */
+.lp-tools-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-tools-list > li + li {
+  border-top: var(--bw) solid var(--line);
+}
+
+.lp-tool-row {
+  display: grid;
+  grid-template-columns: 104px 280px minmax(0, 1fr) 24px;
+  align-items: stretch;
+  gap: var(--s7);
+  min-height: 104px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.lp-tool-row:focus-visible {
+  outline-offset: -4px;
+}
+
+.lp-tool-title {
+  align-self: center;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.875rem;
+  font-weight: var(--fw-black);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
 
 .lp-tool-summary {
-  max-width: 40rem;
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 1rem;
-  line-height: 1.55;
-}
-
-.lp-tool-bullets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-6);
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-body);
-  font-size: var(--fs-body);
-}
-
-.lp-tool-bullets li::before {
-  content: '— ';
-  color: var(--text-faint);
-}
-
-.lp-tool-featured-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
-  color: var(--accent);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-semibold);
-}
-
-.lp-tool-featured-cta svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-/* ─── FAQ ────────────────────────────────────────────────── */
-
-.lp-faq-list {
-  max-width: 56rem;
-  margin-top: var(--space-8);
-  border-top: 1px solid var(--border-strong);
-}
-
-.lp-faq-item {
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.lp-faq-item .kit-disclosure__trigger {
-  min-height: 3.5rem;
+  align-self: center;
+  max-width: 56ch;
+  padding-block: var(--s4);
+  color: var(--ink-2);
   font-size: 1.0625rem;
+  line-height: 1.4;
 }
 
-.lp-faq-content {
-  margin: 0;
-  padding: 0 0 var(--space-5) var(--space-6);
-  color: var(--text-muted);
-  font-size: 1rem;
-  line-height: 1.6;
+.lp-tool-chevron {
+  align-self: center;
+  inline-size: 24px;
+  block-size: 24px;
+  margin-inline-end: var(--s6);
+  color: var(--ink-3);
 }
 
-/* ─── CTA ────────────────────────────────────────────────── */
-.lp-cta-card {
-  display: grid;
-  gap: var(--space-8);
-  align-items: end;
-  padding: clamp(1.5rem, 4vw, 3.5rem);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-}
+@media (hover: hover) {
+  .lp-tool-row:hover {
+    background: var(--lemon-soft);
+    box-shadow: inset 0 0 0 var(--bw) var(--ink);
+  }
 
-@media (min-width: 800px) {
-  .lp-cta-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--space-12);
+  .lp-tool-row:hover .lp-tool-chevron {
+    color: var(--ink);
   }
 }
 
+/* ─── FAQ ────────────────────────────────────────────────── */
+.lp-faq-list {
+  max-width: 56rem;
+}
+
+.lp-faq-content {
+  max-width: 60ch;
+  color: var(--ink-2);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+/* ─── Closer ─────────────────────────────────────────────── */
+.lp-section--closer {
+  padding-block: var(--s9) var(--s10);
+}
+
+.kit-sticker.lp-cta-card {
+  --kit-sticker-shadow: var(--sh-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--s8);
+  align-items: center;
+  padding: var(--s9);
+}
+
 .lp-cta-h2 {
-  max-width: 34rem;
-  font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.75rem);
-  line-height: 1.12;
+  max-width: 6.3em;
 }
 
 .lp-cta-action {
   display: grid;
+  gap: var(--s5);
   justify-items: start;
-  gap: var(--space-3);
+  margin-block-start: var(--s7);
 }
 
 .lp-cta-micro {
-  margin: 0;
-  color: var(--text-soft);
-  font-size: var(--fs-meta);
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  font-weight: var(--fw-semibold);
+}
+
+.lp-cta-art {
+  position: relative;
+  block-size: 260px;
+}
+
+.lp-cta-art .lp-cta-seal {
+  position: absolute;
+  top: 0;
+  right: 10px;
+}
+
+.kit-sticker.lp-cta-tag {
+  position: absolute;
+  font-weight: var(--fw-bold);
+}
+
+.kit-sticker.lp-cta-tag--good {
+  bottom: 34px;
+  left: -30px;
+  --kit-tilt: -5deg;
+}
+
+.kit-sticker.lp-cta-tag--issues {
+  right: 0;
+  bottom: 0;
+  --kit-tilt: 3deg;
 }
 
 /* ─── Footer ─────────────────────────────────────────────── */
 .lp-footer {
-  padding-block: var(--space-12) var(--space-8);
-  border-top: 1px solid var(--border-soft);
-  background: var(--surface-sunken);
+  border-top: var(--bw) solid var(--ink);
+  background: var(--surface);
 }
 
 .lp-footer-grid {
   display: grid;
-  gap: var(--space-10);
-}
-
-@media (min-width: 800px) {
-  .lp-footer-grid {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    gap: var(--space-16);
-  }
+  grid-template-columns: minmax(0, 1.4fr) auto;
+  gap: var(--s10);
+  align-items: start;
+  padding-block: var(--s8) var(--s7);
 }
 
 .lp-footer-brand-link {
   display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  border-radius: var(--r-sm);
+  color: inherit;
+  text-decoration: none;
 }
 
 .lp-footer-blurb {
-  max-width: 24rem;
-  margin: var(--space-4) 0 0;
-  color: var(--text-body);
-  font-size: var(--fs-body);
-  line-height: 1.55;
-}
-
-.lp-footer-meta {
-  margin: var(--space-3) 0 0;
-  color: var(--text-soft);
-  font-size: var(--fs-meta);
+  max-width: 36ch;
+  margin-block-start: var(--s3);
+  color: var(--ink-2);
 }
 
 .lp-footer-nav {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-8);
+  display: flex;
+  gap: var(--s10);
 }
 
 .lp-footer-h5 {
-  margin: 0 0 var(--space-3);
-  color: var(--text-strong);
-  font-size: var(--fs-section);
-  font-weight: var(--fw-semibold);
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: var(--fw-black);
+  line-height: 1;
 }
 
 .lp-footer-list {
   display: grid;
-  gap: var(--space-1);
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .lp-footer-list a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control-lg);
-  color: var(--text-muted);
-  font-size: var(--fs-body);
-  transition: var(--transition-colors);
+  display: inline-block;
+  padding-block: 6px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+@media (pointer: coarse) {
+  .lp-footer-list a {
+    padding-block: 11px;
+  }
 }
 
 @media (hover: hover) {
   .lp-footer-list a:hover {
-    color: var(--accent);
+    color: var(--ink);
     text-decoration: underline;
   }
 }
 
 .lp-footer-bottom {
-  margin-top: var(--space-10);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border-strong);
+  border-top: var(--bw) solid var(--line);
 }
 
 .lp-footer-copy {
-  margin: 0;
-  color: var(--text-soft);
+  padding-block: var(--s4) var(--s6);
+  color: var(--ink-3);
   font-size: var(--fs-meta);
+}
+
+/* ─── Narrow screens ─────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .lp-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s8);
+  }
+
+  .lp-hero-image-wrap {
+    max-width: 620px;
+  }
+}
+
+/* The four section links and Sign in fold into the menu sheet below 960px, where they would not fit. */
+@media (max-width: 960px) {
+  /* Footer links meet the 44px touch target once the page is narrow enough to be a phone or tablet. */
+  .lp-footer-list a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+    padding-block: 0;
+  }
+
+  .lp-nav__links,
+  .kit-button.lp-nav__signin {
+    display: none;
+  }
+
+  .kit-button.lp-nav__menu {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 860px) {
+  .lp-wrap {
+    width: calc(100% - 32px);
+  }
+
+  .lp-nav__inner {
+    gap: var(--s4);
+    padding-block: var(--s3);
+  }
+
+  .lp-hero {
+    padding-block: var(--s4) var(--s8);
+  }
+
+  .lp-hero-h1 {
+    font-size: clamp(2.5rem, 1.2rem + 6vw, 4.5rem);
+  }
+
+  .lp-hero-copy {
+    gap: var(--s5);
+  }
+
+  .lp-display--l {
+    font-size: clamp(2.25rem, 1rem + 4.5vw, 3.5rem);
+  }
+
+  .lp-section {
+    padding-block: var(--s9) var(--s8);
+  }
+
+  #landing-journey.lp-section {
+    padding-block-start: var(--s4);
+  }
+
+  #landing-tools.lp-section,
+  #landing-faq.lp-section {
+    padding-block-start: var(--s8);
+  }
+
+  .lp-section__head {
+    margin-block-end: var(--s7);
+  }
+
+  .lp-band {
+    padding-block-end: var(--s8);
+  }
+
+  .lp-band__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s8);
+  }
+
+  .lp-workflow-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s8);
+  }
+
+  .lp-workflow-card:nth-child(n) {
+    margin-block-start: 0;
+    padding-block-end: var(--s6);
+  }
+
+  .lp-workflow-title {
+    font-size: 2rem;
+  }
+
+  .lp-tool-row {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 0 var(--s4);
+    min-height: 0;
+  }
+
+  .lp-tool-row .kit-tool-tile--index {
+    inline-size: 64px;
+    grid-row: 1 / 3;
+  }
+
+  .lp-tool-title {
+    align-self: end;
+    padding-block-start: var(--s4);
+    font-size: var(--fs-section);
+  }
+
+  .lp-tool-summary {
+    grid-column: 2;
+    align-self: start;
+    padding-block: var(--s1) var(--s4);
+    padding-inline-end: var(--s4);
+    font-size: var(--fs-body);
+  }
+
+  .lp-tool-chevron {
+    display: none;
+  }
+
+  .lp-section--closer {
+    padding-block: var(--s7) var(--s9);
+  }
+
+  .kit-sticker.lp-cta-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s7);
+    padding: var(--s6);
+    --kit-sticker-shadow: var(--sh-3);
+  }
+
+  .lp-cta-h2 {
+    max-width: none;
+  }
+
+  .lp-cta-action {
+    margin-block-start: var(--s6);
+  }
+
+  /* A narrower button gutter keeps "Upload your resume, Free" on one line at phone width. */
+  .lp-cta-action .kit-button--lg {
+    --kit-button-px: var(--s5);
+  }
+
+  .lp-cta-art {
+    block-size: 200px;
+    max-inline-size: 300px;
+  }
+
+  /* On phones the sticker stays inside the card's padding instead of hanging over its border. */
+  .kit-sticker.lp-cta-tag--good {
+    left: 0;
+  }
+
+  .lp-cta-art .kit-seal.lp-cta-seal {
+    right: auto;
+    left: calc(50% - 66px);
+    inline-size: 132px;
+  }
+
+  .lp-footer-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s7);
+    padding-block: var(--s7) var(--s5);
+  }
+
+  .lp-footer-nav {
+    gap: var(--s9);
+  }
+}
+
+@media (max-width: 480px) {
+  /* Brand mark, Get started and the menu button share one row: the wordmark steps aside. */
+  .lp-nav__brand .cw-brand-wordmark {
+    display: none;
+  }
+
+  .lp-hero-actions {
+    gap: var(--s3);
+  }
 }

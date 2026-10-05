@@ -1,5 +1,29 @@
 /* History: layout hooks only. The page, toolbar, list, rows and dialogs are kit components. */
 
+/* The day heading is a row of its own: the stone-soft strip every table header uses, so the day reads as a divider, not a run. */
+.history-day {
+  min-height: 0;
+  padding-block: var(--space-2);
+  background: var(--stone-soft);
+}
+
+.history-day .kit-row__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+}
+
+/* The tool's colour in the filter, the same colour the tile in each row below carries. */
+.history-dot {
+  display: inline-block;
+  flex: none;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  margin-inline-end: var(--space-2);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--tone, var(--surface));
+}
+
 /* The date keeps the row's end edge: the hover-revealed actions sit in front of it, so rows line up and nothing shifts when they appear. */
 .history-row > .kit-row__actions {
   order: 1;
@@ -13,7 +37,15 @@
   display: inline-block;
   margin-inline-end: var(--space-1);
   color: var(--warning-solid);
-  vertical-align: -1px;
+  /* Lemon fill with the ink outline every sticker has: a bare amber star on white is too faint. */
+  stroke: var(--ink);
+  vertical-align: -2px;
+}
+
+/* One width for the "Continue: Tool" link, text at its start, so it begins at the same x on every row. */
+.history-row__continue {
+  min-inline-size: 10.5rem;
+  justify-content: flex-start;
 }
 
 .history-row .kit-row__reveal {

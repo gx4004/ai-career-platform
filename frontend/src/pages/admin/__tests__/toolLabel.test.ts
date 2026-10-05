@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { tools } from '#/lib/tools/registry'
-import { adminDate, adminDateTime, labelNamesTool, toolLabel } from '#/pages/admin/toolLabel'
+import { ADMIN_TOOL_IDS, adminDate, adminDateTime, labelNamesTool, toolLabel, toolVisual } from '#/pages/admin/toolLabel'
 
 describe('toolLabel', () => {
   it('uses the registry name for known tools', () => {
@@ -33,5 +33,16 @@ describe('admin dates', () => {
 
   it('adds the time for rows that repeat within a day', () => {
     expect(adminDateTime('2019-03-04T12:00:00Z')).toMatch(/2019, .*\d/)
+  })
+})
+
+describe('toolVisual', () => {
+  it('gives a registry tool its own colour', () => {
+    expect(toolVisual('resume').tone).toBe(tools.resume.tone)
+  })
+
+  it('gives the backend-only kinds a stone tile, and lists them in the filter', () => {
+    expect(toolVisual('application-drafts').tone).toBe('stone')
+    expect(ADMIN_TOOL_IDS).toContain('application-reviewer')
   })
 })
