@@ -22,7 +22,8 @@ export function CvVersionPreviewDialog({ variant, documentName, style, catalog, 
   /** The last action error (a version file that could not be built), shown here because the page is behind the dialog. */
   error: string
   onOpenChange: (open: boolean) => void
-  onExport: (variant: CvVariant, format: 'pdf' | 'docx') => void
+  /** Absent while the server cannot build a saved version as a file: the export buttons are then not shown. */
+  onExport?: (variant: CvVariant, format: 'pdf' | 'docx') => void
   onRestore: (variant: CvVariant) => void
 }) {
   const building = (format: 'pdf' | 'docx') => Boolean(variant && exporting?.variantId === variant.id && exporting.format === format)
@@ -57,12 +58,16 @@ export function CvVersionPreviewDialog({ variant, documentName, style, catalog, 
           <Button type="button" variant="secondary" disabled={!canRestore} onClick={() => variant && onRestore(variant)}>
             <RotateCcw aria-hidden="true" /> Use as my CV
           </Button>
-          <Button type="button" variant="secondary" loading={building('docx')} onClick={() => variant && onExport(variant, 'docx')}>
-            <Download aria-hidden="true" /> DOCX
-          </Button>
-          <Button type="button" loading={building('pdf')} onClick={() => variant && onExport(variant, 'pdf')}>
-            <Download aria-hidden="true" /> PDF
-          </Button>
+          {onExport ? (
+            <>
+              <Button type="button" variant="secondary" loading={building('docx')} onClick={() => variant && onExport(variant, 'docx')}>
+                <Download aria-hidden="true" /> DOCX
+              </Button>
+              <Button type="button" loading={building('pdf')} onClick={() => variant && onExport(variant, 'pdf')}>
+                <Download aria-hidden="true" /> PDF
+              </Button>
+            </>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

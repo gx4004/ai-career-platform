@@ -170,7 +170,30 @@ export const applicationDetailsSchema = z.object({
   ...applicationDetailsFields,
   is_default: z.boolean().default(false),
 })
-export const applicationDetailsUpdateSchema = z.strictObject(applicationDetailsFields)
+// Mirrors the backend rules (schemas/applications.py): an email-shaped value, and
+// links that are empty, a bare host (linkedin.com/in/me) or http(s) only.
+const detailsEmail = z
+  .string()
+  .max(320)
+  .refine((v) => v.trim() === '' || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()), 'Enter a valid email address')
+const detailsLink = z
+  .string()
+  .max(500)
+  .refine((raw) => {
+    const v = raw.trim()
+    if (v === '') return true
+    if (/[\s\u0000-\u001f]/.test(v)) return false
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) return true
+    if (/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/\S*)?$/i.test(v)) return true
+    if (/^localhost(?::\d+)?(?:\/\S*)?$/i.test(v)) return true
+    return /^https?:\/\/\S+$/i.test(v)
+  }, 'Enter a web address starting with http(s):// or a plain domain')
+export const applicationDetailsUpdateSchema = z.strictObject({
+  ...applicationDetailsFields,
+  email: detailsEmail,
+  linkedin: detailsLink,
+  website: detailsLink,
+})
 export const bulkPrepareResultSchema = z.object({
   reason: z.enum(['prepared', 'no_preferences', 'no_cv']),
   prepared: z.array(applicationCardSchema).default([]),

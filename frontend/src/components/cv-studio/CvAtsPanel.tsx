@@ -97,7 +97,7 @@ export function CvAtsPanel({
         description="Checked against the PDF you’d send. Pass or fail only. Not a prediction."
         actions={quality.isFetching ? <span className="cvs-hint" role="status">Updating…</span> : undefined}
       >
-        <List framed={false} aria-label="Checks" className="cvs-checks">
+        <List framed={false} aria-label="Checks">
           {checks.map((check) => {
             const fixes = check.passed ? [] : actions(check.id)
             return (

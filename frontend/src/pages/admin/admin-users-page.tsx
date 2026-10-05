@@ -205,19 +205,19 @@ export function AdminUsersPage() {
           />
         )}
 
+        {adminsOnly && data ? (
+          <p className="admin-subline">
+            {rows.length} {rows.length === 1 ? 'admin' : 'admins'} among the {data.items.length} users on this page
+          </p>
+        ) : null}
+
         <Pagination
           variant="simple"
           aria-label="Users pages"
           page={page}
           pageCount={pageCount}
           onPageChange={setPage}
-          summary={
-            data
-              ? adminsOnly
-                ? `${rows.length} ${rows.length === 1 ? 'admin' : 'admins'} among the ${data.items.length} users on this page`
-                : `Showing ${rangeStart}–${rangeEnd} of ${data.total}`
-              : undefined
-          }
+          summary={data ? `Showing ${rangeStart}–${rangeEnd} of ${data.total}` : undefined}
         />
       </Stack>
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Download, Eye, RotateCcw, Save } from 'lucide-react'
 import {
-  Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Field, Input, MetaRow, Stack,
+  Badge, Button, Card, CardHeader, CardTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Field, Input, MetaRow, Stack,
 } from '#/components/kit'
 import type { CvSection, CvVariant } from '#/lib/api/schemas'
 import { describeDiff, diffVersion } from './versionDiff'
@@ -23,7 +23,8 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
   onSave: (name: string) => Promise<boolean>
   onRestore: (variantId: string) => Promise<void>
   onPreview: (variant: CvVariant) => void
-  onExport: (variant: CvVariant, format: 'pdf' | 'docx') => void
+  /** Absent while the server cannot build a saved version as a file: no Export menu is shown. */
+  onExport?: (variant: CvVariant, format: 'pdf' | 'docx') => void
 }) {
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -65,16 +66,16 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
             const confirmingThis = confirming === variant.id
             const building = exporting?.variantId === variant.id
             return (
-              <li key={variant.id} className="cvs-version" data-tailored={variant.target_role ? 'true' : undefined}>
-                <div className="cvs-version__head">
-                  <p className="cvs-version__name">{variant.name}</p>
+              <Card key={variant.id} as="li" padding="sm" tone={variant.target_role ? 'lilac' : undefined}>
+                <CardHeader>
+                  <CardTitle headingLevel={3}>{variant.name}</CardTitle>
                   {variant.target_role ? <Badge size="sm" tone="lilac">Tailored</Badge> : null}
-                </div>
-                <MetaRow className="cvs-version__meta">
+                </CardHeader>
+                <MetaRow>
                   {dateFormat.format(new Date(variant.created_at))}
                   {variant.target_role ? `for ${variant.target_role}` : null}
                 </MetaRow>
-                <p className="cvs-version__diff">
+                <p className="cvs-hint">
                   {confirmingThis ? 'Replace your current CV? We’ll keep it in your versions.' : describeDiff(diffVersion(variant.sections, currentSections))}
                 </p>
                 <div className="cvs-version__actions">
@@ -88,24 +89,26 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
                       <Button type="button" size="sm" variant="secondary" aria-label={`Preview ${variant.name}`} onClick={() => onPreview(variant)}>
                         <Eye aria-hidden="true" /> Preview
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button type="button" size="sm" variant="secondary" loading={building} aria-label={`Export ${variant.name}`}>
-                            <Download aria-hidden="true" /> Export
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onSelect={() => onExport(variant, 'pdf')}>PDF</DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => onExport(variant, 'docx')}>DOCX</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {onExport ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button type="button" size="sm" variant="secondary" loading={building} aria-label={`Export ${variant.name}`}>
+                              <Download aria-hidden="true" /> Export
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onSelect={() => onExport(variant, 'pdf')}>PDF</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => onExport(variant, 'docx')}>DOCX</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
                       <Button type="button" size="sm" variant="ghost" disabled={busy} aria-label={`Restore ${variant.name}`} onClick={() => setConfirming(variant.id)}>
                         <RotateCcw aria-hidden="true" /> Restore
                       </Button>
                     </>
                   )}
                 </div>
-              </li>
+              </Card>
             )
           })}
         </ul>

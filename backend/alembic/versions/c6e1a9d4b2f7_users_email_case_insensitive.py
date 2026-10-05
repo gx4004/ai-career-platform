@@ -7,6 +7,8 @@ Create Date: 2026-10-05 18:00:00.000000
 """
 from collections.abc import Sequence
 
+import logging
+
 import sqlalchemy as sa
 
 from alembic import op
@@ -31,7 +33,16 @@ def upgrade() -> None:
         "UPDATE users SET email = lower(email) "
         f"WHERE email <> lower(email) AND lower(email) NOT IN ({duplicated})"
     ))
-    if bind.execute(sa.text(duplicated)).first() is None:
+    collisions = bind.execute(sa.text(
+        f"SELECT count(*) FROM ({duplicated}) AS d"
+    )).scalar()
+    if collisions:
+        logging.getLogger("alembic.runtime.migration").warning(
+            "%s email address(es) collide when lower-cased; skipped unique index %s. "
+            "Merge those accounts by hand, then create the index.",
+            collisions, INDEX,
+        )
+    else:
         op.create_index(INDEX, 'users', [sa.text('lower(email)')], unique=True)
 
 

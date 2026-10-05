@@ -18,6 +18,10 @@ CALLBACK = "/api/v1/auth/google/callback"
 def _configure_google(monkeypatch):
     # Ensure OAuth branch is active during tests.
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "test-client-id", raising=False)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(
+        settings, "GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback", raising=False
+    )
     monkeypatch.setattr(settings, "FRONTEND_URL", "http://localhost:3000", raising=False)
 
 

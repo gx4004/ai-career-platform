@@ -44,11 +44,12 @@ class RegisterRequest(BaseModel):
             raise ValueError("Password must be at least 8 characters")
         return _validate_bcrypt_password(v)
 
-    @field_validator("full_name")
+    @field_validator("full_name", mode="before")
     @classmethod
     def full_name_is_trimmed(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
+        # Before the length bound, so the 200 limit applies to the trimmed text.
+        if not isinstance(v, str):
+            return v
         return v.strip() or None
 
     @field_validator("tos_accepted")

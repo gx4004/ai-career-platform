@@ -1,6 +1,7 @@
 /* ── CV Studio ──────────────────────────────────────────────────────────────
    The studio chrome around the paper: header bar, tools panel, canvas. Every control
-   in it is a kit component; this file only lays them out. The paper itself (`cvp-*`,
+   in it is a kit component; this file lays them out and adds the few hooks the kit
+   does not have (grip, drag states, paper affordance, desk). The paper itself (`cvp-*`,
    below) mirrors the server PDF renderer and is not part of the app's visual system.
    Kit CSS loads after this file, so a rule that adjusts a kit component here doubles
    its class to win at equal weight. */
@@ -91,71 +92,34 @@
   gap: var(--s2);
 }
 
-.cvs-save {
+/* The icon of the save Badge sits beside its words; the spinner turns slower under reduced motion. */
+.cvs-save .kit-badge__label {
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  border-radius: var(--r-xs);
-  font-size: 0.875rem;
-  font-weight: var(--fw-bold);
-  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.cvs-save .kit-badge__label > svg {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  stroke-width: 3;
+}
+
+.cvs-save .cvs-save__spin {
+  animation: kit-spin 900ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cvs-save .cvs-save__spin {
+    animation-duration: 2400ms;
+  }
 }
 
 .cvs-save:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--s1);
-}
-
-.cvs-save__text {
-  white-space: nowrap;
-}
-
-.cvs-save__disc {
-  display: grid;
-  flex: none;
-  place-items: center;
-  box-sizing: border-box;
-  width: 1.375rem;
-  height: 1.375rem;
-  border: var(--bw) solid var(--ink);
-  border-radius: 50%;
-  background: var(--mint);
-  color: var(--ink);
-}
-
-.cvs-save__disc > svg {
-  width: 0.75rem;
-  height: 0.75rem;
-  stroke-width: 3;
-}
-
-.cvs-save[data-state='saving'] .cvs-save__disc {
-  background: var(--stone);
-}
-
-.cvs-save[data-state='error'] .cvs-save__disc {
-  background: var(--rose);
-}
-
-.cvs-save[data-state='conflict'] .cvs-save__disc {
-  background: var(--lemon);
-}
-
-.cvs-save__disc--spin::after {
-  content: '';
-  width: 0.625rem;
-  height: 0.625rem;
-  box-sizing: border-box;
-  border: var(--bw) solid var(--ink);
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: kit-spin 900ms linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cvs-save__disc--spin::after {
-    animation-duration: 2400ms;
-  }
 }
 
 .cvs-bar__template .kit-badge__label {
@@ -236,9 +200,15 @@
   padding-inline: var(--s2);
 }
 
-/* Four tabs, a count and the failing-checks badge have to fit the column: the folder tabs tighten before they would scroll. */
+/* Four tabs, a count and the failing-checks badge have to fit the column: a little tighter than the kit's tabs, and tighter again when the column is narrow. */
 .cvs-tabs > .kit-tabs__list .kit-tabs__trigger {
-  padding-inline: var(--s2);
+  padding-inline: var(--s3);
+}
+
+@media (max-width: 1279px) {
+  .cvs-tabs > .kit-tabs__list .kit-tabs__trigger {
+    padding-inline: var(--s2);
+  }
 }
 
 .kit-tabs__panel.cvs-panel {
@@ -285,60 +255,22 @@
   box-shadow: var(--shadow-paper);
 }
 
-/* ── Section rows (Sections tab) ── */
+/* ── Section rows (Sections tab): kit List and Row; this adds the grip, the drag states and the unfolded editor ── */
 
-.cvs-outline {
-  display: grid;
-  gap: var(--s3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* Kit CSS loads after this file, so the row hooks double their class. */
+.kit-row.cvs-sec[data-hidden] .kit-row__title {
+  color: var(--ink-3);
 }
 
-.cvs-sec {
-  position: relative;
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  transition: background-color var(--dur-1) var(--ease-out);
-}
-
-@media (hover: hover) {
-  .cvs-sec:not([data-open]):hover {
-    background: var(--lemon-soft);
-  }
-}
-
-.cvs-sec[data-over] {
-  background: var(--lemon-soft);
-}
-
-.cvs-sec[data-dragging] {
+.kit-row.cvs-sec[data-dragging] {
   opacity: 0.5;
 }
 
-.cvs-sec:has(.cvs-sec__open:focus-visible) {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--s1);
+.kit-row.cvs-sec[data-over] {
+  background-color: var(--lemon-soft);
 }
 
-.cvs-sec__head {
-  display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--s3);
-  min-height: 3.5rem;
-  padding: var(--s2) var(--s4);
-}
-
-.cvs-sec[data-open] .cvs-sec__head {
-  border-bottom: var(--bw) solid var(--ink);
-  border-radius: calc(var(--r-md) - var(--bw)) calc(var(--r-md) - var(--bw)) 0 0;
-  background: var(--lemon-soft);
-}
-
-.cvs-sec__grip {
-  display: inline-flex;
+.kit-row__leading.cvs-sec__grip {
   color: var(--ink-4);
   cursor: grab;
 }
@@ -348,120 +280,27 @@
   height: 1rem;
 }
 
-.cvs-sec__text {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--s2);
-  min-width: 0;
-}
-
-.cvs-sec__name {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font-family: var(--font-ui);
-  font-size: 1.0625rem;
-  font-weight: var(--fw-bold);
-  line-height: 1.25;
-  text-align: start;
-  overflow-wrap: anywhere;
-}
-
-/* The name is the row's whole-row button: its box covers the row, the actions sit above it. */
-.cvs-sec__open {
-  cursor: pointer;
-}
-
-.cvs-sec__open::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-}
-
-.cvs-sec__open:focus-visible {
-  outline: none;
-}
-
-.cvs-sec__count {
-  color: var(--ink-2);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
-}
-
-.cvs-sec[data-hidden] .cvs-sec__name {
-  color: var(--ink-3);
-}
-
-.cvs-sec__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--s1);
-}
-
-/* The controls sit above the name's whole-row hit area. */
-.cvs-sec__actions > .kit-button,
-.cvs-sec__reveal {
-  position: relative;
-  z-index: 1;
-}
-
-.cvs-sec__reveal {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s1);
-}
-
-/* Move and hide are secondary: shown on hover and while focus is inside the row, always on touch. */
-@media (hover: hover) and (pointer: fine) {
-  .cvs-sec__reveal {
-    position: absolute;
-    inset-block: 0;
-    inset-inline-end: 2.25rem;
-    padding-inline: var(--s2) var(--s1);
-    background: var(--lemon-soft);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--dur-1) var(--ease-out);
-  }
-
-  /* A hidden section keeps its show button in view, so the moves sit one button further in. */
-  .cvs-sec[data-hidden] .cvs-sec__reveal {
-    inset-inline-end: 5.25rem;
-  }
-
-  .cvs-sec:hover .cvs-sec__reveal,
-  .cvs-sec:focus-within .cvs-sec__reveal {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
 .cvs-sec__chevron {
-  display: inline-flex;
-  color: var(--ink);
-  pointer-events: none;
-}
-
-.cvs-sec__chevron > svg {
+  flex: none;
   width: 1rem;
   height: 1rem;
+  margin-inline: var(--s1);
+  color: var(--ink);
 }
 
-.cvs-sec__editor {
-  display: grid;
-  gap: var(--s3);
-  padding: var(--s4);
-}
-
-/* On a phone the section's own sheet is the editor: no row around it. */
+/* The section's own sheet is the editor on a phone: no chevron to open a row that opens a sheet. */
 @media (pointer: coarse) {
   .cvs-sec__chevron {
     display: none;
   }
+}
+
+/* The unfolded editor is the row under the open one: white, with the row divider above it. */
+.kit-row.cvs-sec__editor {
+  display: grid;
+  align-items: stretch;
+  gap: var(--s3);
+  padding: var(--s4);
 }
 
 .kit-button.cvs-add {
@@ -475,12 +314,6 @@
 }
 
 /* ── Section editor (inside the open row or the sheet) ── */
-
-.cvs-entry {
-  padding: var(--s3);
-  border: var(--bw) solid var(--line);
-  border-radius: var(--r-md);
-}
 
 .cvs-entry__grid {
   display: grid;
@@ -578,41 +411,9 @@
   list-style: none;
 }
 
-.cvs-version {
-  display: grid;
-  gap: var(--s1);
-  padding: var(--s3) var(--s4);
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-md);
-  background: var(--surface);
-}
-
-/* A version made for a job is the thinking colour. */
-.cvs-version[data-tailored] {
-  background: var(--lilac-soft);
-}
-
-.cvs-version__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s2);
-}
-
-.cvs-version__name {
-  margin: 0;
-  color: var(--ink);
-  font-size: 1.0625rem;
-  font-weight: var(--fw-bold);
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.cvs-version__diff {
-  margin: 0;
-  color: var(--ink-2);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
+/* Inside the panel nothing casts a shadow (the Button rule above, for cards). */
+.cvs-panel .kit-card {
+  --sh-1: none;
 }
 
 .cvs-version__actions {
@@ -700,13 +501,9 @@
   min-height: 15rem;
 }
 
-.cvs-review__head {
-  display: grid;
+.kit-card.cvs-review__head,
+.kit-card.cvs-review__card {
   gap: var(--s3);
-  padding: var(--s4);
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-lg);
-  background: var(--lilac-soft);
 }
 
 .cvs-review__grid {
@@ -717,31 +514,6 @@
 
 .cvs-review__wide {
   grid-column: 1 / -1;
-}
-
-.cvs-review__card {
-  display: grid;
-  gap: var(--s3);
-  padding: var(--s4);
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-md);
-  background: var(--surface);
-}
-
-.cvs-review__cardhead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s2);
-}
-
-.cvs-review__cardtitle {
-  margin: 0;
-  color: var(--ink);
-  font-size: 1.0625rem;
-  font-weight: var(--fw-bold);
-  line-height: 1.25;
-  overflow-wrap: anywhere;
 }
 
 .cvs-review__actions {
@@ -1116,7 +888,15 @@
   transition: outline-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
 }
 
-.cvp-section--editable:hover,
+@media (hover: hover) {
+  .cvp-section--editable:hover {
+    outline-color: var(--tangerine);
+    background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
+  }
+
+  .cvp-section--editable:hover::after { opacity: 1; }
+}
+
 .cvp-section--editable[aria-pressed='true'] {
   outline-color: var(--tangerine);
   background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
@@ -1144,7 +924,6 @@
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
-.cvp-section--editable:hover::after,
 .cvp-section--editable:focus-visible::after { opacity: 1; }
 
 .cvp-section--editable[aria-pressed='true']::after {

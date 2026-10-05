@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Check, TriangleAlert } from 'lucide-react'
-import { Button, Tooltip } from '#/components/kit'
+import { Check, LoaderCircle, TriangleAlert } from 'lucide-react'
+import { Badge, Button, Tooltip } from '#/components/kit'
 import type { SaveState } from './useCvDraft'
 
 const NOW_TICK_MS = 30_000
@@ -31,7 +31,7 @@ function useNow() {
 }
 
 /**
- * The studio's save state in the top bar: a disc and a word (never colour alone).
+ * The studio's save state in the top bar: a kit Badge with an icon and a word (never colour alone).
  * Saved says when ("Saved 2 min ago"), and a tooltip adds the exact time and when the server copy was last checked.
  */
 export function CvSaveStatus({ state, savedAt, checkedAt, onRetry }: {
@@ -49,11 +49,12 @@ export function CvSaveStatus({ state, savedAt, checkedAt, onRetry }: {
     checkedAt ? `Checked for newer versions at ${when(checkedAt)}.` : 'Checked for newer versions when you opened it.',
   ].filter(Boolean).join(' ')
 
-  const disc = kind === 'saving'
-    ? <span className="cvs-save__disc cvs-save__disc--spin" aria-hidden="true" />
+  const icon = kind === 'saving'
+    ? <LoaderCircle className="cvs-save__spin" aria-hidden="true" />
     : kind === 'error' || kind === 'conflict'
-      ? <span className="cvs-save__disc" aria-hidden="true"><TriangleAlert /></span>
-      : <span className="cvs-save__disc" aria-hidden="true"><Check /></span>
+      ? <TriangleAlert aria-hidden="true" />
+      : <Check aria-hidden="true" />
+  const tone = kind === 'saving' ? 'stone' : kind === 'error' ? 'rose' : kind === 'conflict' ? 'lemon' : 'mint'
 
   const text = kind === 'saving'
     ? 'Saving…'
@@ -64,10 +65,10 @@ export function CvSaveStatus({ state, savedAt, checkedAt, onRetry }: {
         : savedAt ? `Saved ${savedAgo(savedAt, now)}` : 'Saved'
 
   const body = (
-    <span className="cvs-save" data-state={kind} role="status" aria-live="polite" data-testid="save-status" tabIndex={0}>
-      {disc}
-      <span className="cvs-save__text">{text}</span>
-    </span>
+    <Badge tone={tone} className="cvs-save" role="status" aria-live="polite" data-testid="save-status" data-state={kind} tabIndex={0}>
+      {icon}
+      {text}
+    </Badge>
   )
   return (
     <span className="cvs-save-wrap">

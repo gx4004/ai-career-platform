@@ -1,9 +1,18 @@
 import re
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.evidence_profile import EvidenceKind
 
@@ -29,6 +38,36 @@ CvTemplateId = Literal[
 CvArtifactFormat = Literal["docx", "pdf"]
 CvFontId = Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"]
 CvDensity = Literal["compact", "normal", "spacious"]
+
+
+def _reject_nul(value: str) -> str:
+    if "\x00" in value:
+        raise ValueError("text cannot contain NUL characters")
+    return value
+
+
+def _remove_nul(value):
+    return value.replace("\x00", "") if isinstance(value, str) else value
+
+
+# Text the person typed: surrounding whitespace is dropped (so blank counts as empty
+# under min_length) and NUL, which the database cannot store, is refused.
+Text = Annotated[str, StringConstraints(strip_whitespace=True), AfterValidator(_reject_nul)]
+# The same for imported text, which comes from a parsed file: NUL is removed, not refused.
+ImportedText = Annotated[
+    str, BeforeValidator(_remove_nul), StringConstraints(strip_whitespace=True)
+]
+
+
+def _unique_ids(sections) -> None:
+    """Section ids are unique in a document, entry ids unique within a section."""
+    section_ids = [section.id for section in sections]
+    if len(set(section_ids)) != len(section_ids):
+        raise ValueError("section ids must be unique")
+    for section in sections:
+        entry_ids = [entry.id for entry in section.entries]
+        if len(set(entry_ids)) != len(entry_ids):
+            raise ValueError("entry ids must be unique within a section")
 
 # Curated palette (color -> display name) so accent colors stay readable and
 # print-safe. Any hex outside this set is rejected rather than silently normalized.
@@ -91,7 +130,7 @@ class _BodyFollowsBullets:
 
 def _blank_to_none(value):
     if isinstance(value, str):
-        return value.strip() or None
+        return value.replace("\x00", "").strip() or None
     return value
 
 
@@ -104,12 +143,12 @@ class CvHeader(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    headline: str | None = Field(default=None, min_length=1, max_length=200)
-    email: str | None = Field(default=None, min_length=1, max_length=200)
-    phone: str | None = Field(default=None, min_length=1, max_length=40)
-    location: str | None = Field(default=None, min_length=1, max_length=200)
-    links: list[str] = Field(default_factory=list, max_length=6)
+    name: Text | None = Field(default=None, min_length=1, max_length=120)
+    headline: Text | None = Field(default=None, min_length=1, max_length=200)
+    email: Text | None = Field(default=None, min_length=1, max_length=200)
+    phone: Text | None = Field(default=None, min_length=1, max_length=40)
+    location: Text | None = Field(default=None, min_length=1, max_length=200)
+    links: list[Text] = Field(default_factory=list, max_length=6)
 
     @field_validator("name", "headline", "email", "phone", "location", mode="before")
     @classmethod
@@ -135,24 +174,24 @@ class CvHeader(BaseModel):
 class CvEntry(_BodyFollowsBullets, BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(min_length=1, max_length=100)
+    id: Text = Field(min_length=1, max_length=100)
     evidence_item_id: str | None
-    body: str = Field(min_length=1, max_length=5_000)
+    body: Text = Field(min_length=1, max_length=5_000)
     position: int = Field(ge=0)
-    heading: str | None = Field(default=None, min_length=1, max_length=200)
-    subheading: str | None = Field(default=None, min_length=1, max_length=200)
-    location: str | None = Field(default=None, min_length=1, max_length=200)
-    start_date: str | None = Field(default=None, min_length=1, max_length=40)
-    end_date: str | None = Field(default=None, min_length=1, max_length=40)
-    bullets: list[str] = Field(default_factory=list, max_length=30)
+    heading: Text | None = Field(default=None, min_length=1, max_length=200)
+    subheading: Text | None = Field(default=None, min_length=1, max_length=200)
+    location: Text | None = Field(default=None, min_length=1, max_length=200)
+    start_date: Text | None = Field(default=None, min_length=1, max_length=40)
+    end_date: Text | None = Field(default=None, min_length=1, max_length=40)
+    bullets: list[Text] = Field(default_factory=list, max_length=30)
 
 
 class CvSection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(min_length=1, max_length=100)
+    id: Text = Field(min_length=1, max_length=100)
     kind: CvSectionKind
-    title: str = Field(min_length=1, max_length=120)
+    title: Text = Field(min_length=1, max_length=120)
     visible: bool = True
     position: int = Field(ge=0)
     entries: list[CvEntry] = Field(default_factory=list, max_length=200)
@@ -161,19 +200,33 @@ class CvSection(BaseModel):
 class CvDocumentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1, max_length=120)
+    name: Text = Field(min_length=1, max_length=120)
     sections: list[CvSection] = Field(default_factory=list, max_length=50)
     seed_evidence_item_ids: list[str] = Field(default_factory=list, max_length=200)
     header: CvHeader | None = None
+
+    @model_validator(mode="after")
+    def _ids_are_unique(self):
+        _unique_ids(self.sections)
+        return self
 
 
 class CvDocumentUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, min_length=1, max_length=120)
+    name: Text | None = Field(default=None, min_length=1, max_length=120)
     sections: list[CvSection] | None = Field(default=None, max_length=50)
     style: CvStyle | None = None
     header: CvHeader | None = None
+    # The ``updated_at`` of the copy the editor loaded. When it is no longer the stored
+    # one, another window saved first and the save is refused with 409 (no silent overwrite).
+    expected_updated_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _ids_are_unique(self):
+        if self.sections is not None:
+            _unique_ids(self.sections)
+        return self
 
     @model_validator(mode="after")
     def require_change(self):
@@ -189,8 +242,20 @@ class CvDocumentUpdate(BaseModel):
 
 class CvVariantCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    name: str = Field(min_length=1, max_length=120)
-    target_role: str | None = Field(default=None, min_length=1, max_length=200)
+    name: Text = Field(min_length=1, max_length=120)
+    target_role: Text | None = Field(default=None, min_length=1, max_length=200)
+
+
+class CvVariantUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Text | None = Field(default=None, min_length=1, max_length=120)
+    target_role: Text | None = Field(default=None, min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def require_change(self):
+        if self.name is None and self.target_role is None:
+            raise ValueError("At least one editable field is required")
+        return self
 
 
 class CvVariantResponse(BaseModel):
@@ -273,6 +338,8 @@ class CvRenderModel(BaseModel):
     margin_mm: int
     tokens: dict[str, str | int | bool]
     sections: list[CvRenderSection]
+    # Characters in the CV that no font available for the PDF can draw.
+    unsupported_characters: list[str] = Field(default_factory=list)
 
 
 class CvArtifactEvidence(BaseModel):
@@ -283,6 +350,10 @@ class CvArtifactEvidence(BaseModel):
     reads_back: Literal["pass", "fail"]
     links: Literal["pass", "fail"]
     page_breaks: Literal["pass", "fail"]
+    # Titles of the sections that did not read back as written, and characters the
+    # PDF could not draw: what the advice for a failed check can name.
+    unread_sections: list[str] = Field(default_factory=list)
+    unsupported_characters: list[str] = Field(default_factory=list)
 
 
 class CvCheck(BaseModel):
@@ -373,23 +444,23 @@ class CvImportClaim(BaseModel):
 
 class CvImportEntry(_BodyFollowsBullets, BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: str = Field(min_length=1, max_length=100)
-    body: str = Field(min_length=1, max_length=5_000)
+    id: ImportedText = Field(min_length=1, max_length=100)
+    body: ImportedText = Field(min_length=1, max_length=5_000)
     position: int = Field(ge=0)
     claim: CvImportClaim | None
-    heading: str | None = Field(default=None, min_length=1, max_length=200)
-    subheading: str | None = Field(default=None, min_length=1, max_length=200)
-    location: str | None = Field(default=None, min_length=1, max_length=200)
-    start_date: str | None = Field(default=None, min_length=1, max_length=40)
-    end_date: str | None = Field(default=None, min_length=1, max_length=40)
-    bullets: list[str] = Field(default_factory=list, max_length=30)
+    heading: ImportedText | None = Field(default=None, min_length=1, max_length=200)
+    subheading: ImportedText | None = Field(default=None, min_length=1, max_length=200)
+    location: ImportedText | None = Field(default=None, min_length=1, max_length=200)
+    start_date: ImportedText | None = Field(default=None, min_length=1, max_length=40)
+    end_date: ImportedText | None = Field(default=None, min_length=1, max_length=40)
+    bullets: list[ImportedText] = Field(default_factory=list, max_length=30)
 
 
 class CvImportSection(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: str = Field(min_length=1, max_length=100)
+    id: ImportedText = Field(min_length=1, max_length=100)
     kind: CvSectionKind
-    title: str = Field(min_length=1, max_length=120)
+    title: ImportedText = Field(min_length=1, max_length=120)
     visible: bool = True
     position: int = Field(ge=0)
     entries: list[CvImportEntry] = Field(max_length=200)
@@ -397,12 +468,17 @@ class CvImportSection(BaseModel):
 
 class CvImportProposal(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    filename: str = Field(min_length=1, max_length=255)
+    filename: ImportedText = Field(min_length=1, max_length=255)
     import_id: UUID
-    name: str = Field(min_length=1, max_length=120)
+    name: ImportedText = Field(min_length=1, max_length=120)
     sections: list[CvImportSection] = Field(max_length=50)
     warnings: list[str] = Field(max_length=20)
     header: CvHeader = Field(default_factory=CvHeader)
+
+    @model_validator(mode="after")
+    def _ids_are_unique(self):
+        _unique_ids(self.sections)
+        return self
 
     @field_validator("import_id", mode="before")
     @classmethod

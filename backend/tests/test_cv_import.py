@@ -67,7 +67,8 @@ def test_accept_reviewed_proposal_atomically_creates_document_and_unconfirmed_cl
     assert item.content == {"statement": "Improved safe releases by 20%."}
 
     replay = client.post(f"{PREFIX}/accept", json=proposal, headers=auth_headers)
-    assert replay.status_code == 201
+    # A replay of an already accepted import returns the existing document: 200, not 201.
+    assert replay.status_code == 200
     assert replay.json()["id"] == document["id"]
     assert db.query(CvDocument).count() == 1
     assert db.query(EvidenceItem).count() == sum(

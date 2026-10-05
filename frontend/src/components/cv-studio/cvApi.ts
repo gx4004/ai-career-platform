@@ -4,7 +4,7 @@ import { cvDocumentSchema, cvDocumentUpdateSchema } from '#/lib/api/schemas'
 import type { CvDocumentUpdate } from '#/lib/api/schemas'
 
 /** Same base the shared API client uses (client.ts keeps it private). */
-export function apiBase() {
+function apiBase() {
   const configured = import.meta.env.VITE_API_URL?.trim()
   return configured ? configured.replace(/\/+$/, '') : '/api/v1'
 }
@@ -19,6 +19,13 @@ export async function keepalivePatch(documentId: string, payload: CvDocumentUpda
   if (!response.ok) throw new ApiError('Save failed', response.status)
   return cvDocumentSchema.parse(await response.json())
 }
+
+/**
+ * Whether the backend serves `GET /cv-documents/{id}/variants/{variantId}/artifacts/{format}`. It does not yet
+ * (backend lane, cv-studio-d11), so version cards offer Preview and Restore only: no export control that can only fail.
+ * Set to true when the route ships.
+ */
+export const VARIANT_EXPORT_READY = false
 
 /** Thrown when the server has no file route for a saved version (an older backend). */
 export class VersionExportUnavailable extends Error {

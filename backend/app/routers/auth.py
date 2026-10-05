@@ -1,5 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -79,7 +80,16 @@ async def register(request: Request, response: Response, body: RegisterRequest, 
         full_name=body.full_name,
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Lost a race with a concurrent registration of the same address: the
+        # unique lower(email) index is the real guard.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered",
+        ) from None
     db.refresh(user)
 
     access = create_access_token(user.id, user.token_version)

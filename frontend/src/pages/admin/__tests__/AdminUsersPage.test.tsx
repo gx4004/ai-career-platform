@@ -50,12 +50,12 @@ describe('AdminUsersPage', () => {
     expect(screen.getByText('2 users')).toBeTruthy()
   })
 
-  it('badges the role of every user: Admin in tangerine, Member in stone', async () => {
+  it('badges the role of every user: Admin in the accent colour, Member neutral', async () => {
     renderPage([user('u-1'), user('u-2', { is_admin: true })])
     await screen.findByText('u-1@example.com')
     expect(screen.getAllByText('Admin')).toHaveLength(1)
-    expect(screen.getByText('Admin').closest('[data-tone]')?.getAttribute('data-tone')).toBe('tangerine')
-    expect(screen.getByText('Member').closest('[data-tone]')?.getAttribute('data-tone')).toBe('stone')
+    expect(screen.getByText('Admin').closest('[data-tone]')?.getAttribute('data-tone')).toBe('accent')
+    expect(screen.getByText('Member').closest('[data-tone]')?.getAttribute('data-tone')).toBe('neutral')
   })
 
   it('asks before promoting, and changes nothing when the question is cancelled', async () => {
@@ -74,7 +74,7 @@ describe('AdminUsersPage', () => {
     const dialog = within(await screen.findByRole('alertdialog'))
     fireEvent.click(dialog.getByRole('button', { name: 'Make admin' }))
     await waitFor(() => expect(setAdminStatusMock).toHaveBeenCalledWith('u-1', true))
-    expect(await screen.findByText('u-1@example.com is now an admin')).toBeTruthy()
+    expect((await screen.findAllByText('u-1@example.com is now an admin')).length).toBeGreaterThan(0)
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 

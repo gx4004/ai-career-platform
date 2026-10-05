@@ -60,7 +60,7 @@ async def google_login(request: Request):
 
 @router.get("/callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
-    if not settings.GOOGLE_CLIENT_ID:
+    if not google_sign_in_configured():
         return _oauth_error_redirect("not_configured")
 
     try:

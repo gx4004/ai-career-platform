@@ -79,6 +79,10 @@ def test_google_sign_in_links_to_the_existing_account_regardless_of_case(
     client, db, monkeypatch
 ):
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "test-client-id", raising=False)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(
+        settings, "GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback", raising=False
+    )
     monkeypatch.setattr(settings, "FRONTEND_URL", "http://localhost:3000", raising=False)
     user = User(email="person@example.com", hashed_password=hash_password("secret123"))
     db.add(user)
