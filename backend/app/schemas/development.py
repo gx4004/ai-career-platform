@@ -70,6 +70,11 @@ class DevelopmentItemResponse(BaseModel):
 
     id: str
     gap_classification_id: str | None
+    # What to build (the requirement or claim the gap cited) and the application
+    # it came from; both survive the finding being reconciled away. NULL for items
+    # created before they were snapshotted whose gap is already gone.
+    label: str | None = None
+    application_id: str | None = None
     gap_kind: GapKind
     response_kind: DevelopmentResponseKind
     state: DevelopmentState

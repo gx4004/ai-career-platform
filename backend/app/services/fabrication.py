@@ -19,6 +19,7 @@ deterministic and makes **no** live LLM call (D-044).
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -28,17 +29,25 @@ from app.services.quality_signals import keyword_present
 KIND_PROPER_NOUN = "proper-noun"
 KIND_FIGURE = "figure"
 
-# A "word" inside a proper-noun run: starts with an uppercase letter and may
-# carry internal case/digits/joiners (so "FastAPI", "Node.js", "CI/CD" survive).
-_PROPER_WORD = r"[A-Z][A-Za-z0-9]*(?:[&./+\-][A-Za-z0-9]+)*"
-#: A run of one or more capitalized words (e.g. "Nimbus Ledger", "PostgreSQL").
-_PROPER_RUN = re.compile(rf"{_PROPER_WORD}(?:\s+{_PROPER_WORD})*")
+# One word token: unicode letters/digits with internal joiners (so "FastAPI",
+# "Node.js", "CI/CD" survive) and an optional "++"/"#" tail ("C++", "C#"). Unicode
+# aware so "Müller" and "Zürich" are one word, not "M" and "Z".
+_WORD_TOKEN = re.compile(r"[^\W_][^\W_]*(?:[&./+\-][^\W_]+)*(?:\+\+|#)?")
 #: A quantified figure: optional ``$``, digit groups, optional decimal, optional
-#: ``%`` or ``+`` suffix. Captures "$1,200", "40%", "4,500", "99.95%", "30+".
-_FIGURE = re.compile(r"\$?\d[\d,]*(?:\.\d+)?%?\+?")
+#: unit suffix (``%``, ``+``, ``k``/``m``/``b``, ``x``). Captures "$1,200", "40%",
+#: "99.95%", "30+", "$1.2M", "3x". The figure must stand alone: "p95" or "3rd"
+#: are tokens, not numbers, and yield no figure claim.
+_FIGURE = re.compile(r"(?<![\w.])\$?\d[\d,]*(?:\.\d+)?(?:%|\+|[kKmMbBxX])?(?!\w)")
 #: Splits output into rough sentences so sentence-initial capitalization can be
 #: distinguished from mid-sentence proper nouns.
 _SENTENCE_SPLIT = re.compile(r"[.!?\n]+")
+#: Verbs that routinely open CV/letter sentences ("Used Go", "Led Atlas"); the
+#: capitalisation is sentence casing, not part of the name that follows.
+_OPENING_VERBS = frozenset(
+    {"used", "led", "ran", "built", "wrote", "made", "drove", "took", "won", "set", "got", "cut", "grew"}
+)
+#: Suffix words that spell out a figure's unit, so ``$1.2M`` grounds in "$1.2 million".
+_UNIT_WORDS = {"k": "thousand", "m": "million", "b": "billion"}
 
 # Common words that are capitalized only because they open a sentence, are
 # pronouns, or are letter/greeting boilerplate. Excluded from proper-noun claim
@@ -134,15 +143,52 @@ def _is_droppable_word(word: str) -> bool:
     return word.lower() in _CAPITALIZED_STOPWORDS
 
 
+def _is_proper_token(token: str) -> bool:
+    return token[0].isupper() or (token[0].isalpha() and any(c.isupper() for c in token[1:]))
+
+
+def _proper_runs(sentence: str) -> list[tuple[int, list[str]]]:
+    """Runs of consecutive proper tokens separated only by whitespace."""
+    runs: list[tuple[int, list[str]]] = []
+    current: list[str] = []
+    start = 0
+    previous_end = -1
+    for match in _WORD_TOKEN.finditer(sentence):
+        token = match.group()
+        adjacent = current and not sentence[previous_end : match.start()].strip()
+        if _is_proper_token(token):
+            if not adjacent:
+                if current:
+                    runs.append((start, current))
+                current = []
+                start = match.start()
+            current.append(token)
+        else:
+            if current:
+                runs.append((start, current))
+            current = []
+        previous_end = match.end()
+    if current:
+        runs.append((start, current))
+    return runs
+
+
+def _is_opening_verb(word: str) -> bool:
+    lowered = word.lower()
+    return lowered in _OPENING_VERBS or (len(lowered) >= 5 and lowered.endswith(("ed", "ing")))
+
+
 def _extract_proper_nouns(sentence: str, seen: set[str], claims: list[Claim]) -> None:
-    stripped = sentence.lstrip()
-    lead_offset = len(sentence) - len(stripped)
-    for match in _PROPER_RUN.finditer(sentence):
-        words = match.group().split()
+    lead_offset = len(sentence) - len(sentence.lstrip())
+    for start, words in _proper_runs(sentence):
+        sentence_initial = start == lead_offset
+        # A capitalized verb that opens the sentence is sentence casing, not part
+        # of the name after it ("Used Go" -> "Go").
+        if sentence_initial and len(words) > 1 and _is_opening_verb(words[0]):
+            words = words[1:]
         # A single capitalized word at the very start of a sentence is almost
         # always just sentence casing, not a proper noun — skip unless it
         # carries an internal case/digit signal.
-        sentence_initial = match.start() == lead_offset
         if sentence_initial and len(words) == 1 and not _has_internal_signal(words[0]):
             continue
         # Trim stopword tokens (articles, pronouns, greeting/letter filler) from
@@ -159,7 +205,7 @@ def _extract_proper_nouns(sentence: str, seen: set[str], claims: list[Claim]) ->
 
 def _extract_figures(text: str, seen: set[str], claims: list[Claim]) -> None:
     for match in _FIGURE.finditer(text):
-        _add_claim(Claim(text=match.group(), kind=KIND_FIGURE), seen, claims)
+        _add_claim(Claim(text=match.group().rstrip(","), kind=KIND_FIGURE), seen, claims)
 
 
 def _claim_key(claim: Claim) -> str:
@@ -196,23 +242,42 @@ def _figure_traceable(figure: str, resume_text: str) -> bool:
     Commas are stripped from both sides so ``4,500`` matches ``4500``; digit
     boundaries prevent ``12`` from matching inside ``120``, and the trailing
     ``(?!\.\d)`` stops a bare ``2`` from matching the integer part of ``2.5``.
+    A ``$`` prefix is optional on the resume side ("1.2M dollars") and a ``k``/``m``/
+    ``b`` suffix also matches its spelled-out unit ("$1.2 million").
     """
     normalized = figure.replace(",", "")
     resume_normalized = resume_text.replace(",", "")
-    pattern = rf"(?<![\w.]){re.escape(normalized)}(?![\w])(?!\.\d)"
-    return bool(re.search(pattern, resume_normalized))
+    bare = normalized.lstrip("$")
+    forms = {re.escape(normalized), re.escape(bare)}
+    unit = _UNIT_WORDS.get(bare[-1:].lower())
+    if unit and bare[:-1][-1:].isdigit():
+        forms.add(rf"{re.escape(bare[:-1])}\s*{unit}")
+    for form in forms:
+        if re.search(rf"(?<![\w.]){form}(?![\w])(?!\.\d)", resume_normalized, re.IGNORECASE):
+            return True
+    return False
+
+
+def _literal_traceable(text: str, source: str) -> bool:
+    """Whole-token literal match, so names the skill vocabulary does not know
+    ("Go", "C++") still trace to the same text in the source."""
+    flags = 0 if len(text) <= 3 else re.IGNORECASE
+    return bool(re.search(rf"(?<!\w){re.escape(text)}(?!\w)", source, flags))
 
 
 def claim_traceable(claim: Claim, resume_text: str) -> bool:
     """Return ``True`` when a claim can be traced back to the source resume.
 
     Proper-noun claims reuse :func:`keyword_present` (boundary-aware,
-    case-insensitive); figures use digit-boundary matching that tolerates
-    thousands separators.
+    case-insensitive) and also accept the same text literally; figures use
+    digit-boundary matching that tolerates thousands separators. Both sides are
+    NFC-normalised so composed and decomposed accents compare equal.
     """
+    resume_text = unicodedata.normalize("NFC", resume_text)
+    text = unicodedata.normalize("NFC", claim.text)
     if claim.kind == KIND_FIGURE:
-        return _figure_traceable(claim.text, resume_text)
-    return keyword_present(claim.text, resume_text)
+        return _figure_traceable(text, resume_text)
+    return keyword_present(text, resume_text) or _literal_traceable(text, resume_text)
 
 
 def trace_claim(claim: Claim, sources: Mapping[str, str]) -> ClaimTrace:

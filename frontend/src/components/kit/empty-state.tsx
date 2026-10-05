@@ -11,6 +11,9 @@ type StateBaseProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & {
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
   /** A 20px icon in the tilted disc above the title (lemon; rose for an ErrorState). Decorative. Not shown at size inline. */
   icon?: ReactNode
+  /** framed (default): the die-cut panel. open: no frame, a display title and a lead-size sentence, for a full page that
+   *  carries its own art beside the copy (the 404 and error pages). */
+  variant?: 'framed' | 'open'
 }
 
 export type EmptyStateProps = StateBaseProps & {
@@ -41,11 +44,17 @@ function Title({ headingLevel, className, children }: { headingLevel?: number; c
  * .cvs-empty-panel and the other empty-state variants.
  */
 export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(function EmptyState(
-  { title, description, action, size = 'compact', headingLevel, icon, className, ...rest },
+  { title, description, action, size = 'compact', headingLevel, icon, variant = 'framed', className, ...rest },
   ref,
 ) {
   return (
-    <div ref={ref} className={cn('kit-empty', className)} data-size={size} {...rest}>
+    <div
+      ref={ref}
+      className={cn('kit-empty', className)}
+      data-size={size}
+      data-variant={variant === 'open' ? 'open' : undefined}
+      {...rest}
+    >
       <Icon icon={icon} />
       <Title headingLevel={headingLevel} className="kit-empty__title">
         {title}
@@ -93,6 +102,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(function E
     size = 'compact',
     headingLevel,
     icon,
+    variant = 'framed',
     role = 'alert',
     className,
     ...rest
@@ -106,6 +116,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(function E
       role={role === 'none' ? undefined : role}
       className={cn('kit-empty kit-error', className)}
       data-size={size}
+      data-variant={variant === 'open' ? 'open' : undefined}
       {...rest}
     >
       <Icon icon={icon} />

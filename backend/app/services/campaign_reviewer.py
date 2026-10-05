@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.services.evidence_injection import EvidencePayload
-from app.services.fabrication import extract_claims, trace_claim
+from app.services.fabrication import KIND_FIGURE, extract_claims, trace_claim
 from app.services.quality_signals import extract_job_keywords, keyword_present
 
 GENERIC_PHRASES = (
@@ -81,6 +81,8 @@ async def review_campaign_materials(
     cover_text: str,
     evidence_profile: EvidencePayload | None = None,
     cv_document_text: str = "",
+    listing_title: str = "",
+    listing_company: str = "",
 ) -> dict:
     confirmed_sources = {
         f"confirmed_evidence:{item['evidence_item_id']}": json.dumps(
@@ -89,7 +91,12 @@ async def review_campaign_materials(
         for item in (evidence_profile.locked_facts if evidence_profile else [])
     }
     findings: list[dict] = []
-    findings.extend(_unsupported(resume_text, cover_text, confirmed_sources, cv_document_text))
+    # The posting is the cover letter's own subject: its role, company and wording
+    # are grounded by definition, so naming them is not a claim about the user.
+    posting = "\n".join(part for part in (listing_title, listing_company, job_description) if part)
+    findings.extend(
+        _unsupported(resume_text, cover_text, confirmed_sources, cv_document_text, posting)
+    )
     findings.extend(_missed_requirements(job_description, resume_text, cover_text))
     findings.extend(_contradictions(resume_text, cover_text))
     findings.extend(_generic_and_repeated(resume_text, cover_text))
@@ -146,6 +153,7 @@ def _unsupported(
     cover: str,
     confirmed_sources: dict[str, str],
     cv_document_text: str = "",
+    posting_text: str = "",
 ) -> list[dict]:
     """Flag CV/cover-letter claims traceable to neither confirmed evidence nor
     source material.
@@ -156,16 +164,29 @@ def _unsupported(
     would be flagged the moment the owner has no confirmed Evidence Profile
     items, which is the common case. The cover letter additionally grounds
     against the selected CV, since a cover letter may legitimately restate CV
-    content.
+    content, and against the job posting (title, company, description) it answers.
     """
     findings = []
     for location, output, extra_sources in (
         ("CV", cv, {"cv_document": cv_document_text}),
-        ("Cover letter", cover, {"selected_cv": cv, "cv_document": cv_document_text}),
+        (
+            "Cover letter",
+            cover,
+            {"selected_cv": cv, "cv_document": cv_document_text},
+        ),
     ):
         sources = {**confirmed_sources, **extra_sources}
+        # The posting grounds the names it uses (role, company, product), never a
+        # figure: "5 years" in a requirement is not evidence the user has 5 years.
+        named_sources = (
+            {**sources, "job_posting": posting_text}
+            if location == "Cover letter" and posting_text
+            else sources
+        )
         for claim in extract_claims(output):
-            trace = trace_claim(claim, sources)
+            trace = trace_claim(
+                claim, sources if claim.kind == KIND_FIGURE else named_sources
+            )
             if trace.traceable:
                 continue
             findings.append(

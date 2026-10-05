@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -20,6 +22,30 @@ from app.schemas.validation import utf8_size
 
 BoundedIdentifier = Annotated[str, StringConstraints(min_length=1, max_length=100)]
 
+_MIN_JOB_DESCRIPTION_WORDS = 5
+_CJK_CHAR = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
+
+
+def _job_description_has_words(value: str) -> str:
+    """A job description is at least a short sentence of real words.
+
+    Twenty characters of "x" or single letters would otherwise reach the keyword
+    heuristic, find no requirements and come back as a phantom 58% score. Each CJK
+    character pair counts as a word, since those scripts have no spaces.
+    """
+    words = len(re.findall(r"[^\W\d_]{2,}", value)) + len(_CJK_CHAR.findall(value)) // 2
+    if words < _MIN_JOB_DESCRIPTION_WORDS:
+        raise ValueError("job description needs at least a short sentence describing the role")
+    return value
+
+
+JobDescriptionText = Annotated[
+    str,
+    Field(min_length=20, max_length=20_000),
+    AfterValidator(_job_description_has_words),
+]
+
+
 class ResumeAnalyzeRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
     job_description: str | None = Field(None, max_length=20_000)
@@ -33,7 +59,7 @@ class JobMatchRequest(BaseModel):
     # min_length guards against thin/empty job descriptions that would otherwise
     # produce a phantom 58% match score (the no-data fallback constant) with a
     # "0 of 0 requirements met" UI strip — visibly broken, not informative.
-    job_description: str = Field(..., min_length=20, max_length=20_000)
+    job_description: JobDescriptionText
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
@@ -44,8 +70,8 @@ class CoverLetterRequest(BaseModel):
     # min_length mirrors Job Match: a thin/empty JD makes the heuristic fall
     # back to a generic "this role" letter labelled as "targeted draft", which
     # is worse than a clear input error on a thesis demo.
-    job_description: str = Field(..., min_length=20, max_length=20_000)
-    tone: str | None = Field(None, max_length=50)
+    job_description: JobDescriptionText
+    tone: Literal["Professional", "Confident", "Warm"] | None = None
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: WorkspaceContextInput | None = None
@@ -58,7 +84,7 @@ class InterviewRequest(BaseModel):
     # min_length mirrors Job Match + Cover Letter: a thin JD makes the heuristic
     # produce default-templated questions on a phantom role, which is worse than
     # an explicit input error.
-    job_description: str = Field(..., min_length=20, max_length=20_000)
+    job_description: JobDescriptionText
     # Bounds match the service-side clamp in interview_gen.py
     # (max(3, min(num_questions or 5, 12))). The UI picker exposes
     # {4, 6, 8, 10}; raising the schema cap higher would silently clamp.
@@ -80,7 +106,7 @@ class CareerRequest(BaseModel):
 
 class PortfolioRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
-    target_role: str = Field(..., max_length=200)
+    target_role: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
@@ -304,15 +330,15 @@ class CoverLetterEditRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    opening: str = Field(..., max_length=20_000)
-    body_points: list[str] = Field(..., max_length=20)
-    closing: str = Field(..., max_length=20_000)
+    opening: str = Field(..., max_length=10_000)
+    body_points: list[str] = Field(..., max_length=12)
+    closing: str = Field(..., max_length=10_000)
 
     @field_validator("body_points")
     @classmethod
     def _bounded_paragraphs(cls, value: list[str]) -> list[str]:
-        if any(len(item) > 20_000 for item in value):
-            raise ValueError("a paragraph is too long (20,000 characters at most)")
+        if any(len(item) > 10_000 for item in value):
+            raise ValueError("a paragraph is too long (10,000 characters at most)")
         return value
 
 
@@ -441,7 +467,7 @@ class PortfolioResponse(SharedResultEnvelope):
 
 
 class InterviewPracticeFeedbackRequest(BaseModel):
-    question: str = Field(..., max_length=4_000)
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4_000)]
     user_answer: str = Field(..., max_length=8_000)
     model_answer: str | None = Field(None, max_length=4_000)
 

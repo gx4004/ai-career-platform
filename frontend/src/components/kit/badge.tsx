@@ -1,4 +1,4 @@
-import { forwardRef, type ComponentPropsWithoutRef } from 'react'
+import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
 
 /** The palette tones (colour by meaning: stage, severity, tool) join the semantic ones. */
@@ -11,11 +11,13 @@ export type BadgeProps = ComponentPropsWithoutRef<'span'> & {
   size?: BadgeSize
   /** Leading status dot. Decorative: the label must still say what the status is. */
   dot?: boolean
+  /** Leading icon (a 14px lucide icon: the Deadline clock). Decorative; replaces the dot when both are given. */
+  icon?: ReactNode
 }
 
 /** The one status chip: replaces every per-page badge, pill and tag. */
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
-  { tone = 'neutral', size = 'md', dot = false, className, children, ...rest },
+  { tone = 'neutral', size = 'md', dot = false, icon, className, children, ...rest },
   ref,
 ) {
   return (
@@ -25,7 +27,13 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
       data-tone={tone}
       {...rest}
     >
-      {dot ? <span className="kit-badge__dot" aria-hidden="true" /> : null}
+      {icon ? (
+        <span className="kit-badge__icon" aria-hidden="true">
+          {icon}
+        </span>
+      ) : dot ? (
+        <span className="kit-badge__dot" aria-hidden="true" />
+      ) : null}
       <span className="kit-badge__label">{children}</span>
     </span>
   )

@@ -275,32 +275,34 @@ export function ButtonSection() {
       <Group title="Auto-width layouts: an auto grid track and a shrinkable flex row keep the label whole; a plain table cell gives up at the whole-word level unless its button is nowrap">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
           <Specimen label="plain auto-layout table, 26rem wide: row 1 squeezed to whole words (never mid-word); row 2, white-space: nowrap on the buttons, keeps one line (the kit Table does this itself)">
-            <table className="kit-gallery__auto-table" data-testid="button-auto-table">
-              <tbody>
-                <tr>
-                  <td>A long description cell with many words, so it competes with the buttons for the row</td>
-                  <td>
-                    <Button size="sm" variant="secondary">
-                      Save changes
-                    </Button>
-                  </td>
-                  <td>
-                    <Button>Generate letter</Button>
-                  </td>
-                </tr>
-                <tr>
-                  <td>The same row with white-space: nowrap on its buttons</td>
-                  <td className="kit-gallery__nowrap">
-                    <Button size="sm" variant="secondary">
-                      Save changes
-                    </Button>
-                  </td>
-                  <td className="kit-gallery__nowrap">
-                    <Button>Generate letter</Button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="kit-gallery__scroll">
+              <table className="kit-gallery__auto-table" data-testid="button-auto-table">
+                <tbody>
+                  <tr>
+                    <td>A long description cell with many words, so it competes with the buttons for the row</td>
+                    <td>
+                      <Button size="sm" variant="secondary">
+                        Save changes
+                      </Button>
+                    </td>
+                    <td>
+                      <Button>Generate letter</Button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>The same row with white-space: nowrap on its buttons</td>
+                    <td className="kit-gallery__nowrap">
+                      <Button size="sm" variant="secondary">
+                        Save changes
+                      </Button>
+                    </td>
+                    <td className="kit-gallery__nowrap">
+                      <Button>Generate letter</Button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </Specimen>
           <Specimen label="grid, auto + 1fr, 20rem wide">
             <div className="kit-gallery__auto-grid" data-testid="button-auto-grid">

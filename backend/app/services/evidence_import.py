@@ -13,7 +13,14 @@ import logging
 from typing import Any, get_args
 
 from app.prompts.evidence_import import build_evidence_import_prompt
-from app.schemas.evidence_profile import EvidenceItemCreate, EvidenceKind
+from app.schemas.evidence_profile import (
+    MAX_CONTENT_FIELDS,
+    MAX_CONTENT_KEY_CHARS,
+    MAX_CONTENT_VALUE_CHARS,
+    EvidenceItemCreate,
+    EvidenceKind,
+    normalize_evidence_content,
+)
 from app.services.ai_client import complete_structured
 from app.services.input_sanitizer import sanitize_user_input
 
@@ -40,7 +47,10 @@ def _normalize_content(raw: Any) -> dict[str, str] | None:
         return None
     content: dict[str, str] = {}
     for key, value in raw.items():
-        if not isinstance(key, str):
+        if not isinstance(key, str) or len(content) >= MAX_CONTENT_FIELDS:
+            continue
+        key = key.strip()
+        if not key or len(key) > MAX_CONTENT_KEY_CHARS:
             continue
         if isinstance(value, str):
             text = value.strip()
@@ -48,7 +58,9 @@ def _normalize_content(raw: Any) -> dict[str, str] | None:
             text = str(value)
         else:
             continue
-        if text:
+        # An over-long value is a model that ran on, not a fact: drop the field
+        # rather than store (and later inject into every prompt) a truncated blob.
+        if text and len(text) <= MAX_CONTENT_VALUE_CHARS:
             content[key] = text
     return content or None
 
@@ -69,6 +81,10 @@ def _normalize_proposals(result: Any) -> list[EvidenceItemCreate]:
             continue
         content = _normalize_content(item.get("content"))
         if content is None:
+            continue
+        try:
+            content = normalize_evidence_content(content)
+        except ValueError:
             continue
         proposals.append(
             EvidenceItemCreate(kind=kind, content=content, provenance="imported")

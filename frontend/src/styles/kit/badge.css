@@ -93,6 +93,23 @@
   height: 0.375rem;
 }
 
+.kit-badge__icon {
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: -2px;
+}
+
+.kit-badge__icon > svg {
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+}
+
+.kit-badge--sm .kit-badge__icon > svg {
+  inline-size: 12px;
+  block-size: 12px;
+}
+
 .kit-badge__label {
   min-width: 0;
   overflow: hidden;

@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import {
   FitStamp,
   Highlight,
@@ -5,6 +6,7 @@ import {
   RoundStamp,
   SkillPips,
   StageMark,
+  ToneDot,
   ToolTile,
   type StageMarkProps,
 } from '#/components/kit'
@@ -65,6 +67,31 @@ export function TilesSection() {
           <NumberDisc n={3} size="lg" />
           <NumberDisc n={4} tone="mint" />
           <NumberDisc n={5} tone="lemon" />
+        </Row>
+        <Row>
+          <Specimen label="finished: a node (mint check)">
+            <NumberDisc n={<Check />} size="sm" tone="mint" />
+          </Specimen>
+          <Specimen label="current: dotted ring (lemon)">
+            <div style={{ padding: 6 }}>
+              <NumberDisc n={3} size="sm" tone="lemon" current />
+            </div>
+          </Specimen>
+          <Specimen label="upcoming">
+            <NumberDisc n={4} size="sm" />
+          </Specimen>
+        </Row>
+      </Group>
+
+      <Group title="ToneDot: the colour key before a label (sm 10, md 12)">
+        <Row>
+          {toolList.map((tool) => (
+            <span key={tool.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <ToneDot tone={tool.tone} lead />
+              {tool.shortLabel}
+            </span>
+          ))}
+          <ToneDot tone="rose" size="md" />
         </Row>
       </Group>
 

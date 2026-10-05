@@ -35,7 +35,6 @@ CvTemplateId = Literal[
     "modern-two-column",
     "minimal-serif",
 ]
-CvArtifactFormat = Literal["docx", "pdf"]
 CvFontId = Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"]
 CvDensity = Literal["compact", "normal", "spacious"]
 
@@ -291,6 +290,13 @@ class CvDocumentResponse(BaseModel):
         return value if value is not None else CvHeader()
 
 
+class CvConflictResponse(BaseModel):
+    """The 409 body of a save made on a stale copy: what happened and the newer version."""
+
+    detail: str
+    current: CvDocumentResponse
+
+
 class CvDocumentListResponse(BaseModel):
     items: list[CvDocumentResponse]
 
@@ -354,6 +360,10 @@ class CvArtifactEvidence(BaseModel):
     # PDF could not draw: what the advice for a failed check can name.
     unread_sections: list[str] = Field(default_factory=list)
     unsupported_characters: list[str] = Field(default_factory=list)
+    # The CV is longer than a PDF can be re-read, so nothing could be checked.
+    too_long: bool = False
+    # The same text came back but in a different order (a sidebar layout reads that way).
+    order_only: bool = False
 
 
 class CvCheck(BaseModel):
@@ -371,7 +381,7 @@ class CvQualityResponse(BaseModel):
 
 class CvTailoringRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    job_title: str = Field(min_length=1, max_length=200)
+    job_title: Text = Field(min_length=1, max_length=200)
     job_description: str = Field(min_length=20, max_length=50_000)
 
 
@@ -428,8 +438,8 @@ class CvTailoringDecision(BaseModel):
 class CvTailoringApply(BaseModel):
     model_config = ConfigDict(extra="forbid")
     request_id: UUID
-    variant_name: str = Field(min_length=1, max_length=120)
-    job_title: str = Field(min_length=1, max_length=200)
+    variant_name: Text = Field(min_length=1, max_length=120)
+    job_title: Text = Field(min_length=1, max_length=200)
     proposal_token: str = Field(min_length=64, max_length=64)
     changes: list[CvTailoringChange] = Field(max_length=50)
     decisions: list[CvTailoringDecision] = Field(max_length=50)

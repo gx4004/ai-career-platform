@@ -216,23 +216,6 @@
   font-weight: var(--fw-bold);
 }
 
-/* The current step's disc wears a dotted ring: the one thing that moves attention here. */
-.cinematic-step[data-state='current'] .kit-number-disc::after {
-  content: '';
-  position: absolute;
-  inset: -5px auto auto -5px;
-  inline-size: calc(100% + 10px);
-  block-size: calc(100% + 10px);
-  box-sizing: border-box;
-  border: var(--bw-thin) dotted var(--ink);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.cinematic-step .kit-number-disc {
-  position: relative;
-}
-
 .cinematic-step__label {
   min-width: 0;
   overflow-wrap: anywhere;

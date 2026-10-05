@@ -208,6 +208,17 @@
   vertical-align: middle;
 }
 
+/* Specimens that sit one under another, with room between them. */
+.kit-gallery__frame.kit-gallery__roomy {
+  gap: var(--space-8);
+}
+
+/* A specimen wider than a phone scrolls inside its own box instead of widening the page. */
+.kit-gallery__scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .kit-gallery__nowrap .kit-button {
   white-space: nowrap;
 }

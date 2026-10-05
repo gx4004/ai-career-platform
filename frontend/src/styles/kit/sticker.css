@@ -27,6 +27,7 @@
 }
 
 .kit-sticker p,
+.kit-sticker .kit-section__description,
 .kit-sticker .kit-sticker__small {
   color: var(--ink);
 }

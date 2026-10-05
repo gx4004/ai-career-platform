@@ -13,6 +13,8 @@ from app.schemas.development import (
 from app.services.development import (
     DevelopmentItemNotFoundError,
     GapClassificationNotFoundError,
+    PastTargetDateError,
+    PlanFullError,
     create_development_item,
     delete_development_item,
     list_development_items,
@@ -20,6 +22,8 @@ from app.services.development import (
 )
 
 router = APIRouter()
+
+_PAST_DATE_DETAIL = "Pick a target date that is today or later."
 
 
 @router.get("", response_model=DevelopmentPlanResponse)
@@ -37,6 +41,13 @@ def create_item(
         return create_development_item(db, current_user.id, body)
     except GapClassificationNotFoundError as error:
         raise HTTPException(status_code=404, detail="Gap classification not found") from error
+    except PastTargetDateError as error:
+        raise HTTPException(status_code=422, detail=_PAST_DATE_DETAIL) from error
+    except PlanFullError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Your development plan is full. Remove a finished item to add another.",
+        ) from error
 
 
 @router.patch("/{item_id}", response_model=DevelopmentItemResponse)
@@ -50,6 +61,8 @@ def update_item(
         return update_development_item(db, item_id, current_user.id, body)
     except DevelopmentItemNotFoundError as error:
         raise HTTPException(status_code=404, detail="Development item not found") from error
+    except PastTargetDateError as error:
+        raise HTTPException(status_code=422, detail=_PAST_DATE_DETAIL) from error
 
 
 @router.delete("/{item_id}", status_code=204)

@@ -806,13 +806,15 @@ async def test_application_drafts_quote_a_prose_resume_without_garbling_it():
     assert "bookkeeper" in everything
 
 
-def test_portfolio_with_a_blank_target_role_reads_naturally(client, auth_headers):
-    data = _post(client, auth_headers, "portfolio/recommend", resume_text=BACKEND_RESUME, target_role="")
-    text = str(data)
-    assert "like a the target role" not in text
-    assert "a the " not in text
-    assert "None provided" not in text
-    assert data["portfolio_strategy"]["proof_goal"].strip()
+def test_portfolio_requires_a_target_role_instead_of_writing_around_a_blank_one(client, auth_headers):
+    # The Portfolio Planner builds toward a role (spec: resume + target role), so a blank role is
+    # refused at the request instead of producing "Portfolio Roadmap ()" and a role-less strategy.
+    response = client.post(
+        "/api/v1/portfolio/recommend",
+        json={"resume_text": BACKEND_RESUME, "target_role": ""},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
 
 
 def test_resume_analysis_without_a_job_description_never_refers_to_one(client, auth_headers):

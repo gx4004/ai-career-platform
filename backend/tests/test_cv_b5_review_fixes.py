@@ -171,7 +171,7 @@ def test_seeded_experience_keeps_its_summary_next_to_its_bullets(client, auth_he
                 "title": "Engineer",
                 "company": "Acme",
                 "summary": "Owns the platform.",
-                "highlights": ["Shipped X", "Cut cost 20%"],
+                "highlights": "Shipped X\nCut cost 20%",
             },
             "provenance": "user-entered",
         },

@@ -111,6 +111,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+.kit-number-disc > svg {
+  inline-size: 1em;
+  block-size: 1em;
+  flex: none;
+  stroke-width: 3;
+}
+
+/* The step in progress: a dotted ring outside the disc, the same dotted ring the seal wears inside. */
+.kit-number-disc[data-current='true'] {
+  position: relative;
+}
+
+.kit-number-disc[data-current='true']::after {
+  position: absolute;
+  inset: -5px;
+  box-sizing: border-box;
+  border: var(--bw-thin) dotted var(--ink);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
 .kit-number-disc--sm {
   --kit-disc-size: 28px;
   --kit-disc-font: 0.9375rem;
@@ -119,4 +141,26 @@
 .kit-number-disc--lg {
   --kit-disc-size: 44px;
   --kit-disc-font: 1.5rem;
+}
+
+/* ToneDot: the small colour key before a label. */
+.kit-tone-dot {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 10px;
+  block-size: 10px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--tone, var(--surface));
+  vertical-align: baseline;
+}
+
+.kit-tone-dot[data-size='md'] {
+  inline-size: 12px;
+  block-size: 12px;
+}
+
+.kit-tone-dot[data-lead='true'] {
+  margin-inline-end: var(--s2);
 }

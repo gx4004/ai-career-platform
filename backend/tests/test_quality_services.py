@@ -314,9 +314,10 @@ async def test_resume_analyze_falls_back_to_heuristic_when_llm_fails(monkeypatch
     # ran (no LLM scores to compare against).
     assert "differ by" not in result["summary"]["confidence_note"]
 
-    # Heuristic fallback intentionally leaves role_fit empty — the
-    # synthesised version is only built on the LLM-success path.
-    assert result["role_fit"] is None
+    # The fallback still answers "how well does this fit the role": the role comes from the
+    # posting and the rationale from the keyword prepass (B10 / tools-analysis-D22).
+    assert result["role_fit"]["target_role_label"] == "Backend Engineer"
+    assert "Kubernetes" in result["role_fit"]["rationale"]
 
     # Strengths and at least one heuristic top_action so the result page is
     # not blank.

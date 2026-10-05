@@ -20,7 +20,7 @@ export function sealPath(cx: number, cy: number, radius: number, amplitude: numb
 const SEAL_PATH = sealPath(110, 110, 93, 5, 18)
 
 export type SealSize = 'sm' | 'md' | 'lg' | 'xl'
-export type SealTone = 'tangerine' | 'lemon' | 'mint' | 'lilac' | 'stone'
+export type SealTone = 'tangerine' | 'lemon' | 'mint' | 'lilac' | 'rose' | 'stone'
 
 /** sm is the landing example card, md the landing closer, lg a phone or the 404 page, xl the result hero. */
 const SIZES: Record<SealSize, number> = { sm: 170, md: 230, lg: 220, xl: 300 }
@@ -76,7 +76,8 @@ export const ScoreSeal = forwardRef<HTMLDListElement, ScoreSealProps>(function S
   const counted = useCountUp(numeric ? value : 0, { enabled: numeric && (countUp ?? stamping) })
   const finalText = missing ? '–' : String(value)
   const visible = numeric && (countUp ?? stamping) ? String(counted) : finalText
-  const digits = Math.min(Math.max(finalText.length, 1), 4)
+  // One size tier per character up to 8: longer words keep the 8-character tier and are clipped by the ring, not the seal.
+  const digits = Math.min(Math.max(finalText.length, 1), 8)
   const reduced = usePrefersReducedMotion()
   const [finished, setFinished] = useState(false)
 

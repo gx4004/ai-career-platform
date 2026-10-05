@@ -8,6 +8,7 @@ calls (every render request) must be safe no-ops after the first.
 
 from __future__ import annotations
 
+import functools
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -122,12 +123,13 @@ def _needs_glyph(character: str) -> bool:
     return unicodedata.category(character) not in ("Cc", "Cf")
 
 
-def _covered(font_id: str) -> set[int]:
+@functools.lru_cache(maxsize=None)
+def _covered(font_id: str) -> frozenset[int]:
     register_fonts()
     family = FONT_FAMILIES[font_id]
     regular = pdfmetrics.getFont(family.pdf_name).face.charToGlyph
     bold = pdfmetrics.getFont(f"{family.pdf_name}-Bold").face.charToGlyph
-    return set(regular) & set(bold)
+    return frozenset(regular) & frozenset(bold)
 
 
 def missing_characters(font_id: str, text: str) -> list[str]:
@@ -141,16 +143,21 @@ def missing_characters(font_id: str, text: str) -> list[str]:
 def covering_font(font_id: str, text: str) -> tuple[str, list[str]]:
     """The bundled font to draw ``text`` with, and what even it cannot draw.
 
-    The chosen font is kept when it covers everything; otherwise the family (same
-    category first, then the rest) that draws the most of the text wins, so a
-    Cyrillic name in a Latin-only serif still renders instead of leaving gaps.
+    The chosen font is kept when it covers every letter, so a stray symbol (a check
+    mark, an arrow) is reported but never changes the typeface of the whole CV.
+    When it lacks letters of a script, the family (same category first, then the
+    rest) that draws the most of the text wins, so a Cyrillic name in a Latin-only
+    serif still renders instead of leaving gaps.
     """
     chosen = FONT_FAMILIES[font_id]
+    own_missing = missing_characters(font_id, text)
+    if not any(unicodedata.category(c)[0] in "LM" for c in own_missing):
+        return font_id, own_missing
     candidates = [font_id] + sorted(
         (other for other in FONT_FAMILIES if other != font_id),
         key=lambda other: FONT_FAMILIES[other].category != chosen.category,
     )
-    best_id, best_missing = font_id, missing_characters(font_id, text)
+    best_id, best_missing = font_id, own_missing
     for candidate in candidates[1:]:
         if not best_missing:
             break

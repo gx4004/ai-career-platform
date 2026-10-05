@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.models.evidence_item import EvidenceItem
 from app.services.evidence_profile import list_evidence_items
+from app.services.input_sanitizer import sanitize_user_input
 
 _LOCKED_FACTS_HEADER = (
     "## Confirmed evidence profile (verified user facts)\n"
@@ -50,6 +51,37 @@ class EvidencePayload:
 
     def is_empty(self) -> bool:
         return not self.locked_facts and not self.gaps
+
+
+#: Prompt-side bounds. Writes are bounded already (see ``normalize_evidence_content``);
+#: these protect the prompt from rows stored before that and from many large items.
+_MAX_RENDERED_VALUE_CHARS = 2_000
+_MAX_RENDERED_SECTION_CHARS = 20_000
+
+
+def _render_content(content: dict) -> str:
+    """One fact as a single prompt line: sanitised, bounded, JSON-encoded."""
+    safe = {
+        key: (
+            sanitize_user_input(value[:_MAX_RENDERED_VALUE_CHARS])
+            if isinstance(value, str)
+            else value
+        )
+        for key, value in content.items()
+    }
+    return json.dumps(safe, ensure_ascii=False, sort_keys=True)[: _MAX_RENDERED_VALUE_CHARS * 4]
+
+
+def _bounded_lines(entries: list[dict]) -> list[str]:
+    lines: list[str] = []
+    used = 0
+    for entry in entries:
+        line = f"- [{entry['kind']}] {_render_content(entry['content'])}"
+        used += len(line)
+        if used > _MAX_RENDERED_SECTION_CHARS:
+            break
+        lines.append(line)
+    return lines
 
 
 def _item_view(item: EvidenceItem) -> dict:
@@ -95,15 +127,9 @@ def render_evidence_section(payload: EvidencePayload | None) -> str | None:
         return None
     blocks: list[str] = []
     if payload.locked_facts:
-        lines = [
-            f"- [{fact['kind']}] {json.dumps(fact['content'], ensure_ascii=False, sort_keys=True)}"
-            for fact in payload.locked_facts
-        ]
-        blocks.append(_LOCKED_FACTS_HEADER + "\n" + "\n".join(lines))
+        blocks.append(
+            _LOCKED_FACTS_HEADER + "\n" + "\n".join(_bounded_lines(payload.locked_facts))
+        )
     if payload.gaps:
-        lines = [
-            f"- [{gap['kind']}] {json.dumps(gap['content'], ensure_ascii=False, sort_keys=True)}"
-            for gap in payload.gaps
-        ]
-        blocks.append(_GAPS_HEADER + "\n" + "\n".join(lines))
+        blocks.append(_GAPS_HEADER + "\n" + "\n".join(_bounded_lines(payload.gaps)))
     return "\n\n".join(blocks)

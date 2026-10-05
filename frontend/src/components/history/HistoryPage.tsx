@@ -22,6 +22,7 @@ import {
   Select,
   Skeleton,
   Stack,
+  ToneDot,
   Toolbar,
 } from '#/components/kit'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
@@ -53,7 +54,7 @@ const TOOL_OPTIONS = toolList.map((tool) => ({
   value: tool.id as string,
   label: (
     <>
-      <span className="kit-tone history-dot" data-tone={tool.tone} aria-hidden="true" />
+      <ToneDot tone={tool.tone} lead />
       {tool.shortLabel}
     </>
   ),

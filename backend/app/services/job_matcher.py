@@ -9,6 +9,8 @@ from app.services.evidence_injection import EvidencePayload, render_evidence_sec
 from app.services.quality_signals import (
     build_resume_prepass,
     compute_match_score,
+    evidence_line,
+    headline_conflicts_with_band,
     job_match_verdict,
 )
 from app.services.tool_pipeline import mark_result_degraded
@@ -25,29 +27,53 @@ CONFIDENCE_NOTE = (
 def _headline(verdict: str, matched_keywords: list[str], missing_keywords: list[str]) -> str:
     if verdict == "strong":
         return "The resume already aligns well, but a few targeted edits could make the fit easier to trust."
-    if matched_keywords:
+    if verdict == "borderline" and matched_keywords:
         return (
             f"The foundation is there, but the resume still needs stronger proof for "
             f"{', '.join(missing_keywords[:3]) or 'the most important role requirements'}."
         )
+    if missing_keywords:
+        return (
+            f"The current resume reads as a stretch for this role: {', '.join(missing_keywords[:3])} "
+            "need clearer targeted evidence."
+        )
     return "The current resume reads as a stretch for this role without clearer targeted evidence."
+
+
+_VERDICT_BAND = {"strong": "high", "borderline": "mid", "stretch": "low"}
+
+
+def _consistent_headline(
+    provider_headline: str,
+    verdict: str,
+    matched_keywords: list[str],
+    missing_keywords: list[str],
+) -> str:
+    """The provider's headline, unless it says the opposite of the locked verdict."""
+    if provider_headline and not headline_conflicts_with_band(provider_headline, _VERDICT_BAND[verdict]):
+        return provider_headline
+    return _headline(verdict, matched_keywords, missing_keywords)
 
 
 def _fallback_requirements(
     matched_keywords: list[str],
     missing_keywords: list[str],
+    resume_text: str = "",
+    preferred_keywords: list[str] | None = None,
 ) -> list[dict[str, str]]:
+    """One row per keyword the heuristic found, so the list and the match counts agree."""
+    preferred = {keyword.lower() for keyword in preferred_keywords or []}
     requirements: list[dict[str, str]] = []
-    ordered_keywords = matched_keywords + missing_keywords
-    for index, keyword in enumerate(ordered_keywords[:6]):
+    for keyword in matched_keywords + missing_keywords:
         is_matched = keyword in matched_keywords
+        line = evidence_line(keyword, resume_text) if is_matched else None
         requirements.append(
             {
                 "requirement": keyword,
-                "importance": "must" if index < 4 else "preferred",
+                "importance": "preferred" if keyword.lower() in preferred else "must",
                 "status": "matched" if is_matched else "missing",
                 "resume_evidence": (
-                    f"The resume already references {keyword}."
+                    (f'Resume: "{line}"' if line else f"The resume already references {keyword}.")
                     if is_matched
                     else f"No direct evidence for {keyword} was detected in the resume."
                 ),
@@ -65,6 +91,8 @@ def _normalize_requirements(
     result: dict,
     matched_keywords: list[str],
     missing_keywords: list[str],
+    resume_text: str = "",
+    preferred_keywords: list[str] | None = None,
 ) -> list[dict[str, str]]:
     raw_items = result.get("requirements") if isinstance(result.get("requirements"), list) else []
     normalized: list[dict[str, str]] = []
@@ -84,7 +112,17 @@ def _normalize_requirements(
                 "suggested_fix": str(item.get("suggested_fix") or "Revise the resume so this requirement is easier to verify."),
             }
         )
-    return normalized[:6] if normalized else _fallback_requirements(matched_keywords, missing_keywords)
+    if normalized:
+        return normalized[:6]
+    return _fallback_requirements(matched_keywords, missing_keywords, resume_text, preferred_keywords)
+
+
+def _guidance_for(keyword: str) -> str:
+    return f"If you have used {keyword}, name the project, your part in it and the result, in a bullet or the skills list."
+
+
+def _anti_stuffing_for(keyword: str) -> str:
+    return f"Only add {keyword} if you can speak to it in an interview."
 
 
 def _section_for_keyword(keyword: str) -> str:
@@ -185,7 +223,9 @@ async def match_job(
     evidence_profile: EvidencePayload | None = None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, job_description)
-    match_score = compute_match_score(prepass.matched_keywords, prepass.missing_keywords)
+    match_score = compute_match_score(
+        prepass.matched_keywords, prepass.missing_keywords, prepass.preferred_keywords
+    )
     verdict = job_match_verdict(match_score)
     generated_at = datetime.now(UTC).isoformat()
 
@@ -242,7 +282,13 @@ async def match_job(
         mark_result_degraded()
         result = {}
 
-    requirements = _normalize_requirements(result, prepass.matched_keywords, prepass.missing_keywords)
+    requirements = _normalize_requirements(
+        result,
+        prepass.matched_keywords,
+        prepass.missing_keywords,
+        resume_text,
+        prepass.preferred_keywords,
+    )
     tailoring_actions = _normalize_tailoring_actions(result, prepass.missing_keywords)
     top_actions = _normalize_top_actions(result, requirements, tailoring_actions)
     interview_focus = result.get("interview_focus") if isinstance(result.get("interview_focus"), list) else []
@@ -262,17 +308,17 @@ async def match_job(
                 {
                     "keyword": keyword,
                     "contextual_guidance": str(item.get("contextual_guidance") or "").strip()
-                    or "Consider adding relevant experience with this skill",
+                    or _guidance_for(keyword),
                     "anti_stuffing_note": str(item.get("anti_stuffing_note") or "").strip()
-                    or "Only mention if you have genuine experience",
+                    or _anti_stuffing_for(keyword),
                 }
             )
         elif isinstance(item, str) and item.strip():
             enriched_missing_keywords.append(
                 {
                     "keyword": item.strip(),
-                    "contextual_guidance": "Consider adding relevant experience with this skill",
-                    "anti_stuffing_note": "Only mention if you have genuine experience",
+                    "contextual_guidance": _guidance_for(item.strip()),
+                    "anti_stuffing_note": _anti_stuffing_for(item.strip()),
                 }
             )
     # Fallback: if LLM didn't return enriched missing keywords, build from prepass
@@ -281,8 +327,8 @@ async def match_job(
             enriched_missing_keywords.append(
                 {
                     "keyword": kw,
-                    "contextual_guidance": "Consider adding relevant experience with this skill",
-                    "anti_stuffing_note": "Only mention if you have genuine experience",
+                    "contextual_guidance": _guidance_for(kw),
+                    "anti_stuffing_note": _anti_stuffing_for(kw),
                 }
             )
 
@@ -311,9 +357,17 @@ async def match_job(
     return {
         "schema_version": SCHEMA_VERSION,
         "summary": {
-            "headline": str(result.get("summary", {}).get("headline") if isinstance(result.get("summary"), dict) else "") or _headline(verdict, prepass.matched_keywords, prepass.missing_keywords),
+            "headline": _consistent_headline(
+                str(result.get("summary", {}).get("headline") if isinstance(result.get("summary"), dict) else "").strip(),
+                verdict,
+                prepass.matched_keywords,
+                prepass.missing_keywords,
+            ),
             "verdict": verdict,
-            "confidence_note": str(result.get("summary", {}).get("confidence_note") if isinstance(result.get("summary"), dict) else "") or CONFIDENCE_NOTE,
+            "confidence_note": str(
+                (result.get("summary", {}).get("confidence_note") if isinstance(result.get("summary"), dict) else "") or ""
+            ).strip()
+            or CONFIDENCE_NOTE,
         },
         "top_actions": top_actions,
         "generated_at": generated_at,

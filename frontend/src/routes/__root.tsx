@@ -8,42 +8,58 @@ import { AppShell } from '#/components/app/AppShell'
 import { CookieConsent } from '#/components/app/CookieConsent'
 import { SessionProvider } from '#/lib/auth/session'
 import { queryClient } from '#/lib/query/queryClient'
+import { ARTICLE_PATHS, INDEXABLE_PATHS, siteOrigin, siteUrl } from '#/lib/site-url'
 import appCss from '#/styles.css?url'
 // The two above-the-fold faces are preloaded; the same hashed files are the ones styles.css references.
 import bricolageLatin from '@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url'
 import onestLatin from '@fontsource-variable/onest/files/onest-latin-wght-normal.woff2?url'
 
+/** The path of the deepest matched route, without a trailing slash (except the root). */
+function currentPath(matches: ReadonlyArray<{ pathname?: string }> | undefined) {
+  const raw = matches?.[matches.length - 1]?.pathname ?? '/'
+  return raw.length > 1 ? raw.replace(/\/+$/, '') : raw
+}
+
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Career Workbench' },
-      {
-        name: 'description',
-        content: 'AI-powered job-search workflow for resume analysis, matching, and application prep.',
-      },
-      { property: 'og:title', content: 'Career Workbench' },
-      {
-        property: 'og:description',
-        content: 'AI-powered job-search workflow for resume analysis, matching, and application prep.',
-      },
-      { property: 'og:type', content: 'website' },
-      { name: 'twitter:card', content: 'summary' },
-      { name: 'theme-color', content: '#f3f4f9' },
-      { name: 'apple-mobile-web-app-capable', content: 'yes' },
-      { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
-    ],
-    links: [
-      { rel: 'preload', as: 'font', type: 'font/woff2', href: bricolageLatin, crossOrigin: 'anonymous' },
-      { rel: 'preload', as: 'font', type: 'font/woff2', href: onestLatin, crossOrigin: 'anonymous' },
-      { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', href: '/favicon.svg?v=4', type: 'image/svg+xml', sizes: 'any' },
-      { rel: 'icon', href: '/favicon.ico?v=4', type: 'image/x-icon', sizes: '48x48' },
-      { rel: 'manifest', href: '/manifest.json' },
-      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png?v=4', sizes: '180x180' },
-    ],
-  }),
+  head: (ctx) => {
+    const path = currentPath(ctx?.matches)
+    // The landing route ships its own canonical and share image; the other public pages get theirs here, once the site URL is known.
+    const canonical =
+      siteOrigin() && path !== '/' && (INDEXABLE_PATHS as readonly string[]).includes(path)
+        ? [{ rel: 'canonical', href: siteUrl(path) }]
+        : []
+    return {
+      meta: [
+        { charSet: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { title: 'Career Workbench' },
+        {
+          name: 'description',
+          content: 'AI-powered job-search workflow for resume analysis, matching, and application prep.',
+        },
+        { property: 'og:title', content: 'Career Workbench' },
+        {
+          property: 'og:description',
+          content: 'AI-powered job-search workflow for resume analysis, matching, and application prep.',
+        },
+        { property: 'og:type', content: ARTICLE_PATHS.has(path) ? 'article' : 'website' },
+        { name: 'twitter:card', content: 'summary' },
+        { name: 'theme-color', content: '#f3f4f9' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+      ],
+      links: [
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: bricolageLatin, crossOrigin: 'anonymous' },
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: onestLatin, crossOrigin: 'anonymous' },
+        { rel: 'stylesheet', href: appCss },
+        { rel: 'icon', href: '/favicon.svg?v=5', type: 'image/svg+xml', sizes: 'any' },
+        { rel: 'icon', href: '/favicon.ico?v=5', type: 'image/x-icon', sizes: '48x48' },
+        { rel: 'manifest', href: '/manifest.json' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png?v=5', sizes: '180x180' },
+        ...canonical,
+      ],
+    }
+  },
   shellComponent: RootDocument,
   notFoundComponent: AppNotFound,
   errorComponent: ({ error, reset }) => (

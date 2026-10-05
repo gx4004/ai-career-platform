@@ -64,6 +64,16 @@ class DevelopmentItem(Base):
         nullable=True,
         index=True,
     )
+    # Snapshots taken at creation, like ``gap_kind``: what to build (the cited
+    # requirement/claim) and the application it came from, so a plan row stays
+    # identifiable after the reviewer finding that surfaced it is reconciled away.
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
+    workspace_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     gap_kind: Mapped[str] = mapped_column(String, nullable=False)
     response_kind: Mapped[str] = mapped_column(String, nullable=False)
     state: Mapped[str] = mapped_column(
@@ -82,3 +92,7 @@ class DevelopmentItem(Base):
     )
 
     user = relationship("User", back_populates="development_items")
+
+    @property
+    def application_id(self) -> str | None:
+        return self.workspace_id

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Check } from 'lucide-react'
 import { NumberDisc, ToolTile } from '#/components/kit'
 import { tools, type ToolId } from '#/lib/tools/registry'
 import { trackTelemetry } from '#/lib/telemetry/client'
@@ -274,7 +275,12 @@ export function CinematicLoader({
           const state = mutationDone || i < displayedStageIndex ? 'done' : i === displayedStageIndex ? 'current' : 'upcoming'
           return (
             <li key={`${i}-${s.label}`} className="cinematic-step" data-state={state}>
-              <NumberDisc n={i + 1} size="sm" tone={state === 'done' ? 'mint' : state === 'current' ? 'lemon' : 'white'} />
+              <NumberDisc
+                n={state === 'done' ? <Check /> : i + 1}
+                size="sm"
+                tone={state === 'done' ? 'mint' : state === 'current' ? 'lemon' : 'white'}
+                current={state === 'current'}
+              />
               <span className="cinematic-step__label">{s.label}</span>
             </li>
           )

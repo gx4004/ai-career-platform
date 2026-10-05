@@ -17,6 +17,10 @@ export type DevelopmentState = z.infer<typeof developmentStateSchema>
 export const developmentItemSchema = z.strictObject({
   id: z.string(),
   gap_classification_id: z.string().nullable(),
+  // What to build (the requirement or claim the gap cited) and the application it
+  // came from. Absent on older responses, null when the gap was reconciled away.
+  label: z.string().nullish(),
+  application_id: z.string().nullish(),
   gap_kind: gapKindSchema,
   response_kind: developmentResponseKindSchema,
   state: developmentStateSchema,

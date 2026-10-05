@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The public, indexable pages. The origin below is the local dev address: replace it with the deployed
+     domain (the same value as VITE_SITE_URL) before any hosted launch, and list this file in robots.txt. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>http://localhost:3000/</loc><priority>1.0</priority></url>
+  <url><loc>http://localhost:3000/login</loc><priority>0.5</priority></url>
+  <url><loc>http://localhost:3000/privacy</loc><priority>0.3</priority></url>
+  <url><loc>http://localhost:3000/terms</loc><priority>0.3</priority></url>
+  <url><loc>http://localhost:3000/cookies</loc><priority>0.3</priority></url>
+  <url><loc>http://localhost:3000/imprint</loc><priority>0.3</priority></url>
+</urlset>

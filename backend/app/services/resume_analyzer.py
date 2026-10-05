@@ -15,6 +15,7 @@ from app.services.quality_signals import (
     compute_resume_breakdown,
     confidence_gap_note,
     detect_sector,
+    headline_conflicts_with_band,
     severity_from_score,
 )
 from app.services.tool_pipeline import mark_result_degraded
@@ -145,11 +146,23 @@ def _fallback_strengths(prepass: ResumePrepass) -> list[str]:
     return strengths[:4]
 
 
+def _score_band(score: int) -> str:
+    if score >= 85:
+        return "high"
+    if score >= 70:
+        return "mid"
+    return "low"
+
+
 def _normalize_summary(result: dict, overall_score: int, prepass: ResumePrepass) -> dict[str, str]:
     summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
+    headline = str(summary.get("headline") or "").strip()
+    if not headline or headline_conflicts_with_band(headline, _score_band(overall_score)):
+        headline = _default_headline(overall_score, prepass.missing_keywords)
     return {
-        "headline": str(summary.get("headline") or _default_headline(overall_score, prepass.missing_keywords)),
-        "verdict": str(summary.get("verdict") or _resume_verdict(overall_score)),
+        "headline": headline,
+        # The verdict is the score's band, not the provider's wording: a 55 is never "Strong foundation".
+        "verdict": _resume_verdict(overall_score),
         "confidence_note": str(summary.get("confidence_note") or CONFIDENCE_NOTE),
     }
 
@@ -280,7 +293,7 @@ def _build_heuristic_fallback(
         "strengths": strengths,
         "issues": issues,
         "evidence": prepass.evidence(),
-        "role_fit": None,
+        "role_fit": _normalize_role_fit({}, prepass, overall_score),
     }
 
 

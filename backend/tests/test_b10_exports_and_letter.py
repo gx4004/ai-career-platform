@@ -1,7 +1,8 @@
 """B10: PDF export of non-ASCII text, and cover-letter edits that persist and reach the exports.
 
-Everything goes through the public HTTP routes (a saved run, read back and exported);
-text is extracted from the PDF with PyMuPDF so the assertion is what a reader would see.
+Letter edits and the export filename/title go through the public HTTP routes (a saved run, read
+back and exported); the font round trips call the PDF generators directly, the seam where the
+fonts are chosen. Text is extracted from the PDF with PyMuPDF so the assertion is what a reader sees.
 """
 
 from __future__ import annotations
@@ -214,7 +215,7 @@ def test_letter_edit_must_keep_the_paragraph_count(client, db, test_user, auth_h
 def test_letter_edit_rejects_oversized_paragraphs(client, db, test_user, auth_headers):
     run = _make_run(db, test_user.id, "cover-letter", _letter_payload())
     response = client.patch(
-        f"{PREFIX}/{run.id}/letter", json={**EDIT, "opening": "x" * 20_001}, headers=auth_headers
+        f"{PREFIX}/{run.id}/letter", json={**EDIT, "opening": "x" * 10_001}, headers=auth_headers
     )
     assert response.status_code == 422
 

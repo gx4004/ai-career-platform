@@ -74,7 +74,7 @@ def _is_cjk(char: str) -> bool:
     )
 
 
-_REPLACEMENTS = {"✓": "+", "✔": "+", "✗": "x", "✘": "x", " ": "\n", " ": "\n\n"}
+_REPLACEMENTS = {"✓": "+", "✔": "+", "✗": "x", "✘": "x", "\u2028": "\n", "\u2029": "\n\n"}
 
 
 def _safe_paragraph_html(text: str) -> str:

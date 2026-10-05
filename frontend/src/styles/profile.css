@@ -90,11 +90,6 @@
   display: none;
 }
 
-/* The suggestions panel is the attention panel: a lemon-soft header (STICKER-SYSTEM 4.1 row 26) over white rows. */
-.profile-suggestions > .kit-panel-surface__header {
-  background: var(--lemon-soft);
-}
-
 .profile-suggestions__note {
   margin: 0;
   padding: var(--space-3) var(--space-5);

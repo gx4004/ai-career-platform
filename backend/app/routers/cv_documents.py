@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
@@ -15,6 +16,7 @@ from app.limiter import limiter
 from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
+    CvConflictResponse,
     CvDocumentCreate,
     CvDocumentListResponse,
     CvDocumentResponse,
@@ -234,27 +236,23 @@ def _safe_filename(name: str, template: str, extension: str) -> str:
     return f"{base}-{template}.{extension}"
 
 
-class RenderSource:
-    """A document's header and name with the sections of the working CV or one version."""
-
-    def __init__(self, document: CvDocument, sections: list):
-        self.name = document.name
-        self.header = document.header
-        self.sections = sections
-
-
 def _renderable(
     db: Session, document_id: str, user_id: str, variant_id: str | None
-) -> tuple[CvDocument, CvStyle, RenderSource]:
+) -> tuple[CvDocument, CvStyle, SimpleNamespace]:
     """The document, its saved style and what to render: the working CV, or one of its
     saved versions (a tailored version is sent as it is, without restoring it first)."""
     try:
         document = get_document(db, document_id, user_id)
-        sections = document.sections if variant_id is None else get_variant(document, variant_id).sections
+        variant = None if variant_id is None else get_variant(document, variant_id)
     except CvDocumentNotFoundError as error:
         _not_found(error)
-    style = _document_style(document)
-    return document, style, RenderSource(document, sections)
+    source = SimpleNamespace(
+        name=document.name,
+        header=document.header,
+        sections=document.sections if variant is None else variant.sections,
+        variant_name=None if variant is None else variant.name,
+    )
+    return document, _document_style(document), source
 
 
 def _export(
@@ -269,7 +267,9 @@ def _export(
         if format == "pdf"
         else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
-    filename = _safe_filename(document.name, style.template_id, format)
+    # A version's name is in the file name, so versions made for different jobs stay apart.
+    label = document.name if source.variant_name is None else f"{document.name} {source.variant_name}"
+    filename = _safe_filename(label, style.template_id, format)
     return Response(
         content=artifact,
         media_type=media_type,
@@ -287,11 +287,10 @@ def _export(
 def export_pdf(
     request: Request,
     document_id: str,
-    variant_id: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _export(request, document_id, "pdf", variant_id, current_user, db)
+    return _export(request, document_id, "pdf", None, current_user, db)
 
 
 @router.get("/{document_id}/artifacts/docx")
@@ -299,7 +298,30 @@ def export_pdf(
 def export_docx(
     request: Request,
     document_id: str,
-    variant_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _export(request, document_id, "docx", None, current_user, db)
+
+
+@router.get("/{document_id}/variants/{variant_id}/artifacts/pdf")
+@limiter.limit("10/minute")
+def export_variant_pdf(
+    request: Request,
+    document_id: str,
+    variant_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _export(request, document_id, "pdf", variant_id, current_user, db)
+
+
+@router.get("/{document_id}/variants/{variant_id}/artifacts/docx")
+@limiter.limit("10/minute")
+def export_variant_docx(
+    request: Request,
+    document_id: str,
+    variant_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -325,7 +347,11 @@ async def quality(
     return CvQualityResponse(**result)
 
 
-@router.patch("/{document_id}", response_model=CvDocumentResponse)
+@router.patch(
+    "/{document_id}",
+    response_model=CvDocumentResponse,
+    responses={409: {"model": CvConflictResponse}},
+)
 def update(
     document_id: str,
     body: CvDocumentUpdate,

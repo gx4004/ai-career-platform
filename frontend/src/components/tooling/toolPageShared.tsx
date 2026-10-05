@@ -26,6 +26,8 @@ import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanne
 import { rememberResume } from '#/components/tooling/sampleResume'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
+import { readWorkflowContext } from '#/lib/tools/drafts'
+import { getResumeCarryText } from '#/lib/tools/resumeCarryStore'
 import { historyRunHref } from '#/lib/tools/historyToolLabel'
 import { formatRunDate } from '#/lib/tools/runLabel'
 import { useToolDraft } from '#/hooks/useToolDraft'
@@ -93,24 +95,47 @@ export function useToolPageState(toolId: ToolId) {
 /** The input form's height at submit, per tool: the working panel takes the same room, so the page does not jump while a run is in flight. */
 const formHeights: Partial<Record<ToolId, number>> = {}
 
-/** "Re-generating with your feedback" when this page was opened from a result's Re-generate. Read after mount: the server render has no query string. */
-function RegenerateNote() {
-  const [note, setNote] = useState<{ feedback: string | null } | null>(null)
+/**
+ * "Regenerating with: <feedback>" when this page was opened from a result's Re-generate, and whether the resume came along.
+ * Read after mount: the server render has no query string and the carry lives in the tab's session storage.
+ */
+function RegenerateNote({ toolId }: { toolId: ToolId }) {
+  const [note, setNote] = useState<{ feedback: string | null; missingResume: boolean; filled: string | null } | null>(null)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (!params.get('parent_run_id')) return
-    setNote({ feedback: params.get('feedback')?.trim() || null })
-  }, [])
+    const fields = workflowConfigs[toolId].fields
+    const needsResume = fields.some((field) => field.name === 'resumeText')
+    const hasJob = fields.some((field) => field.name === 'jobDescription')
+    let resume = ''
+    let job = ''
+    try {
+      const context = readWorkflowContext()
+      resume = (context?.resumeText || getResumeCarryText()).trim()
+      job = hasJob ? (context?.jobDescription ?? '').trim() : ''
+    } catch {
+      /* storage unavailable: treat as nothing carried */
+    }
+    const filled = [resume ? 'resume' : '', job ? 'job description' : ''].filter(Boolean).join(' and ')
+    setNote({
+      feedback: params.get('feedback')?.trim() || null,
+      missingResume: needsResume && !resume,
+      filled: filled || null,
+    })
+  }, [toolId])
   if (!note) return null
   return (
     <Notice>
       {note.feedback ? (
         <>
-          Re-generating with your feedback: <strong>{note.feedback}</strong>
+          Regenerating with: <strong>{note.feedback}</strong>
+          {/[.!?]$/.test(note.feedback) ? '' : '.'}
         </>
       ) : (
-        'Re-generating from an earlier run. Change anything below, then run it again.'
+        'Regenerating from an earlier run. Change anything below, then run it again.'
       )}
+      {note.missingResume ? ' This run did not keep your resume in this tab: add it below.' : null}
+      {note.filled ? ` Your ${note.filled} from this session ${note.filled.includes(' and ') ? 'are' : 'is'} filled in.` : null}
     </Notice>
   )
 }
@@ -134,7 +159,7 @@ export function ToolPageShell({
       <div className="tool-notices">
         <GuestSaveBanner />
         <WorkflowHandoffBanner toolId={toolId} />
-        <RegenerateNote />
+        <RegenerateNote toolId={toolId} />
       </div>
       {children}
       <RecentToolRuns toolId={toolId} />

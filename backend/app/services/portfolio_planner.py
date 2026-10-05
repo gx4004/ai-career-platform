@@ -367,6 +367,14 @@ def _normalize_projects(
     return normalized[:4] if normalized else fallback_projects
 
 
+_SLOT_REASONS = {
+    1: "Start with the fastest credible proof piece so you can show direction quickly.",
+    2: "Build this next once the first project gives you a stable story and reusable assets.",
+    3: "Use this as the capstone once the earlier work has closed the biggest proof gaps.",
+    4: "Only add this after the earlier roadmap pieces are already visible and polished.",
+}
+
+
 def _sequence_projects(
     projects: list[dict[str, object]],
     seniority: str,
@@ -386,21 +394,45 @@ def _sequence_projects(
     else:
         ranked.sort(key=lambda item: COMPLEXITY_RANK.get(_to_string(item.get("complexity")), 99))
 
-    reasons = {
-        1: "Start with the fastest credible proof piece so you can show direction quickly.",
-        2: "Build this next once the first project gives you a stable story and reusable assets.",
-        3: "Use this as the capstone once the earlier work has closed the biggest proof gaps.",
-        4: "Only add this after the earlier roadmap pieces are already visible and polished.",
-    }
-
     return [
         {
             "order": index + 1,
             "project_title": _to_string(project.get("project_title")),
-            "reason": reasons[index + 1],
+            "reason": _SLOT_REASONS[index + 1],
         }
         for index, project in enumerate(ranked[:4])
     ]
+
+
+def _put_start_project_first(
+    sequence_plan: list[dict[str, object]],
+    start_project: str,
+) -> list[dict[str, object]]:
+    """Make the "Start here" project step 1 of the sequence, renumbering the rest.
+
+    A project's own reason travels with it; a stock slot reason ("Start with the fastest
+    credible proof piece...") belongs to the slot, so it is re-assigned to the new order.
+    """
+    titles = [_to_string(step.get("project_title")) for step in sequence_plan]
+    if not sequence_plan or not start_project or titles[0] == start_project:
+        return sequence_plan
+    if start_project in titles:
+        moved = sequence_plan[titles.index(start_project)]
+    else:  # a real project the sequence left out
+        moved = {"order": 1, "project_title": start_project, "reason": _SLOT_REASONS[1]}
+    reordered = [moved] + [step for step in sequence_plan if step is not moved]
+    stock = set(_SLOT_REASONS.values())
+    result: list[dict[str, object]] = []
+    for index, step in enumerate(reordered, start=1):
+        reason = _to_string(step.get("reason"))
+        result.append(
+            {
+                **step,
+                "order": index,
+                "reason": _SLOT_REASONS.get(index, reason) if reason in stock else reason,
+            }
+        )
+    return result[:4]
 
 
 def _normalize_sequence_plan(
@@ -609,6 +641,8 @@ async def recommend_portfolio(
     project_titles = {_to_string(project.get("project_title")) for project in projects}
     if recommended_start_project not in project_titles:
         recommended_start_project = _to_string(sequence_plan[0]["project_title"]) if sequence_plan else _to_string(projects[0]["project_title"])
+    # "Start here" and step 1 of the sequence are the same project.
+    sequence_plan = _put_start_project_first(sequence_plan, recommended_start_project)
 
     return {
         "schema_version": SCHEMA_VERSION,

@@ -465,6 +465,14 @@ export const cvDocumentUpdateSchema = z.strictObject({
   sections: z.array(cvSectionSchema).max(50).optional(),
   style: cvStyleSchema.optional(),
   header: cvHeaderSchema.optional(),
+  /** The `updated_at` of the copy being edited; the server answers 409 (with `current`) when it has moved on. */
+  expected_updated_at: z.string().optional(),
+}).refine((value) => Object.keys(value).some((key) => key !== 'expected_updated_at'))
+/** The 409 body of a save made on a stale copy: the newer version, so nothing is lost silently. */
+export const cvConflictSchema = z.object({ detail: z.string(), current: z.lazy(() => cvDocumentSchema) })
+export const cvVariantUpdateSchema = z.strictObject({
+  name: z.string().trim().min(1).max(120).optional(),
+  target_role: z.string().trim().min(1).max(200).optional(),
 }).refine((value) => Object.keys(value).length > 0)
 export const cvVariantCreateSchema = z.strictObject({
   name: z.string().min(1).max(120),

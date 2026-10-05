@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
@@ -15,6 +15,7 @@ from app.schemas.tools import (
     InterviewRequest,
     InterviewResponse,
 )
+from app.services.input_sanitizer import sanitize_user_input
 from app.services.interview_gen import evaluate_practice_answer, generate_interview_questions
 from app.services.llm_budget import reserve_anonymous_model_call
 from app.services.tool_pipeline import run_tool_pipeline
@@ -85,11 +86,15 @@ async def practice_feedback(
     body: InterviewPracticeFeedbackRequest,
     current_user: User | None = Depends(get_optional_current_user),
 ):
+    # This route calls the model directly, so it applies the pipeline's sanitisation itself.
+    question = sanitize_user_input(body.question)
+    if not question:
+        raise HTTPException(status_code=422, detail="question is required")
+    user_answer = sanitize_user_input(body.user_answer)
+    model_answer = sanitize_user_input(body.model_answer) if body.model_answer else None
     if current_user is None:
         # Guest model calls count toward the daily circuit breaker, like the
         # pipeline's own guest runs; this route calls the model directly.
         reserve_anonymous_model_call()
-    result = await evaluate_practice_answer(
-        body.question, body.user_answer, body.model_answer
-    )
+    result = await evaluate_practice_answer(question, user_answer, model_answer or None)
     return InterviewPracticeFeedbackResponse(**result)

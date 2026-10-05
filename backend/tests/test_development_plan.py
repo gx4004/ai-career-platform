@@ -139,43 +139,42 @@ def test_completion_with_user_supplied_notes_confirms_evidence_directly(
     assert db.query(EvidenceItem).filter_by(user_id=test_user.id).count() == 1
 
 
-def test_completion_without_notes_appears_as_an_ordinary_profile_suggestion(
+def test_completed_item_with_a_saved_fact_keeps_its_record_when_the_fact_is_deleted(
     client, auth_headers, test_user, db
 ):
-    """Without the owner's own notes the seed is system-derived, so it lands as a
-    profile suggestion, reviewed like any other: saving confirms it; rejecting
-    deletes it and leaves the completed item intact (D-113)."""
-    classification = _classification(db, test_user.id, gap_kind="missing_skill")
-    items = [
-        create_development_item(
-            db, test_user.id, DevelopmentItemCreate(gap_classification_id=classification.id)
+    """Completion with the owner's notes produces a profile fact; removing that fact
+    leaves the completed item intact and only clears the link (D-113)."""
+    items = []
+    for n in range(2):
+        gap = _classification(
+            db, test_user.id, gap_kind="missing_skill", finding_id=f"f{n}", label=f"W{n}"
         )
-        for _ in range(2)
-    ]
-    suggestion_ids = []
+        items.append(
+            create_development_item(
+                db,
+                test_user.id,
+                DevelopmentItemCreate(
+                    gap_classification_id=gap.id, notes=f"Finished the course {n}."
+                ),
+            )
+        )
+    fact_ids = []
     for item in items:
         response = client.patch(
             f"{PREFIX}/{item.id}", headers=auth_headers, json={"state": "completed"}
         )
         assert response.status_code == 200
-        suggestion_ids.append(response.json()["evidence_item_id"])
+        fact_ids.append(response.json()["evidence_item_id"])
 
-    profile = client.get(EVIDENCE, headers=auth_headers).json()["items"]
-    assert {(item["id"], item["confirmation_state"]) for item in profile} == {
-        (suggestion_ids[0], "unconfirmed"),
-        (suggestion_ids[1], "unconfirmed"),
-    }
-
-    saved, rejected = suggestion_ids
-    assert client.post(f"{EVIDENCE}/{saved}/confirm", headers=auth_headers).status_code == 200
-    assert client.delete(f"{EVIDENCE}/{rejected}", headers=auth_headers).status_code == 204
+    kept, removed = fact_ids
+    assert client.delete(f"{EVIDENCE}/{removed}", headers=auth_headers).status_code == 204
 
     plan = {item["id"]: item for item in client.get(PREFIX, headers=auth_headers).json()["items"]}
-    assert plan[items[0].id]["evidence_item_id"] == saved
+    assert plan[items[0].id]["evidence_item_id"] == kept
     assert plan[items[1].id]["evidence_item_id"] is None
     assert plan[items[1].id]["state"] == "completed"
     [remaining] = client.get(EVIDENCE, headers=auth_headers).json()["items"]
-    assert (remaining["id"], remaining["confirmation_state"]) == (saved, "confirmed")
+    assert remaining["id"] == kept
 
 
 def test_update_can_clear_notes_with_null_but_leaves_omitted_fields(db, test_user):
@@ -321,12 +320,12 @@ def test_endpoint_full_lifecycle(client, auth_headers, test_user, db):
     created = client.post(
         PREFIX,
         headers=auth_headers,
-        json={"gap_classification_id": classification.id, "target_date": "2026-09-01"},
+        json={"gap_classification_id": classification.id, "target_date": "2099-09-01"},
     )
     assert created.status_code == 201
     body = created.json()
     assert body["response_kind"] == "produce_evidence"
-    assert body["target_date"] == "2026-09-01"
+    assert body["target_date"] == "2099-09-01"
     item_id = body["id"]
 
     listed = client.get(PREFIX, headers=auth_headers)

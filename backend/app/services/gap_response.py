@@ -21,6 +21,8 @@ from app.schemas.gap_response import (
 
 _CLAIM_PREFIX = "claim:"
 _REQUIREMENT_PREFIX = "listing_requirement:"
+_DEMONSTRATED_MARKER = ":demonstrated_in:"
+_SHORT_DOCUMENT_PREFIX = "visible_characters:"
 
 
 def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
@@ -32,6 +34,25 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
     if gap_kind != "presentation_weakness" and response_kind == "reword":
         raise ValueError(f"substance gap {gap_kind!r} must never be offered rewording")
 
+    trace = classification.cited_trace or []
+
+    if gap_kind == "presentation_weakness" and any(
+        entry.startswith(_SHORT_DOCUMENT_PREFIX) for entry in trace
+    ):
+        # An empty or very short document has no substance to reword (D-110): it
+        # needs content before wording matters.
+        return GapResponseOffer(
+            gap_classification_id=classification.id,
+            gap_kind=gap_kind,
+            response_kind=response_kind,
+            action_path="advisory",
+            headline="Add the content first",
+            detail=(
+                "This document is too short for rewording to help. Write the missing "
+                "content in your own words, then run the checks again."
+            ),
+        )
+
     if gap_kind == "presentation_weakness":
         return GapResponseOffer(
             gap_classification_id=classification.id,
@@ -42,6 +63,22 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
             detail=(
                 "The substance is already present. Refine the wording through the "
                 "reviewer's diff-reviewed rewrite — no new claim is introduced."
+            ),
+        )
+
+    if gap_kind == "uncaptured_evidence" and any(_DEMONSTRATED_MARKER in entry for entry in trace):
+        # The profile already demonstrates this requirement; saving it again would
+        # only duplicate the fact. The gap is that the documents leave it out.
+        return GapResponseOffer(
+            gap_classification_id=classification.id,
+            gap_kind=gap_kind,
+            response_kind=response_kind,
+            action_path="advisory",
+            headline="Add this to your CV",
+            detail=(
+                f"Your profile already shows {_capture_seed(classification)}, but your CV "
+                "and cover letter leave it out. Add it where it fits, in your own words; "
+                "nothing needs to be saved to your profile."
             ),
         )
 

@@ -31,6 +31,13 @@ def _reads_back_fix(style: CvStyle, evidence: CvArtifactEvidence) -> str:
         if evidence.unread_sections:
             advice += f" Affected sections: {_listed(evidence.unread_sections, 5)}."
         return advice
+    if evidence.too_long:
+        return "This CV is too long to check. Shorten it, then run the check again."
+    if evidence.order_only and not (style.ats_mode or style.template_id in ATS_SAFE_TEMPLATES):
+        return (
+            "Every section is there, but this layout reads in a different order than you "
+            "wrote it. Pick a single-column template to keep your order."
+        )
     if evidence.unread_sections:
         named = f"These sections did not read back as written: {_listed(evidence.unread_sections, 5)}."
         if style.ats_mode or style.template_id in ATS_SAFE_TEMPLATES:

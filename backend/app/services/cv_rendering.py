@@ -31,9 +31,11 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     BaseDocTemplate,
+    CondPageBreak,
     Frame,
     FrameBreak,
     KeepTogether,
+    NextPageTemplate,
     PageTemplate,
     Paragraph,
     Spacer,
@@ -63,7 +65,13 @@ from app.services.cv_fonts import (
     not_in_winansi,
     pdf_font_names,
 )
-from app.services.cv_parser import lines_from_text, parse_cv, split_sections, title_key
+from app.services.cv_parser import (
+    CvParserRejected,
+    lines_from_text,
+    parse_cv,
+    split_sections,
+    title_key,
+)
 
 URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']*[^\s<>()\[\]{}\"'.,;:!?]")
 
@@ -511,6 +519,8 @@ def _entry_flow(entry, styles: dict[str, ParagraphStyle], content_width: float) 
                 colWidths=[content_width * 0.7, content_width * 0.3],
             )
             row.setStyle(_FLUSH_TABLE)
+            # A table starts every cell in ReportLab's default, non-embedded Helvetica.
+            row.setStyle(TableStyle([("FONTNAME", (0, 0), (-1, -1), styles["body"].fontName)]))
             flow.append(row)
         else:
             flow.append(Paragraph(left, styles["entry_heading"]))
@@ -564,9 +574,13 @@ def render_pdf(model: CvRenderModel) -> bytes:
         ]
         side, main = _split_sidebar(model.sections, TEMPLATES[model.template_id].sidebar_kinds)
         columns = [(side, sidebar_w), (main, main_w)]
+        # Later pages carry the main column only: its text must not flow into the
+        # (narrower) sidebar frame of a continuation page.
+        continued = [Frame(main_x, m, main_w, height, id="main", leftPadding=0, topPadding=0)]
     else:
         frames = [Frame(m, m, page_w - 2 * m, height, id="normal")]
         columns = [(model.sections, page_w - 2 * m)]
+        continued = None
 
     out = io.BytesIO()
     doc = BaseDocTemplate(
@@ -584,9 +598,17 @@ def render_pdf(model: CvRenderModel) -> bytes:
         initialFontName=str(model.tokens["font"]),
     )
     doc.addPageTemplates([PageTemplate(id="cv", frames=frames)])
+    if continued is not None:
+        doc.addPageTemplates([PageTemplate(id="cv-continued", frames=continued)])
     styles = _pdf_styles(model)
     section_gap = int(model.tokens["section_gap_pt"])
-    story: list = _pdf_header(model, styles)
+    story: list = []
+    if continued is not None:
+        # Declared up front, so whichever column overflows page one, every later page is
+        # main-column only. Sidebar text too long for page one spills into page one's main
+        # frame (still readable) instead of reaching a continuation page's narrow frame.
+        story.append(NextPageTemplate("cv-continued"))
+    story.extend(_pdf_header(model, styles))
     for index, (sections, width) in enumerate(columns):
         if index:
             story.append(FrameBreak())
@@ -599,6 +621,8 @@ def render_pdf(model: CvRenderModel) -> bytes:
 
 # An entry up to this share of a page stays in one piece; a longer one may split.
 _KEEP_ENTRY_TOGETHER = 0.3
+# Room a heading and the start of a long entry need so neither is stranded at a page bottom.
+_START_ROOM_PT = 80
 
 
 def _flow_height(flow: list, width: float) -> float:
@@ -608,6 +632,7 @@ def _flow_height(flow: list, width: float) -> float:
 def _entry_groups(flow: list, width: float, frame_height: float) -> list[list]:
     """The pieces of one entry that must each stay on a single page."""
     if len(flow) <= 3 or _flow_height(flow, width) <= _KEEP_ENTRY_TOGETHER * frame_height:
+        # Short, or too few pieces to split between: a long paragraph splits by itself.
         return [flow]
     return [flow[:3], *([item] for item in flow[3:-2]), flow[-2:]]
 
@@ -617,8 +642,10 @@ def _section_flow(section, styles: dict[str, ParagraphStyle], width: float, fram
 
     The heading always travels with the start of the first entry, and a short entry
     (a role of a few bullets) is never split; a long one keeps its first and last
-    lines together. Wrapping the whole section in one keep-together block would push
-    it to the next page whenever it did not fit, leaving the previous page blank.
+    lines together. A single long paragraph is left to split on its own after
+    reserving room for the heading and its first lines. Wrapping the whole section in
+    one keep-together block would push it to the next page whenever it did not fit,
+    leaving the previous page blank.
     """
     heading = Paragraph(escape(section.title), styles["heading"])
     groups = [
@@ -629,8 +656,18 @@ def _section_flow(section, styles: dict[str, ParagraphStyle], width: float, fram
     ]
     if not groups:
         return [KeepTogether([heading])]
-    story: list = [KeepTogether([heading, *groups[0]])]
-    story.extend(KeepTogether(group) if len(group) > 1 else group[0] for group in groups[1:])
+    story: list = []
+    for index, group in enumerate(groups):
+        items = [heading, *group] if index == 0 else group
+        if _flow_height(items, width) <= _KEEP_ENTRY_TOGETHER * frame_height:
+            story.append(KeepTogether(items) if len(items) > 1 else items[0])
+        else:
+            # Too long to keep whole: it splits on its own once it has room to start. The
+            # heading drops keepWithNext here, which would otherwise glue it to all of it.
+            if index == 0:
+                loose = ParagraphStyle("heading_loose", parent=styles["heading"], keepWithNext=0)
+                items = [Paragraph(escape(section.title), loose), *group]
+            story.extend([CondPageBreak(_START_ROOM_PT), *items])
     return story
 
 
@@ -790,7 +827,13 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
 
     # The read-back uses the section titles the CV itself has, so a renamed
     # section ("Selected Work") is still found as one.
-    extracted = parse_cv(pdf, "cv.pdf", "pdf").extracted_text
+    try:
+        extracted = parse_cv(pdf, "cv.pdf", "pdf").extracted_text
+    except CvParserRejected:
+        # Longer than a PDF can be re-read (an enormous CV): report it, never a 500.
+        return CvArtifactEvidence(
+            reads_back="fail", links="fail", page_breaks="fail", too_long=True
+        )
     vocabulary = {title_key(section.title): section.kind for section in model.sections}
     # Whatever sits above the first section is the header (name, headline, contact).
     _, grouped = split_sections(lines_from_text(extracted), vocabulary, keep_empty=True)
@@ -824,8 +867,11 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
             # heading is never stranded at the bottom of one. Checked per rendered line
             # (not one joined block): a bullet line's literal "•" glyph would otherwise
             # break a contiguous substring match.
-            first_line = next(
-                (_normalize_text(line) for line in entry_render_lines(section.entries[0])), ""
+            # Only its opening words: a long paragraph is allowed to continue on the next page.
+            first_line = " ".join(
+                next(
+                    (_normalize_text(line) for line in entry_render_lines(section.entries[0])), ""
+                ).split()[:8]
             )
             page_breaks_ok = page_breaks_ok and any(
                 section.title in text and first_line in text for text in page_text
@@ -841,7 +887,12 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
             )
         artifact_links = {link.get("uri") for page in rendered for link in page.get_links()}
     unsupported = model.unsupported_characters
+    order_only = (
+        expected_structure != actual_structure
+        and sorted(expected_structure) == sorted(actual_structure)
+    )
     return CvArtifactEvidence(
+        order_only=order_only,
         reads_back="pass" if expected_structure == actual_structure and not unsupported else "fail",
         links="pass"
         if all(link in extracted and link in artifact_links for link in links)

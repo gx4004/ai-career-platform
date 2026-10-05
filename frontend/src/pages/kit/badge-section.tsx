@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Clock, Star } from 'lucide-react'
 import { Avatar, Badge, Card, CardHeader, CardTitle, Chip, Count, Kbd, MetaRow, type BadgeTone } from '#/components/kit'
 import { GallerySection, Group, Row, Specimen } from './gallery-parts'
 
@@ -89,6 +90,14 @@ export function BadgeSection() {
           <Specimen label="quiet (info)">
             <Badge tone="info">Remote-friendly</Badge>
           </Specimen>
+        </Row>
+      </Group>
+
+      <Group title="With icon (replaces the dot; decorative, the label still says it)">
+        <Row>
+          <Badge tone="white" icon={<Clock />}>Deadline</Badge>
+          <Badge tone="rose" icon={<Clock />}>Due in 3 days</Badge>
+          <Badge tone="lemon" size="sm" icon={<Star />}>Starred</Badge>
         </Row>
       </Group>
 

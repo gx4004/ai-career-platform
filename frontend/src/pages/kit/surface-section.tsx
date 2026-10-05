@@ -64,7 +64,7 @@ function Dismissible() {
   )
 }
 
-function ApplicationCard({ index, selected = false }: { index: number; selected?: boolean }) {
+function ApplicationCard({ index, selected = false, placement }: { index: number; selected?: boolean; placement?: 'inline' | 'overlay' }) {
   const application = APPLICATIONS[index]
   return (
     <Card selected={selected}>
@@ -73,7 +73,7 @@ function ApplicationCard({ index, selected = false }: { index: number; selected?
           <DemoLink>{application.role}</DemoLink>
         </CardTitle>
         {index === 0 ? <Pin className="kit-gallery__pin" aria-label="Pinned" role="img" /> : null}
-        <CardActions>
+        <CardActions placement={placement}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button iconOnly variant="ghost" size="sm" aria-label={`Move ${application.role}`}>
@@ -182,6 +182,9 @@ export function SurfaceSection() {
           </Specimen>
           <Specimen label="selected">
             <ApplicationCard index={1} selected />
+          </Specimen>
+          <Specimen label="actions placement=overlay: the title keeps the whole line, the menu floats in on hover">
+            <ApplicationCard index={0} placement="overlay" />
           </Specimen>
           <Specimen label="missing fields">
             <ApplicationCard index={2} />

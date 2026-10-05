@@ -91,18 +91,9 @@ export function StatePage({
   const tone = seal.tone ?? 'rose'
   return (
     <div className="state-page">
-      {/* The kit's seal has no rose; the tone attribute is what paints it, so the page sets it. */}
-      <ScoreSeal
-        value={seal.value}
-        unit={null}
-        label={seal.label}
-        size="lg"
-        tone={tone === 'rose' ? 'lemon' : tone}
-        data-tone={tone}
-        rotate={-4}
-      />
+      <ScoreSeal value={seal.value} unit={null} label={seal.label} size="lg" tone={tone} rotate={-4} />
       <ErrorState
-        className="state-page__copy"
+        variant="open"
         role={role}
         headingLevel={1}
         code={code}

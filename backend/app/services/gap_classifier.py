@@ -65,6 +65,8 @@ _DEMONSTRATED_KINDS = frozenset(
 )
 
 _REQUIREMENT_TRACE_PREFIX = "listing_requirement:"
+#: Marks a reviewer ``document_defect`` raised because the document is too short.
+_SHORT_DOCUMENT_TRACE_PREFIX = "visible_characters:"
 
 
 class GapClassificationNotFoundError(Exception):
@@ -106,6 +108,14 @@ def _classify_one(finding: dict, payload: EvidencePayload | None) -> dict | None
 def _decide(
     category: str, trace: list[str], payload: EvidencePayload | None
 ) -> tuple[str | None, list[str]]:
+    if category == "document_defect" and any(
+        entry.startswith(_SHORT_DOCUMENT_TRACE_PREFIX) for entry in trace
+    ):
+        # An empty or near-empty document has no substance to reword: it needs
+        # content, which is not one of the four evidence gaps (D-110). Left
+        # unclassified rather than offered a rewrite that cannot help.
+        return None, []
+
     if category in _PRESENTATION_CATEGORIES:
         return GAP_PRESENTATION_WEAKNESS, ["classified:presentation_weakness"]
 
@@ -118,8 +128,14 @@ def _decide(
 
     if category == "missed_requirement":
         keyword = _requirement_keyword(trace)
-        kinds = _profile_kinds_mentioning(keyword, payload) if keyword else []
-        demonstrated = next((kind for kind in kinds if kind in _DEMONSTRATED_KINDS), None)
+        mentions = _profile_mentions(keyword, payload) if keyword else []
+        kinds = [kind for kind, _confirmed in mentions]
+        # Only a confirmed fact demonstrates anything (D-062): an unconfirmed
+        # suggestion is the user's to vouch for, not evidence they already hold.
+        demonstrated = next(
+            (kind for kind, confirmed in mentions if confirmed and kind in _DEMONSTRATED_KINDS),
+            None,
+        )
         if demonstrated is not None:
             # The profile already demonstrates this through real evidence — it is
             # simply absent from the selected materials.
@@ -151,8 +167,10 @@ def _requirement_keyword(trace: list[str]) -> str:
     return ""
 
 
-def _profile_kinds_mentioning(keyword: str, payload: EvidencePayload | None) -> list[str]:
-    """Kinds of the confirmed/unconfirmed profile items that mention the keyword.
+def _profile_mentions(
+    keyword: str, payload: EvidencePayload | None
+) -> list[tuple[str, bool]]:
+    """``(kind, confirmed)`` of the profile items that mention the keyword.
 
     A rejected suggestion is deleted, so it never reaches :class:`EvidencePayload`
     and never counts. The item ``kind`` — not a keyword
@@ -161,12 +179,13 @@ def _profile_kinds_mentioning(keyword: str, payload: EvidencePayload | None) -> 
     """
     if payload is None:
         return []
-    kinds: list[str] = []
-    for item in (*payload.locked_facts, *payload.gaps):
-        content = json.dumps(item.get("content", {}), sort_keys=True)
-        if keyword_present(keyword, content):
-            kinds.append(item.get("kind", ""))
-    return kinds
+    mentions: list[tuple[str, bool]] = []
+    for confirmed, items in ((True, payload.locked_facts), (False, payload.gaps)):
+        for item in items:
+            content = json.dumps(item.get("content", {}), sort_keys=True)
+            if keyword_present(keyword, content):
+                mentions.append((item.get("kind", ""), confirmed))
+    return mentions
 
 
 def persist_gap_classifications(

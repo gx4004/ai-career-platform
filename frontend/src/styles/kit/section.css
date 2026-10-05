@@ -70,6 +70,14 @@
   margin-inline-start: auto;
 }
 
+/* At 860px and below: the row is space-between, so actions that wrap under the title start at the start edge (not stranded at the end)
+   while actions that fit beside the title keep the end edge. */
+@media (max-width: 860px) {
+  .kit-section__actions {
+    margin-inline-start: 0;
+  }
+}
+
 .kit-section__description {
   max-width: 46rem;
   margin: 0;
@@ -304,6 +312,16 @@
   .kit-card:focus-within .kit-card__actions[data-reveal],
   .kit-card__actions[data-reveal]:has([data-state='open'], [aria-expanded='true']) {
     opacity: 1;
+  }
+
+  /* overlay: out of the title row, over the card's top end corner (only where it is hidden until hover, so it never covers text at rest). */
+  .kit-card__actions[data-placement='overlay'][data-reveal] {
+    position: absolute;
+    inset-block-start: var(--space-1);
+    inset-inline-end: var(--space-1);
+    margin: 0;
+    border-radius: var(--r-sm);
+    background: var(--lemon-soft);
   }
 }
 
