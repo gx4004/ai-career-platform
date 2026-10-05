@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowUpToLine, ClipboardPaste, FileUp, MoveRight, Trash2 } from 'lucide-react'
 import {
-  Badge, Button, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Badge, Button, Card, CardHeader, CardTitle, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
   Field, FileInput, Input, List, Notice, Section, Segmented, Skeleton, Stack, Textarea,
 } from '#/components/kit'
@@ -40,11 +40,11 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
   )
 
   return (
-    <article className="cvs-review__card" aria-label={title}>
-      <header className="cvs-review__cardhead">
-        <p className="cvs-review__cardtitle">{title}</p>
+    <Card className="cvs-review__card" padding="sm" aria-label={title}>
+      <CardHeader>
+        <CardTitle headingLevel={4}>{title}</CardTitle>
         {entry.claim ? <Badge size="sm" tone="lilac">Fact for your Evidence</Badge> : null}
-      </header>
+      </CardHeader>
       {structured ? (
         <div className="cvs-review__grid">
           {text('heading', sectionNoun(section.kind) === 'role' ? 'Job title' : sectionNoun(section.kind) === 'project' ? 'Project name' : 'Qualification', undefined, true)}
@@ -83,7 +83,7 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
         </DropdownMenu>
         <Button type="button" size="sm" variant="ghost" onClick={onRemove}><Trash2 aria-hidden="true" /> Leave out</Button>
       </div>
-    </article>
+    </Card>
   )
 }
 
@@ -189,7 +189,7 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
               )
             ) : (
               <>
-                <section className="cvs-review__head" aria-label="Name and contact details">
+                <Card as="div" role="region" tone="lilac" padding="sm" className="cvs-review__head" aria-label="Name and contact details">
                   <Field label="CV name">
                     <Input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
                   </Field>
@@ -205,12 +205,12 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
                       ))}
                     </div>
                   ) : null}
-                </section>
+                </Card>
                 {proposal.warnings.map((warning) => (
                   <Notice key={warning} tone="warning">{warning}</Notice>
                 ))}
                 {proposal.sections.map((section) => (
-                  <Section key={section.id} headingLevel={3} title={section.title} count={section.entries.length} countTone="white" className="cvs-review__section">
+                  <Section key={section.id} headingLevel={3} title={section.title} count={section.entries.length} countTone="white">
                     {section.entries.length === 0 ? <p className="cvs-hint">Nothing was found under this heading.</p> : (
                       <Stack gap={3}>
                         {section.entries.map((entry, index) => (

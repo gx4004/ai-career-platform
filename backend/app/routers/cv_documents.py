@@ -4,8 +4,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.auth.security import get_current_user
 from app.database import get_db
@@ -13,7 +15,6 @@ from app.limiter import limiter
 from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
-    CvArtifactFormat,
     CvDocumentCreate,
     CvDocumentListResponse,
     CvDocumentResponse,
@@ -29,8 +30,10 @@ from app.schemas.cv_documents import (
     CvTailoringRequest,
     CvVariantCreate,
     CvVariantResponse,
+    CvVariantUpdate,
 )
 from app.services.cv_documents import (
+    CvDocumentConflictError,
     CvDocumentNotFoundError,
     DuplicateVariantNameError,
     InvalidEvidenceReferenceError,
@@ -41,14 +44,17 @@ from app.services.cv_documents import (
     create_variant,
     delete_document,
     delete_documents,
+    delete_variant,
     export_documents,
     get_document,
+    get_variant,
     list_documents,
     restore_variant,
     serialize_document,
     serialize_document_for_list,
     serialize_variant,
     update_document,
+    update_variant,
 )
 from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
@@ -126,10 +132,23 @@ async def propose_import(
 )
 def accept_reviewed_import(
     body: CvImportAccept,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return serialize_document(accept_import(db, current_user.id, body))
+    replay = (
+        db.query(CvDocument.id)
+        .filter(
+            CvDocument.user_id == current_user.id,
+            CvDocument.source_import_id == str(body.import_id),
+        )
+        .first()
+        is not None
+    )
+    document = accept_import(db, current_user.id, body)
+    if replay:
+        response.status_code = status.HTTP_200_OK
+    return serialize_document(document)
 
 
 @router.get("/export", response_model=CvDocumentsExport)
@@ -215,23 +234,35 @@ def _safe_filename(name: str, template: str, extension: str) -> str:
     return f"{base}-{template}.{extension}"
 
 
-@router.get("/{document_id}/artifacts/{format}")
-@limiter.limit("10/minute")
-def export_artifact(
-    request: Request,
-    document_id: str,
-    format: CvArtifactFormat,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Export the saved CV in its saved style (the same bytes "View exact PDF" shows)."""
+class RenderSource:
+    """A document's header and name with the sections of the working CV or one version."""
+
+    def __init__(self, document: CvDocument, sections: list):
+        self.name = document.name
+        self.header = document.header
+        self.sections = sections
+
+
+def _renderable(
+    db: Session, document_id: str, user_id: str, variant_id: str | None
+) -> tuple[CvDocument, CvStyle, RenderSource]:
+    """The document, its saved style and what to render: the working CV, or one of its
+    saved versions (a tailored version is sent as it is, without restoring it first)."""
     try:
-        document = get_document(db, document_id, current_user.id)
+        document = get_document(db, document_id, user_id)
+        sections = document.sections if variant_id is None else get_variant(document, variant_id).sections
     except CvDocumentNotFoundError as error:
         _not_found(error)
-
     style = _document_style(document)
-    model = build_render_model(document, style.template_id, style)
+    return document, style, RenderSource(document, sections)
+
+
+def _export(
+    request: Request, document_id: str, format: str, variant_id: str | None, user: User, db: Session
+) -> Response:
+    """Export the saved CV in its saved style (the same bytes "View exact PDF" shows)."""
+    document, style, source = _renderable(db, document_id, user.id, variant_id)
+    model = build_render_model(source, style.template_id, style)
     artifact = render_pdf(model) if format == "pdf" else render_docx(model)
     media_type = (
         "application/pdf"
@@ -250,25 +281,47 @@ def export_artifact(
     )
 
 
+# One route per format so a PDF preview and a DOCX download never share a rate limit.
+@router.get("/{document_id}/artifacts/pdf")
+@limiter.limit("10/minute")
+def export_pdf(
+    request: Request,
+    document_id: str,
+    variant_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _export(request, document_id, "pdf", variant_id, current_user, db)
+
+
+@router.get("/{document_id}/artifacts/docx")
+@limiter.limit("10/minute")
+def export_docx(
+    request: Request,
+    document_id: str,
+    variant_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _export(request, document_id, "docx", variant_id, current_user, db)
+
+
 @router.post("/{document_id}/quality", response_model=CvQualityResponse)
 @limiter.limit("20/minute")
 async def quality(
     request: Request,
     document_id: str,
+    variant_id: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # A deterministic document check, not one of the six tools: it bypasses
     # run_tool_pipeline() so autosave-driven checks never write ToolRuns (#362).
-    try:
-        document = get_document(db, document_id, current_user.id)
-    except CvDocumentNotFoundError as error:
-        _not_found(error)
-    style = _document_style(document)
-    model = build_render_model(document, style.template_id, style)
+    _, style, source = _renderable(db, document_id, current_user.id, variant_id)
+    model = build_render_model(source, style.template_id, style)
     # ReportLab/fitz work is CPU-bound; keep it off the event loop.
     evidence = await run_in_threadpool(lambda: validate_artifact(model, render_pdf(model)))
-    result = analyze_cv_quality(document.sections, style, evidence)
+    result = analyze_cv_quality(source.sections, style, evidence)
     return CvQualityResponse(**result)
 
 
@@ -284,13 +337,28 @@ def update(
         sections = None if body.sections is None else [item.model_dump() for item in body.sections]
         return serialize_document(
             update_document(
-                db, document, name=body.name, sections=sections, style=body.style, header=body.header
+                db,
+                document,
+                name=body.name,
+                sections=sections,
+                style=body.style,
+                header=body.header,
+                expected_updated_at=body.expected_updated_at,
             )
         )
     except CvDocumentNotFoundError as error:
         _not_found(error)
     except InvalidEvidenceReferenceError as error:
         _invalid_evidence(error)
+    except CvDocumentConflictError as error:
+        # Another window saved first: hand back its version so nothing is lost silently.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": "This CV was changed in another tab or window. Review the latest version.",
+                "current": jsonable_encoder(serialize_document(error.current)),
+            },
+        )
 
 
 @router.post("/{document_id}/tailoring", response_model=CvTailoringProposal)
@@ -317,6 +385,8 @@ async def tailor(
             status_code=429, detail="This document has reached its tailoring limit."
         )
     quota_document.tailoring_model_runs += 1
+    # Counting a run is not an edit: keep the version stamp an open editor saves against.
+    flag_modified(quota_document, "updated_at")
     db.commit()
     text = "\n".join(str(e["body"]) for s in document.sections for e in s["entries"])
     result = await run_tool_pipeline(
@@ -360,6 +430,7 @@ async def tailor(
 def apply_tailoring_review(
     document_id: str,
     body: CvTailoringApply,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -373,9 +444,12 @@ def apply_tailoring_review(
             [change.model_dump(exclude_defaults=True) for change in body.changes],
         ):
             raise InvalidTailoringProposalError
-        return serialize_variant(
-            apply_tailoring(db, get_document(db, document_id, current_user.id), body)
-        )
+        document = get_document(db, document_id, current_user.id)
+        replay = any(v.tailoring_request_id == str(body.request_id) for v in document.variants)
+        variant = apply_tailoring(db, document, body)
+        if replay:
+            response.status_code = status.HTTP_200_OK
+        return serialize_variant(variant)
     except CvDocumentNotFoundError as error:
         _not_found(error)
     except (InvalidEvidenceReferenceError, InvalidTailoringProposalError) as error:
@@ -448,3 +522,41 @@ def restore(
         )
     except CvDocumentNotFoundError as error:
         _not_found(error)
+
+
+@router.patch("/{document_id}/variants/{variant_id}", response_model=CvVariantResponse)
+def rename_variant(
+    document_id: str,
+    variant_id: str,
+    body: CvVariantUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return serialize_variant(
+            update_variant(
+                db,
+                get_document(db, document_id, current_user.id),
+                variant_id,
+                name=body.name,
+                target_role=body.target_role,
+            )
+        )
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    except DuplicateVariantNameError as error:
+        raise HTTPException(status_code=409, detail="Variant name already exists") from error
+
+
+@router.delete("/{document_id}/variants/{variant_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_variant(
+    document_id: str,
+    variant_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        delete_variant(db, get_document(db, document_id, current_user.id), variant_id)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

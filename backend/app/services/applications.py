@@ -704,8 +704,12 @@ def clear_selected_run(db: Session, user_id: str, run: ToolRun) -> None:
                 _material_event(db, workspace.id, material_type, None, provenance="system")
 
 
-def clear_selected_variants(db: Session, document: CvDocument) -> None:
-    variant_ids = [variant.id for variant in document.variants]
+def clear_selected_variants(
+    db: Session, document: CvDocument, only_variant_ids: list[str] | None = None
+) -> None:
+    """Un-select a document's saved versions (all, or just ``only_variant_ids``) on every
+    application that picked one."""
+    variant_ids = only_variant_ids or [variant.id for variant in document.variants]
     if not variant_ids:
         return
     workspaces = (

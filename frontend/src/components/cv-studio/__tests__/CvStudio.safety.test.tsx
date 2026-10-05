@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
+import { CvVersionsPanel } from '#/components/cv-studio/CvVersionsPanel'
 import { savedAgo } from '#/components/cv-studio/CvSaveStatus'
 import type { CvDocument } from '#/lib/api/schemas'
 import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
@@ -19,6 +20,8 @@ const api = vi.hoisted(() => ({
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => session }))
+// The backend route for a saved version's file is not there yet; these tests cover the wiring for when it ships.
+vi.mock('#/components/cv-studio/cvApi', async (importOriginal) => ({ ...(await importOriginal<typeof import('#/components/cv-studio/cvApi')>()), VARIANT_EXPORT_READY: true }))
 
 const experience = {
   id: 's1', kind: 'experience' as const, title: 'Experience', visible: true, position: 0,
@@ -255,6 +258,20 @@ describe('versions as cards (cv-studio-d11)', () => {
   })
 })
 
+describe('versions without a file route', () => {
+  it('shows Preview and Restore but no Export while the server cannot build a version file', () => {
+    render(
+      <CvVersionsPanel
+        variants={document.variants} currentSections={document.sections} busy={false} exporting={null}
+        onSave={vi.fn()} onRestore={vi.fn()} onPreview={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Preview Platform roles' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Restore Platform roles' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Export/ })).toBeNull()
+  })
+})
+
 describe('tailored version next steps', () => {
   it('offers Preview and Export PDF right after a tailored version is saved', async () => {
     api.tailorCvDocument.mockResolvedValue({
@@ -289,9 +306,11 @@ describe('section rows', () => {
     view()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Skills' }))
     const list = within(panel()).getByRole('list', { name: 'Sections in your CV' })
-    const row = within(list).getByText('Skills', { selector: '.cvs-sec__name' }).closest('li') as HTMLElement
-    expect(row.getAttribute('data-open')).toBe('true')
-    expect(within(row).getByLabelText('Skills text')).toBeTruthy()
+    const row = within(list).getByRole('button', { name: 'All sections' }).closest('li') as HTMLElement
+    expect(row.getAttribute('aria-current')).toBe('true')
+    expect(row.getAttribute('data-selected')).toBe('true')
+    // The editor is the row right under the open one.
+    expect(within(row.nextElementSibling as HTMLElement).getByLabelText('Skills text')).toBeTruthy()
     // The other sections stay in the list, closed.
     expect(within(list).getByRole('button', { name: 'Experience' })).toBeTruthy()
     fireEvent.click(within(row).getByRole('button', { name: 'All sections' }))

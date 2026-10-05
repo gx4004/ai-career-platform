@@ -8,6 +8,7 @@ calls (every render request) must be safe no-ops after the first.
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -111,3 +112,63 @@ def css_family(font_id: str) -> str:
     the same bundled TTFs under ``family.name``."""
     family = FONT_FAMILIES[font_id]
     return f"'{family.name}', {_CSS_FALLBACKS[family.category]}"
+
+
+def _needs_glyph(character: str) -> bool:
+    """Whether ``character`` is something a font has to draw (not whitespace, a
+    control or format character such as a joiner, or a variation selector)."""
+    if character.isspace() or "\ufe00" <= character <= "\ufe0f":
+        return False
+    return unicodedata.category(character) not in ("Cc", "Cf")
+
+
+def _covered(font_id: str) -> set[int]:
+    register_fonts()
+    family = FONT_FAMILIES[font_id]
+    regular = pdfmetrics.getFont(family.pdf_name).face.charToGlyph
+    bold = pdfmetrics.getFont(f"{family.pdf_name}-Bold").face.charToGlyph
+    return set(regular) & set(bold)
+
+
+def missing_characters(font_id: str, text: str) -> list[str]:
+    """The characters in ``text`` that the bundled ``font_id`` cannot draw, once each."""
+    covered = _covered(font_id)
+    return list(
+        dict.fromkeys(c for c in text if _needs_glyph(c) and ord(c) not in covered)
+    )
+
+
+def covering_font(font_id: str, text: str) -> tuple[str, list[str]]:
+    """The bundled font to draw ``text`` with, and what even it cannot draw.
+
+    The chosen font is kept when it covers everything; otherwise the family (same
+    category first, then the rest) that draws the most of the text wins, so a
+    Cyrillic name in a Latin-only serif still renders instead of leaving gaps.
+    """
+    chosen = FONT_FAMILIES[font_id]
+    candidates = [font_id] + sorted(
+        (other for other in FONT_FAMILIES if other != font_id),
+        key=lambda other: FONT_FAMILIES[other].category != chosen.category,
+    )
+    best_id, best_missing = font_id, missing_characters(font_id, text)
+    for candidate in candidates[1:]:
+        if not best_missing:
+            break
+        missing = missing_characters(candidate, text)
+        if len(missing) < len(best_missing):
+            best_id, best_missing = candidate, missing
+    return best_id, best_missing
+
+
+def not_in_winansi(text: str) -> list[str]:
+    """Characters outside the Windows-1252 set the PDF base-14 fonts (Helvetica)
+    can encode, once each."""
+    missing = []
+    for character in dict.fromkeys(text):
+        if not _needs_glyph(character):
+            continue
+        try:
+            character.encode("cp1252")
+        except UnicodeEncodeError:
+            missing.append(character)
+    return missing

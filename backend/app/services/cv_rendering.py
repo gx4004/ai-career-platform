@@ -23,7 +23,7 @@ from docx.enum.text import WD_TAB_ALIGNMENT
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Inches, Mm, Pt, RGBColor
 from reportlab.lib.colors import HexColor
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
@@ -55,7 +55,14 @@ from app.schemas.cv_documents import (
     CvStyleCatalogTemplate,
     CvStyleSizes,
 )
-from app.services.cv_fonts import FONT_FAMILIES, css_family, docx_font_name, pdf_font_names
+from app.services.cv_fonts import (
+    FONT_FAMILIES,
+    covering_font,
+    css_family,
+    docx_font_name,
+    not_in_winansi,
+    pdf_font_names,
+)
 from app.services.cv_parser import lines_from_text, parse_cv, split_sections, title_key
 
 URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']*[^\s<>()\[\]{}\"'.,;:!?]")
@@ -275,6 +282,55 @@ def _render_header(document) -> CvRenderHeader:
     )
 
 
+def _fit_pdf_font(
+    effective: EffectiveStyle, style: CvStyle, header: CvRenderHeader, sections: list[dict]
+) -> tuple[str, str, list[str]]:
+    """The PDF font pair that can draw this CV's text, and the characters none can.
+
+    The saved font is kept whenever it covers the text. A CV in a script it lacks
+    (Cyrillic in a Latin-only serif, a Polish name in ATS mode's Helvetica) falls
+    back to the bundled family that covers the most; the rest is reported, never
+    silently dropped.
+    """
+    text = "\n".join(
+        [
+            header.title,
+            header.headline or "",
+            *header.contact,
+            *(
+                piece
+                for section in sections
+                for piece in (
+                    section["title"],
+                    *(
+                        part
+                        for entry in section["entries"]
+                        for part in (
+                            entry["heading"],
+                            entry["subheading"],
+                            entry["location"],
+                            entry["dates"],
+                            entry["paragraph"],
+                            *entry["bullets"],
+                        )
+                        if part
+                    ),
+                )
+            ),
+        ]
+    )
+    if effective.ats_mode:
+        missing = not_in_winansi(text)
+        if not missing:
+            return effective.font_name, effective.font_bold_name, []
+        font_id = "lato"
+    else:
+        font_id = style.font_id
+    chosen, missing = covering_font(font_id, text)
+    font_name, font_bold_name = pdf_font_names(chosen)
+    return font_name, font_bold_name, missing
+
+
 def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderModel:
     effective = resolve_effective_style(template_id, style)
     template = TEMPLATES[effective.layout_template_id]
@@ -291,14 +347,17 @@ def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderMo
         for section in sorted(document.sections, key=lambda item: (item["position"], item["id"]))
         if section.get("visible", True)
     ]
+    header = _render_header(document)
+    font_name, font_bold_name, unsupported = _fit_pdf_font(effective, style, header, sections)
     return CvRenderModel(
         document_name=document.name.strip(),
-        header=_render_header(document),
+        header=header,
         template_id=effective.layout_template_id,
         margin_mm=effective.margin_mm,
+        unsupported_characters=unsupported,
         tokens={
-            "font": effective.font_name,
-            "font_bold": effective.font_bold_name,
+            "font": font_name,
+            "font_bold": font_bold_name,
             "font_docx": effective.font_docx_name,
             "accent": effective.accent,
             "body_size_pt": effective.body_size,
@@ -521,6 +580,8 @@ def render_pdf(model: CvRenderModel) -> bytes:
         title=model.document_name,
         author="Career Workbench",
         creator="Career Workbench",
+        # Without this every page starts in ReportLab's default, non-embedded Helvetica.
+        initialFontName=str(model.tokens["font"]),
     )
     doc.addPageTemplates([PageTemplate(id="cv", frames=frames)])
     styles = _pdf_styles(model)
@@ -530,12 +591,47 @@ def render_pdf(model: CvRenderModel) -> bytes:
         if index:
             story.append(FrameBreak())
         for section in sections:
-            flow = [Paragraph(escape(section.title), styles["heading"])]
-            for entry in section.entries:
-                flow.extend(_entry_flow(entry, styles, width))
-            story.extend([KeepTogether(flow), Spacer(1, section_gap)])
+            story.extend(_section_flow(section, styles, width, height))
+            story.append(Spacer(1, section_gap))
     doc.build(story)
     return out.getvalue()
+
+
+# An entry up to this share of a page stays in one piece; a longer one may split.
+_KEEP_ENTRY_TOGETHER = 0.3
+
+
+def _flow_height(flow: list, width: float) -> float:
+    return sum(item.wrap(width, 1_000_000)[1] for item in flow)
+
+
+def _entry_groups(flow: list, width: float, frame_height: float) -> list[list]:
+    """The pieces of one entry that must each stay on a single page."""
+    if len(flow) <= 3 or _flow_height(flow, width) <= _KEEP_ENTRY_TOGETHER * frame_height:
+        return [flow]
+    return [flow[:3], *([item] for item in flow[3:-2]), flow[-2:]]
+
+
+def _section_flow(section, styles: dict[str, ParagraphStyle], width: float, frame_height: float):
+    """A section as flowables that may break across pages between entries.
+
+    The heading always travels with the start of the first entry, and a short entry
+    (a role of a few bullets) is never split; a long one keeps its first and last
+    lines together. Wrapping the whole section in one keep-together block would push
+    it to the next page whenever it did not fit, leaving the previous page blank.
+    """
+    heading = Paragraph(escape(section.title), styles["heading"])
+    groups = [
+        group
+        for entry in section.entries
+        for group in _entry_groups(_entry_flow(entry, styles, width), width, frame_height)
+        if group
+    ]
+    if not groups:
+        return [KeepTogether([heading])]
+    story: list = [KeepTogether([heading, *groups[0]])]
+    story.extend(KeepTogether(group) if len(group) > 1 else group[0] for group in groups[1:])
+    return story
 
 
 def render_docx(model: CvRenderModel) -> bytes:
@@ -546,6 +642,8 @@ def render_docx(model: CvRenderModel) -> bytes:
     heading_size = int(tokens["heading_size_pt"])
     doc = Document()
     section = doc.sections[0]
+    # python-docx's template is US Letter; the PDF and the margins below are A4.
+    section.page_width, section.page_height = Mm(210), Mm(297)
     section.top_margin = section.bottom_margin = section.left_margin = section.right_margin = (
         Inches(model.margin_mm / 25.4)
     )
@@ -556,6 +654,16 @@ def render_docx(model: CvRenderModel) -> bytes:
     normal = doc.styles["Normal"]
     normal.font.name = font
     normal.font.size = Pt(body_size)
+    heading_style = doc.styles["Heading 1"]
+    heading_style.font.name = font
+    for theme_attribute in ("asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"):
+        # The template's theme fonts would otherwise win over the named font.
+        heading_style.element.rPr.rFonts.attrib.pop(qn(f"w:{theme_attribute}"), None)
+    heading_style.font.size = Pt(heading_size)
+    heading_style.font.bold = True
+    heading_style.font.color.rgb = accent
+    heading_style.paragraph_format.space_before = Pt(int(tokens["section_gap_pt"]) + 4)
+    heading_style.paragraph_format.space_after = Pt(3)
     alignment = 1 if tokens["title_align"] == "center" else 0
     title = doc.add_paragraph()
     title.alignment = alignment
@@ -576,9 +684,10 @@ def render_docx(model: CvRenderModel) -> bytes:
                 _add_run(contact, " | ", font)
             _add_linked_text(contact, item, font)
     # A4 width in inches minus margins, for the right-aligned date tab stop.
-    content_width_in = 8.27 - 2 * model.margin_mm / 25.4
+    content_width_in = 210 / 25.4 - 2 * model.margin_mm / 25.4
     for rendered_section in model.sections:
-        p = doc.add_paragraph()
+        # A real Heading style, so Word's navigation pane and screen readers see sections.
+        p = doc.add_paragraph(style="Heading 1")
         p.paragraph_format.keep_with_next = True
         r = p.add_run(rendered_section.title)
         r.bold = True
@@ -668,9 +777,15 @@ def _letters_only(value: str) -> str:
     return re.sub(r"[\W_]+", "", str(value)).casefold()
 
 
+# A page (other than the last) whose text stops short of this share of the printable
+# height is mostly empty: the content did not fill it.
+_MAX_PAGE_GAP = 0.4
+
+
 def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
     """Re-read a rendered PDF and report what it proves: content reads back in
-    order, links are real, and every section shares a page with its first entry."""
+    order, links are real, every section starts with its first entry and no page
+    is left mostly empty."""
     import fitz
 
     # The read-back uses the section titles the CV itself has, so a renamed
@@ -705,18 +820,45 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
         for section in model.sections:
             if not section.entries:
                 continue
-            # Checked per rendered line (not one joined block): a bullet line's
-            # literal "•" glyph would otherwise break a contiguous substring match.
-            first_lines = [_normalize_text(line) for line in entry_render_lines(section.entries[0])]
+            # The section title and the first line of its first entry share a page, so a
+            # heading is never stranded at the bottom of one. Checked per rendered line
+            # (not one joined block): a bullet line's literal "•" glyph would otherwise
+            # break a contiguous substring match.
+            first_line = next(
+                (_normalize_text(line) for line in entry_render_lines(section.entries[0])), ""
+            )
             page_breaks_ok = page_breaks_ok and any(
-                section.title in text and all(line in text for line in first_lines)
-                for text in page_text
+                section.title in text and first_line in text for text in page_text
+            )
+        margin = model.margin_mm * 72 / 25.4
+        for number, page in enumerate(rendered):
+            if number == rendered.page_count - 1:
+                break
+            printable = page.rect.height - 2 * margin
+            lowest = max((block[3] for block in page.get_text("blocks")), default=margin)
+            page_breaks_ok = page_breaks_ok and (
+                page.rect.height - margin - lowest <= _MAX_PAGE_GAP * printable
             )
         artifact_links = {link.get("uri") for page in rendered for link in page.get_links()}
+    unsupported = model.unsupported_characters
     return CvArtifactEvidence(
-        reads_back="pass" if expected_structure == actual_structure else "fail",
+        reads_back="pass" if expected_structure == actual_structure and not unsupported else "fail",
         links="pass"
         if all(link in extracted and link in artifact_links for link in links)
         else "fail",
         page_breaks="pass" if page_breaks_ok else "fail",
+        unread_sections=_unread_sections(model, expected_structure, actual_structure),
+        unsupported_characters=unsupported,
     )
+
+
+def _unread_sections(model: CvRenderModel, expected: list, actual: list) -> list[str]:
+    """Titles of the sections whose text did not come back from the PDF as written."""
+    if expected == actual:
+        return []
+    found = set(actual)
+    missing = [i for i, item in enumerate(expected) if item not in found]
+    if not missing:
+        # Everything is there but not in the written order: name the ones out of place.
+        missing = [i for i, item in enumerate(expected) if i >= len(actual) or actual[i] != item]
+    return [model.sections[i].title for i in missing]

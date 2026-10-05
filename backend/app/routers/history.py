@@ -18,8 +18,10 @@ from app.schemas.history import (
     WorkspaceSummary,
     WorkspaceUpdateRequest,
 )
+from app.schemas.tools import CoverLetterEditRequest, CoverLetterEditResponse
 from app.services.application_drafts import DRAFTS_TOOL_NAME
 from app.services.applications import clear_selected_run
+from app.services.cover_letter_edits import LetterEditMismatch, apply_letter_edit
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
@@ -159,7 +161,11 @@ def export_pdf(
 
     from fastapi.responses import StreamingResponse
 
-    from app.services.pdf_export import generate_cover_letter_pdf, generate_interview_pdf
+    from app.services.pdf_export import (
+        generate_cover_letter_pdf,
+        generate_interview_pdf,
+        pdf_download_name,
+    )
 
     run = (
         db.query(ToolRun)
@@ -176,10 +182,10 @@ def export_pdf(
 
     if run.tool_name == "cover-letter":
         pdf_bytes = generate_cover_letter_pdf(result)
-        filename = "cover-letter.pdf"
+        filename = pdf_download_name(run.label, "cover-letter")
     elif run.tool_name == "interview":
         pdf_bytes = generate_interview_pdf(result)
-        filename = "interview-qa.pdf"
+        filename = pdf_download_name(run.label, "interview-qa")
     else:
         raise HTTPException(
             status_code=400,
@@ -191,6 +197,27 @@ def export_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.patch("/{history_id}/letter", response_model=CoverLetterEditResponse)
+def save_letter_edit(
+    history_id: str,
+    body: CoverLetterEditRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Save the person's edits to a cover letter so a reload and every export (TXT, MD,
+    PDF) use the edited version. Edits change text only; the run keeps its lineage."""
+    run = _get_run(db, history_id, current_user.id)
+    if run.tool_name != "cover-letter":
+        raise HTTPException(status_code=400, detail="Only cover letter runs have an editable letter")
+    try:
+        # A new dict: the JSON column is only written when its value is reassigned.
+        run.result_payload = apply_letter_edit(run.result_payload or {}, body)
+    except LetterEditMismatch as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    db.commit()
+    return CoverLetterEditResponse(full_text=run.result_payload["full_text"])
 
 
 @router.delete("/{history_id}", response_model=DeletedResponse)

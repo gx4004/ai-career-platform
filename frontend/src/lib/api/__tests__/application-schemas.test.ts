@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applicationDetailSchema,
+  applicationDetailsUpdateSchema,
   applicationListSchema,
   applicationStatusSchema,
   applicationUpdateSchema,
@@ -80,5 +81,24 @@ describe('application contracts', () => {
     }).success).toBe(false)
     expect(importJobUrlSchema.safeParse({ url: 'file:///private/job' }).success).toBe(false)
     expect(importJobUrlSchema.safeParse({ url: `https://example.com/${'x'.repeat(2_100)}` }).success).toBe(false)
+  })
+})
+
+describe('application details update contract', () => {
+  const base = {
+    full_name: '', email: '', phone: '', linkedin: '', website: '', location: '',
+    work_authorization: '', visa_sponsorship: '', notice_period: '', salary_expectation: '', relocation: '',
+  }
+  it('accepts empty, bare-host and http(s) links and an email', () => {
+    for (const link of ['', 'linkedin.com/in/ada', 'https://ada.dev', 'localhost:3000/me', 'ada.dev:8080/x']) {
+      expect(applicationDetailsUpdateSchema.safeParse({ ...base, linkedin: link, website: link }).success).toBe(true)
+    }
+    expect(applicationDetailsUpdateSchema.safeParse({ ...base, email: 'ada@example.com' }).success).toBe(true)
+  })
+  it('rejects script schemes and a malformed email like the API does', () => {
+    for (const link of ['javascript:alert(1)', 'javascript:1/alert(1)', 'javascript:0', 'data:1/x', 'ftp://a.dev', 'a b.dev']) {
+      expect(applicationDetailsUpdateSchema.safeParse({ ...base, website: link }).success).toBe(false)
+    }
+    expect(applicationDetailsUpdateSchema.safeParse({ ...base, email: 'not-an-email' }).success).toBe(false)
   })
 })

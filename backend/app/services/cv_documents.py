@@ -44,6 +44,14 @@ class InvalidTailoringProposalError(Exception):
     pass
 
 
+class CvDocumentConflictError(Exception):
+    """The document was saved by someone else after the caller loaded it."""
+
+    def __init__(self, current: CvDocument):
+        super().__init__("CV document changed since it was loaded")
+        self.current = current
+
+
 def _query(db: Session, user_id: str):
     return (
         db.query(CvDocument)
@@ -68,14 +76,21 @@ def _clamp_sections(sections: list[dict]) -> list[dict]:
             entry = dict(entry)
             for key, limit in _ENTRY_TEXT_LIMITS.items():
                 if isinstance(entry.get(key), str):
-                    entry[key] = entry[key][:limit]
+                    entry[key] = entry[key][:limit].strip()
+            if not entry.get("body"):
+                # Stored before blank text was refused: show something instead of failing.
+                entry["body"] = entry.get("heading") or "Untitled"
             bullets = [b for b in (entry.get("bullets") or []) if isinstance(b, str)][:30]
             if sum(len(b) + 1 for b in bullets) > _ENTRY_TEXT_LIMITS["body"]:
                 bullets = []  # the body text is kept; bullets that cannot fit are dropped
             entry["bullets"] = bullets
             entries.append(entry)
         clamped.append(
-            {**section, "title": str(section.get("title", ""))[:120] or "Section", "entries": entries}
+            {
+                **section,
+                "title": str(section.get("title", ""))[:120].strip() or "Section",
+                "entries": entries,
+            }
         )
     return clamped
 
@@ -435,7 +450,20 @@ def update_document(
     sections=None,
     style: CvStyle | None = None,
     header: CvHeader | None = None,
+    expected_updated_at: datetime | None = None,
 ):
+    if expected_updated_at is not None:
+        # Lock the row, then compare: two saves cannot both pass the check.
+        stored = (
+            db.query(CvDocument)
+            .filter(CvDocument.id == document.id)
+            .with_for_update()
+            .populate_existing()
+            .one()
+        )
+        if _as_utc(stored.updated_at) != _as_utc(expected_updated_at):
+            db.rollback()
+            raise CvDocumentConflictError(get_document(db, document.id, document.user_id))
     if name is not None:
         document.name = name
     if header is not None:
@@ -453,6 +481,11 @@ def update_document(
         document.style = style.model_dump()
     db.commit()
     return get_document(db, document.id, document.user_id)
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Compare timestamps from a database that may drop the timezone."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def create_variant(
@@ -560,6 +593,40 @@ def restore_variant(db: Session, document: CvDocument, variant_id: str) -> CvDoc
     document.sections = deepcopy(variant.sections)
     db.commit()
     return get_document(db, document.id, document.user_id)
+
+
+def _find_variant(document: CvDocument, variant_id: str) -> CvVariant:
+    variant = next((item for item in document.variants if item.id == variant_id), None)
+    if variant is None:
+        raise CvDocumentNotFoundError
+    return variant
+
+
+def get_variant(document: CvDocument, variant_id: str) -> CvVariant:
+    return _find_variant(document, variant_id)
+
+
+def update_variant(
+    db: Session, document: CvDocument, variant_id: str, *, name=None, target_role=None
+) -> CvVariant:
+    variant = _find_variant(document, variant_id)
+    if name is not None and name != variant.name:
+        if any(item.name == name for item in document.variants):
+            raise DuplicateVariantNameError
+        variant.name = name
+    if target_role is not None:
+        variant.target_role = target_role
+    db.commit()
+    db.refresh(variant)
+    return variant
+
+
+def delete_variant(db: Session, document: CvDocument, variant_id: str) -> None:
+    variant = _find_variant(document, variant_id)
+    # Applications that picked this version fall back to "no CV selected".
+    clear_selected_variants(db, document, [variant.id])
+    document.variants.remove(variant)
+    db.commit()
 
 
 def delete_document(db: Session, document: CvDocument) -> None:

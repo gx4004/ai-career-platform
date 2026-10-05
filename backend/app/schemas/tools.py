@@ -4,7 +4,15 @@ import json
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.validation import utf8_size
 
@@ -284,6 +292,33 @@ class CoverLetterSection(BaseModel):
     why_this_paragraph: str
     requirements_used: list[str]
     evidence_used: list[str] = []
+
+
+class CoverLetterEditRequest(BaseModel):
+    """The person's edited paragraphs for a saved cover letter (PATCH /history/{id}/letter).
+
+    The paragraph structure (and each paragraph's rationale) belongs to the generated
+    letter, so an edit may change text only: it must carry the same number of body
+    paragraphs the run has.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    opening: str = Field(..., max_length=20_000)
+    body_points: list[str] = Field(..., max_length=20)
+    closing: str = Field(..., max_length=20_000)
+
+    @field_validator("body_points")
+    @classmethod
+    def _bounded_paragraphs(cls, value: list[str]) -> list[str]:
+        if any(len(item) > 20_000 for item in value):
+            raise ValueError("a paragraph is too long (20,000 characters at most)")
+        return value
+
+
+class CoverLetterEditResponse(BaseModel):
+    saved: bool = True
+    full_text: str
 
 
 class CoverLetterCustomizationNote(BaseModel):

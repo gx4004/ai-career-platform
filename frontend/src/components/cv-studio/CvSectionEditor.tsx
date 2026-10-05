@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2, X } from 'lucide-react'
 import {
-  Badge, Button, Cluster, ConfirmDialog, Disclosure, EmptyState, Field, Input, Section, Stack, Textarea,
+  Badge, Button, Card, Cluster, ConfirmDialog, Disclosure, EmptyState, Field, Input, Section, Stack, Textarea,
 } from '#/components/kit'
 import type { CvEntry, CvSection } from '#/lib/api/schemas'
 import {
@@ -73,11 +73,10 @@ function StructuredEntry({ section, entry, index, onSections }: {
   )
 
   return (
-    <article aria-label={cardTitle}>
+    <Card aria-label={cardTitle} padding="sm">
       <Section
         headingLevel={3}
         size="sm"
-        className="cvs-entry"
         title={cardTitle}
         actions={<EntryTools
           name={cardTitle} index={index} count={section.entries.length}
@@ -120,7 +119,7 @@ function StructuredEntry({ section, entry, index, onSections }: {
           </div>
         </Stack>
       </Section>
-    </article>
+    </Card>
   )
 }
 
@@ -156,22 +155,23 @@ function FreeformEntry({ section, entry, index, onSections, inline }: {
     )
   }
   return (
-    <Section
-      headingLevel={3}
-      size="sm"
-      className="cvs-entry"
-      title={`Entry ${index + 1}`}
-      actions={<EntryTools
-        name={label} index={index} count={section.entries.length}
-        onMove={(delta) => onSections((s) => moveEntry(s, section.id, index, delta))}
-        onDelete={() => onSections((s) => removeEntry(s, section.id, entry.id))}
-      />}
-    >
-      <Stack gap={3}>
-        {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
-        {text}
-      </Stack>
-    </Section>
+    <Card padding="sm">
+      <Section
+        headingLevel={3}
+        size="sm"
+        title={`Entry ${index + 1}`}
+        actions={<EntryTools
+          name={label} index={index} count={section.entries.length}
+          onMove={(delta) => onSections((s) => moveEntry(s, section.id, index, delta))}
+          onDelete={() => onSections((s) => removeEntry(s, section.id, entry.id))}
+        />}
+      >
+        <Stack gap={3}>
+          {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
+          {text}
+        </Stack>
+      </Section>
+    </Card>
   )
 }
 

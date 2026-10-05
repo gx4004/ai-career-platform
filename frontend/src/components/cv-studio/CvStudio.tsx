@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Download, FileUp, LayoutTemplate, Layers, MoreHorizontal, Sparkles, Trash2 } from 'lucide-react'
 import {
   Badge, Button, Cluster, ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
-  DropdownMenuTrigger, EmptyState, ErrorState, Input, Notice, Page, PageHeader, Select, Sheet, SheetBody,
+  DropdownMenuTrigger, EmptyState, ErrorState, Input, List, Notice, Page, PageHeader, Select, Sheet, SheetBody,
   SheetContent, SheetHeader, SheetTitle, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger,
 } from '#/components/kit'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
@@ -30,7 +30,7 @@ import { CvTailorDialog } from './CvTailorDialog'
 import { CvVersionPreviewDialog } from './CvVersionPreviewDialog'
 import { CvVersionsPanel } from './CvVersionsPanel'
 import type { VersionExport } from './CvVersionsPanel'
-import { VersionExportUnavailable, fetchVariantArtifactBlob } from './cvApi'
+import { VARIANT_EXPORT_READY, VersionExportUnavailable, fetchVariantArtifactBlob } from './cvApi'
 import { LIST_KEY, useCvDraft } from './useCvDraft'
 
 /** What the side panel shows: a studio tool, or the editor of the section clicked on the paper. */
@@ -77,11 +77,7 @@ function StudioSkeleton() {
             <Skeleton variant="block" width="6rem" height={44} />
           </div>
           <div className="cvs-side__frame">
-            {[0, 1, 2, 3].map((row) => (
-              <div key={row} className="cvs-sec">
-                <div className="cvs-sec__head"><span /><Skeleton variant="block" width="9rem" height={18} /></div>
-              </div>
-            ))}
+            <List framed={false}><Skeleton variant="row" as="li" count={4} /></List>
           </div>
         </div>
         <div className="cvs-desk">
@@ -382,7 +378,7 @@ export function CvStudio() {
       ) : tool === 'versions' ? (
         <CvVersionsPanel
           variants={draft.variants} currentSections={draft.sections} busy={dirty} exporting={versionExport}
-          onSave={saveVersion} onRestore={restoreVersion} onPreview={setPreviewVariant} onExport={(variant, format) => void exportVersion(variant, format)}
+          onSave={saveVersion} onRestore={restoreVersion} onPreview={setPreviewVariant} onExport={VARIANT_EXPORT_READY ? (variant, format) => void exportVersion(variant, format) : undefined}
         />
       ) : (
         <CvOutline
@@ -505,7 +501,9 @@ export function CvStudio() {
               action={notice.variant ? (
                 <Cluster gap={2}>
                   <Button type="button" size="sm" variant="secondary" onClick={() => { setPreviewVariant(notice.variant ?? null); setNotice(null) }}>Preview</Button>
-                  <Button type="button" size="sm" variant="secondary" loading={versionExport?.variantId === notice.variant.id && versionExport.format === 'pdf'} onClick={() => notice.variant && void exportVersion(notice.variant, 'pdf')}>Export PDF</Button>
+                  {VARIANT_EXPORT_READY ? (
+                    <Button type="button" size="sm" variant="secondary" loading={versionExport?.variantId === notice.variant.id && versionExport.format === 'pdf'} onClick={() => notice.variant && void exportVersion(notice.variant, 'pdf')}>Export PDF</Button>
+                  ) : null}
                 </Cluster>
               ) : undefined}
             >
@@ -543,7 +541,7 @@ export function CvStudio() {
       <CvVersionPreviewDialog
         variant={previewVariant} documentName={draft.name} style={draft.style} catalog={catalog} currentSections={draft.sections}
         exporting={versionExport} canRestore={!dirty} error={actionError}
-        onOpenChange={(next) => { if (!next) setPreviewVariant(null) }} onExport={(variant, format) => void exportVersion(variant, format)} onRestore={restoreFromPreview}
+        onOpenChange={(next) => { if (!next) setPreviewVariant(null) }} onExport={VARIANT_EXPORT_READY ? (variant, format) => void exportVersion(variant, format) : undefined} onRestore={restoreFromPreview}
       />
       <ConfirmDialog
         open={confirmOpen} onOpenChange={setConfirmOpen} pending={deleting}

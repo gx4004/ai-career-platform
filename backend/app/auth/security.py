@@ -134,11 +134,6 @@ def decode_access_claims(token: str) -> dict | None:
     return {"sub": payload["sub"], "tv": payload.get("tv", 0)}
 
 
-def decode_token(token: str) -> str | None:
-    claims = decode_access_claims(token)
-    return claims["sub"] if claims else None
-
-
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
