@@ -451,6 +451,15 @@ class CvImportClaim(BaseModel):
     content: dict[str, str] = Field(min_length=1)
     provenance: Literal["imported"]
 
+    @field_validator("content")
+    @classmethod
+    def _bounded_content(cls, value: dict[str, str]) -> dict[str, str]:
+        # The parser's longest field is a body (MAX 5,000); accept reaches the
+        # evidence bound by clamping, so only an absurd payload is refused here.
+        if len(value) > 20 or any(len(key) > 64 or len(text) > 5_000 for key, text in value.items()):
+            raise ValueError("claim content is too large")
+        return value
+
 
 class CvImportEntry(_BodyFollowsBullets, BaseModel):
     model_config = ConfigDict(extra="forbid")

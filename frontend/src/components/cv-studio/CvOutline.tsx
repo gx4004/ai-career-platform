@@ -1,12 +1,13 @@
 import { Fragment, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Eye, EyeOff, GripVertical, Plus } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Eye, EyeOff, GripVertical, Plus, UserRound } from 'lucide-react'
 import {
   Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, EmptyState, List, Row, RowActions,
   RowBody, RowLeading, RowReveal, RowSubtitle, RowTitle, Stack,
 } from '#/components/kit'
-import type { CvSection } from '#/lib/api/schemas'
+import type { CvHeader, CvSection } from '#/lib/api/schemas'
 import { sectionLabels } from '#/lib/cv-studio/editor'
+import { describeHeader } from '#/lib/cv-studio/header'
 
 const ADDABLE_KINDS: CvSection['kind'][] = [
   'summary', 'experience', 'education', 'skills', 'projects', 'achievements', 'certifications', 'interview-evidence', 'custom',
@@ -16,12 +17,18 @@ const ADDABLE_KINDS: CvSection['kind'][] = [
  * Every section as a row, including hidden ones: open, reorder (drag the grip, or the up and down buttons),
  * show or hide, add. The open section unfolds in place: its row gets a lemon strip and `editor` below it.
  */
-export function CvOutline({ sections, activeId, editor, onMove, onMoveTo, onToggle, onAdd, onOpen, onClose }: {
+export function CvOutline({ sections, activeId, editor, header, documentName, headerOpen, headerEditor, onOpenHeader, onMove, onMoveTo, onToggle, onAdd, onOpen, onClose }: {
   sections: CvSection[]
   /** The section whose editor is unfolded, if any. */
   activeId?: string
   /** The editor of `activeId`, shown inside its row. */
   editor?: ReactNode
+  /** The document header (name, headline, contact details): a row above the sections, with its own editor. */
+  header?: CvHeader
+  documentName?: string
+  headerOpen?: boolean
+  headerEditor?: ReactNode
+  onOpenHeader?: () => void
   onMove: (index: number, delta: -1 | 1) => void
   /** Drag and drop: move the section at `from` to `to`. */
   onMoveTo: (from: number, to: number) => void
@@ -50,12 +57,35 @@ export function CvOutline({ sections, activeId, editor, onMove, onMoveTo, onTogg
     setDragOver(null)
   }
 
+  const headerRow = onOpenHeader ? (
+    <>
+      <Row className="cvs-sec" selected={headerOpen} interactive={!headerOpen} aria-current={headerOpen ? 'true' : undefined} data-testid="cv-header-row">
+        <RowLeading className="cvs-sec__grip cvs-sec__grip--static" aria-hidden="true"><UserRound /></RowLeading>
+        <RowBody>
+          {headerOpen
+            ? <RowTitle>Header</RowTitle>
+            : <RowTitle asChild><button type="button" onClick={onOpenHeader}>Header</button></RowTitle>}
+          <RowSubtitle>{describeHeader(header, documentName ?? '')}</RowSubtitle>
+        </RowBody>
+        <RowActions reveal={false}>
+          {headerOpen ? (
+            <Button type="button" iconOnly variant="ghost" size="sm" aria-label="All sections" aria-expanded="true" onClick={onClose}>
+              <ChevronDown aria-hidden="true" />
+            </Button>
+          ) : <ChevronRight className="cvs-sec__chevron" aria-hidden="true" />}
+        </RowActions>
+      </Row>
+      {headerOpen ? <Row className="cvs-sec__editor">{headerEditor}</Row> : null}
+    </>
+  ) : null
+
   return (
     <Stack gap={3}>
-      {sections.length === 0 ? (
+      {sections.length === 0 && !headerRow ? (
         <EmptyState size="inline" title="No sections yet. Add your first one below." />
       ) : (
         <List framed={false} aria-label="Sections in your CV">
+          {headerRow}
           {sections.map((section, index) => {
             const name = nameOf(section)
             const open = section.id === activeId
@@ -114,6 +144,7 @@ export function CvOutline({ sections, activeId, editor, onMove, onMoveTo, onTogg
           })}
         </List>
       )}
+      {sections.length === 0 && headerRow ? <EmptyState size="inline" title="No sections yet. Add your first one below." /> : null}
       <p className="kit-sr-only" role="status" aria-live="polite">{announcement}</p>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

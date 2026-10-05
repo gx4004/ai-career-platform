@@ -1,7 +1,8 @@
 import logging
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 
@@ -63,3 +64,64 @@ def get_db():
         raise
     finally:
         db.close()
+
+
+# ── Scheduler leader guard (CON-9) ──
+#
+# The recurring jobs live in the web process. With more than one instance every
+# one of them would ingest and expire at once, so only the instance that holds
+# this PostgreSQL session-level advisory lock starts them. SQLite (local dev) is
+# single-process by construction and is always the leader.
+_SCHEDULER_LEADER_LOCK_KEY = 0x43574B53  # "CWKS"
+_leader_connection = None
+
+
+def try_acquire_scheduler_leader() -> bool:
+    """Take the leader lock for the life of this process; True when we lead.
+
+    Fails open (returns True with a warning) if the lock cannot be attempted, so a
+    database blip at boot does not silently disable retention on a single
+    instance; duplicate runs are idempotent and only waste fetches.
+    """
+    global _leader_connection
+    if _is_sqlite or _leader_connection is not None:
+        return True
+    connection = None
+    try:
+        # A dedicated, never-pooled, autocommit connection: the lock lives as long
+        # as this session, and no open transaction can be reaped by
+        # idle_in_transaction_session_timeout.
+        lock_engine = create_engine(
+            settings.DATABASE_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT"
+        )
+        connection = lock_engine.connect()
+        acquired = bool(
+            connection.execute(
+                text("SELECT pg_try_advisory_lock(:key)"), {"key": _SCHEDULER_LEADER_LOCK_KEY}
+            ).scalar()
+        )
+    except Exception as exc:
+        logger.warning(
+            "scheduler leader election failed; running schedulers error_type=%s",
+            type(exc).__name__,
+        )
+        if connection is not None:
+            connection.close()
+        return True
+    if not acquired:
+        connection.close()
+        return False
+    _leader_connection = connection
+    return True
+
+
+def release_scheduler_leader() -> None:
+    global _leader_connection
+    if _leader_connection is not None:
+        try:
+            _leader_connection.close()  # closing the session releases the lock
+        except Exception as exc:
+            logger.warning(
+                "scheduler leader release failed error_type=%s", type(exc).__name__
+            )
+        _leader_connection = None

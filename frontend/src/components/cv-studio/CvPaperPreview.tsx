@@ -6,7 +6,8 @@ import {
   Button, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Notice, Skeleton,
 } from '#/components/kit'
 import { fetchCvArtifactBlob } from '#/lib/api/client'
-import type { CvSection, CvStyle, CvStyleCatalog } from '#/lib/api/schemas'
+import type { CvHeader, CvSection, CvStyle, CvStyleCatalog } from '#/lib/api/schemas'
+import { buildPaperHeader, splitLinks } from '#/lib/cv-studio/header'
 import { buildPreviewSections, resolvePreviewStyle, splitTwoColumn } from '#/lib/cv-studio/preview'
 import type { PreviewSection } from '#/lib/cv-studio/preview'
 
@@ -51,13 +52,59 @@ function PaperSection({ section, activeId, onEdit }: { section: PreviewSection }
   )
 }
 
+/** One contact item; a link is drawn blue like in the export (never a real anchor: a click on the paper opens the editor). */
+function ContactItem({ text }: { text: string }) {
+  return <>{splitLinks(text).map((part, index) => part.link ? <span key={index} className="cvp-link">{part.text}</span> : part.text)}</>
+}
+
+/**
+ * The name, headline and contact line, laid out like the export's header. With `onEdit` it is the way
+ * into the header editor, like a section. With nothing set it is just the document name, as before.
+ */
+function PaperHeader({ header, name, align, stacked, active, onEdit }: {
+  header?: CvHeader; name: string; align: 'left' | 'center'; stacked: boolean; active?: boolean; onEdit?: () => void
+}) {
+  const shown = buildPaperHeader(header, name)
+  const detailed = Boolean(shown.headline) || shown.contact.length > 0
+  const editable = onEdit ? {
+    role: 'button', tabIndex: 0, 'aria-label': 'Edit header', 'aria-pressed': Boolean(active),
+    onClick: onEdit,
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit() }
+    },
+  } : {}
+  return (
+    <div
+      className={`cvp-header${detailed ? ' cvp-header--detailed' : ''}${onEdit ? ' cvp-section--editable' : ''}`}
+      data-testid="cv-header" {...editable}
+    >
+      <h2 className="cvp-title" style={{ textAlign: align }}>{shown.title}</h2>
+      {shown.headline ? <p className="cvp-headline" style={{ textAlign: align }}>{shown.headline}</p> : null}
+      {shown.contact.length > 0 ? (
+        <p className="cvp-contact" style={{ textAlign: align }}>
+          {shown.contact.map((item, index) => (
+            <span key={index}>
+              {index > 0 ? (stacked ? <br /> : ' | ') : null}
+              <ContactItem text={item} />
+            </span>
+          ))}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 /**
  * Live HTML rendering of the unsaved draft, scaled to fit its column (never
  * above 100%), using the design values from the backend style catalog; the
  * exported PDF remains the source of truth. Each section is a way into its editor.
  */
-export function CvPaper({ name, sections, style, catalog, activeId, onEdit }: {
+export function CvPaper({ name, header, sections, style, catalog, activeId, onEdit, headerActive, onEditHeader }: {
   name: string; sections: CvSection[]; style: CvStyle; catalog: CvStyleCatalog
+  /** The candidate's name, headline and contact details; the paper opens with the document name when none is set. */
+  header?: CvHeader
+  headerActive?: boolean
+  onEditHeader?: () => void
 } & EditTarget) {
   const frameRef = useRef<HTMLDivElement>(null)
   const paperRef = useRef<HTMLDivElement>(null)
@@ -93,7 +140,11 @@ export function CvPaper({ name, sections, style, catalog, activeId, onEdit }: {
     '--cvp-gap': `${effective.sectionGapPt}pt`,
     transform: `scale(${scale})`,
   } as CSSProperties
-  const title = <h2 className="cvp-title" style={{ textAlign: effective.titleAlign }}>{name.trim() || 'Untitled CV'}</h2>
+  const title = (
+    <PaperHeader
+      header={header} name={name} align={effective.titleAlign} stacked={twoColumn} active={headerActive} onEdit={onEditHeader}
+    />
+  )
   const pages = Math.max(1, Math.ceil((paperHeight - 1) / PAGE_HEIGHT_PX))
   const { side, main } = splitTwoColumn(preview, effective.sidebarKinds)
 

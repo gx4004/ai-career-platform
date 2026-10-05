@@ -2,7 +2,7 @@ import { Download, RotateCcw } from 'lucide-react'
 import {
   Button, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, MetaRow, Notice,
 } from '#/components/kit'
-import type { CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
+import type { CvHeader, CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
 import { CvPaper } from './CvPaperPreview'
 import { describeDiff, diffVersion } from './versionDiff'
 import type { VersionExport } from './CvVersionsPanel'
@@ -10,10 +10,12 @@ import type { VersionExport } from './CvVersionsPanel'
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** A saved version on its paper, read only, in the CV's current style: look before you restore or send it. */
-export function CvVersionPreviewDialog({ variant, documentName, style, catalog, currentSections, exporting, canRestore, error, onOpenChange, onExport, onRestore }: {
+export function CvVersionPreviewDialog({ variant, documentName, header, style, catalog, currentSections, exporting, canRestore, error, onOpenChange, onExport, onRestore }: {
   /** Open while set. */
   variant: CvVariant | null
   documentName: string
+  /** The document's header: a saved version holds sections only, and its exports carry the current header. */
+  header?: CvHeader
   style: CvStyle
   catalog: CvStyleCatalog
   currentSections: CvSection[]
@@ -50,7 +52,7 @@ export function CvVersionPreviewDialog({ variant, documentName, style, catalog, 
           {error ? <Notice tone="danger" className="cvs-preview__error">{error}</Notice> : null}
           {variant ? (
             <div className="cvs-preview">
-              <CvPaper name={documentName} sections={variant.sections} style={style} catalog={catalog} />
+              <CvPaper name={documentName} header={header} sections={variant.sections} style={style} catalog={catalog} />
             </div>
           ) : null}
         </DialogBody>

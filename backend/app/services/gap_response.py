@@ -13,6 +13,7 @@ from __future__ import annotations
 from app.models.gap_classification import GapClassification
 from app.schemas.development import RESPONSE_FOR_GAP
 from app.schemas.evidence_profile import EvidenceItemCreate
+from app.schemas.gap_classification import TRACE_DEMONSTRATED_IN, TRACE_VISIBLE_CHARACTERS
 from app.schemas.gap_response import (
     FirstPartyRoute,
     GapRecommendationSource,
@@ -21,8 +22,6 @@ from app.schemas.gap_response import (
 
 _CLAIM_PREFIX = "claim:"
 _REQUIREMENT_PREFIX = "listing_requirement:"
-_DEMONSTRATED_MARKER = ":demonstrated_in:"
-_SHORT_DOCUMENT_PREFIX = "visible_characters:"
 
 
 def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
@@ -37,7 +36,7 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
     trace = classification.cited_trace or []
 
     if gap_kind == "presentation_weakness" and any(
-        entry.startswith(_SHORT_DOCUMENT_PREFIX) for entry in trace
+        entry.startswith(TRACE_VISIBLE_CHARACTERS) for entry in trace
     ):
         # An empty or very short document has no substance to reword (D-110): it
         # needs content before wording matters.
@@ -66,7 +65,7 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
             ),
         )
 
-    if gap_kind == "uncaptured_evidence" and any(_DEMONSTRATED_MARKER in entry for entry in trace):
+    if gap_kind == "uncaptured_evidence" and any(TRACE_DEMONSTRATED_IN in entry for entry in trace):
         # The profile already demonstrates this requirement; saving it again would
         # only duplicate the fact. The gap is that the documents leave it out.
         return GapResponseOffer(

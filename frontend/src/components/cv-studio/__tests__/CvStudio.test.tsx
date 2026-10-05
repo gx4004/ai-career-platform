@@ -196,7 +196,7 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     await screen.findByTestId('cv-paper')
     fireEvent.click(within(panel()).getByRole('button', { name: 'Move Skills up' }))
     expect(screen.getByText('Skills moved to position 1 of 2.')).toBeTruthy()
-    expect(within(paper()).getAllByRole('button').map((section) => section.getAttribute('aria-label'))).toEqual(['Edit Skills', 'Edit Experience'])
+    expect(within(paper()).getAllByRole('button').map((section) => section.getAttribute('aria-label'))).toEqual(['Edit header', 'Edit Skills', 'Edit Experience'])
     fireEvent.click(within(panel()).getByRole('button', { name: 'Hide Skills' }))
     expect(within(paper()).queryByText('Skills')).toBeNull()
     await waitFor(() => expect(lastPatch()?.sections.map((s: { id: string; position: number; visible: boolean }) => [s.id, s.position, s.visible]))
@@ -301,6 +301,88 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     fireEvent.change(await screen.findByLabelText('Your CVs'), { target: { value: 'd2' } })
     await waitFor(() => expect((screen.getByLabelText('Document name') as HTMLInputElement).value).toBe('Research CV'))
     expect(api.getCvDocument).toHaveBeenCalledWith('d2')
+  })
+})
+
+describe('CV Studio document header', { timeout: 15_000 }, () => {
+  const header = {
+    name: 'Ada Lovelace', headline: 'Analyst and Mathematician', email: 'ada@example.com', phone: '+44 20 7946 0958',
+    location: 'London, UK', links: ['https://github.com/ada'],
+  }
+  const withHeader = () => {
+    const doc = { ...document, header }
+    api.listCvDocuments.mockResolvedValue({ items: [doc] })
+    api.getCvDocument.mockResolvedValue(doc)
+  }
+
+  it('leaves the paper as it was while the header is empty: the title is the document name', async () => {
+    view()
+    await screen.findByTestId('cv-paper')
+    const shown = within(paper()).getByTestId('cv-header')
+    expect(within(shown).getByRole('heading', { name: 'Principal CV' })).toBeTruthy()
+    expect(shown.className).not.toContain('cvp-header--detailed')
+    expect(shown.querySelector('.cvp-headline, .cvp-contact')).toBeNull()
+  })
+
+  it('draws name, headline and the contact line like the export, links blue', async () => {
+    withHeader()
+    view()
+    await screen.findByTestId('cv-paper')
+    const shown = within(paper()).getByTestId('cv-header')
+    expect(within(shown).getByRole('heading', { name: 'Ada Lovelace' })).toBeTruthy()
+    expect(shown.querySelector('.cvp-headline')?.textContent).toBe('Analyst and Mathematician')
+    expect(shown.querySelector('.cvp-contact')?.textContent).toBe('ada@example.com | +44 20 7946 0958 | London, UK | https://github.com/ada')
+    expect(shown.querySelector('.cvp-link')?.textContent).toBe('https://github.com/ada')
+  })
+
+  it('stacks the contact items in a two-column template, as the export does', async () => {
+    withHeader()
+    const doc = { ...document, header, style: { ...style, template_id: 'modern-two-column' as const } }
+    api.listCvDocuments.mockResolvedValue({ items: [doc] })
+    api.getCvDocument.mockResolvedValue(doc)
+    view()
+    await screen.findByTestId('cv-paper')
+    const contact = within(paper()).getByTestId('cv-header').querySelector('.cvp-contact')!
+    expect(contact.querySelectorAll('br')).toHaveLength(3)
+    expect(contact.textContent).not.toContain('|')
+  })
+
+  it('opens the header editor from the paper and from the Header row, updates live and autosaves', async () => {
+    withHeader()
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit header' }))
+    expect(within(panel()).getByRole('heading', { name: 'Edit header' })).toBeTruthy()
+    expect(within(paper()).getByRole('button', { name: 'Edit header' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.change(within(panel()).getByLabelText(/^Headline/), { target: { value: 'Countess of Computing' } })
+    expect(within(paper()).getByTestId('cv-header').querySelector('.cvp-headline')?.textContent).toBe('Countess of Computing')
+    fireEvent.change(within(panel()).getByLabelText(/^Links/), { target: { value: 'https://example.com/a\nhttps://example.com/b' } })
+    expect(within(paper()).getByTestId('cv-header').querySelectorAll('.cvp-link')).toHaveLength(2)
+    await waitFor(() => expect(lastPatch()?.header).toEqual({
+      ...header, headline: 'Countess of Computing', links: ['https://example.com/a', 'https://example.com/b'],
+    }), { timeout: 1500 })
+  })
+
+  it('removes a cleared field from the paper and saves it as null', async () => {
+    withHeader()
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit header' }))
+    fireEvent.change(within(panel()).getByLabelText(/^Email/), { target: { value: '' } })
+    expect(within(paper()).getByTestId('cv-header').querySelector('.cvp-contact')?.textContent).toBe('+44 20 7946 0958 | London, UK | https://github.com/ada')
+    fireEvent.change(within(panel()).getByLabelText(/^Name/), { target: { value: '' } })
+    expect(within(paper()).getByRole('heading', { name: 'Principal CV' })).toBeTruthy()
+    await waitFor(() => expect(lastPatch()?.header).toMatchObject({ name: null, email: null }), { timeout: 1500 })
+  })
+
+  it('lists the header first in Sections and opens its editor there', async () => {
+    withHeader()
+    view()
+    const list = await within(await screen.findByRole('complementary')).findByRole('list', { name: 'Sections in your CV' })
+    expect(within(list).getAllByRole('listitem')[0].textContent).toContain('Header')
+    expect(within(list).getAllByRole('listitem')[0].textContent).toContain('5 details')
+    fireEvent.click(within(list).getByRole('button', { name: 'Header' }))
+    expect(within(panel()).getByLabelText(/^Name/)).toBeTruthy()
+    fireEvent.click(within(panel()).getByRole('button', { name: 'All sections' }))
+    expect(within(panel()).queryByLabelText(/^Name/)).toBeNull()
   })
 })
 

@@ -1,13 +1,19 @@
+import asyncio
 import logging
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from typing import TypeVar
 
 import httpx
 from bs4 import BeautifulSoup
 
 from app.schemas.tools import ImportedJobResponse
-from app.services.outbound_target import resolve_public_target
+from app.services.outbound_target import ResolvedPublicTarget, resolve_public_target
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 # D-086/D-026: every fetch tier identifies itself honestly. This product does not
 # impersonate a browser to get past a source's technical controls, so the
@@ -29,6 +35,15 @@ _BS4_TIMEOUT = 5.0
 _PLAYWRIGHT_TIMEOUT_MS = 10_000
 _MAX_REDIRECTS = 5
 _MAX_RESPONSE_BYTES = 2_000_000
+# Anonymous callers get a smaller page budget: the import endpoint is open to
+# guests, and parsing is the expensive part of an attacker-sized page.
+GUEST_MAX_RESPONSE_BYTES = 1_000_000
+# A hostname lookup (blocking getaddrinfo) that has not answered by then is
+# treated as unresolvable, so one slow nameserver cannot hold a request open.
+RESOLVE_DEADLINE_SECONDS = 5.0
+# Lookups run in their own small pool so a hung resolver can never occupy the
+# default executor that the rest of the app shares.
+_RESOLVER_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="resolve")
 _MAX_BROWSER_REQUESTS = 50
 _MAX_BROWSER_BYTES = 10_000_000
 _HTML_CONTENT_TYPES = frozenset({"text/html", "application/xhtml+xml"})
@@ -56,18 +71,39 @@ class _UnparseableResponseError(httpx.HTTPError):
     """A response arrived, but it cannot be turned into a job posting."""
 
 
+class _ResponseTooLargeError(_UnparseableResponseError):
+    """The page exceeds the caller's size budget; a browser render will not fix that."""
+
+
 def _validate_url(url: str) -> None:
     resolve_public_target(url)
 
 
-async def _fetch_with_httpx(url: str) -> str:
-    resource = await _fetch_resource_with_httpx(url, _HTML_CONTENT_TYPES)
+async def _in_resolver_pool(function: Callable[..., _T], *args) -> _T:
+    """Run a blocking DNS-touching call off the event loop, bounded in time."""
+    loop = asyncio.get_running_loop()
+    try:
+        return await asyncio.wait_for(
+            loop.run_in_executor(_RESOLVER_POOL, function, *args),
+            timeout=RESOLVE_DEADLINE_SECONDS,
+        )
+    except TimeoutError as exc:
+        raise ValueError("URL hostname could not be resolved") from exc
+
+
+async def _resolve_target(url: str) -> ResolvedPublicTarget:
+    return await _in_resolver_pool(resolve_public_target, url)
+
+
+async def _fetch_with_httpx(url: str, max_bytes: int = _MAX_RESPONSE_BYTES) -> str:
+    resource = await _fetch_resource_with_httpx(url, _HTML_CONTENT_TYPES, max_bytes)
     return resource.content.decode("utf-8", errors="replace")
 
 
 async def _fetch_resource_with_httpx(
     url: str,
     allowed_content_types: frozenset[str],
+    max_bytes: int = _MAX_RESPONSE_BYTES,
 ) -> _FetchedResource:
     transport = httpx.AsyncHTTPTransport(retries=0)
     async with httpx.AsyncClient(
@@ -78,7 +114,7 @@ async def _fetch_resource_with_httpx(
     ) as client:
         current = url
         for _ in range(_MAX_REDIRECTS + 1):
-            target = resolve_public_target(current)
+            target = await _resolve_target(current)
             request = client.build_request(
                 "GET",
                 target.connect_url,
@@ -96,7 +132,7 @@ async def _fetch_resource_with_httpx(
                 if not location:
                     break
                 next_url = str(httpx.URL(current).join(location))
-                resolve_public_target(next_url)
+                await _resolve_target(next_url)
                 current = next_url
                 continue
             try:
@@ -113,15 +149,15 @@ async def _fetch_resource_with_httpx(
                     except ValueError as exc:
                         # A response we cannot even size is not a blocked fetch.
                         raise _UnparseableResponseError("Malformed content length") from exc
-                    if declared_bytes > _MAX_RESPONSE_BYTES:
+                    if declared_bytes > max_bytes:
                         await response.aclose()
-                        raise _UnparseableResponseError("Response is too large")
+                        raise _ResponseTooLargeError("Response is too large")
 
                 body = bytearray()
                 async for chunk in response.aiter_bytes():
                     body.extend(chunk)
-                    if len(body) > _MAX_RESPONSE_BYTES:
-                        raise _UnparseableResponseError("Response is too large")
+                    if len(body) > max_bytes:
+                        raise _ResponseTooLargeError("Response is too large")
                 return _FetchedResource(bytes(body), content_type)
             finally:
                 await response.aclose()
@@ -197,23 +233,30 @@ def _parse_job_data(html: str, url: str) -> ImportedJobResponse:
     )
 
 
-async def scrape_job_posting(url: str) -> ImportedJobResponse:
-    """Import one job posting: httpx + BS4, then Playwright, then the paste fallback."""
-    _validate_url(url)
+async def scrape_job_posting(
+    url: str, *, max_response_bytes: int = _MAX_RESPONSE_BYTES
+) -> ImportedJobResponse:
+    """Import one job posting: httpx + BS4, then Playwright, then the paste fallback.
+
+    Everything blocking (DNS, HTML parsing) runs off the event loop.
+    """
+    await _in_resolver_pool(_validate_url, url)
 
     html: str | None = None
+    too_large = False
 
     # Tier 1: BS4 with httpx (5s timeout)
     try:
-        html = await _fetch_with_httpx(url)
+        html = await _fetch_with_httpx(url, max_bytes=max_response_bytes)
     except Exception as exc:
+        too_large = isinstance(exc, _ResponseTooLargeError)
         logger.info(
             "BS4 scrape failed; trying Playwright fallback error_type=%s",
             type(exc).__name__,
         )
     else:
         try:
-            result = _parse_job_data(html, url)
+            result = await asyncio.to_thread(_parse_job_data, html, url)
         except Exception as exc:
             logger.info(
                 "BS4 parse failed; trying Playwright fallback error_type=%s",
@@ -227,11 +270,13 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
             # A thin page: try the bounded fallback tier, then the paste path.
             html = None
 
-    # Tier 2: Playwright fallback (10s timeout)
-    if html is None:
+    # Tier 2: Playwright fallback (10s timeout). Skipped for an over-budget page:
+    # the browser would fetch the same document under the default cap and so
+    # sidestep the smaller guest budget.
+    if html is None and not too_large:
         try:
             html = await _fetch_with_playwright(url)
-            rendered = _parse_job_data(html, url)
+            rendered = await asyncio.to_thread(_parse_job_data, html, url)
             if len(rendered.job_description or "") > _SUBSTANTIVE_DESCRIPTION_CHARS:
                 return rendered
             # Still thin after rendering (a login wall, an error page): not a posting.

@@ -12,8 +12,9 @@ import { useSession } from '#/hooks/useSession'
 import {
   deleteAllCvDocuments, deleteCvDocument, exportCvDocuments, fetchCvArtifactBlob, restoreCvVariant, snapshotCvVariant,
 } from '#/lib/api/client'
-import type { CvDocument, CvSection, CvStyle, CvVariant } from '#/lib/api/schemas'
+import type { CvDocument, CvHeader, CvSection, CvStyle, CvVariant } from '#/lib/api/schemas'
 import { addSection, moveSection, moveSectionTo } from '#/lib/cv-studio/editor'
+import { EMPTY_HEADER } from '#/lib/cv-studio/header'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
 import { CvAtsPanel, useCvQuality } from './CvAtsPanel'
@@ -25,7 +26,7 @@ import { CvImportDialog } from './CvImportDialog'
 import { CvOutline } from './CvOutline'
 import { CvPaper, ExactPdfDialog } from './CvPaperPreview'
 import { CvSaveStatus } from './CvSaveStatus'
-import { CvSectionEditor } from './CvSectionEditor'
+import { CvHeaderEditor, CvSectionEditor } from './CvSectionEditor'
 import { CvTailorDialog } from './CvTailorDialog'
 import { CvVersionPreviewDialog } from './CvVersionPreviewDialog'
 import { CvVersionsPanel } from './CvVersionsPanel'
@@ -33,9 +34,9 @@ import type { VersionExport } from './CvVersionsPanel'
 import { VARIANT_EXPORT_READY, VersionExportUnavailable, fetchVariantArtifactBlob } from './cvApi'
 import { LIST_KEY, useCvDraft } from './useCvDraft'
 
-/** What the side panel shows: a studio tool, or the editor of the section clicked on the paper. */
+/** What the side panel shows: a studio tool, or the editor of the header or of the section clicked on the paper. */
 type Tool = 'sections' | 'design' | 'checks' | 'versions'
-type Panel = Tool | { sectionId: string }
+type Panel = Tool | 'header' | { sectionId: string }
 /** The ATS check renders the real PDF, so it waits until typing settles. */
 const QUALITY_SETTLE_MS = 1500
 const TOOL_TITLES: Record<Tool, string> = { sections: 'Sections', design: 'Design', checks: 'ATS check', versions: 'Versions' }
@@ -151,13 +152,15 @@ export function CvStudio() {
 
   const editSections = (change: (sections: CvSection[]) => CvSection[]) =>
     edit((current) => ({ ...current, sections: change(current.sections) }))
+  const editHeader = (patch: Partial<CvHeader>) =>
+    edit((current) => ({ ...current, header: { ...(current.header ?? EMPTY_HEADER), ...patch } }))
   const editStyle = (patch: Partial<CvStyle>) => edit((current) => ({ ...current, style: { ...current.style, ...patch } }))
 
   /** Show a tool or a section's editor. On desktop focus moves to the panel heading; on narrow screens the sheet takes focus itself. */
   function openPanel(next: Panel) {
     setPanel(next)
     setPanelOpen(true)
-    if (desktop && typeof next === 'object') {
+    if (desktop && next !== 'sections' && next !== 'design' && next !== 'checks' && next !== 'versions') {
       window.requestAnimationFrame(() => {
         const heading = panelRef.current?.querySelector<HTMLElement>('h2')
         heading?.setAttribute('tabindex', '-1')
@@ -338,7 +341,8 @@ export function CvStudio() {
   const templateName = catalog.templates.find((template) => template.id === draft.style.template_id)?.name ?? ''
   const activeSection = typeof panel === 'object' ? draft.sections.find((section) => section.id === panel.sectionId) : undefined
   /** The tab that is selected: a section's editor belongs to Sections. */
-  const tool: Tool = typeof panel === 'string' ? panel : 'sections'
+  const tool: Tool = typeof panel === 'string' && panel !== 'header' ? panel : 'sections'
+  const headerOpen = panel === 'header'
 
   function addAndOpen(kind: CvSection['kind']) {
     const next = addSection(draft!.sections, kind)
@@ -361,9 +365,16 @@ export function CvStudio() {
     </>
   ) : null
 
-  const panelBody = activeSection && phone ? sectionEditor : (
+  const headerEditor = headerOpen ? (
     <>
-      {desktop && !activeSection ? <h2 className="kit-sr-only">{TOOL_TITLES[tool]}</h2> : null}
+      {desktop ? <h2 className="kit-sr-only">Edit header</h2> : null}
+      <CvHeaderEditor header={draft.header ?? EMPTY_HEADER} documentName={draft.name} onChange={editHeader} inline={desktop} />
+    </>
+  ) : null
+
+  const panelBody = (activeSection || headerOpen) && phone ? (sectionEditor ?? headerEditor) : (
+    <>
+      {desktop && !activeSection && !headerOpen ? <h2 className="kit-sr-only">{TOOL_TITLES[tool]}</h2> : null}
       {tool === 'design' ? (
         <CvDesignPanel style={draft.style} catalog={catalog} onChange={editStyle} />
       ) : tool === 'checks' ? (
@@ -383,6 +394,8 @@ export function CvStudio() {
       ) : (
         <CvOutline
           sections={draft.sections} activeId={activeSection?.id} editor={sectionEditor}
+          header={draft.header} documentName={draft.name} headerOpen={headerOpen} headerEditor={headerEditor}
+          onOpenHeader={() => openPanel('header')}
           onMove={(index, delta) => editSections((sections) => moveSection(sections, index, delta))}
           onMoveTo={(from, to) => editSections((sections) => moveSectionTo(sections, from, to))}
           onToggle={(sectionId) => editSections((sections) => sections.map((section) => section.id === sectionId ? { ...section, visible: !section.visible } : section))}
@@ -419,7 +432,7 @@ export function CvStudio() {
         <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
           <SheetContent side="bottom" closeLabel="Close panel" aria-describedby={undefined}>
             <SheetHeader>
-              <SheetTitle>{activeSection ? `Edit ${activeSection.title || 'section'}` : TOOL_TITLES[tool]}</SheetTitle>
+              <SheetTitle>{activeSection ? `Edit ${activeSection.title || 'section'}` : headerOpen ? 'Edit header' : TOOL_TITLES[tool]}</SheetTitle>
             </SheetHeader>
             <SheetBody><TabsContent value={tool} tabIndex={-1} className="cvs-panel cvs-panel--sheet">{panelBody}</TabsContent></SheetBody>
           </SheetContent>
@@ -518,8 +531,9 @@ export function CvStudio() {
 
         <CvDesk phone={phone} zoom={zoom} onZoomChange={setZoom} pdfDisabled={dirty} onViewPdf={() => setDialog('pdf')}>
           <CvPaper
-            name={draft.name} sections={draft.sections} style={draft.style} catalog={catalog}
+            name={draft.name} header={draft.header} sections={draft.sections} style={draft.style} catalog={catalog}
             activeId={activeSection?.id} onEdit={(sectionId) => openPanel({ sectionId })}
+            headerActive={headerOpen} onEditHeader={() => openPanel('header')}
           />
         </CvDesk>
       </div>
@@ -539,7 +553,7 @@ export function CvStudio() {
       />
       <ExactPdfDialog open={dialog === 'pdf'} onOpenChange={closeDialog} documentId={draft.id} documentName={draft.name} revision={draft.updated_at} style={draft.style} templateName={templateName} />
       <CvVersionPreviewDialog
-        variant={previewVariant} documentName={draft.name} style={draft.style} catalog={catalog} currentSections={draft.sections}
+        variant={previewVariant} documentName={draft.name} header={draft.header} style={draft.style} catalog={catalog} currentSections={draft.sections}
         exporting={versionExport} canRestore={!dirty} error={actionError}
         onOpenChange={(next) => { if (!next) setPreviewVariant(null) }} onExport={VARIANT_EXPORT_READY ? (variant, format) => void exportVersion(variant, format) : undefined} onRestore={restoreFromPreview}
       />

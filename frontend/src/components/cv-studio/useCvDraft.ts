@@ -4,6 +4,7 @@ import { getCvDocument, getCvStyleCatalog, listCvDocuments, updateCvDocument } f
 import { ApiError } from '#/lib/api/errors'
 import type { CvDocument, CvDocumentUpdate } from '#/lib/api/schemas'
 import { toSavableSections } from '#/lib/cv-studio/editor'
+import { toSavableHeader } from '#/lib/cv-studio/header'
 import { keepalivePatch } from './cvApi'
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
@@ -25,6 +26,7 @@ const toPayload = (draft: CvDocument): CvDocumentUpdate => ({
   ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
   sections: toSavableSections(draft.sections),
   style: draft.style,
+  header: toSavableHeader(draft.header),
 })
 
 class RevisionConflict extends Error {
@@ -82,7 +84,7 @@ export function useCvDraft(enabled: boolean) {
   const rememberSaved = useCallback((saved: CvDocument, local: CvDocument) => {
     // Keep the local sections: they may hold entries only just started
     // (blank entries are left out of the saved payload).
-    const merged = { ...saved, name: local.name, sections: local.sections, style: local.style }
+    const merged = { ...saved, name: local.name, sections: local.sections, style: local.style, header: local.header }
     queryClient.setQueryData(documentKey(local.id), merged)
     // The PATCH response is the saved document: patch the list in place
     // instead of refetching every CV with all of its versions.

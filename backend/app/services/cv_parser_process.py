@@ -5,6 +5,8 @@ import math
 import multiprocessing
 import sys
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from multiprocessing.connection import Connection
 
 from app.schemas.cv_documents import CvImportProposal
@@ -14,6 +16,14 @@ from app.services.cv_parser import parse_cv, parse_cv_import
 PARSER_TIMEOUT_SECONDS = 8.0
 PARSER_MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
 PARSER_CPU_LIMIT_SECONDS = 6
+# Each parse spawns a fresh interpreter (up to 512 MB address space), so a burst of
+# uploads must queue instead of spawning a process per request. The dedicated
+# pool also keeps these waiting threads off the default executor that the rest of
+# the app (credential loads, DNS, HTML parsing) shares.
+PARSER_MAX_CONCURRENCY = 3
+_PARSER_POOL = ThreadPoolExecutor(
+    max_workers=PARSER_MAX_CONCURRENCY, thread_name_prefix="cv-parse"
+)
 
 ParserWorker = Callable[[Connection, bytes, str, str], None]
 
@@ -31,8 +41,7 @@ async def parse_cv_isolated(
     _worker: ParserWorker | None = None,
     _context: multiprocessing.context.BaseContext | None = None,
 ) -> ParsedCvResponse:
-    payload = await asyncio.to_thread(
-        _run_parser_isolated_sync,
+    payload = await _run_in_parser_pool(
         content,
         filename,
         extension,
@@ -52,8 +61,7 @@ async def parse_cv_import_isolated(
     _worker: ParserWorker | None = None,
     _context: multiprocessing.context.BaseContext | None = None,
 ) -> CvImportProposal:
-    payload = await asyncio.to_thread(
-        _run_parser_isolated_sync,
+    payload = await _run_in_parser_pool(
         content,
         filename,
         extension,
@@ -62,6 +70,11 @@ async def parse_cv_import_isolated(
         _context or multiprocessing.get_context("spawn"),
     )
     return CvImportProposal.model_validate(payload)
+
+
+async def _run_in_parser_pool(*args) -> dict:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_PARSER_POOL, partial(_run_parser_isolated_sync, *args))
 
 
 def _run_parser_isolated_sync(

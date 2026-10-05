@@ -1,5 +1,7 @@
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request, status
@@ -27,6 +29,17 @@ def verify_password(plain: str, hashed: str) -> bool:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except ValueError:
         return False
+
+
+@lru_cache(maxsize=1)
+def dummy_password_hash() -> str:
+    """A throwaway hash at the production cost, for equalising failed logins.
+
+    Login verifies against this when the account does not exist (or has no
+    password), so an unknown address costs the same bcrypt time as a wrong
+    password and response timing does not reveal which addresses are registered.
+    """
+    return hash_password(secrets.token_urlsafe(16))
 
 
 def create_access_token(subject: str, token_version: int = 0) -> str:
