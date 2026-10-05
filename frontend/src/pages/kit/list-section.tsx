@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, MoreHorizontal, Pencil, Star, Trash2 } from 'lucide-react'
+import { FileText, MoreHorizontal, Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
   Disclosure,
   EmptyState,
+  FitStamp,
   List,
   MetaRow,
   ScoreBar,
@@ -23,6 +24,7 @@ import {
   RowTitle,
   Segmented,
   Skeleton,
+  SkillPips,
   type RowDensity,
   type RowOverflow,
 } from '#/components/kit'
@@ -108,7 +110,7 @@ function JobList() {
           value={density}
           onValueChange={setDensity}
           options={[
-            { value: 'compact', label: 'Compact 36' },
+            { value: 'compact', label: 'Compact 40' },
             { value: 'comfortable', label: 'Comfortable 44' },
           ]}
         />
@@ -247,6 +249,44 @@ export function ListSection() {
         <HistoryList rows={INLINE_RUNS} collapse={false} label="Saved runs, inline actions" />
       </Group>
 
+      <Group title="Parity with dashboard.png: the matches panel (FitStamp, 17px titles, SkillPips, secondary Add)">
+        <div className="kit-gallery__bounded kit-gallery__bounded--wide">
+        <Specimen label="comfortable match rows">
+          <List aria-label="Best matches">
+            {[
+              { id: 'm1', title: 'Senior Backend Engineer, Platform', company: 'Northwind Labs', where: 'Berlin, Germany', fit: 94, matched: 8, total: 8 },
+              { id: 'm2', title: 'DevOps Engineer', company: 'Northwind Labs', where: 'Munich, Germany', fit: 73, matched: 5, total: 7 },
+              { id: 'm3', title: 'Data Analyst', company: 'Harbor Health', where: 'Remote, EU', fit: 64, matched: 3, total: 6 },
+            ].map((job) => (
+              <Row key={job.id}>
+                <RowLeading>
+                  <FitStamp value={job.fit} />
+                </RowLeading>
+                <RowBody>
+                  <RowTitle size="lg">{job.title}</RowTitle>
+                  <RowSubtitle>
+                    <MetaRow>
+                      <strong>{job.company}</strong>
+                      {job.where}
+                    </MetaRow>
+                  </RowSubtitle>
+                </RowBody>
+                <RowMeta>
+                  <SkillPips matched={job.matched} total={job.total} />
+                </RowMeta>
+                <RowActions reveal={false}>
+                  <Button size="sm" variant="secondary">
+                    <Plus aria-hidden="true" />
+                    Add
+                  </Button>
+                </RowActions>
+              </Row>
+            ))}
+          </List>
+        </Specimen>
+        </div>
+      </Group>
+
       <div className="kit-gallery__grid kit-gallery__grid--wide">
         <Specimen label="Numbered (Fix first)">
           <List numbered aria-label="Fix first">
@@ -264,7 +304,7 @@ export function ListSection() {
           </List>
         </Specimen>
 
-        <Specimen label="Compact rows, one title only (36px)">
+        <Specimen label="Compact rows, one title only (40px)">
           <List aria-label="Compact" boxed>
             {RUNS.map((run) => (
               <Row key={run.id} density="compact" interactive>

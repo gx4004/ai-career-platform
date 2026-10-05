@@ -59,6 +59,15 @@ describe('kit Sheet', () => {
     expect(sheet.getAttribute('data-size')).toBe('lg')
   })
 
+  it('carries a decorative grab bar before the header, hidden from assistive tech', () => {
+    render(<Demo side="bottom" />)
+    open()
+    const grab = screen.getByRole('dialog').querySelector('.kit-sheet__grab')
+    expect(grab).toBeTruthy()
+    expect(grab?.getAttribute('aria-hidden')).toBe('true')
+    expect(screen.getByRole('dialog').firstElementChild).toBe(grab)
+  })
+
   it('closes with Escape and focus returns to the trigger', async () => {
     render(<Demo />)
     const trigger = screen.getByRole('button', { name: 'Open' })

@@ -239,3 +239,38 @@ describe('kit Skeleton rows in a List', () => {
     expect(rows[0].querySelectorAll('.kit-skeleton__line')).toHaveLength(1)
   })
 })
+
+describe('kit List framed and RowTitle size', () => {
+  it('is framed by default, and framed={false} drops the frame for a list inside a Panel', () => {
+    const { container, rerender } = render(
+      <List aria-label="Jobs">
+        <Row />
+      </List>,
+    )
+    const list = () => container.firstElementChild as HTMLElement
+    expect(list().getAttribute('data-framed')).toBe('true')
+    rerender(
+      <List aria-label="Jobs" framed={false}>
+        <Row />
+      </List>,
+    )
+    expect(list().hasAttribute('data-framed')).toBe(false)
+  })
+
+  it('RowTitle is md by default and lg for a comfortable match row, with or without a heading', () => {
+    render(
+      <List aria-label="Jobs">
+        <Row>
+          <RowBody>
+            <RowTitle>Plain</RowTitle>
+            <RowTitle size="lg" headingLevel={3}>
+              Match
+            </RowTitle>
+          </RowBody>
+        </Row>
+      </List>,
+    )
+    expect(screen.getByText('Plain').hasAttribute('data-size')).toBe(false)
+    expect(screen.getByRole('heading', { level: 3, name: 'Match' }).getAttribute('data-size')).toBe('lg')
+  })
+})

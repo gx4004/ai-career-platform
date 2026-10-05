@@ -1,0 +1,79 @@
+/*
+ * Sticker: an object (a fix, a verdict, a deadline) drawn as a tone-filled plate with a 2px ink outline and a
+ * hard offset shadow. The plate is the ::before and carries the tilt; the content block never rotates, so
+ * type stays crisp and baselines true. Text inside is always ink.
+ */
+.kit-sticker {
+  --kit-sticker-shadow: var(--sh-2);
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  padding: var(--s5);
+  border-radius: var(--r-lg);
+  color: var(--ink);
+}
+
+.kit-sticker::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: var(--bw) solid var(--ink);
+  border-radius: inherit;
+  background: var(--tone, var(--surface));
+  box-shadow: var(--kit-sticker-shadow);
+  transform: rotate(var(--kit-tilt, 0deg));
+}
+
+.kit-sticker p,
+.kit-sticker .kit-sticker__small {
+  color: var(--ink);
+}
+
+.kit-sticker--sm {
+  --kit-sticker-shadow: var(--sh-1);
+  display: inline-block;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-md);
+}
+
+.kit-sticker--xl {
+  --kit-sticker-shadow: var(--sh-3);
+  border-radius: var(--r-xl);
+}
+
+/* The honest note: a rose pin centred on the top edge. */
+.kit-sticker[data-pin='true']::after {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  inline-size: 26px;
+  block-size: 26px;
+  margin-inline-start: -13px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--rose);
+  box-shadow: var(--sh-1);
+}
+
+/* The slap: the element flies in rotated and lands level; the plate keeps its tilt. */
+.kit-sticker[data-reveal='slap'] {
+  animation: kit-slap var(--slap-ms) var(--ease-pop) 880ms backwards;
+}
+
+.kit-sticker[data-reveal='slap'][data-order='2'] {
+  animation-delay: 1100ms;
+}
+
+.kit-sticker[data-reveal='slap'][data-order='3'] {
+  animation-duration: 420ms;
+  animation-delay: 1280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-sticker[data-reveal='slap'] {
+    animation: none;
+  }
+}

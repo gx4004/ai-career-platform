@@ -153,3 +153,25 @@ describe('kit Stack and Cluster', () => {
     expect(cluster.getAttribute('data-nowrap')).toBe('true')
   })
 })
+
+describe('kit PageHeader mark and Lead size', () => {
+  it('puts a mark before the title block, hidden from assistive tech, and adds no wrapper without one', () => {
+    const { container, rerender } = render(<PageHeader title="Resume Analyzer" />)
+    expect(container.querySelector('.kit-page-header__identity')).toBeNull()
+    rerender(<PageHeader title="Resume Analyzer" mark={<span data-testid="tile" />} />)
+    const identity = container.querySelector('.kit-page-header__identity') as HTMLElement
+    expect(identity).toBeTruthy()
+    const mark = identity.querySelector('.kit-page-header__mark') as HTMLElement
+    expect(mark.getAttribute('aria-hidden')).toBe('true')
+    expect(within(mark).getByTestId('tile')).toBeTruthy()
+    expect(identity.querySelector('.kit-page-header__text')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Resume Analyzer' })).toBeTruthy()
+  })
+
+  it('Lead is md by default and xl for a report hero', () => {
+    const { container, rerender } = render(<Lead>Verdict.</Lead>)
+    expect((container.firstElementChild as HTMLElement).hasAttribute('data-size')).toBe(false)
+    rerender(<Lead size="xl">Verdict.</Lead>)
+    expect((container.firstElementChild as HTMLElement).getAttribute('data-size')).toBe('xl')
+  })
+})

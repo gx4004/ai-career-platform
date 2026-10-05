@@ -36,6 +36,8 @@ describe('kit Field', () => {
     const help = screen.getByText('At least 8 characters.')
     const error = screen.getByRole('alert')
     expect(error.textContent).toBe('Too short.')
+    // The error is text plus a decorative alert icon: never colour alone.
+    expect(error.querySelector('svg[aria-hidden="true"]')).toBeTruthy()
     expect(input.getAttribute('aria-invalid')).toBe('true')
     expect(input.getAttribute('aria-describedby')).toBe(`${help.id} ${error.id}`)
   })

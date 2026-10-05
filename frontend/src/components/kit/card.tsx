@@ -1,24 +1,27 @@
 import { forwardRef, type ComponentPropsWithoutRef, type HTMLAttributes, type Ref } from 'react'
 import { cn } from '#/lib/utils'
 import { TitleSlot } from './stretched-link'
+import type { Tone } from './tone'
 
 export type CardProps = HTMLAttributes<HTMLElement> & {
-  /** The object is open or chosen: accent border and tint. */
+  /** The object is open or chosen: lemon fill and the larger hard shadow. */
   selected?: boolean
-  /** Border darkens on hover. Cards that contain a StretchedLink get this without asking. */
+  /** Lemon-soft tint on hover (a tint, never a lift). Cards that contain a StretchedLink get this without asking. */
   interactive?: boolean
   /** li inside a list, article for a standalone object (default), div otherwise. */
   as?: 'article' | 'li' | 'div'
   /** Inner padding. Default md. */
   padding?: 'none' | 'sm' | 'md'
+  /** Fill with the soft tint of a palette tone. Colour by meaning; most cards stay white. */
+  tone?: Tone
 }
 
 /**
- * A surface for a real object: a job, an application. Hairline border, 8px radius, no shadow, no
- * lift. Sections, lists and tables do not go in cards: use Section/List/Table.
+ * A surface for a real object: a job, an application. White, 2px ink outline, 16px radius, the small
+ * hard shadow, no lift. Sections, lists and tables do not go in cards: use Section/List/Table.
  */
 export const Card = forwardRef<HTMLElement, CardProps>(function Card(
-  { selected = false, interactive = false, as = 'article', padding = 'md', className, ...rest },
+  { selected = false, interactive = false, as = 'article', padding = 'md', tone, className, ...rest },
   ref,
 ) {
   const Tag = as as 'div'
@@ -27,6 +30,7 @@ export const Card = forwardRef<HTMLElement, CardProps>(function Card(
       ref={ref as Ref<HTMLDivElement>}
       className={cn('kit-card', className)}
       data-padding={padding}
+      data-tone={tone}
       data-selected={selected ? 'true' : undefined}
       data-interactive={interactive ? 'true' : undefined}
       {...rest}

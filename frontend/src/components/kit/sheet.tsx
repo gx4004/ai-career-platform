@@ -41,7 +41,8 @@ export type SheetContentProps = ComponentPropsWithoutRef<typeof DialogPrimitive.
 
 /**
  * Side drawer or bottom sheet. Bottom sheets stop at 85% of the viewport height, scroll inside the
- * SheetBody and pad for the home-indicator safe area. No drag handle: it closes with the X, Esc or a tap outside.
+ * SheetBody and pad for the home-indicator safe area. They carry a grab bar that is decoration only (no dragging):
+ * the sheet closes with the X, Esc or a tap outside.
  */
 export const SheetContent = forwardRef<ElementRef<typeof DialogPrimitive.Content>, SheetContentProps>(
   function SheetContent(
@@ -82,6 +83,7 @@ export const SheetContent = forwardRef<ElementRef<typeof DialogPrimitive.Content
           {...focus}
           {...rest}
         >
+          <span className="kit-sheet__grab" aria-hidden="true" />
           {children}
           {showClose && dismissible ? <PanelClose label={closeLabel} /> : null}
         </DialogPrimitive.Content>

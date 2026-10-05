@@ -1,14 +1,14 @@
 /*
- * Segmented: joined single-select group. Selected is a forest tint plus
- * aria-checked; the group scrolls sideways instead of wrapping when it is
+ * Segmented (Sticker): joined single-select group. Selected is the lemon fill with an inset ink
+ * outline (the active-nav look) plus aria-checked; the group scrolls sideways instead of wrapping when it is
  * wider than its container, so focus rings sit inside each option.
  */
 
 .kit-segmented {
   --kit-segmented-h: var(--kit-h-md);
-  --kit-segmented-px: var(--space-3);
-  --kit-segmented-fs: var(--fs-body);
-  --kit-segmented-bg: var(--surface-raised);
+  --kit-segmented-px: var(--s4);
+  --kit-segmented-fs: 0.875rem;
+  --kit-segmented-bg: var(--surface);
 
   display: inline-flex;
   align-self: flex-start;
@@ -16,8 +16,8 @@
   max-width: 100%;
   height: var(--kit-segmented-h);
   overflow-x: auto;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-md);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
   /* The gradients are a functional overflow cue, not decoration (allow-listed in kit-css.test): a soft edge appears on whichever side still has options to scroll to, and the "local" layers hide it at the ends. */
   background:
     linear-gradient(to right, var(--kit-segmented-bg), var(--kit-segmented-bg)) left center / 1rem 100% no-repeat local,
@@ -25,7 +25,7 @@
     linear-gradient(to right, var(--ink-hairline), transparent) left center / 0.75rem 100% no-repeat scroll,
     linear-gradient(to left, var(--ink-hairline), transparent) right center / 0.75rem 100% no-repeat scroll;
   background-color: var(--kit-segmented-bg);
-  font-family: var(--font-sans);
+  font-family: var(--font-ui);
   scrollbar-width: none;
 }
 
@@ -35,8 +35,8 @@
 
 .kit-segmented[data-size='sm'] {
   --kit-segmented-h: var(--kit-h-sm);
-  --kit-segmented-px: var(--space-2);
-  --kit-segmented-fs: var(--fs-meta);
+  --kit-segmented-px: var(--s3);
+  --kit-segmented-fs: 0.8125rem;
 }
 
 .kit-segmented[data-full-width] {
@@ -50,25 +50,25 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--space-1) * 1.5);
+  gap: 6px;
   box-sizing: border-box;
   height: 100%;
   margin: 0;
   padding: 0 var(--kit-segmented-px);
   border: 0;
-  border-left: 1px solid var(--border-soft);
+  border-left: var(--bw) solid var(--line);
   border-radius: 0;
   background: transparent;
-  color: var(--text-body);
+  color: var(--ink-2);
   font: inherit;
   font-size: var(--kit-segmented-fs);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-semibold);
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: var(--transition-colors);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 
 .kit-segmented[data-full-width] .kit-segmented__option {
@@ -80,19 +80,21 @@
 }
 
 @media (hover: hover) {
-  .kit-segmented__option:hover {
-    background: var(--surface-hover);
-    color: var(--text-strong);
+  .kit-segmented__option:hover:not(:disabled, [aria-checked='true']) {
+    background: var(--lemon-soft);
+    color: var(--ink);
   }
 }
 
-.kit-segmented__option:active {
-  background: var(--surface-active);
+.kit-segmented__option:active:not(:disabled) {
+  background: var(--lemon-soft);
 }
 
 .kit-segmented__option[aria-checked='true'] {
-  background: var(--accent-selected);
-  color: var(--accent);
+  background: var(--lemon);
+  box-shadow: inset 0 0 0 var(--bw) var(--ink);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
 .kit-segmented__option:focus-visible {
@@ -102,7 +104,8 @@
 
 .kit-segmented__option:disabled {
   background: transparent;
-  color: var(--text-disabled);
+  box-shadow: none;
+  color: var(--ink-3);
   cursor: not-allowed;
 }
 
@@ -110,18 +113,18 @@
 .kit-segmented__icon > svg {
   display: inline-flex;
   flex: none;
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .kit-segmented[data-disabled] {
-  --kit-segmented-bg: var(--surface-subtle);
+  --kit-segmented-bg: var(--stone);
 
-  border-color: var(--border-strong);
+  border-color: var(--ink-3);
 }
 
 .kit-segmented[data-invalid] {
-  border-color: var(--danger-solid);
+  border-color: var(--danger-ink);
 }
 
 /* Touch: the options are the tap targets, so they get the full 44px. The border is drawn inside as an
@@ -129,16 +132,16 @@
 @media (pointer: coarse) {
   .kit-segmented {
     border: 0;
-    outline: 1px solid var(--border-control);
-    outline-offset: -1px;
+    outline: var(--bw) solid var(--ink);
+    outline-offset: calc(var(--bw) * -1);
   }
 
   .kit-segmented[data-disabled] {
-    outline-color: var(--border-strong);
+    outline-color: var(--ink-3);
   }
 
   .kit-segmented[data-invalid] {
-    outline-color: var(--danger-solid);
+    outline-color: var(--danger-ink);
   }
 
   .kit-segmented__option {

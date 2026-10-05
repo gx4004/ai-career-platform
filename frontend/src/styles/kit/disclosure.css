@@ -1,10 +1,16 @@
 /*
- * Disclosure: a heading row that shows or hides its content.
- *   section: full-width row with hairlines above and below (a collapsible page section)
- *   inline:  small text button with a leading chevron ("Why?", "Show sample answer")
+ * Disclosure (Sticker): a heading row that shows or hides its content.
+ *   section: a full-width 56px row with 2px --line rules above and below (it lives inside a framed
+ *            List or Panel); the chevron sits in a 28px white disc that turns lemon while open
+ *   inline:  the Button "link" look (bold, 2px underline, lemon background on hover) with a leading chevron
  * The chevron turns instantly with the state (down closed / up open in a section; right / down inline);
- * the content appears without animating.
+ * the content appears without animating, so layout is stable. Horizontal padding of the section rows
+ * is --kit-disclosure-px (20px), override it where the row sits flush with page content.
  */
+
+.kit-disclosure {
+  --kit-disclosure-px: var(--s5);
+}
 
 .kit-disclosure__heading {
   margin: 0;
@@ -15,18 +21,18 @@
 .kit-disclosure__trigger {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s3);
   box-sizing: border-box;
   width: 100%;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--text-strong);
-  font-family: var(--font-sans);
-  font-size: var(--fs-section);
-  font-weight: var(--fw-semibold);
-  line-height: var(--lh-section);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 1.0625rem;
+  font-weight: var(--fw-bold);
+  line-height: 1.25;
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
@@ -35,7 +41,7 @@
 }
 
 .kit-disclosure__trigger:focus-visible {
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
@@ -47,7 +53,7 @@
 
 .kit-disclosure__meta {
   flex: none;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   font-weight: var(--fw-regular);
 }
@@ -56,7 +62,7 @@
   flex: none;
   width: 1rem;
   height: 1rem;
-  color: var(--text-soft);
+  color: var(--ink);
 }
 
 .kit-disclosure__content {
@@ -66,37 +72,57 @@
 /* section */
 
 .kit-disclosure--section {
-  border-block: 1px solid var(--divider);
+  border-block: var(--bw) solid var(--line);
 }
 
 .kit-disclosure--section + .kit-disclosure--section {
-  margin-top: -1px;
+  margin-top: calc(var(--bw) * -1);
+}
+
+/* Inside a framed Panel or List the frame is the outer rule: only the rules between rows remain. */
+:is(.kit-panel-surface, .kit-list) > .kit-disclosure--section:first-child {
+  border-top: 0;
+}
+
+:is(.kit-panel-surface, .kit-list) > .kit-disclosure--section:last-child {
+  border-bottom: 0;
 }
 
 .kit-disclosure--section .kit-disclosure__trigger {
-  min-height: var(--row-h-lg);
+  min-height: 3.5rem;
+  padding-inline: var(--kit-disclosure-px);
 }
 
 .kit-disclosure--section .kit-disclosure__trigger:focus-visible {
+  border-radius: 0;
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
 @media (hover: hover) {
-  .kit-disclosure--section .kit-disclosure__trigger:hover .kit-disclosure__chevron {
-    color: var(--text-strong);
+  .kit-disclosure--section .kit-disclosure__trigger:hover:not(:disabled) {
+    background: var(--lemon-soft);
   }
 }
 
+/* The chevron: a 28px white disc with the 2px outline, lemon while open. */
 .kit-disclosure--section .kit-disclosure__chevron {
   order: 1;
+  box-sizing: border-box;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 5px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--surface);
 }
 
 .kit-disclosure--section .kit-disclosure__trigger[data-state='open'] .kit-disclosure__chevron {
+  background: var(--lemon);
   transform: rotate(180deg);
 }
 
 .kit-disclosure--section .kit-disclosure__content {
-  padding-bottom: var(--space-4);
+  padding: 0 var(--kit-disclosure-px) var(--s5);
 }
 
 /* inline */
@@ -104,19 +130,26 @@
 .kit-disclosure--inline .kit-disclosure__trigger {
   width: auto;
   min-height: var(--kit-h-sm);
-  color: var(--accent);
+  padding-inline: var(--s1);
+  border-radius: var(--r-xs);
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-}
-
-@media (hover: hover) {
-  .kit-disclosure--inline .kit-disclosure__trigger:hover {
-    color: var(--accent-hover);
-  }
 }
 
 .kit-disclosure--inline .kit-disclosure__title {
   flex: none;
+  text-decoration: underline;
+  text-decoration-thickness: var(--bw);
+  text-underline-offset: 4px;
+}
+
+@media (hover: hover) {
+  .kit-disclosure--inline .kit-disclosure__trigger:hover:not(:disabled) {
+    background: var(--lemon);
+  }
+
+  .kit-disclosure--inline .kit-disclosure__trigger:hover:not(:disabled) .kit-disclosure__title {
+    text-decoration-color: transparent;
+  }
 }
 
 .kit-disclosure--inline .kit-disclosure__chevron {
@@ -131,10 +164,15 @@
 }
 
 .kit-disclosure--inline .kit-disclosure__content {
-  padding-top: var(--space-2);
+  padding-top: var(--s2);
 }
 
 .kit-disclosure .kit-disclosure__trigger:disabled {
-  color: var(--text-disabled);
+  color: var(--ink-3);
   cursor: not-allowed;
+}
+
+.kit-disclosure .kit-disclosure__trigger:disabled .kit-disclosure__chevron {
+  border-color: var(--ink-3);
+  color: var(--ink-3);
 }

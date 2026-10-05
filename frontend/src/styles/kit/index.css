@@ -28,4 +28,10 @@
 @import './toolbar.css';
 @import './state.css';
 @import './skeleton.css';
+@import './sticker.css';
+@import './seal.css';
+@import './tiles.css';
+@import './stamps.css';
+@import './panel-surface.css';
+@import './jump-nav.css';
 @import './gallery.css';

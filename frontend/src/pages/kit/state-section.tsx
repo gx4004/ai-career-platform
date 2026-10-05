@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SearchX, Star } from 'lucide-react'
 import {
   Button,
   Card,
@@ -82,7 +83,7 @@ export function StateSection() {
     <GallerySection
       id="state"
       title="EmptyState, ErrorState, Skeleton"
-      note="Empty and error states are one shape: a serif line, one sentence, at most one action, left-aligned, no illustration. Skeletons are calm: a slow opacity pulse, none at all under reduced motion, and exactly as tall as the thing they stand in for."
+      note="Empty and error states are one shape: the die-cut panel (dashed outline) with an optional icon disc, a display line, one sentence and at most one action, left-aligned. Skeletons are calm: a slow opacity pulse, none at all under reduced motion, and exactly as tall as the thing they stand in for."
     >
       <Group title="EmptyState">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
@@ -96,6 +97,9 @@ export function StateSection() {
                 </Button>
               }
             />
+          </Specimen>
+          <Specimen label="icon: the starred empty of dashboard.png (lemon disc, tilted -8deg)">
+            <EmptyState icon={<Star />} title="No starred results" description="Star a result and it lands here." />
           </Specimen>
           <Specimen label="compact, title only">
             <EmptyState title="You have seen every match" />
@@ -129,6 +133,9 @@ export function StateSection() {
         <div className="kit-gallery__grid kit-gallery__grid--wide">
           <Specimen label="compact, retry (press Try again: the button shows a spinner)">
             <Retry />
+          </Specimen>
+          <Specimen label="with an icon (rose disc)">
+            <ErrorState icon={<SearchX />} title="No results for that search" description="Try a shorter title or fewer filters." />
           </Specimen>
           <Specimen label="with detail">
             <ErrorState

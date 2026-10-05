@@ -1,4 +1,5 @@
 import { createContext, useContext, useId, type ReactNode } from 'react'
+import { CircleAlert } from 'lucide-react'
 import { cn } from '#/lib/utils'
 
 type FieldContextValue = {
@@ -72,7 +73,8 @@ export function Field({
         ) : null}
         {error ? (
           <p id={errorId} className="kit-field__error" role="alert">
-            {error}
+            <CircleAlert aria-hidden="true" />
+            <span>{error}</span>
           </p>
         ) : null}
       </div>

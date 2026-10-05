@@ -1,4 +1,5 @@
 import type { ApplicationListing, ApplicationStatus } from '#/lib/api/schemas'
+import type { Tone } from '#/components/kit/tone'
 
 /** The five board columns. Rejected and withdrawn share "Closed". */
 export type Stage = 'saved' | 'applied' | 'interviewing' | 'offer' | 'closed'
@@ -10,6 +11,15 @@ export const STAGES: Array<{ id: Stage; label: string; hint: string }> = [
   { id: 'offer', label: 'Offer', hint: 'Offers on the table' },
   { id: 'closed', label: 'Closed', hint: 'Not selected or withdrawn' },
 ]
+
+/** The Sticker colour of each stage: Saved lemon, Applied lilac, Interviewing tangerine, Offer mint, Closed stone. */
+export const STAGE_TONE: Record<Stage, Tone> = {
+  saved: 'lemon',
+  applied: 'lilac',
+  interviewing: 'tangerine',
+  offer: 'mint',
+  closed: 'stone',
+}
 
 export const STATUSES: ApplicationStatus[] = ['saved', 'applied', 'no_reply', 'interviewing', 'offer', 'rejected', 'withdrawn']
 

@@ -1,23 +1,26 @@
 /*
- * Sheet: right-hand drawer, or bottom sheet. "responsive" is a drawer above 767px (the kit's
- * compact breakpoint) and a bottom sheet at 767px and below. No drag handle, no slide-in:
- * opacity and a 4px shift, like Dialog.
+ * Sheet (Sticker): right-hand drawer, or bottom sheet. "responsive" is a drawer above 767px (the kit's
+ * compact breakpoint) and a bottom sheet at 767px and below. White with the 2px ink outline on the
+ * edges that meet the page; the bottom sheet has 28px top corners and a grab bar (decoration: it
+ * closes with the X, Esc or a tap outside). The drawer slides 24px and fades in over 200ms, the
+ * bottom sheet rises 60px over 260ms, both leave with a 120ms fade.
  */
 
 .kit-sheet {
   --kit-sheet-w: 30rem;
-  --kit-shift-x: 4px;
+  --kit-shift-x: 24px;
+  --kit-sheet-dur: var(--dur-2);
+  --kit-panel-r: 0px;
 
   position: fixed;
   z-index: var(--z-overlay);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  border: 0 solid var(--border-soft);
-  background: var(--surface-overlay);
-  box-shadow: var(--shadow-overlay);
-  color: var(--text-body);
-  font-family: var(--font-sans);
+  border: 0 solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   outline: none;
@@ -36,12 +39,16 @@
   right: 0;
   bottom: 0;
   width: min(var(--kit-sheet-w), 100vw);
-  border-left-width: 1px;
+  border-left-width: var(--bw);
 }
 
+/* Bottom sheet: used as the "bottom" side and, at phone width, by "responsive". */
 .kit-sheet[data-side='bottom'] {
-  --kit-shift-x: 0;
-  --kit-shift-y: 4px;
+  --kit-shift-x: 0px;
+  --kit-shift-y: 60px;
+  --kit-sheet-dur: var(--dur-3);
+  --kit-panel-r: 28px;
+  --kit-close-top: calc(var(--s3) + 6px + var(--s1) + var(--s2) + (var(--lh-title) - var(--kit-h-sm)) / 2);
 
   right: 0;
   bottom: 0;
@@ -49,14 +56,17 @@
   max-height: 85vh;
   max-height: 85dvh;
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  border-top-width: 1px;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  border-width: var(--bw) var(--bw) 0;
+  border-radius: 28px 28px 0 0;
 }
 
 @media (max-width: 767px) {
   .kit-sheet[data-side='responsive'] {
-    --kit-shift-x: 0;
-    --kit-shift-y: 4px;
+    --kit-shift-x: 0px;
+    --kit-shift-y: 60px;
+    --kit-sheet-dur: var(--dur-3);
+    --kit-panel-r: 28px;
+    --kit-close-top: calc(var(--s3) + 6px + var(--s1) + var(--s2) + (var(--lh-title) - var(--kit-h-sm)) / 2);
 
     top: auto;
     right: 0;
@@ -66,17 +76,55 @@
     max-height: 85vh;
     max-height: 85dvh;
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    border-width: 1px 0 0;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-width: var(--bw) var(--bw) 0;
+    border-radius: 28px 28px 0 0;
+  }
+}
+
+/* The grab bar: 44 x 6 ink pill, shown only while the sheet is a bottom sheet. */
+.kit-sheet__grab {
+  display: none;
+  flex: none;
+  width: 44px;
+  height: 6px;
+  margin: var(--s3) auto var(--s1);
+  border-radius: var(--r-pill);
+  background: var(--ink);
+}
+
+.kit-sheet[data-side='bottom'] > .kit-sheet__grab {
+  display: block;
+}
+
+@media (max-width: 767px) {
+  .kit-sheet[data-side='responsive'] > .kit-sheet__grab {
+    display: block;
+  }
+}
+
+/* A bottom sheet has no rule under its title: the grab bar and the title read as one head. */
+.kit-sheet[data-side='bottom'] > .kit-panel__header,
+.kit-sheet[data-side='bottom'] > .kit-panel__form > .kit-panel__header {
+  padding-top: var(--s2);
+  padding-bottom: var(--s3);
+  border-bottom: 0;
+}
+
+@media (max-width: 767px) {
+  .kit-sheet[data-side='responsive'] > .kit-panel__header,
+  .kit-sheet[data-side='responsive'] > .kit-panel__form > .kit-panel__header {
+    padding-top: var(--s2);
+    padding-bottom: var(--s3);
+    border-bottom: 0;
   }
 }
 
 .kit-sheet[data-state='open'] {
-  animation: kit-shift-in var(--duration-overlay) var(--ease-out);
+  animation: kit-shift-in var(--kit-sheet-dur) var(--ease-out);
 }
 
 .kit-sheet[data-state='closed'] {
-  animation: kit-shift-out var(--duration-fast) var(--ease-out) forwards;
+  animation: kit-fade-out var(--duration-fast) var(--ease-out) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

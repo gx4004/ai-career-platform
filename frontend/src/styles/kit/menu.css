@@ -1,19 +1,21 @@
 /*
- * Floating panels: DropdownMenu, Popover, Tooltip. Hairline border, the one overlay shadow,
- * opacity plus a 4px shift away from the trigger (side comes from Radix as data-side).
- * They sit above modal dialogs (--z-popover / --z-tooltip) because they open from inside them.
+ * Floating panels (Sticker): DropdownMenu, Popover, Tooltip. Menu and popover are white with the 2px
+ * ink outline, radius 16 and the 4px hard shadow; the highlighted item is lemon-soft (the same fill as
+ * a hovered row). Opacity plus a 4px shift away from the trigger (side comes from Radix as data-side),
+ * 120ms, no overshoot: menus are opened often. They sit above modal dialogs (--z-popover / --z-tooltip)
+ * because they open from inside them.
  */
 
 .kit-menu,
 .kit-popover {
   z-index: var(--z-popover);
   box-sizing: border-box;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  background: var(--surface-overlay);
-  box-shadow: var(--shadow-overlay);
-  color: var(--text-body);
-  font-family: var(--font-sans);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   outline: none;
@@ -59,23 +61,23 @@
 
 .kit-menu {
   min-width: 11rem;
-  max-width: min(20rem, calc(100vw - var(--space-4)));
+  max-width: min(20rem, calc(100vw - var(--s4)));
   max-height: var(--radix-dropdown-menu-content-available-height);
-  padding: var(--space-1);
+  padding: calc(var(--s1) * 1.5);
   overflow-y: auto;
 }
 
-/* Corner radius = panel radius - padding, so item and panel corners stay concentric. */
 .kit-menu__item {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s3);
   box-sizing: border-box;
-  min-height: var(--kit-h-md);
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  color: var(--text-body);
+  min-height: var(--kit-row-h-md);
+  padding: 0 var(--s3);
+  border-radius: var(--r-sm);
+  color: var(--ink);
   font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-body);
   text-decoration: none;
   cursor: default;
@@ -83,9 +85,10 @@
   user-select: none;
 }
 
+/* Highlighted = keyboard arrow or pointer: a lemon-soft fill, no outline (it is the hover look of a row). */
 .kit-menu__item[data-highlighted] {
-  background: var(--surface-active);
-  color: var(--text-strong);
+  background: var(--lemon-soft);
+  color: var(--ink);
 }
 
 .kit-menu__item:focus-visible {
@@ -94,16 +97,16 @@
 }
 
 .kit-menu__item[data-tone='danger'] {
-  color: var(--danger-fg);
+  color: var(--danger-ink);
 }
 
 .kit-menu__item[data-tone='danger'][data-highlighted] {
-  background: var(--danger-bg);
-  color: var(--danger-fg);
+  background: var(--rose-soft);
+  color: var(--danger-ink);
 }
 
 .kit-menu__item[data-disabled] {
-  color: var(--text-disabled);
+  color: var(--ink-3);
   pointer-events: none;
 }
 
@@ -113,64 +116,62 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 1rem;
-  height: 1rem;
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .kit-menu__icon {
-  color: var(--text-soft);
+  color: var(--ink);
 }
 
-.kit-menu__item[data-tone='danger'] .kit-menu__icon {
-  color: inherit;
-}
-
+.kit-menu__item[data-tone='danger'] .kit-menu__icon,
 .kit-menu__item[data-disabled] .kit-menu__icon {
   color: inherit;
 }
 
 .kit-menu__icon > svg,
 .kit-menu__indicator svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .kit-menu__indicator {
-  color: var(--accent);
+  color: var(--ink);
 }
 
-/* The hint is quiet text, not a chip, inside a menu. */
+/* The hint is quiet text, not a key cap, inside a menu. */
 .kit-menu__shortcut.kit-kbd {
   min-width: 0;
   height: auto;
   margin-left: auto;
-  padding: 0 0 0 var(--space-3);
+  padding: 0 0 0 var(--s3);
   border: 0;
   background: transparent;
-  color: var(--text-soft);
-  font-size: var(--fs-meta);
+  box-shadow: none;
+  color: var(--ink-3);
+  font-size: var(--fs-micro);
 }
 
 .kit-menu__label {
-  padding: calc(var(--space-1) * 1.5) var(--space-2) var(--space-1);
-  color: var(--text-soft);
+  padding: var(--s2) var(--s3) var(--s1);
+  color: var(--ink-3);
   font-size: var(--fs-meta);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-meta);
 }
 
 .kit-menu__separator {
-  height: 1px;
-  margin: var(--space-1) calc(var(--space-1) * -1);
-  background: var(--divider);
+  height: var(--bw);
+  margin: calc(var(--s1) * 1.5) calc(var(--s1) * -1.5);
+  background: var(--line);
 }
 
 /* ── Popover ───────────────────────────────────────────────────────── */
 
 .kit-popover {
   width: max-content;
-  max-width: min(22rem, calc(100vw - var(--space-4)));
-  padding: var(--space-3) var(--space-4);
+  max-width: min(22rem, calc(100vw - var(--s4)));
+  padding: var(--s4);
 }
 
 .kit-popover > :first-child {
@@ -183,20 +184,21 @@
 
 /* ── Tooltip ───────────────────────────────────────────────────────── */
 
+/* Ink bubble, no outline, no shadow: it must never read as an object. */
 .kit-tooltip {
   z-index: var(--z-tooltip);
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s2);
   box-sizing: border-box;
-  max-width: min(20rem, calc(100vw - var(--space-4)));
-  padding: calc(var(--space-1) * 1.5) var(--space-2);
-  border-radius: var(--radius-md);
-  background: var(--text-strong);
-  color: var(--background);
-  font-family: var(--font-sans);
+  max-width: min(20rem, calc(100vw - var(--s4)));
+  padding: calc(var(--s1) * 1.5) calc(var(--s1) * 2.5);
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--surface);
+  font-family: var(--font-ui);
   font-size: var(--fs-meta);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-meta);
 }
 
@@ -207,15 +209,6 @@
 
 .kit-tooltip[data-state='closed'] {
   animation: kit-fade-out var(--duration-fast) var(--ease-out) forwards;
-}
-
-.kit-tooltip .kit-kbd {
-  min-width: 0;
-  height: auto;
-  padding: 0 var(--space-1);
-  border-color: color-mix(in srgb, currentColor 35%, transparent);
-  background: transparent;
-  color: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

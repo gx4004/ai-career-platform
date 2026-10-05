@@ -73,7 +73,7 @@ function TabbedHeader() {
         }
       />
       <TabsContent value="overview">
-        <p className="kit-gallery__paragraph">The header's own hairline gives way to the tab list's, so there is one line, not two.</p>
+        <p className="kit-gallery__paragraph">The tab row sits on the edge of the panel below; the header adds no space under it.</p>
       </TabsContent>
       <TabsContent value="documents">
         <p className="kit-gallery__paragraph">Documents.</p>
@@ -121,7 +121,7 @@ export function PageSection() {
     <GallerySection
       id="page"
       title="Page, PageHeader, Split"
-      note="The frame every in-app page uses: 32px gutters (16 on phones), a serif title row, 32px between sections. Frames below render Page as a div so the gallery keeps its own main landmark."
+      note="The frame every in-app page uses: 40px gutters (16 on phones), a display-type title row with 40px above it, 40px between blocks. Frames below render Page as a div so the gallery keeps its own main landmark."
     >
       <Group title="PageHeader">
         <div className="kit-gallery__grid kit-gallery__grid--wide">

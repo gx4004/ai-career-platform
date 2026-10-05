@@ -249,7 +249,17 @@ describe('kit ConfirmDialog', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' })))
   })
 
-  it('uses the oxblood destructive button by default and the primary one for tone="default"', () => {
+  it('tints the header band rose for a destructive confirm only', () => {
+    const { unmount } = render(<Confirm />)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('alertdialog').querySelector('.kit-panel__header')?.getAttribute('data-tone')).toBe('danger')
+    unmount()
+    render(<Confirm tone="default" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('alertdialog').querySelector('.kit-panel__header')?.hasAttribute('data-tone')).toBe(false)
+  })
+
+  it('uses the red destructive button by default and the primary one for tone="default"', () => {
     const { unmount } = render(<Confirm />)
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     expect(screen.getByRole('button', { name: 'Delete application' }).className).toContain('kit-button--destructive')

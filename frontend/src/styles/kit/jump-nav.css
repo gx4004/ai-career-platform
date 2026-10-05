@@ -1,0 +1,67 @@
+/* JumpNav: the in-page links of a long report, a flat strip with a 2px ink rule; the current one reads like the active nav item. */
+.kit-jump-nav {
+  display: flex;
+  gap: var(--s1);
+  padding-block: var(--s2);
+  border-block-end: var(--bw) solid var(--ink);
+  background: var(--ground);
+}
+
+.kit-jump-nav[data-sticky='true'] {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.kit-jump-nav__link {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-block-size: 40px;
+  padding-inline: var(--s4);
+  border: var(--bw) solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.kit-jump-nav__link[aria-current='true'] {
+  border-color: var(--ink);
+  background: var(--lemon);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+
+@media (hover: hover) {
+  .kit-jump-nav__link:hover:not([aria-current='true']) {
+    background: var(--lemon-soft);
+    color: var(--ink);
+  }
+}
+
+.kit-jump-nav__link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ink);
+  outline-offset: -3px;
+}
+
+@media (pointer: coarse) {
+  .kit-jump-nav__link {
+    min-block-size: var(--touch-target);
+  }
+}
+
+/* Phones: one scrolling row under the sticky app bar. */
+@media (max-width: 639px) {
+  .kit-jump-nav {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .kit-jump-nav[data-sticky='true'] {
+    top: var(--kit-jump-offset, 70px);
+  }
+}

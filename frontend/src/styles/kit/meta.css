@@ -14,7 +14,7 @@
   min-width: 0;
   margin: 0;
   padding: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
   font-variant-numeric: var(--numeric-tabular);
@@ -38,7 +38,7 @@
   inset-block: 0;
   inset-inline-start: calc(var(--kit-meta-gap) * -1);
   inline-size: var(--kit-meta-gap);
-  color: var(--text-faint);
+  color: var(--ink-4); /* decoration */
   text-align: center;
   content: '·';
   content: '·' / '';
@@ -64,8 +64,8 @@
 }
 
 .kit-meta strong {
-  color: var(--text-body);
-  font-weight: var(--fw-medium);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
 /* ── KeyValue ───────────────────────────────────────────────────────── */
@@ -85,31 +85,26 @@
   align-items: baseline;
   column-gap: var(--space-4);
   min-height: var(--control-md);
-  padding-block: var(--space-1);
-  padding-inline: var(--space-2);
+  padding-block: var(--s3);
+  padding-inline: 0;
   margin: 0;
 }
 
 .kit-kv[data-divided] > .kit-kv__row + .kit-kv__row {
-  border-top: 1px solid var(--divider);
+  border-top: var(--bw) solid var(--line);
 }
 
 .kit-kv[data-layout='stacked'] .kit-kv__row {
   grid-template-columns: minmax(0, 1fr);
   row-gap: 0;
-  padding-block: var(--space-2);
-}
-
-/* A rail has no hover or selected tint to give the text room, so its facts start at the column edge like Stat and ScoreBar. */
-.kit-split__rail .kit-kv__row {
-  padding-inline: 0;
+  padding-block: var(--s2);
 }
 
 .kit-kv__label {
   margin: 0;
-  color: var(--text-muted);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-regular);
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-body);
 }
 
@@ -121,8 +116,9 @@
 .kit-kv__value {
   min-width: 0;
   margin: 0;
-  color: var(--text-strong);
+  color: var(--ink);
   font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-body);
   font-variant-numeric: var(--numeric-tabular);
   overflow-wrap: anywhere;
@@ -134,13 +130,13 @@
 }
 
 .kit-kv__empty {
-  color: var(--text-faint);
+  color: var(--ink-3);
 }
 
 @media (max-width: 479px) {
   .kit-kv[data-layout='inline'] .kit-kv__row {
     grid-template-columns: minmax(0, 1fr);
-    padding-block: var(--space-2);
+    padding-block: var(--s2);
   }
 
   .kit-kv[data-layout='inline'] .kit-kv__label {
@@ -161,7 +157,7 @@
 
 .kit-stat__label {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
   font-weight: var(--fw-regular);
   line-height: var(--lh-meta);
@@ -176,85 +172,103 @@
   margin: 0;
 }
 
+/* Numbers are display type at normal width, tabular, tight. */
 .kit-stat__number {
-  color: var(--text-strong);
-  font-family: var(--font-serif);
+  color: var(--ink);
+  font-family: var(--font-display);
   font-size: var(--fs-display);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-black);
   line-height: var(--lh-display);
-  letter-spacing: var(--ls-display);
+  letter-spacing: -0.04em;
   font-variant-numeric: var(--numeric-display);
 }
 
 .kit-stat[data-size='md'] .kit-stat__number {
-  font-size: var(--fs-title);
-  line-height: var(--lh-title);
-  letter-spacing: var(--ls-title);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  letter-spacing: -0.03em;
+}
+
+/* The date stamp of a deadline ("Oct 9"). */
+.kit-stat[data-size='stamp'] .kit-stat__number {
+  font-size: 3rem;
+  line-height: 3rem;
 }
 
 .kit-stat__unit {
   margin-inline-start: calc(var(--space-1) * -0.5);
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-body);
 }
 
 .kit-stat__delta {
   margin-inline-start: var(--space-2);
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-meta);
   font-variant-numeric: var(--numeric-tabular);
 }
 
 .kit-stat__delta[data-tone='success'] {
-  color: var(--success-fg);
+  color: var(--success-ink);
 }
 
 .kit-stat__delta[data-tone='warning'] {
-  color: var(--warning-fg);
+  color: var(--warn-ink);
 }
 
 .kit-stat__delta[data-tone='danger'] {
-  color: var(--danger-fg);
+  color: var(--danger-ink);
 }
 
 /* ── ScoreBar ───────────────────────────────────────────────────────── */
 
+/*
+ * Track: 20px white pill with the 2px ink outline (14px at size sm). Fill: ink by default (neutral data),
+ * with the ink edge on its end so a pale fill never relies on its own contrast. Colour is assigned by
+ * meaning: tone="accent" is the tangerine highlight (the lowest dimensions), success mint, warning lemon,
+ * danger rose, neutral ink-3. A fill that resolved from tone="auto" (data-auto) is ink whatever its
+ * data-tone says: thresholds are not a colour code (STICKER-SYSTEM 5.4).
+ */
 .kit-score {
-  --kit-score-track: var(--surface-sunken);
-  --kit-score-h: 0.375rem;
+  --kit-score-h: 1.25rem;
+  --kit-score-fs: var(--fs-section);
 
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     'label value'
     'track track';
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  gap: var(--space-1) var(--s4);
   min-width: 0;
 }
 
 .kit-score[data-size='sm'] {
-  --kit-score-h: 0.25rem;
+  --kit-score-h: 0.875rem;
+  --kit-score-fs: 0.9375rem;
 }
 
 .kit-score__label {
   grid-area: label;
   min-width: 0;
-  color: var(--text-body);
+  color: var(--ink);
   font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-body);
   overflow-wrap: anywhere;
 }
 
 .kit-score__value {
   grid-area: value;
-  color: var(--text-strong);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-body);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--kit-score-fs);
+  font-weight: var(--fw-black);
+  line-height: 1;
   text-align: end;
   font-variant-numeric: var(--numeric-tabular);
   white-space: nowrap;
@@ -266,35 +280,47 @@
   box-sizing: border-box;
   block-size: var(--kit-score-h);
   overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--kit-score-track);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--surface);
 }
 
 .kit-score__fill {
   display: block;
+  box-sizing: border-box;
   block-size: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--text-soft);
+  border-inline-end: var(--bw) solid var(--ink);
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  background: var(--ink);
+}
+
+.kit-score__fill[data-zero] {
+  border-inline-end-width: 0;
 }
 
 .kit-score__fill[data-tone='success'] {
-  background: var(--success-solid);
+  background: var(--mint);
 }
 
 .kit-score__fill[data-tone='warning'] {
-  background: color-mix(in srgb, var(--warning-solid) 90%, var(--text-strong));
+  background: var(--lemon);
 }
 
 .kit-score__fill[data-tone='danger'] {
-  background: var(--danger-solid);
+  background: var(--rose);
 }
 
 .kit-score__fill[data-tone='accent'] {
-  background: var(--accent);
+  background: var(--tangerine);
 }
 
 .kit-score__fill[data-tone='neutral'] {
-  background: var(--text-soft);
+  background: var(--ink-3);
+}
+
+.kit-score__fill[data-tone='ink'],
+.kit-score__fill[data-auto] {
+  background: var(--ink);
 }
 
 .kit-score:not([data-labelled]),
@@ -310,9 +336,9 @@
 }
 
 .kit-score[data-layout='inline'][data-labelled] {
-  grid-template-columns: minmax(6rem, 14rem) minmax(5rem, 1fr) 2.5rem;
+  grid-template-columns: minmax(6rem, 148px) minmax(5rem, 1fr) 3.5rem;
   grid-template-areas: 'label track value';
-  gap: var(--space-3);
+  gap: var(--s4);
 }
 
 /* On phones an inline score keeps its row: the label gets the first line, the bar and number the second. */
@@ -322,7 +348,7 @@
     grid-template-areas:
       'label value'
       'track track';
-    align-items: baseline;
-    gap: var(--space-1) var(--space-3);
+    align-items: center;
+    gap: var(--space-1) var(--s3);
   }
 }

@@ -1,7 +1,8 @@
 /*
- * Table. Hairline rows, 36/44px, quiet header, tabular numbers at the end edge. Under ~640px of
- * table width every row stacks into a "label: value" list, so nothing scrolls sideways on a phone.
- * Cells carry data-label; the pseudo-element draws it. The table roles are explicit in the markup
+ * Table (Sticker, calm). Dense data gets the quiet end of the language: a framed wrapper (white, 2px ink,
+ * radius 16, no shadow), a stone-soft header over a 2px ink rule, 2px --line row dividers, lemon-soft hover.
+ * Under ~640px of table width every row stacks into a "label: value" list, so nothing scrolls sideways on
+ * a phone. Cells carry data-label; the pseudo-element draws it. The table roles are explicit in the markup
  * so the semantics survive the display changes below.
  */
 
@@ -11,6 +12,9 @@
   position: relative;
   min-width: 0;
   overflow-x: auto;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
 }
 
 .kit-table-wrap:focus-visible {
@@ -23,29 +27,30 @@
   overflow: auto;
 }
 
-/* A sticky header sticks to the page (or to the wrap, with maxHeight): it needs no scroll container of its own. */
+/* A sticky header sticks to the page (or to the wrap, with maxHeight): it needs no scroll container of its own. clip rounds the frame without becoming one. */
 .kit-table-wrap[data-sticky]:not([data-scroll]) {
-  overflow-x: visible;
+  overflow: clip;
 }
 
 .kit-table {
   width: 100%;
-  /* Separate borders: a sticky header keeps its hairline while rows scroll under it. */
+  /* Separate borders: a sticky header keeps its rule while rows scroll under it. */
   border-collapse: separate;
   border-spacing: 0;
-  color: var(--text-body);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   font-variant-numeric: var(--numeric-tabular);
 }
 
 .kit-table__th {
-  height: var(--control-md);
-  padding: 0 var(--space-2);
-  border-bottom: 1px solid var(--border-soft);
-  color: var(--text-muted);
+  height: var(--row-h);
+  padding: 0 var(--s4);
+  border-bottom: var(--bw) solid var(--ink);
+  background: var(--stone-soft);
+  color: var(--ink-2);
   font-size: var(--fs-meta);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-meta);
   text-align: start;
   white-space: nowrap;
@@ -55,7 +60,7 @@
   position: sticky;
   top: var(--kit-table-sticky-top, 0);
   z-index: var(--z-sticky);
-  background: var(--background);
+  background: var(--stone-soft);
 }
 
 .kit-table__th[data-align='end'] {
@@ -72,10 +77,10 @@
   gap: var(--space-1);
   box-sizing: border-box;
   min-height: var(--kit-h-sm);
-  margin: 0 calc(var(--space-2) * -1);
-  padding: 0 var(--space-2);
+  margin: 0 calc(var(--s3) * -1);
+  padding: 0 var(--s3);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -91,7 +96,8 @@
 
 @media (hover: hover) {
   .kit-table__sort:hover {
-    color: var(--text-strong);
+    background: var(--lemon-soft);
+    color: var(--ink);
   }
 }
 
@@ -102,19 +108,19 @@
 
 .kit-table__th[aria-sort='ascending'] .kit-table__sort,
 .kit-table__th[aria-sort='descending'] .kit-table__sort {
-  color: var(--text-strong);
+  color: var(--ink);
 }
 
 .kit-table__sort-icon {
   flex: none;
   width: 0.875rem;
   height: 0.875rem;
-  color: var(--text-faint);
+  color: var(--ink-4);
 }
 
 .kit-table__th[aria-sort='ascending'] .kit-table__sort-icon,
 .kit-table__th[aria-sort='descending'] .kit-table__sort-icon {
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .kit-table__row {
@@ -124,9 +130,9 @@
 
 .kit-table__cell {
   height: var(--kit-row-h-lg);
-  padding: var(--space-1) var(--space-2);
-  border-top: 1px solid var(--divider);
-  color: var(--text-body);
+  padding: var(--space-1) var(--s4);
+  border-top: var(--bw) solid var(--line);
+  color: var(--ink);
   font-weight: var(--fw-regular);
   text-align: start;
   vertical-align: middle;
@@ -150,7 +156,8 @@
 }
 
 .kit-table__cell[data-numeric] {
-  color: var(--text-strong);
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: var(--numeric-tabular);
   white-space: nowrap;
 }
@@ -167,7 +174,7 @@
   white-space: nowrap;
 }
 
-/* The selection cell's label fills the cell so a tap beside the 16px box still lands on it. */
+/* The selection cell's label fills the cell so a tap beside the 22px box still lands on it. */
 .kit-table__cell[data-selection] > .kit-check {
   min-inline-size: 100%;
   min-block-size: 100%;
@@ -190,27 +197,29 @@
 }
 
 .kit-table__cell[data-primary] {
-  color: var(--text-strong);
-  font-weight: var(--fw-medium);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
 
 @media (hover: hover) {
   .kit-table__row:not(.kit-table__row--empty):hover > .kit-table__cell {
-    background: var(--surface-hover);
+    background: var(--lemon-soft);
   }
 }
 
 .kit-table__row[data-selected] > .kit-table__cell {
-  background: var(--accent-subtle);
+  background: var(--lemon-soft);
 }
 
+/* The first column holds the selection bar's slot (4px, transparent at rest) inside its padding; the header cell keeps the same inset. */
+.kit-table__th:first-child,
 .kit-table__cell:first-child {
-  border-inline-start: 2px solid transparent;
-  padding-inline-start: calc(var(--space-2) - 2px);
+  border-inline-start: 4px solid transparent;
+  padding-inline-start: calc(var(--s4) - 4px);
 }
 
 .kit-table__row[data-selected] > .kit-table__cell:first-child {
-  border-inline-start-color: var(--accent);
+  border-inline-start-color: var(--ink);
 }
 
 .kit-table__row[aria-busy='true'] {
@@ -219,7 +228,7 @@
 
 .kit-table__empty {
   height: auto;
-  padding: var(--space-4) var(--space-2);
+  padding: var(--s4);
 }
 
 @media (hover: hover) {
@@ -251,8 +260,9 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-1) var(--space-3);
-    padding: 0 var(--space-2) var(--space-1);
-    border-bottom: 1px solid var(--border-soft);
+    padding: var(--s2) var(--s4);
+    border-bottom: var(--bw) solid var(--ink);
+    background: var(--stone-soft);
   }
 
   .kit-table-wrap[data-stack] .kit-table__head-row:not(:has([data-sortable], [data-selection])) {
@@ -284,7 +294,7 @@
   }
 
   .kit-table-wrap[data-stack] .kit-table__th[data-selection][data-label]::after {
-    color: var(--text-muted);
+    color: var(--ink-2);
     content: attr(data-label);
   }
 
@@ -301,9 +311,9 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--space-1) 0;
-    padding: var(--space-3) var(--space-2) var(--space-3) calc(var(--space-2) - 2px);
-    border-top: 1px solid var(--divider);
-    border-inline-start: 2px solid transparent;
+    padding: var(--s3) var(--s4) var(--s3) calc(var(--s4) - 4px);
+    border-top: var(--bw) solid var(--line);
+    border-inline-start: 4px solid transparent;
   }
 
   .kit-table-wrap[data-stack] .kit-table__body > .kit-table__row:first-child {
@@ -325,9 +335,9 @@
   }
 
   .kit-table-wrap[data-stack] .kit-table__cell::before {
-    color: var(--text-muted);
+    color: var(--ink-2);
     font-size: var(--fs-meta);
-    font-weight: var(--fw-regular);
+    font-weight: var(--fw-semibold);
     line-height: var(--lh-meta);
     content: attr(data-label);
     content: attr(data-label) / '';
@@ -408,13 +418,13 @@
 
   @media (hover: hover) {
     .kit-table-wrap[data-stack] .kit-table__row:not(.kit-table__row--empty):hover {
-      background: var(--surface-hover);
+      background: var(--lemon-soft);
     }
   }
 
   .kit-table-wrap[data-stack] .kit-table__row[data-selected] {
-    border-inline-start-color: var(--accent);
-    background: var(--accent-subtle);
+    border-inline-start-color: var(--ink);
+    background: var(--lemon-soft);
   }
 
   .kit-table-wrap[data-stack] .kit-table__empty {

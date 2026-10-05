@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Download, Plus, Search, Trash2, X } from 'lucide-react'
+import { ArrowRight, Copy, Download, Plus, RefreshCw, Search, Star, Trash2, X } from 'lucide-react'
 import { Button, Count, type ButtonSize, type ButtonVariant } from '#/components/kit'
 import { GallerySection, Group, Row, Specimen } from './gallery-parts'
 
@@ -37,7 +37,7 @@ export function ButtonSection() {
     <GallerySection
       id="button"
       title="Button"
-      note="One primary (filled forest) per view. Hover and active change colour only. Heights 28, 32, 36 on desktop; every size is 44 on touch devices."
+      note="One primary (tangerine) per view. The only object that lifts: hover moves it up-left and deepens the hard shadow, press sinks it onto the page. Heights 36, 44, 56; small and medium are 44 on touch devices."
     >
       <Group title="Variants and sizes">
         {VARIANTS.map((variant) => (
@@ -52,6 +52,77 @@ export function ButtonSection() {
             </Row>
           </div>
         ))}
+      </Group>
+
+      <Group title="States (hover, press and focus are forced here; the real ones need a pointer)">
+        {(['primary', 'secondary', 'ghost', 'link'] as ButtonVariant[]).map((variant) => (
+          <div key={variant} className="kit-gallery__variant">
+            <span className="kit-gallery__label">{variant}</span>
+            <Row>
+              <Specimen label="rest">
+                <Button variant={variant}>Re-generate</Button>
+              </Specimen>
+              <Specimen label="hover">
+                <Button variant={variant} data-demo="hover">
+                  Re-generate
+                </Button>
+              </Specimen>
+              <Specimen label="press">
+                <Button variant={variant} data-demo="press">
+                  Re-generate
+                </Button>
+              </Specimen>
+              <Specimen label="focus">
+                <Button variant={variant} data-demo="focus">
+                  Re-generate
+                </Button>
+              </Specimen>
+              <Specimen label="sm hover">
+                <Button variant={variant} size="sm" data-demo="hover">
+                  Add
+                </Button>
+              </Specimen>
+              <Specimen label="disabled">
+                <Button variant={variant} disabled>
+                  Re-generate
+                </Button>
+              </Specimen>
+              <Specimen label="loading">
+                <Button variant={variant} loading>
+                  Re-generate
+                </Button>
+              </Specimen>
+            </Row>
+          </div>
+        ))}
+      </Group>
+
+      <Group title="In context: a result header and a dashboard Add">
+        <Row>
+          <Button variant="secondary" size="sm">
+            <Star aria-hidden="true" />
+            Star
+          </Button>
+          <Button variant="secondary" size="sm">
+            <Copy aria-hidden="true" />
+            Copy
+          </Button>
+          <Button variant="secondary" size="sm">
+            <Download aria-hidden="true" />
+            Export
+          </Button>
+          <Button variant="ghost" size="sm">
+            New input
+          </Button>
+          <Button>
+            <RefreshCw aria-hidden="true" />
+            Re-generate
+          </Button>
+          <Button variant="secondary" size="sm">
+            <Plus aria-hidden="true" />
+            Add
+          </Button>
+        </Row>
       </Group>
 
       <Group title="With icons">

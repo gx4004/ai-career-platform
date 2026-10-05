@@ -1,8 +1,9 @@
 /*
- * Overlay foundation: the flat scrim, enter/exit motion, and the header / title / body /
+ * Overlay foundation (Sticker): the flat scrim, enter/exit motion, and the header / title / body /
  * footer parts that Dialog and Sheet share. Layer order comes from the --z-* tokens in theme.css.
- * Motion is opacity plus at most a 4px shift, via data-state, and is switched off for
- * prefers-reduced-motion (Radix then unmounts at once instead of waiting for the exit).
+ * A panel is white with the 2px ink outline; its header and footer are separated from the body by
+ * 2px ink rules. Motion is transform + opacity only, and is switched off for prefers-reduced-motion
+ * (Radix then unmounts at once instead of waiting for the exit).
  */
 
 @keyframes kit-fade-in {
@@ -31,7 +32,7 @@
   }
 }
 
-/* Flat warm ink. No blur, no gradient. */
+/* Flat plum ink at half strength. No blur, no gradient. */
 .kit-scrim {
   position: fixed;
   inset: 0;
@@ -53,8 +54,22 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-5) var(--space-5) var(--space-3);
+  gap: var(--s1);
+  padding: var(--s5) var(--s6);
+  border-bottom: var(--bw) solid var(--ink);
+  border-start-start-radius: calc(var(--kit-panel-r, var(--r-lg)) - var(--bw));
+  border-start-end-radius: calc(var(--kit-panel-r, var(--r-lg)) - var(--bw));
+}
+
+/* A header that only holds a visually hidden title (AuthDialog, command palette) draws no band. */
+.kit-panel__header:not(:has(> :not(.kit-sr-only))) {
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* ConfirmDialog tone="destructive": the header band is rose-soft. */
+.kit-panel__header[data-tone='danger'] {
+  background: var(--rose-soft);
 }
 
 /* Leave room for the close button. */
@@ -62,23 +77,23 @@
 .kit-dialog[data-closable='true'] > .kit-panel__form > .kit-panel__header,
 .kit-sheet[data-closable='true'] > .kit-panel__header,
 .kit-sheet[data-closable='true'] > .kit-panel__form > .kit-panel__header {
-  padding-right: calc(var(--space-3) + var(--kit-h-sm) + var(--space-2));
+  padding-right: calc(var(--s4) + var(--kit-h-sm) + var(--s2));
 }
 
 .kit-panel__title {
   margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-sans);
+  color: var(--ink);
+  font-family: var(--font-display);
   font-size: var(--fs-title);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-black);
   line-height: var(--lh-title);
-  letter-spacing: var(--ls-title);
+  letter-spacing: -0.01em;
   text-wrap: balance;
 }
 
 .kit-panel__description {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
@@ -86,7 +101,7 @@
 .kit-panel__body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: var(--space-1) var(--space-5) var(--space-5);
+  padding: var(--s5) var(--s6);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -102,9 +117,9 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
-  border-top: 1px solid var(--border-soft);
+  gap: var(--s3);
+  padding: var(--s4) var(--s6);
+  border-top: var(--bw) solid var(--ink);
 }
 
 .kit-panel__form {
@@ -119,8 +134,14 @@
 .kit-sheet .kit-panel__close {
   position: absolute;
   /* Centred on the first line of the title (20px from the top plus half the difference in height). */
-  top: calc(var(--space-5) + (var(--lh-title) - var(--kit-h-sm)) / 2);
-  right: var(--space-3);
+  top: var(--kit-close-top, calc(var(--s5) + (var(--lh-title) - var(--kit-h-sm)) / 2));
+  right: var(--s4);
+}
+
+.kit-dialog .kit-panel__close > svg,
+.kit-sheet .kit-panel__close > svg {
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

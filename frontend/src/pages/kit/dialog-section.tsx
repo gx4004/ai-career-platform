@@ -227,7 +227,7 @@ function StaticConfirm() {
   return (
     <Dialog open>
       <div className="kit-dialog" data-size="sm">
-        <DialogHeader>
+        <DialogHeader data-tone="danger">
           <DialogTitle>Delete this application?</DialogTitle>
           <DialogDescription>Northwind Labs, Senior Backend Engineer. Its notes, tasks and documents are removed for good.</DialogDescription>
         </DialogHeader>
@@ -248,11 +248,11 @@ export function DialogSection() {
     <GallerySection
       id="dialog"
       title="Dialog"
-      note="Modal panel on a flat warm scrim (no blur). Focus is trapped and returns to the trigger, Esc and an outside click close it, the page behind does not scroll. The previews are static copies; the buttons open the real thing."
+      note="White modal panel with the 2px ink outline, radius 24 and the 7px hard shadow, on a flat plum scrim (no blur). Header and footer are ruled off with 2px ink lines; the destructive confirm has a rose-soft header band. Focus is trapped and returns to the trigger, Esc and an outside click close it, the page behind does not scroll. The previews are static copies; the buttons open the real thing."
     >
       <Group title="At rest (static previews)">
         <Grid wide>
-          <Specimen label="sm: confirm">
+          <Specimen label="sm: destructive confirm">
             <Stage label="Static preview of a small dialog">
               <StaticConfirm />
             </Stage>

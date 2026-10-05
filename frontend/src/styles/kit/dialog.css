@@ -1,11 +1,12 @@
 /*
- * Dialog: centred modal panel. Centring uses inset + auto margins (no transform), so the
- * 4px enter shift owns the transform. Long bodies scroll inside .kit-panel__body.
+ * Dialog (Sticker): centred modal panel, white, 2px ink outline, radius 24, the 7px hard shadow.
+ * Centring uses inset + auto margins (no transform), so the enter animation owns the transform.
+ * Long bodies scroll inside .kit-panel__body. Open = kit-pop-in 200ms, close = 120ms fade.
  */
 
 .kit-dialog {
   --kit-dialog-w: 32rem;
-  --kit-shift-y: 4px;
+  --kit-panel-r: var(--r-lg);
 
   position: fixed;
   inset: 0;
@@ -13,17 +14,17 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: min(var(--kit-dialog-w), calc(100% - var(--space-4) * 2));
+  width: min(var(--kit-dialog-w), calc(100% - var(--s4) * 2));
   height: fit-content;
-  max-height: calc(100vh - var(--space-4) * 2);
-  max-height: calc(100dvh - var(--space-4) * 2);
+  max-height: calc(100vh - var(--s4) * 2);
+  max-height: calc(100dvh - var(--s4) * 2);
   margin: auto;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-xl);
-  background: var(--surface-overlay);
-  box-shadow: var(--shadow-overlay);
-  color: var(--text-body);
-  font-family: var(--font-sans);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-3);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   outline: none;
@@ -38,11 +39,11 @@
 }
 
 .kit-dialog[data-state='open'] {
-  animation: kit-shift-in var(--duration-overlay) var(--ease-out);
+  animation: kit-pop-in var(--duration-overlay) var(--ease-out);
 }
 
 .kit-dialog[data-state='closed'] {
-  animation: kit-shift-out var(--duration-fast) var(--ease-out) forwards;
+  animation: kit-fade-out var(--duration-fast) var(--ease-out) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
