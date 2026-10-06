@@ -6,6 +6,7 @@ from typing import Any
 from app.prompts.cover_letter import build_cover_letter_prompt
 from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
+from app.services.cover_letter_edits import compose_letter_text, letter_sign_off
 from app.services.evidence_injection import EvidencePayload, render_evidence_section
 
 SCHEMA_VERSION = "quality_v2"
@@ -279,15 +280,6 @@ def _normalize_section(
     }
 
 
-def _compose_full_text(
-    opening: dict[str, Any],
-    body_points: list[dict[str, Any]],
-    closing: dict[str, Any],
-) -> str:
-    parts = [opening["text"]] + [item["text"] for item in body_points] + [closing["text"]]
-    return "\n\n".join(part for part in parts if part)
-
-
 def _normalize_top_actions(
     result: dict[str, Any],
     application_context: dict[str, Any],
@@ -466,7 +458,16 @@ async def generate_cover_letter(
     }
     top_actions = _normalize_top_actions(result, application_context, requested_tone)
     tone_used = _to_str(result.get("tone_used")) or requested_tone
-    full_text = _to_str(result.get("full_text")) or _compose_full_text(opening, body_points, closing)
+    provider_full_text = _to_str(result.get("full_text"))
+    sign_off = letter_sign_off(
+        {"sign_off": result["sign_off"]} if isinstance(result.get("sign_off"), str)
+        else {"full_text": provider_full_text, "closing": closing}
+    )
+    full_text = provider_full_text or compose_letter_text(
+        opening["text"], [item["text"] for item in body_points], closing["text"], sign_off
+    )
+    if sign_off and not full_text.rstrip().endswith(sign_off):
+        full_text = f"{full_text.rstrip()}\n\n{sign_off}"
     customization_notes = _normalize_customization_notes(result, application_context, tone_used)
 
     return {
@@ -478,6 +479,7 @@ async def generate_cover_letter(
         "body_points": body_points,
         "closing": closing,
         "full_text": full_text,
+        "sign_off": sign_off,
         "tone_used": tone_used,
         "customization_notes": customization_notes,
     }

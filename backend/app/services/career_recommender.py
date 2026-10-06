@@ -12,6 +12,7 @@ from app.services.quality_signals import (
     infer_resume_discipline,
     infer_resume_seniority,
     infer_resume_years_experience,
+    keyword_present,
     ordered_unique,
     seniority_label,
 )
@@ -507,11 +508,37 @@ def _target_role_discipline(target_role: str | None, resume_discipline: str) -> 
     return resume_discipline
 
 
-def _role_path_from_template(template: dict[str, object], current_skills: list[str], target_role: str | None) -> dict[str, object]:
-    strengths = ordered_unique(
-        _string_list(template.get("strengths_to_leverage")) + current_skills[:4]
-    )[:4]
-    gaps = ordered_unique(_string_list(template.get("gaps_to_close")))[:4]
+def _shown_on_resume(skill: str, resume_text: str) -> bool:
+    return bool(resume_text) and keyword_present(skill, resume_text)
+
+
+def _grounded_strengths(strengths: list[str], current_skills: list[str], resume_text: str) -> list[str]:
+    """Only strengths the resume actually shows; a template's assumed strengths are not evidence."""
+    shown = [skill for skill in strengths if _shown_on_resume(skill, resume_text)]
+    return ordered_unique(shown + current_skills)[:4]
+
+
+def _open_gaps(gaps: list[str], discipline: str, resume_text: str) -> list[str]:
+    """Gaps the resume does not already demonstrate, topped up from the discipline's target skills."""
+    open_gaps = [gap for gap in gaps if not _shown_on_resume(gap, resume_text)]
+    if len(open_gaps) < 2:
+        extra = DISCIPLINE_TARGET_SKILLS.get(discipline, DISCIPLINE_TARGET_SKILLS["general-technology"])
+        open_gaps += [skill for skill in extra if not _shown_on_resume(skill, resume_text)]
+    return ordered_unique(open_gaps)[:4] or ["A visible proof project for the target scope"]
+
+
+def _role_path_from_template(
+    template: dict[str, object],
+    current_skills: list[str],
+    target_role: str | None,
+    *,
+    resume_text: str = "",
+    discipline: str = "general-technology",
+) -> dict[str, object]:
+    strengths = _grounded_strengths(
+        _string_list(template.get("strengths_to_leverage")), current_skills[:4], resume_text
+    )
+    gaps = _open_gaps(ordered_unique(_string_list(template.get("gaps_to_close"))), discipline, resume_text)
     role_title = _to_string(template.get("role_title")) or "Recommended role"
 
     target_context = ""
@@ -586,6 +613,7 @@ def _fallback_paths(
     seniority: str,
     current_skills: list[str],
     target_role: str | None,
+    resume_text: str = "",
 ) -> list[dict[str, object]]:
     templates: list[dict[str, object]] = []
     primary = PRIMARY_PATHS.get(resume_discipline, PRIMARY_PATHS["general-technology"]).get(
@@ -611,7 +639,9 @@ def _fallback_paths(
     paths: list[dict[str, object]] = []
     seen_titles: set[str] = set()
     for template in templates:
-        normalized = _role_path_from_template(template, current_skills, target_role)
+        normalized = _role_path_from_template(
+            template, current_skills, target_role, resume_text=resume_text, discipline=target_discipline
+        )
         title_key = normalized["role_title"].lower()
         if title_key in seen_titles:
             continue
@@ -707,6 +737,7 @@ def _normalize_target_skills(
     fallback_paths: list[dict[str, object]],
     resume_discipline: str,
     current_skills: list[str],
+    resume_text: str = "",
 ) -> list[str]:
     raw_items = _string_list(result.get("target_skills"))
     combined = raw_items[:]
@@ -717,7 +748,7 @@ def _normalize_target_skills(
     return [
         skill
         for skill in ordered_unique(combined)
-        if skill.lower() not in current_skill_keys
+        if skill.lower() not in current_skill_keys and not _shown_on_resume(skill, resume_text)
     ][:6]
 
 
@@ -873,8 +904,8 @@ async def recommend_career(
     seniority = infer_resume_seniority(resume_text)
     years_experience = infer_resume_years_experience(resume_text)
 
-    fallback_paths = _fallback_paths(resume_discipline, seniority, current_skills, target_role)
-    target_skills = _normalize_target_skills({}, fallback_paths, resume_discipline, current_skills)
+    fallback_paths = _fallback_paths(resume_discipline, seniority, current_skills, target_role, resume_text)
+    target_skills = _normalize_target_skills({}, fallback_paths, resume_discipline, current_skills, resume_text)
     default_recommended = {
         "role_title": _to_string(fallback_paths[0]["role_title"]),
         "fit_score": int(fallback_paths[0]["fit_score"]),
@@ -927,9 +958,28 @@ async def recommend_career(
     result = await complete_structured(system_prompt, user_prompt)
 
     paths = _normalize_paths(result, fallback_paths)
+    # A provider can echo template strengths or name a gap the resume already
+    # demonstrates; neither may reach the person.
+    for path in paths:
+        path["strengths_to_leverage"] = _grounded_strengths(
+            _string_list(path.get("strengths_to_leverage")), current_skills[:4], resume_text
+        )
+        path["gaps_to_close"] = _open_gaps(
+            _string_list(path.get("gaps_to_close")),
+            _target_role_discipline(_to_string(path.get("role_title")), resume_discipline),
+            resume_text,
+        )
     recommended_direction = _normalize_recommended_direction(result, paths, len(current_skills))
-    target_skills = _normalize_target_skills(result, paths, resume_discipline, current_skills)
-    skill_gaps = _normalize_skill_gaps(result, recommended_direction, target_skills)
+    target_skills = _normalize_target_skills(result, paths, resume_discipline, current_skills, resume_text)
+    open_gap_result = {
+        **result,
+        "skill_gaps": [
+            item
+            for item in (result.get("skill_gaps") if isinstance(result.get("skill_gaps"), list) else [])
+            if not (isinstance(item, dict) and _shown_on_resume(_to_string(item.get("skill")), resume_text))
+        ],
+    }
+    skill_gaps = _normalize_skill_gaps(open_gap_result, recommended_direction, target_skills)
     next_steps = _normalize_next_steps(result, recommended_direction, skill_gaps)
     top_actions = _normalize_top_actions(result, next_steps)
 

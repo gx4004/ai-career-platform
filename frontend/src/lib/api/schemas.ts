@@ -377,7 +377,10 @@ export const todayActionItemSchema = z.strictObject({
 export const todayPlanSchema = z.strictObject({
   has_sources: z.boolean(),
   has_evidence: z.boolean(),
+  // Only listings at or above best_match_min_fit; closest_matches is filled only when none clear it.
   best_matches: z.array(discoveryListingSchema),
+  closest_matches: z.array(discoveryListingSchema).default([]),
+  best_match_min_fit: z.number().int().min(0).max(100).optional(),
   needs_action: z.array(todayActionItemSchema),
   needs_action_total: z.number().int().nonnegative(),
 })
@@ -546,7 +549,7 @@ export const gapActionPathSchema = z.enum([
 ])
 // The first-party surfaces a next step may point at. A literal union (not a bare
 // string) so a route that no longer exists cannot be linked to.
-export const gapFirstPartyRouteSchema = z.enum(['/portfolio', '/career'])
+export const gapFirstPartyRouteSchema = z.enum(['/portfolio', '/career', '/cv-studio'])
 export const gapRecommendationSourceSchema = z.strictObject({
   label: z.string(),
   url: z.string().url().nullish(),
@@ -1193,6 +1196,8 @@ export const coverLetterResultSchema = sharedResultEnvelopeSchema
       evidence_used: z.array(z.string()).default([]),
     }),
     full_text: z.string(),
+    // "Sincerely,\nName" when the resume names the applicant; kept through edits and exports.
+    sign_off: z.string().default(''),
     tone_used: z.string(),
     customization_notes: z.array(
       z.object({

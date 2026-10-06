@@ -5,8 +5,9 @@ segment dimension is its own, separate signal (PRD #413).
 
 Definitions (also in CONTEXT.md):
 
-- **Applied**: an application the owner sent (``applied_at`` set), except one
-  withdrawn before any reply. The employer never got to answer that one.
+- **Applied**: an application the owner sent (``applied_at`` set, or moved on the
+  board to a stage only a sent application can reach), except one withdrawn
+  before any reply. The employer never got to answer that one.
 - **Replied**: an applied application that reached an interview or an offer,
   including one later rejected or withdrawn. A rejection with no interview is
   not counted as a reply.
@@ -19,6 +20,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.campaign_event import CampaignEvent
@@ -31,6 +33,7 @@ from app.schemas.applications import (
     WhatsWorking,
 )
 from app.schemas.discovery_recommendations import SimilarApplications
+from app.services.quality_signals import BORDERLINE_MATCH_FROM, STRONG_MATCH_FROM
 
 MIN_SEGMENT_SIZE = 3
 MAX_SEGMENTS_PER_DIMENSION = 8
@@ -61,12 +64,15 @@ _ROLE_FAMILIES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 # The same cut-offs Job Match uses for its verdicts.
 _FIT_BUCKETS = (
-    (78, "Strong fit (78%+)"),
-    (55, "Partial fit (55-77%)"),
-    (0, "Low fit (under 55%)"),
+    (STRONG_MATCH_FROM, f"Strong fit ({STRONG_MATCH_FROM}%+)"),
+    (BORDERLINE_MATCH_FROM, f"Partial fit ({BORDERLINE_MATCH_FROM}-{STRONG_MATCH_FROM - 1}%)"),
+    (0, f"Low fit (under {BORDERLINE_MATCH_FROM}%)"),
 )
 
 _REPLY_STATUSES = {"interviewing", "offer"}
+# Stages only a sent application reaches; a card dragged there straight from Saved
+# (skipping Applied) was still sent, so it belongs in the sample like the board shows it.
+_SENT_STATUSES = ("no_reply", "interviewing", "offer", "rejected", "withdrawn")
 
 
 @dataclass(frozen=True)
@@ -245,7 +251,10 @@ def load_applied_applications(db: Session, user_id: str) -> list[AppliedApplicat
     """The owner's sent applications, reduced to the facts the insights count."""
     workspaces = (
         db.query(Workspace)
-        .filter(Workspace.user_id == user_id, Workspace.applied_at.is_not(None))
+        .filter(
+            Workspace.user_id == user_id,
+            or_(Workspace.applied_at.is_not(None), Workspace.status.in_(_SENT_STATUSES)),
+        )
         .all()
     )
     ids = [w.id for w in workspaces]

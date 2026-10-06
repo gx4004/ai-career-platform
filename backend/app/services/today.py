@@ -4,7 +4,9 @@ Two independent lists, built from existing rules and never blended:
 
 - **Best matches**: the top visible Discovery listings by skills fit that the
   owner has not yet added to Applications (hidden listings are already out of
-  the visibility rule).
+  the visibility rule). A low fit (below the shared "partial fit" band) is never
+  a best match; when nothing clears that floor, the closest few are returned in
+  a separate ``closest_matches`` list instead.
 - **Needs action**: applications that are interviewing, have a deadline in the
   next week while still saved, or show the "No reply yet?" prompt. Each
   application appears once, under its most urgent reason. Nothing here changes
@@ -25,14 +27,19 @@ from app.schemas.applications import ApplicationCard, ApplicationStatus
 from app.schemas.today import ActionItem, ActionReason, TodayPlan
 from app.services.applications import IS_APPLICATION, list_applications
 from app.services.discovery_recommendations import (
+    MatchProfile,
     VisibleListing,
     best_matches,
     has_live_source,
     listing_item,
     load_match_profile,
 )
+from app.services.quality_signals import BORDERLINE_MATCH_FROM
 
 MATCH_COUNT = 5
+CLOSEST_COUNT = 3
+# A best match is at least a partial fit: the same band Job Match calls "borderline".
+BEST_MATCH_MIN_FIT = BORDERLINE_MATCH_FROM
 ACTION_LIMIT = 6
 DEADLINE_WINDOW = timedelta(days=7)
 # At most this many already-added jobs are looked past to fill the match list.
@@ -45,23 +52,33 @@ def todays_plan(db: Session, user_id: str, *, now: datetime | None = None) -> To
     now = now or datetime.now(UTC)
     profile = load_match_profile(db, user_id)
     actions = _needs_action(list_applications(db, user_id).items, now)
+    fresh = _fresh_matches(db, user_id, now, profile) if profile.has_evidence else []
+    best = [row for row in fresh if _fit(row) >= BEST_MATCH_MIN_FIT]
     return TodayPlan(
         has_sources=has_live_source(db, now),
         has_evidence=profile.has_evidence,
-        best_matches=[listing_item(row) for row in _fresh_matches(db, user_id, now)],
+        best_matches=[listing_item(row) for row in best],
+        closest_matches=[] if best else [listing_item(row) for row in fresh[:CLOSEST_COUNT]],
+        best_match_min_fit=BEST_MATCH_MIN_FIT,
         needs_action=actions[:ACTION_LIMIT],
         needs_action_total=len(actions),
     )
 
 
-def _fresh_matches(db: Session, user_id: str, now: datetime):
+def _fit(row: VisibleListing) -> int:
+    return row.match.skills_fit if row.match and row.match.skills_fit is not None else -1
+
+
+def _fresh_matches(db: Session, user_id: str, now: datetime, profile: MatchProfile):
     pipeline = _pipeline_keys(db, user_id)
     # Ask for extra to still fill the list after skipping the jobs already in the
     # pipeline; widen (bounded) while skipped jobs, such as one posting per
-    # location, keep crowding the top.
+    # location, keep crowding the top. Ranked by fit, so once a row is below the
+    # floor every later one is too: widening only helps while the top is all
+    # pipeline jobs.
     limit = MATCH_COUNT + min(pipeline.size, _MAX_SKIPPED)
     while True:
-        ranked = best_matches(db, user_id, limit=limit, now=now)
+        ranked = best_matches(db, user_id, limit=limit, now=now, profile=profile)
         fresh = [row for row in ranked if not pipeline.contains(row)]
         if len(fresh) >= MATCH_COUNT or len(ranked) < limit or limit >= MATCH_COUNT + _MAX_SKIPPED:
             return fresh[:MATCH_COUNT]

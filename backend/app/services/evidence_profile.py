@@ -10,6 +10,7 @@ from app.schemas.evidence_profile import (
     EvidenceItemResponse,
     EvidenceItemUpdate,
     EvidenceProfileExport,
+    strip_control_chars,
 )
 
 
@@ -65,8 +66,9 @@ def imported_evidence_proposal(kind: str, content: dict[str, str]) -> EvidenceIt
     fields are dropped. A claim that is still not a valid fact is skipped rather
     than failing the whole import.
     """
+    # Text parsed from a file: control characters are removed, not refused.
     clamped = {
-        key: value[:MAX_CONTENT_VALUE_CHARS] if isinstance(value, str) else value
+        key: strip_control_chars(value)[:MAX_CONTENT_VALUE_CHARS] if isinstance(value, str) else value
         for key, value in content.items()
     }
     try:

@@ -41,7 +41,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.services.quality_signals import extract_job_keywords, extract_role_label, keyword_present
+from app.services.quality_signals import (
+    evidence_line,
+    extract_job_keywords,
+    extract_role_label,
+    keyword_present,
+)
 
 # ---------------------------------------------------------------------------
 # Prompt-parsing helpers
@@ -169,6 +174,11 @@ def _join(items: list[str], limit: int = 3) -> str:
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 
+def _agree(items: list[str], limit: int, singular: str, plural: str) -> str:
+    """The verb form for ``_join(items, limit)`` as a subject."""
+    return singular if len([item for item in items if item][:limit]) <= 1 else plural
+
+
 def _unique(items: list[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
@@ -216,8 +226,39 @@ def _looks_like_name(line: str) -> bool:
     return True
 
 
+_CONTACT_RE = re.compile(
+    r"@|https?://|www\.|\b[\w-]+\.(?:com|io|dev|net|org|me|co)\b|linkedin|github"
+    r"|\+?\(?\d[\d\s().-]{6,}\d"  # phone number
+    r"|^[A-Z][a-zA-Z.]+(?:\s[A-Z][a-zA-Z.]+)*,\s*(?:[A-Z]{2}|USA|UK)$",  # "Austin, TX"
+)
+
+
+def _looks_like_contact(text: str) -> bool:
+    """An email, URL, phone number or "City, Region" segment: header contact details, never an employer."""
+    return bool(_CONTACT_RE.search(text.strip()))
+
+
+_PHONE_SEGMENT = re.compile(r"^\+?[\d\s().-]+$")
+
+
+def _contact_header_line(line: str) -> bool:
+    """A header line carrying an email, link or phone number: contact details, never evidence."""
+    if re.search(r"@|https?://|www\.|linkedin|github", line, re.I):
+        return True
+    segments = [segment.strip() for segment in re.split(r"[|·•]", line)]
+    return any(
+        _PHONE_SEGMENT.match(segment) and len(re.findall(r"\d", segment)) >= 9 for segment in segments
+    )
+
+
+def _shown_line(keyword: str, resume_text: str) -> str | None:
+    """The first resume line that shows ``keyword``, skipping the contact header."""
+    body = "\n".join(line for line in resume_text.splitlines() if not _contact_header_line(line))
+    return evidence_line(keyword, body)
+
+
 def _role_line(line: str) -> tuple[str, str] | None:
-    """A ``Role at Employer`` line (not a bullet or a sentence)."""
+    """A ``Role at Employer`` line (not a bullet, a sentence or a contact header)."""
     if _BULLET_RE.match(line) or len(line) > 90 or line.endswith("."):
         return None
     for sep in (" at ", " @ ", " | "):
@@ -225,6 +266,10 @@ def _role_line(line: str) -> tuple[str, str] | None:
             role, _, employer = line.partition(sep)
             role = role.strip()
             employer = re.sub(r"\s*[\(,|]?\s*\(?\d{4}.*$", "", employer).strip(" ,;")
+            # "Role | Employer | Location": the employer is the first segment only.
+            employer = employer.split("|", 1)[0].strip(" ,;")
+            if _looks_like_contact(employer) or _looks_like_contact(role):
+                return None
             if 1 <= len(role.split()) <= 6 and 1 <= len(employer.split()) <= 6 and employer[:1].isalnum():
                 return role[:80], employer[:80]
     return None
@@ -340,8 +385,32 @@ _JOB_HEADER_RE = re.compile(
 )
 
 
+_COMPANY_NAME = r"(?P<company>[A-Z][\w&'-]*(?:\s+[A-Z][\w&'-]*){0,2})"
+_COMPANY_PATTERNS = (
+    re.compile(r"^\s*About\s+" + _COMPANY_NAME + r"\s*:?\s*$", re.M),  # an "About Contoso" heading
+    re.compile(r"^\s*" + _COMPANY_NAME + r"\s+is\s+(?:hiring|looking|seeking|growing)\b", re.M),
+    # "... who have worked at Google": an "at" after a word about past work names a former employer.
+    re.compile(
+        r"\b(?:hiring|seeking|looking for|join)\b"
+        r"(?:(?!\b(?:worked|working|work|experience|experienced|background|previously|formerly)\b)[^.\n]){0,80}?"
+        r"\bat\s+" + _COMPANY_NAME
+    ),
+)
+_NOT_COMPANY = frozenset({"the", "us", "you", "our", "this", "we", "role", "team", "company", "position", "job"})
+
+
+def _company_from_prose(job_description: str) -> str:
+    """The employer from "About Contoso", "Contoso is hiring" or "... hiring ... at Contoso"."""
+    for pattern in _COMPANY_PATTERNS:
+        for match in pattern.finditer(job_description):
+            company = match.group("company").strip()
+            if company.split()[0].lower() not in _NOT_COMPANY:
+                return company[:60]
+    return ""
+
+
 def _job_header(job_description: str) -> tuple[str, str]:
-    """(title, company) from the posting's header, when it has one."""
+    """(title, company) from the posting's header or its prose, when it names them."""
     company = ""
     field_match = re.search(r"^\s*(?:company|employer|organi[sz]ation)\s*:\s*(.+)$", job_description, re.M | re.I)
     if field_match:
@@ -354,7 +423,7 @@ def _job_header(job_description: str) -> tuple[str, str]:
         if match:
             return match.group("title").strip(), company or match.group("company").strip()
         break
-    return "", company
+    return "", company or _company_from_prose(job_description)
 
 
 def _role_label(job_description: str, handoff: dict | None = None) -> str:
@@ -420,6 +489,85 @@ def _fact_text(kind: str, content: dict) -> str:
 def _top_resume_fact(resume: _Resume) -> str:
     quantified = resume.quantified
     return quantified[0].text.rstrip(". ") if quantified else (resume.bullets[0].text.rstrip(". ") if resume.bullets else "")
+
+
+# ---------------------------------------------------------------------------
+# Re-generate feedback
+#
+# A real model reads "make it more concise" or "focus on leadership" and changes
+# its answer; the fake must too, or a Re-generate looks broken in a demo. Two
+# intents are recognised: concise (fewer items, one sentence each) and a focus
+# topic (items about it first, and a lead action that names it).
+# ---------------------------------------------------------------------------
+
+_CONCISE_RE = re.compile(r"\b(?:short|shorter|concise|brief|briefer|trim|tighter|cut down|too long|less wordy)\b", re.I)
+_FOCUS_RE = re.compile(
+    r"\b(?:focus(?:ed|ing)?|emphasi[sz]e|highlight|lead with|more about|prioriti[sz]e)\s+"
+    r"(?:more\s+)?(?:on\s+|about\s+)?(?:my\s+|the\s+|a\s+|an\s+)?"
+    r"(?P<topic>[a-z][a-z0-9/&+ -]{1,40}?)(?=\s*(?:[.,;!?]|$|\band\b|\binstead\b|\brather\b))",
+    re.I,
+)
+
+
+@dataclass(frozen=True)
+class _FeedbackIntent:
+    concise: bool = False
+    topic: str = ""
+
+
+def _feedback_intent(feedback: str) -> _FeedbackIntent:
+    if not feedback:
+        return _FeedbackIntent()
+    match = _FOCUS_RE.search(feedback)
+    return _FeedbackIntent(concise=bool(_CONCISE_RE.search(feedback)), topic=match.group("topic").strip() if match else "")
+
+
+def _first_sentence(text: str) -> str:
+    return re.split(r"(?<=[.!?])\s+(?=[A-Z])", text.strip(), maxsplit=1)[0]
+
+
+def _mentions(item: Any, topic: str) -> bool:
+    return topic.lower() in json.dumps(item, ensure_ascii=False).lower()
+
+
+def _reflect_feedback(
+    result: dict,
+    intent: _FeedbackIntent,
+    *,
+    keep: dict[str, int],
+    shorten: tuple[str, ...] = (),
+    sub_keep: dict[str, int] | None = None,
+    focus_action: str = "",
+) -> dict:
+    """Apply the feedback intent to the listed parts of a builder's result, in place."""
+    if intent.topic:
+        topic = intent.topic
+        for key in keep:
+            items = result.get(key)
+            if isinstance(items, list):
+                result[key] = sorted(items, key=lambda item: not _mentions(item, topic))
+        actions = result.get("top_actions")
+        if focus_action and isinstance(actions, list) and not (actions and _mentions(actions[0], topic)):
+            actions.insert(
+                0, {"title": f"Put {topic} first", "action": focus_action.format(topic=topic), "priority": "high"}
+            )
+    if intent.concise:
+        for key, count in keep.items():
+            items = result.get(key)
+            if not isinstance(items, list):
+                continue
+            items = items[:count]
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                for name in shorten:
+                    if isinstance(item.get(name), str):
+                        item[name] = _first_sentence(item[name])
+                for name, count_inner in (sub_keep or {}).items():
+                    if isinstance(item.get(name), list):
+                        item[name] = item[name][:count_inner]
+            result[key] = [_first_sentence(item) if isinstance(item, str) else item for item in items]
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -501,7 +649,7 @@ def _resume_analyzer(system_prompt: str, user_prompt: str) -> dict:
             "why_it_matters": "Recruiters and ATS filters scan for the posting's own terms before reading the rest.",
             "evidence": (
                 f"The posting asks for {_join(missing, 3)}; none of it appears in the resume"
-                + (f", although {_join(matched, 2)} does." if matched else ".")
+                + (f", although {_join(matched, 2)} {_agree(matched, 2, 'does', 'do')}." if matched else ".")
             ),
             "fix": f"Add one bullet that names {focus} with a concrete outcome, only where it is true.",
         }
@@ -627,13 +775,24 @@ def _resume_analyzer(system_prompt: str, user_prompt: str) -> dict:
     feedback = _feedback(user_prompt)
     if feedback:
         result["summary"]["confidence_note"] = f'Re-read with your note in mind: "{_trim(feedback, 100)}".'
+        intent = _feedback_intent(feedback)
+        shown = _shown_line(intent.topic, _resume_text(user_prompt)) if intent.topic else None
+        if shown and not any(_mentions(item, intent.topic) for item in result["strengths"]):
+            result["strengths"].insert(0, f'Shows {intent.topic}: "{_trim(shown, 110)}"')
+        _reflect_feedback(
+            result,
+            intent,
+            keep={"issues": 3, "strengths": 2, "top_actions": 2},
+            shorten=("why_it_matters", "evidence", "fix", "action"),
+            focus_action="Lead your summary and most recent role with one bullet that proves {topic}, only where it is true.",
+        )
     if job_description:
         result["role_fit"] = {
             # target_role_label is deliberately omitted: the service fills it from the posting.
             "fit_score": min(95, round((scores["keywords"] + sum(scores.values()) / len(scores)) / 2)),
             "rationale": (
-                f"{_join(matched, 3) or 'A few relevant areas'} already read as credible"
-                + (f", but {_join(missing, 2)} needs clearer proof before this reads as a strong match." if missing else ".")
+                (f"{_join(matched, 3)} already {_agree(matched, 3, 'reads', 'read')} as credible" if matched else "A few relevant areas already read as credible")
+                + (f", but {_join(missing, 2)} {_agree(missing, 2, 'needs', 'need')} clearer proof before this reads as a strong match." if missing else ".")
             ),
         }
     return result
@@ -653,13 +812,24 @@ def _job_match_headline(verdict: str, *, matched: list[str], missing: list[str],
     total = len(matched) + len(missing)
     if verdict == "strong":
         return f"You already cover {_join(matched, 3)}; a few edits make the fit for {role} easier to trust."
+    if verdict == "borderline" and not missing:
+        # Only reachable when the posting names too little to judge (the score is capped).
+        if not matched:
+            return f"The posting names no requirement we can check for {role}; paste the full posting for a firmer read."
+        return (
+            f"You match the {len(matched)} {_agree(matched, 3, 'requirement', 'requirements')} this posting names for {role} "
+            f"({_join(matched, 3)}); paste the full posting for a firmer read."
+        )
     if verdict == "borderline":
         return (
-            f"You match {len(matched)} of {total} requirements for {role}, but "
-            f"{_join(missing, 2) or 'the remaining requirements'} still need proof."
+            f"You match {len(matched)} of {total} {'requirement' if total == 1 else 'requirements'} for {role}, but "
+            + (f"{_join(missing, 2)} still {_agree(missing, 2, 'needs', 'need')} proof." if missing else "the remaining requirements still need proof.")
         )
     tail = f"; only {matched[0]} lines up" if matched else ""
-    return f"This reads as a stretch for {role}: {_join(missing, 3) or 'the core requirements'} are not evidenced in the resume{tail}."
+    subject = (
+        f"{_join(missing, 3)} {_agree(missing, 3, 'is', 'are')}" if missing else "the core requirements are"
+    )
+    return f"This reads as a stretch for {role}: {subject} not evidenced in the resume{tail}."
 
 
 def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
@@ -677,11 +847,12 @@ def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
         verdict = "strong" if len(matched) >= 2 * len(missing) and matched else "borderline" if matched else "stretch"
 
     requirements = []
+    resume_text = _resume_text(user_prompt)
     for index, keyword in enumerate(matched[:3]):
         bullet = resume.bullet_with(keyword)
-        evidence = (
-            f'Resume: "{_trim(bullet.text, 90)}"' if bullet else f"{keyword} is listed in the skills and experience."
-        )
+        # Quote the line that shows it: a synonym match ("Led a team" for Leadership) is not "listed".
+        line = bullet.text if bullet else _shown_line(keyword, resume_text)
+        evidence = f'Resume: "{_trim(line, 90)}"' if line else f"The resume shows {keyword} indirectly."
         requirements.append(
             {
                 "requirement": keyword,
@@ -745,7 +916,7 @@ def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
     if feedback:
         summary_note = f'Re-read with your note in mind: "{_trim(feedback, 100)}".'
 
-    return {
+    result = {
         "schema_version": "quality_v2",
         "summary": {
             "headline": _job_match_headline(verdict, matched=matched, missing=missing, role=role),
@@ -769,6 +940,26 @@ def _job_matcher(system_prompt: str, user_prompt: str) -> dict:
             + (f", but still needs clearer proof for {_join(missing, 3)} to read as a strong match." if missing else ".")
         ),
     }
+    intent = _feedback_intent(feedback)
+    _reflect_feedback(
+        result,
+        intent,
+        # Concise shortens the text, never the gaps: every missing keyword stays.
+        keep={"requirements": 6, "tailoring_actions": 1, "missing_keywords": 4, "top_actions": 1, "interview_focus": 2},
+        shorten=("resume_evidence", "suggested_fix", "contextual_guidance", "anti_stuffing_note", "action"),
+        focus_action=f"Make {{topic}} the first thing a recruiter for {role} reads: name it in your summary and top bullet, only where it is true.",
+    )
+    if intent.concise:
+        # At most two requirements per status, so a shorter list never hides every gap.
+        per_status: dict[str, int] = {}
+        kept = []
+        for requirement in result["requirements"]:
+            seen = per_status.get(requirement["status"], 0)
+            if seen < 2:
+                kept.append(requirement)
+                per_status[requirement["status"]] = seen + 1
+        result["requirements"] = kept
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -836,9 +1027,15 @@ def _cover_letter(system_prompt: str, user_prompt: str) -> dict:
             + (f"With {experience}{title}, {background}" if has_standing else background.capitalize())
             + " maps directly to what the role asks for."
         )
+    named = (
+        "the role and company" if company and role != _GENERIC_ROLE
+        else "the company" if company
+        else "the role" if role != _GENERIC_ROLE
+        else ""
+    )
     opening = _section_dict(
         f"{greeting}\n\n{opening_body}",
-        "Names the role and company, then states the closest match up front.",
+        f"Names {named}, then states the closest match up front." if named else "States the closest match up front.",
         matched,
         [skills_phrase],
     )
@@ -905,8 +1102,8 @@ def _cover_letter(system_prompt: str, user_prompt: str) -> dict:
     )
     closing = _section_dict(closing_text, "Ends with a concrete, low-friction next step.", missing or matched, [])
 
-    sign_off = f"\n\nSincerely,\n{resume.name}" if resume.name else ""
-    full_text = "\n\n".join([opening["text"], *[bp["text"] for bp in body_points], closing["text"]]) + sign_off
+    sign_off = f"Sincerely,\n{resume.name}" if resume.name else ""
+    full_text = "\n\n".join([opening["text"], *[bp["text"] for bp in body_points], closing["text"], sign_off]).strip()
 
     notes = [
         {
@@ -969,6 +1166,7 @@ def _cover_letter(system_prompt: str, user_prompt: str) -> dict:
         "body_points": body_points,
         "closing": closing,
         "full_text": full_text,
+        "sign_off": sign_off,
         "tone_used": tone,
         "customization_notes": notes[:4],
     }
@@ -1109,6 +1307,10 @@ def _interview_questions(system_prompt: str, user_prompt: str) -> dict:
             "practice_first": is_weak,
         }
 
+    intent = _feedback_intent(feedback)
+    if intent.topic and not any(intent.topic.lower() in item.lower() for item in pool):
+        # Asked to focus on a topic the posting does not name: practise it first anyway.
+        pool = [intent.topic[:1].upper() + intent.topic[1:], *pool][:4]
     first_round = [kind_question(focus, 0, index) for index, focus in enumerate(pool)]
 
     specials: list[dict] = []
@@ -1167,7 +1369,15 @@ def _interview_questions(system_prompt: str, user_prompt: str) -> dict:
         if item["question"] not in seen:
             seen.add(item["question"])
             questions.append(item)
+    if intent.topic:
+        questions.sort(key=lambda item: intent.topic.lower() not in item["focus_area"].lower())
     questions = questions[:count]
+    if intent.concise:
+        for item in questions:
+            item["answer"] = _first_sentence(item["answer"])
+            item["follow_up_questions"] = item["follow_up_questions"][:1]
+            item["key_points"] = item["key_points"][:2]
+            item["answer_structure"] = item["answer_structure"][:3]
 
     headline = (
         f"{count} questions for {'this role' if role == _GENERIC_ROLE else role}{co}: gap topics ({_join(weak, 2)}) first, then your strongest stories."
@@ -1185,7 +1395,7 @@ def _interview_questions(system_prompt: str, user_prompt: str) -> dict:
     if feedback:
         notes.append(f'Adjusted for your note: "{_trim(feedback, 100)}".')
 
-    return {
+    result = {
         "schema_version": "quality_v2",
         "summary": {
             "headline": headline,
@@ -1229,6 +1439,12 @@ def _interview_questions(system_prompt: str, user_prompt: str) -> dict:
         ],
         "interviewer_notes": notes[:4] or ["Lead with the strongest matching story before adjacent experience."],
     }
+    return _reflect_feedback(
+        result,
+        intent,
+        keep={"focus_areas": 2, "weak_signals_to_prepare": 2, "interviewer_notes": 2, "top_actions": 1},
+        shorten=("reason", "why_it_matters", "prep_action", "action"),
+    )
 
 
 _STOPWORDS = frozenset(
@@ -1368,6 +1584,15 @@ def _top_up_directions(paths: list[dict], discipline: str, strengths: list[str])
     return paths
 
 
+def _gap_reason(role: str, gap: str, strength: str, resume: _Resume) -> str:
+    """Why a gap matters, citing a strength only when the resume text actually shows it."""
+    if strength and keyword_present(strength, "\n".join(resume.lines)):
+        bullet = resume.bullet_with(strength)
+        proof = f' ("{_trim(bullet.text, 70)}")' if bullet else ""
+        return f"{role} hiring teams look for {gap}. Your resume proves {strength}{proof}, but nothing on it shows {gap} yet."
+    return f"{role} hiring teams look for {gap}, and nothing on your resume shows it yet."
+
+
 def _career(system_prompt: str, user_prompt: str) -> dict:
     locked = _json_after(user_prompt, "## Locked payload") or {}
     helper = _json_after(user_prompt, "## Helper signals") or {}
@@ -1438,10 +1663,7 @@ def _career(system_prompt: str, user_prompt: str) -> dict:
         {
             "skill": gap,
             "urgency": "high" if index == 0 else "medium",
-            "why_it_matters": (
-                f"{role} hiring teams look for {gap}; your resume shows {strengths[0] if strengths else 'related work'} "
-                f"but no direct proof of {gap}."
-            ),
+            "why_it_matters": _gap_reason(role, gap, strengths[index % len(strengths)] if strengths else "", resume),
             "how_to_build": gap_guides[index % len(gap_guides)].format(gap=gap),
         }
         for index, gap in enumerate(gaps[:3])
@@ -1461,7 +1683,7 @@ def _career(system_prompt: str, user_prompt: str) -> dict:
     note = "Advisory, evidence-based read on your resume and target role."
     if feedback:
         note = f'Re-read with your note in mind: "{_trim(feedback, 100)}".'
-    return {
+    result = {
         "schema_version": "planning_v1",
         "summary": {"headline": headline, "verdict": "Best next move identified", "confidence_note": note},
         "top_actions": [
@@ -1480,6 +1702,13 @@ def _career(system_prompt: str, user_prompt: str) -> dict:
         "skill_gaps": skill_gaps,
         "next_steps": next_steps,
     }
+    return _reflect_feedback(
+        result,
+        _feedback_intent(feedback),
+        keep={"skill_gaps": 2, "next_steps": 2, "top_actions": 1, "paths": 5},
+        shorten=("why_it_matters", "how_to_build", "rationale", "action"),
+        focus_action=f"Tell your move to {role} through {{topic}} first: one story where you showed it, and one way to show more of it.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1556,7 +1785,7 @@ def _portfolio(system_prompt: str, user_prompt: str) -> dict:
     if feedback:
         note = f'Re-planned with your note in mind: "{_trim(feedback, 100)}".'
     signals = _string_list(projects[0].get("hiring_signals"))
-    return {
+    result = {
         "schema_version": "planning_v1",
         "summary": {
             "headline": f"{len(projects)} projects for {target_role}, from {start} to {last}.",
@@ -1595,6 +1824,14 @@ def _portfolio(system_prompt: str, user_prompt: str) -> dict:
             f"Tie each project back to {signals[0].lower() if signals else 'the role'} in the first line of the README.",
         ],
     }
+    return _reflect_feedback(
+        result,
+        _feedback_intent(feedback),
+        keep={"projects": 4, "sequence_plan": 4, "presentation_tips": 1, "top_actions": 1},
+        shorten=("description", "why_this_project", "reason", "action"),
+        sub_keep={"deliverables": 2, "hiring_signals": 1, "skills": 3},
+        focus_action=f"Shape {start} so it shows {{topic}}: decide what you will own, who you will bring along and how you will report the result.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1790,26 +2027,38 @@ def _application_drafts(system_prompt: str, user_prompt: str) -> dict:
     if proof2:
         experience_answer += f". I also {proof2.clause()[2:]}" if proof2.clause().startswith("I ") else f". {proof2.clause()}"
     experience_answer = experience_answer[0].upper() + experience_answer[1:] + "."
+    screening = [
+        {
+            "question": "Why are you a good fit for this role?",
+            "answer": fit_answer,
+            "support": "document",
+            "evidence_item_ids": [],
+        },
+        {
+            "question": "What relevant experience do you bring to this position?",
+            "answer": experience_answer,
+            "support": "document",
+            "evidence_item_ids": [],
+        },
+    ]
+    # Questions a real form asks when the listing raises the topic. The answer is left
+    # empty: these are stop questions only the applicant may answer.
+    if re.search(r"\b(?:salary|compensation|pay range|pay band)\b", listing, re.I):
+        screening.append({"question": "What are your salary expectations?", "answer": "", "support": "unsupported", "evidence_item_ids": []})
+    if re.search(
+        r"\bsponsorship\b|\bsponsor\w*\s+(?:\w+\s+){0,2}visas?\b|\b(?:work|working|employment)\s+visas?\b|\bvisa\s+status\b"
+        r"|\bright\s+to\s+work\b|\bwork\s+authori[sz]ation\b",
+        listing,
+        re.I,
+    ):
+        screening.append({"question": "Do you require visa sponsorship?", "answer": "", "support": "unsupported", "evidence_item_ids": []})
     return {
         "cover_letter": {
             "body": " ".join(sentences),
             "support": "document",
             "evidence_item_ids": [],
         },
-        "screening_answers": [
-            {
-                "question": "Why are you a good fit for this role?",
-                "answer": fit_answer,
-                "support": "document",
-                "evidence_item_ids": [],
-            },
-            {
-                "question": "What relevant experience do you bring to this position?",
-                "answer": experience_answer,
-                "support": "document",
-                "evidence_item_ids": [],
-            },
-        ],
+        "screening_answers": screening,
     }
 
 # ---------------------------------------------------------------------------

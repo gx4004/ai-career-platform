@@ -7,7 +7,6 @@ from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter
 from app.models.user import User
-from app.models.workspace import Workspace
 from app.schemas.applications import ApplicationDetail
 from app.schemas.discovery_personalization import DismissalCreate, DismissalItem
 from app.schemas.discovery_recommendations import (
@@ -19,7 +18,7 @@ from app.schemas.discovery_recommendations import (
 from app.services.applications import application_detail
 from app.services.discovery_adoption import (
     RecommendationNotAdoptableError,
-    adopt_recommendation,
+    adopt_recommendation_outcome,
 )
 from app.services.discovery_deep_match import ListingNotVisibleError, NoCvError, deep_match
 from app.services.discovery_personalization import (
@@ -121,20 +120,14 @@ def adopt_recommendation_into_campaign(
     allowed) are refused. Adding a listing that is already an application changes
     nothing and answers 200 with that application; only the first adoption is 201.
     """
-    already_added = (
-        db.query(Workspace.id)
-        .filter(Workspace.user_id == current_user.id, Workspace.discovery_listing_id == listing_id)
-        .first()
-        is not None
-    )
     try:
-        workspace = adopt_recommendation(db, current_user.id, listing_id)
+        workspace, created = adopt_recommendation_outcome(db, current_user.id, listing_id)
     except RecommendationNotAdoptableError as error:
         raise HTTPException(
             status_code=404,
             detail="Recommendation is not available to adopt",
         ) from error
-    if already_added:
+    if not created:
         response.status_code = status.HTTP_200_OK
     return application_detail(db, workspace)
 

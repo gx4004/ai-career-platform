@@ -49,7 +49,22 @@ def adopt_recommendation(
     now: datetime | None = None,
     visible: VisibleListing | None = None,
 ) -> Workspace:
-    """Create one application from one visible listing, by explicit user action.
+    """Create one application from one visible listing, by explicit user action."""
+    return adopt_recommendation_outcome(db, user_id, listing_id, now=now, visible=visible)[0]
+
+
+def adopt_recommendation_outcome(
+    db: Session,
+    user_id: str,
+    listing_id: str,
+    *,
+    now: datetime | None = None,
+    visible: VisibleListing | None = None,
+) -> tuple[Workspace, bool]:
+    """Adopt a listing; also say whether THIS call created the application.
+
+    ``created`` is decided where the insert happens, so of two concurrent
+    adoptions exactly one reports it (the other gets the winner's application).
 
     Copies the listing content plus its freshest visible source attribution and
     retrieval date into the new application's listing, and records the adoption
@@ -74,7 +89,7 @@ def adopt_recommendation(
         .one_or_none()
     )
     if existing is not None:
-        return existing
+        return existing, False
 
     listing = visible.listing
     attribution = visible.attribution
@@ -94,11 +109,12 @@ def adopt_recommendation(
     except IntegrityError:
         # A concurrent adoption (double-click) won the race between the check
         # above and this insert; reuse its application.
-        return (
+        winner = (
             db.query(Workspace)
             .filter(Workspace.user_id == user_id, Workspace.discovery_listing_id == listing_id)
             .one()
         )
+        return winner, False
 
     attach_listing(
         db,
@@ -115,4 +131,4 @@ def adopt_recommendation(
     )
 
     db.refresh(workspace)
-    return workspace
+    return workspace, True

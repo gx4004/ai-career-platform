@@ -50,6 +50,7 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
                 "This document is too short for rewording to help. Write the missing "
                 "content in your own words, then run the checks again."
             ),
+            sources=[GapRecommendationSource(label="CV Studio", route="/cv-studio")],
         )
 
     if gap_kind == "presentation_weakness":
@@ -79,6 +80,7 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
                 "and cover letter leave it out. Add it where it fits, in your own words; "
                 "nothing needs to be saved to your profile."
             ),
+            sources=[_first_party_step("CV Studio", "/cv-studio", classification)],
         )
 
     if gap_kind == "uncaptured_evidence":

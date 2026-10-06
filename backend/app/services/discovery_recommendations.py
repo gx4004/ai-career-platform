@@ -234,10 +234,15 @@ def best_matches(
     *,
     limit: int = BEST_MATCHES_LIMIT,
     now: datetime | None = None,
+    profile: MatchProfile | None = None,
 ) -> list[VisibleListing]:
-    """The owner's top visible listings by skills fit; empty without confirmed evidence."""
+    """The owner's top visible listings by skills fit; empty without confirmed evidence.
+
+    ``profile`` is for a caller that already loaded it (the Today plan), so the
+    evidence is not read twice.
+    """
     now = now or datetime.now(UTC)
-    profile = load_match_profile(db, user_id)
+    profile = profile or load_match_profile(db, user_id)
     if not profile.has_evidence:
         return []
     matching = select(DiscoveredListing.id).where(visible_listing_clause(db, user_id, now))

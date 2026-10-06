@@ -15,6 +15,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
+from app.services.cover_letter_edits import letter_sign_off
 from app.services.cv_fonts import pdf_font_names
 
 # Lato (bundled, OFL) covers Latin incl. Turkish/Polish/Vietnamese, Cyrillic and Greek,
@@ -273,6 +274,9 @@ def generate_cover_letter_pdf(result: dict[str, Any]) -> bytes:
             added_any |= _add_section_text(item)
 
     added_any |= _add_section_text(result.get("closing"))
+    sign_off = letter_sign_off(result)
+    if added_any and sign_off:
+        elements.append(_paragraph(sign_off, letter_body))
 
     if not added_any:
         full_text = result.get("full_text")

@@ -20,6 +20,7 @@ from app.schemas.cv_documents import (
     CvTailoringApply,
     CvVariantResponse,
 )
+from app.schemas.evidence_profile import strip_control_chars
 from app.services.applications import clear_selected_variants
 from app.services.cv_tailoring import read_change_field, write_change_field
 from app.services.evidence_profile import imported_evidence_proposal, stage_evidence_proposal
@@ -285,6 +286,10 @@ def _seed_entry(item: EvidenceItem, position: int) -> dict:
     degrees, a readable body for everything else. Values are cut to the entry
     limits here so a long fact can never produce a CV that cannot be saved."""
     content = item.content if isinstance(item.content, dict) else {}
+    # A fact saved before control characters were refused must not break the CV.
+    content = {
+        key: strip_control_chars(value) if isinstance(value, str) else value for key, value in content.items()
+    }
     entry: dict = {
         "id": f"entry-{item.id}",
         "evidence_item_id": item.id,
