@@ -43,6 +43,7 @@ function plan(overrides: Record<string, unknown> = {}) {
     has_sources: true,
     has_evidence: true,
     best_matches: [LISTING],
+    closest_matches: [],
     needs_action: [],
     needs_action_total: 0,
     ...overrides,
@@ -173,23 +174,21 @@ describe('DashboardToday', () => {
     expect(screen.getByRole('link', { name: 'Confirm evidence' }).getAttribute('href')).toBe('/profile')
   })
 
-  it('calls only fair-or-better fits "best" and labels the rest as the closest', async () => {
+  it('shows the server\'s best matches, and its closest ones under an honest title when none clears the floor', async () => {
     const weak = { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer', skills_fit: 50 }
-    getToday.mockResolvedValue(plan({ best_matches: [LISTING, weak] }))
+    getToday.mockResolvedValue(plan({ best_matches: [LISTING], closest_matches: [] }))
     const { unmount } = renderToday()
 
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: /^Best matches to add/ })).toBeTruthy()
-    expect(screen.queryByText('Data Engineer')).toBeNull()
-    // Not dropped silently: the list says how many weaker ones Discover has, and the count is the rows shown.
-    expect(screen.getByRole('link', { name: '1 weaker match in Discover' }).getAttribute('href')).toBe('/discovery')
     unmount()
 
-    getToday.mockResolvedValue(plan({ best_matches: [weak] }))
+    getToday.mockResolvedValue(plan({ best_matches: [], closest_matches: [weak] }))
     renderToday()
     expect(await screen.findByText('Data Engineer')).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: /^Closest matches to add/ })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: /^Best matches to add/ })).toBeNull()
+    expect(screen.queryByText('You have seen every match')).toBeNull()
   })
 
   it('says what a low-confidence fit rests on instead of "2 of 2 skills" next to 50%', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Zap } from 'lucide-react'
 import {
@@ -151,6 +151,8 @@ type CoverLetterResultPayload = {
   opening: CoverLetterSectionPayload
   bodyPoints: CoverLetterSectionPayload[]
   closing: CoverLetterSectionPayload
+  /** "Sincerely,\nName" when the resume names the applicant; '' otherwise. */
+  signOff: string
   fullText: string
   toneUsed: string
   customizationNotes: Array<{
@@ -450,8 +452,9 @@ function composeCoverLetterText(parts: {
   opening: string
   bodyPoints: string[]
   closing: string
+  signOff?: string
 }) {
-  return [parts.opening, ...parts.bodyPoints, parts.closing]
+  return [parts.opening, ...parts.bodyPoints, parts.closing, parts.signOff ?? '']
     .map((item) => item.trim())
     .filter(Boolean)
     .join('\n\n')
@@ -506,12 +509,14 @@ function normalizeCoverLetterPayload(payload: AnyObject): CoverLetterResultPaylo
     payload.closing,
     'Thank you for your consideration.',
   )
+  const signOff = toString(payload.sign_off)
   const fullText =
     toString(payload.full_text) ||
     composeCoverLetterText({
       opening: opening.text,
       bodyPoints: bodyPoints.map((item) => item.text),
       closing: closing.text,
+      signOff,
     })
 
   return {
@@ -530,6 +535,7 @@ function normalizeCoverLetterPayload(payload: AnyObject): CoverLetterResultPaylo
     opening,
     bodyPoints,
     closing,
+    signOff,
     fullText,
     toneUsed: toString(payload.tone_used) || 'Professional',
     customizationNotes: toObjectArray(payload.customization_notes).map((item) => ({
@@ -1015,8 +1021,8 @@ function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRun
   const [edited, setEdited] = useState(false)
 
   const compiledText = useMemo(
-    () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText }),
-    [bodyTexts, closingText, openingText],
+    () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText, signOff: result.signOff }),
+    [bodyTexts, closingText, openingText, result.signOff],
   )
 
   useEffect(() => {
@@ -1095,9 +1101,12 @@ function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRun
                 requirements={result.closing.requirementsUsed}
               >
                 <p className="result-sheet__sign">
-                  Sincerely,
-                  <br />
-                  [Your name]
+                  {(result.signOff || 'Sincerely,\n[Your name]').split('\n').map((line, index) => (
+                    <Fragment key={index}>
+                      {index > 0 ? <br /> : null}
+                      {line}
+                    </Fragment>
+                  ))}
                 </p>
               </LetterSection>
             </div>
@@ -1673,6 +1682,7 @@ function coverLetterCopyText(payload: AnyObject) {
     opening: result.opening.text,
     bodyPoints: result.bodyPoints.map((item) => item.text),
     closing: result.closing.text,
+    signOff: result.signOff,
   }) || result.fullText
 }
 
