@@ -22,6 +22,7 @@ import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
 import { getHealth } from '#/lib/api/client'
+import { ApiError } from '#/lib/api/errors'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 
 export function SettingsPage() {
@@ -31,7 +32,17 @@ export function SettingsPage() {
   // A real check on this page (the session's health only says the server answered /auth/me). Same key as
   // the service banner's, so a fresh result is shared; a visit always asks again.
   const health = useQuery({ queryKey: ['health'], queryFn: getHealth, retry: false, staleTime: 0 })
-  const connection = health.data ? (health.data.status === 'ok' ? 'ok' : 'down') : health.isError ? 'down' : 'checking'
+  // Same split as the service banner: no answer at all is "can't reach"; an answer that is a 5xx (or a health
+  // body that is not ok) is the server's own error, so the two messages on this screen never contradict.
+  const connection = health.data
+    ? health.data.status === 'ok'
+      ? 'ok'
+      : 'server-error'
+    : health.isError
+      ? health.error instanceof ApiError && health.error.status >= 500
+        ? 'server-error'
+        : 'offline'
+      : 'checking'
   const isAuthenticated = status === 'authenticated' && user !== null
 
   return (
@@ -104,8 +115,14 @@ export function SettingsPage() {
               <RowTitle>Connection</RowTitle>
             </RowBody>
             <RowMeta>
-              <Badge tone={connection === 'ok' ? 'success' : connection === 'down' ? 'danger' : 'neutral'} dot>
-                {connection === 'ok' ? 'Connected' : connection === 'down' ? "Can't reach the server" : 'Checking…'}
+              <Badge tone={connection === 'ok' ? 'success' : connection === 'checking' ? 'neutral' : 'danger'} dot>
+                {connection === 'ok'
+                  ? 'Connected'
+                  : connection === 'server-error'
+                    ? 'Server error'
+                    : connection === 'offline'
+                      ? "Can't reach the server"
+                      : 'Checking…'}
               </Badge>
             </RowMeta>
           </Row>

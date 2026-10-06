@@ -347,7 +347,8 @@ export async function request<T>(
     body,
     headers,
     credentials: 'include',
-    signal: AbortSignal.timeout(timeoutMs),
+    // A caller's signal (a tool run the user cancelled) stops the request too, alongside the timeout.
+    signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
   }))
 
   const parsed = await readBody(response)
@@ -636,35 +637,42 @@ export function importJobText(payload: {
   })
 }
 
-export function runResumeAnalysis(payload: z.input<typeof resumeAnalyzeRequestSchema>) {
+/** A tool run can be cancelled from its working panel. */
+export type ToolRunOptions = { signal?: AbortSignal }
+
+export function runResumeAnalysis(payload: z.input<typeof resumeAnalyzeRequestSchema>, options: ToolRunOptions = {}) {
   return request('/resume/analyze', {
     method: 'POST',
     body: parseRequest(resumeAnalyzeRequestSchema, payload),
     schema: resumeResultSchema,
+    signal: options.signal,
   })
 }
 
-export function runJobMatch(payload: z.input<typeof jobMatchRequestSchema>) {
+export function runJobMatch(payload: z.input<typeof jobMatchRequestSchema>, options: ToolRunOptions = {}) {
   return request('/job-match/match', {
     method: 'POST',
     body: parseRequest(jobMatchRequestSchema, payload),
     schema: jobMatchResultSchema,
+    signal: options.signal,
   })
 }
 
-export function runCoverLetter(payload: z.input<typeof coverLetterRequestSchema>) {
+export function runCoverLetter(payload: z.input<typeof coverLetterRequestSchema>, options: ToolRunOptions = {}) {
   return request('/cover-letter/generate', {
     method: 'POST',
     body: parseRequest(coverLetterRequestSchema, payload),
     schema: coverLetterResultSchema,
+    signal: options.signal,
   })
 }
 
-export function runInterview(payload: z.input<typeof interviewRequestSchema>) {
+export function runInterview(payload: z.input<typeof interviewRequestSchema>, options: ToolRunOptions = {}) {
   return request('/interview/questions', {
     method: 'POST',
     body: parseRequest(interviewRequestSchema, payload),
     schema: interviewResultSchema,
+    signal: options.signal,
   })
 }
 
@@ -680,19 +688,21 @@ export function runInterviewPracticeFeedback(payload: {
   })
 }
 
-export function runCareer(payload: z.input<typeof careerRequestSchema>) {
+export function runCareer(payload: z.input<typeof careerRequestSchema>, options: ToolRunOptions = {}) {
   return request('/career/recommend', {
     method: 'POST',
     body: parseRequest(careerRequestSchema, payload),
     schema: careerResultSchema,
+    signal: options.signal,
   })
 }
 
-export function runPortfolio(payload: z.input<typeof portfolioRequestSchema>) {
+export function runPortfolio(payload: z.input<typeof portfolioRequestSchema>, options: ToolRunOptions = {}) {
   return request('/portfolio/recommend', {
     method: 'POST',
     body: parseRequest(portfolioRequestSchema, payload),
     schema: portfolioResultSchema,
+    signal: options.signal,
   })
 }
 
@@ -924,4 +934,6 @@ export async function deleteAccount(confirmation: string): Promise<void> {
     method: 'POST',
     body: { confirmation },
   })
+  // The account is gone: the next page load is a guest's and must not probe /auth/me and /auth/refresh.
+  clearSessionHint()
 }

@@ -56,14 +56,45 @@ type PaletteItem = {
 
 const RECENT_RUNS_QUERY_KEY = ['command-palette', 'recent-runs'] as const
 
-function matches(item: PaletteItem, query: string) {
-  if (!query) return true
+const wordsOf = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+
+/**
+ * How well an item matches the query, 0 for no match. Word starts beat inner substrings, so "cover"
+ * ranks Cover Letter above dis-cover-y: exact label 5, label prefix 4, every word starts a label word 3,
+ * every word starts any searchable word 2, every word appears somewhere 1.
+ */
+function score(item: PaletteItem, query: string) {
+  const terms = wordsOf(query)
+  if (terms.length === 0) return 1
+  const label = item.label.toLowerCase()
   const haystack = `${item.label} ${item.hint ?? ''} ${item.keywords ?? ''}`.toLowerCase()
-  return query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((word) => haystack.includes(word))
+  if (!terms.every((term) => haystack.includes(term))) return 0
+  const phrase = terms.join(' ')
+  if (wordsOf(label).join(' ') === phrase) return 5
+  if (wordsOf(label).join(' ').startsWith(phrase)) return 4
+  const startsWord = (words: string[]) => terms.every((term) => words.some((word) => word.startsWith(term)))
+  if (startsWord(wordsOf(label))) return 3
+  if (startsWord(wordsOf(haystack))) return 2
+  return 1
+}
+
+/** Matching items, best first. Groups stay together and move up by their best item; ties keep list order. */
+function rank(items: PaletteItem[], query: string) {
+  const scored = items.map((item, index) => ({ item, index, score: score(item, query) })).filter((entry) => entry.score > 0)
+  const best = new Map<string, number>()
+  const firstAt = new Map<string, number>()
+  for (const entry of scored) {
+    best.set(entry.item.group, Math.max(best.get(entry.item.group) ?? 0, entry.score))
+    if (!firstAt.has(entry.item.group)) firstAt.set(entry.item.group, entry.index)
+  }
+  return scored
+    .sort((a, b) => {
+      const ga = a.item.group
+      const gb = b.item.group
+      if (ga !== gb) return best.get(gb)! - best.get(ga)! || firstAt.get(ga)! - firstAt.get(gb)!
+      return b.score - a.score || a.index - b.index
+    })
+    .map((entry) => entry.item)
 }
 
 /**
@@ -196,7 +227,7 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
     return [...pages, ...tools, ...actions, ...apps, ...saved]
   }, [applications.data, runs.data, user, logout, openAuthDialog, toggleSidebar, sidebarCollapsed])
 
-  const visible = useMemo(() => items.filter((item) => matches(item, query.trim())), [items, query])
+  const visible = useMemo(() => rank(items, query.trim()), [items, query])
 
   // Consecutive items of one group sit under one heading; `index` is the item's place in the whole list.
   const groups = useMemo(() => {

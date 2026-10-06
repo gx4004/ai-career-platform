@@ -45,8 +45,12 @@ describe('ResultParts', () => {
     expect(verdictTone('Strong foundation', 77)).toBe('mint')
     expect(verdictTone('borderline', 90)).toBe('lemon')
     expect(verdictTone('stretch', 90)).toBe('rose')
-    expect(verdictTone('Promising but uneven', 82)).toBe('mint')
-    expect(verdictTone('Promising but uneven', 40)).toBe('rose')
+    // The resume's three bands keep one colour each, whatever the score inside the band.
+    expect(verdictTone('Promising but uneven', 82)).toBe('lemon')
+    expect(verdictTone('Promising but uneven', 72)).toBe('lemon')
+    expect(verdictTone('Needs stronger evidence', 60)).toBe('rose')
+    expect(verdictTone('Strong foundation', 90)).toBe('mint')
+    expect(verdictTone('Steady', 40)).toBe('rose')
     expect(verdictTone('Something unknown')).toBe('white')
   })
 

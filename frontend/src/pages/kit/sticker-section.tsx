@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Button, Highlight, Sticker, TONES, type Tone } from '#/components/kit'
+import { Button, Highlight, Sticker, StretchedLink, TONES, type Tone } from '#/components/kit'
 import { GallerySection, Group, Row } from './gallery-parts'
 
 const ROOM = { padding: '8px 10px 14px 6px' } as const
@@ -109,6 +109,24 @@ export function StickerSection() {
               <strong style={{ overflowWrap: 'anywhere' }}>
                 Senior Principal Staff Backend Platform Infrastructure Reliability Engineering Manager Supercalifragilistic
               </strong>
+            </Sticker>
+          </Room>
+        </Row>
+      </Group>
+
+      <Group title="Whole-sticker link (Tab to it: the focus ring sits inside the fill, clear of the outline)">
+        <Row top>
+          <Room>
+            <Sticker tone="tangerine" tilt={-0.6} style={{ inlineSize: '14rem' }} data-testid="sticker-link-md">
+              <StretchedLink href="#sticker">
+                <strong>Interviewing</strong>
+              </StretchedLink>
+              <p>Prepare for the next round</p>
+            </Sticker>
+          </Room>
+          <Room>
+            <Sticker size="sm" tone="lilac" style={{ inlineSize: '10rem' }} data-testid="sticker-link-sm">
+              <StretchedLink href="#sticker">CV Studio</StretchedLink>
             </Sticker>
           </Room>
         </Row>

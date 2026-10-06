@@ -95,6 +95,26 @@ describe('LoginForm', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
+  it('explains empty and malformed fields under them instead of the browser bubble', async () => {
+    render(<LoginForm />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.map((alert) => alert.textContent)).toEqual(['Enter your email.', 'Enter your password.'])
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'))
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'not-an-email' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect((await screen.findAllByRole('alert'))[0].textContent).toBe('Enter an email like you@example.com.')
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('opens on the reset step with the email filled in when asked to', async () => {
+    const onResetChange = vi.fn()
+    render(<LoginForm initialEmail="ada@example.com" startInReset onResetChange={onResetChange} />)
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('ada@example.com')
+    expect(screen.getByRole('button', { name: 'Send reset link' })).toBeTruthy()
+    expect(onResetChange).toHaveBeenCalledWith(true)
+  })
+
   it('walks through a password reset request and back', async () => {
     render(<LoginForm />)
     fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))

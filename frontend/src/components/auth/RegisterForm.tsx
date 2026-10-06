@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button, Checkbox, Field, Input } from '#/components/kit'
+import { Button, Checkbox, Cluster, Field, Input, Notice } from '#/components/kit'
 import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
 import { PasswordInput } from '#/components/auth/PasswordInput'
+import { emailError, focusFirstError, newPasswordError } from '#/components/auth/auth-validation'
 import { useSession } from '#/hooks/useSession'
-import { newPasswordSchema } from '#/lib/api/schemas'
 import { readPendingIntent } from '#/lib/auth/pendingIntent'
 import { trackTelemetry } from '#/lib/telemetry/client'
 
@@ -20,10 +20,13 @@ function resolveSignupSurfaceTool() {
 export function RegisterForm({
   onSuccess,
   onRegistering,
+  onExistingAccount,
 }: {
   onSuccess?: () => void
   /** True while the account is being created, false again if that failed. A page that celebrates the new account needs it before the session flips. */
   onRegistering?: (registering: boolean) => void
+  /** The address already has an account: the container moves to sign in (or its reset step) with the email filled in. */
+  onExistingAccount?: (email: string, next: 'login' | 'reset') => void
 }) {
   const { register } = useSession()
   const signUp = useFormFailure()
@@ -33,22 +36,30 @@ export function RegisterForm({
   const [showPassword, setShowPassword] = useState(false)
   const [tosAccepted, setTosAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [passwordError, setPasswordError] = useState('')
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  // The address that came back as already registered (409), so the form can offer the way in instead.
+  const [takenEmail, setTakenEmail] = useState<string | null>(null)
 
   return (
     <div className="auth-form">
       <form
         className="auth-form__fields"
+        noValidate
         onSubmit={async (event) => {
           event.preventDefault()
           if (!tosAccepted) return
-          const passwordResult = newPasswordSchema.safeParse(password)
-          if (!passwordResult.success) {
-            setPasswordError(passwordResult.error.issues[0]?.message || 'Password is invalid')
+          const next = { email: emailError(email), password: newPasswordError(password) }
+          setErrors(next)
+          if (
+            focusFirstError([
+              ['register-email', next.email],
+              ['register-password', next.password],
+            ])
+          ) {
             return
           }
-          setPasswordError('')
           setLoading(true)
+          setTakenEmail(null)
           signUp.clear()
           onRegistering?.(true)
           // Capture the originating surface before `register` completes — a
@@ -75,7 +86,11 @@ export function RegisterForm({
             onSuccess?.()
           } catch (error) {
             onRegistering?.(false)
-            signUp.fail(error, 'Sign-up failed. Please try again.')
+            if (error instanceof Error && (error as { status?: number }).status === 409) {
+              setTakenEmail(email.trim())
+            } else {
+              signUp.fail(error, 'Sign-up failed. Please try again.')
+            }
           } finally {
             setLoading(false)
           }
@@ -89,12 +104,16 @@ export function RegisterForm({
             autoComplete="name"
           />
         </Field>
-        <Field label="Email" id="register-email" error={signUp.failure?.fields.email}>
+        <Field label="Email" id="register-email" error={errors.email || signUp.failure?.fields.email}>
           <Input
             type="email"
             size="lg"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              setEmail(event.target.value)
+              setErrors((prev) => ({ ...prev, email: undefined }))
+              setTakenEmail(null)
+            }}
             placeholder="you@example.com"
             autoComplete="email"
             required
@@ -103,8 +122,8 @@ export function RegisterForm({
         <Field
           label="Password"
           id="register-password"
-          help={passwordError || signUp.failure?.fields.password ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
-          error={passwordError || signUp.failure?.fields.password || undefined}
+          help={errors.password || signUp.failure?.fields.password ? undefined : 'At least 8 characters.'}
+          error={errors.password || signUp.failure?.fields.password || undefined}
         >
           <PasswordInput
             size="lg"
@@ -113,7 +132,7 @@ export function RegisterForm({
             value={password}
             onChange={(event) => {
               setPassword(event.target.value)
-              setPasswordError('')
+              setErrors((prev) => ({ ...prev, password: undefined }))
             }}
             autoComplete="new-password"
             minLength={8}
@@ -132,6 +151,21 @@ export function RegisterForm({
             </>
           }
         />
+        {takenEmail ? (
+          <Notice tone="danger" title="An account already exists for this email.">
+            <p>Sign in with it, or reset its password if you've forgotten it.</p>
+            {onExistingAccount ? (
+              <Cluster gap={2} className="auth-taken__actions">
+                <Button type="button" size="sm" variant="secondary" onClick={() => onExistingAccount(takenEmail, 'login')}>
+                  Sign in instead
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => onExistingAccount(takenEmail, 'reset')}>
+                  Reset password
+                </Button>
+              </Cluster>
+            ) : null}
+          </Notice>
+        ) : null}
         <FormFailureNotice failure={signUp.failure} remaining={signUp.remaining} />
         <Button type="submit" size="lg" className="auth-wide" loading={loading} disabled={!tosAccepted || signUp.remaining > 0}>
           Create free account

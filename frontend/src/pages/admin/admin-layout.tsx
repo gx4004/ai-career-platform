@@ -100,7 +100,7 @@ function AdminTopbar({ pathname }: { pathname: string }) {
       <p className="admin-topbar__label">Admin</p>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button iconOnly variant="ghost" aria-label="Admin navigation">
+          <Button iconOnly variant="secondary" aria-label="Admin navigation">
             <Menu aria-hidden />
           </Button>
         </SheetTrigger>

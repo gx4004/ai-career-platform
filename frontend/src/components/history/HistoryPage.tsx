@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Clock, Search, Star } from 'lucide-react'
+import { Clock, Search, Star, TriangleAlert } from 'lucide-react'
 import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
 import { HistoryRow, runLabel } from '#/components/history/HistoryRow'
 import {
@@ -108,7 +108,8 @@ export function HistoryPage({
   onSearchChange,
 }: {
   search: HistorySearchState
-  onSearchChange: (next: Partial<HistorySearchState>) => void
+  /** `replace` swaps the current history entry (a correction the user did not ask for, like leaving a page past the end). */
+  onSearchChange: (next: Partial<HistorySearchState>, options?: { replace?: boolean }) => void
 }) {
   const navigate = useNavigate()
   const compact = useCompact()
@@ -186,6 +187,14 @@ export function HistoryPage({
 
   const total = listQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (its last runs were deleted, or the URL asks for page 9 of 2) holds nothing while
+  // other runs exist: go to the last page that has some instead of showing an empty list.
+  const pastTheEnd = Boolean(listQuery.data && listQuery.data.items.length === 0 && listQuery.data.total > 0 && page > 1)
+  const searchChange = useRef(onSearchChange)
+  searchChange.current = onSearchChange
+  useEffect(() => {
+    if (pastTheEnd) searchChange.current({ page: totalPages }, { replace: true })
+  }, [pastTheEnd, totalPages])
 
   function clearFilters() {
     if (searchDebounceRef.current !== null) {
@@ -261,10 +270,14 @@ export function HistoryPage({
       ? favoriteToggle.error.message
       : 'Failed to update favorite.'
     : null)
-  const runCount =
-    listQuery.data && (listQuery.data.total > 0 || hasFilters)
-      ? `${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`
-      : null
+  // With a search or filter the total counts matches, not the user's history: say so.
+  const runCount = !listQuery.data
+    ? null
+    : hasFilters
+      ? `${listQuery.data.total} ${listQuery.data.total === 1 ? 'match' : 'matches'}`
+      : listQuery.data.total > 0
+        ? `${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`
+        : null
 
   return (
     <Page>
@@ -274,69 +287,72 @@ export function HistoryPage({
       />
 
       <Stack gap={3}>
-        <Toolbar
-          search={
-            <Input
-              ref={searchRef}
-              type="search"
-              aria-label="Search saved runs by label"
-              leading={<Search aria-hidden />}
-              clearable
-              value={searchInput}
-              placeholder="Search by saved label"
-              onChange={(event) => {
-                const next = event.target.value
-                setSearchInput(next)
-                if (searchDebounceRef.current !== null) {
-                  window.clearTimeout(searchDebounceRef.current)
-                }
-                searchDebounceRef.current = window.setTimeout(() => {
-                  onSearchChange({ q: next || undefined, page: 1 })
-                }, 200)
-              }}
-              onClear={() => {
-                if (searchDebounceRef.current !== null) window.clearTimeout(searchDebounceRef.current)
-                onSearchChange({ q: undefined, page: 1 })
-              }}
-            />
-          }
-          filters={
-            <>
-              {compact ? (
-                <Select
-                  aria-label="Filter by tool"
-                  value={search.tool ?? ''}
-                  onChange={(event) => onSearchChange({ tool: event.target.value || undefined, page: 1 })}
+        {/* Nothing to search or filter yet: the first-run empty state stands alone. */}
+        {listQuery.data && listQuery.data.total === 0 && !hasFilters ? null : (
+          <Toolbar
+            search={
+              <Input
+                ref={searchRef}
+                type="search"
+                aria-label="Search saved runs by label"
+                leading={<Search aria-hidden />}
+                clearable
+                value={searchInput}
+                placeholder="Search runs"
+                onChange={(event) => {
+                  const next = event.target.value
+                  setSearchInput(next)
+                  if (searchDebounceRef.current !== null) {
+                    window.clearTimeout(searchDebounceRef.current)
+                  }
+                  searchDebounceRef.current = window.setTimeout(() => {
+                    onSearchChange({ q: next || undefined, page: 1 })
+                  }, 200)
+                }}
+                onClear={() => {
+                  if (searchDebounceRef.current !== null) window.clearTimeout(searchDebounceRef.current)
+                  onSearchChange({ q: undefined, page: 1 })
+                }}
+              />
+            }
+            filters={
+              <>
+                {compact ? (
+                  <Select
+                    aria-label="Filter by tool"
+                    value={search.tool ?? ''}
+                    onChange={(event) => onSearchChange({ tool: event.target.value || undefined, page: 1 })}
+                  >
+                    <option value="">All tools</option>
+                    {toolList.map((tool) => (
+                      <option key={tool.id} value={tool.id}>
+                        {tool.label}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <Segmented
+                    aria-label="Filter by tool"
+                    deselectable
+                    options={TOOL_OPTIONS}
+                    value={search.tool ?? null}
+                    onValueChange={(tool) => onSearchChange({ tool: tool ?? undefined, page: 1 })}
+                  />
+                )}
+                <Button
+                  variant="secondary"
+                  aria-pressed={Boolean(search.favorite)}
+                  onClick={() => onSearchChange({ favorite: search.favorite ? undefined : true, page: 1 })}
                 >
-                  <option value="">All tools</option>
-                  {toolList.map((tool) => (
-                    <option key={tool.id} value={tool.id}>
-                      {tool.label}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Segmented
-                  aria-label="Filter by tool"
-                  deselectable
-                  options={TOOL_OPTIONS}
-                  value={search.tool ?? null}
-                  onValueChange={(tool) => onSearchChange({ tool: tool ?? undefined, page: 1 })}
-                />
-              )}
-              <Button
-                variant="secondary"
-                aria-pressed={Boolean(search.favorite)}
-                onClick={() => onSearchChange({ favorite: search.favorite ? undefined : true, page: 1 })}
-              >
-                <Star fill={search.favorite ? 'currentColor' : 'none'} aria-hidden />
-                Favorites
-              </Button>
-            </>
-          }
-          activeFilters={activeFilters}
-          onClearFilters={clearFilters}
-        />
+                  <Star fill={search.favorite ? 'currentColor' : 'none'} aria-hidden />
+                  Favorites
+                </Button>
+              </>
+            }
+            activeFilters={activeFilters}
+            onClearFilters={clearFilters}
+          />
+        )}
 
         {errorMessage ? (
           <Notice
@@ -350,19 +366,20 @@ export function HistoryPage({
           </Notice>
         ) : null}
 
-        {listQuery.isPending ? (
+        {listQuery.isPending || pastTheEnd ? (
           <>
             <p className="kit-sr-only" role="status">
               Loading saved runs
             </p>
             <List aria-busy aria-label="Saved runs">
-              <Skeleton variant="row" as="li" count={6} />
+              <Skeleton variant="row" as="li" count={6} leading="tile" />
             </List>
           </>
         ) : listQuery.isError ? (
           <ErrorState
+            icon={<TriangleAlert />}
             title="We couldn't load your history"
-            description="Check your connection and try again."
+            description="Something went wrong on our side. Try again in a moment."
             retryLabel="Retry"
             onRetry={() => void listQuery.refetch()}
             retrying={listQuery.isFetching}
@@ -428,7 +445,7 @@ export function HistoryPage({
               ) : undefined
             }
           />
-        ) : (
+        ) : total === 0 ? (
           <EmptyState
             icon={<Clock />}
             title="No runs yet"
@@ -439,7 +456,7 @@ export function HistoryPage({
               </Button>
             }
           />
-        )}
+        ) : null}
 
         <Pagination
           variant="simple"

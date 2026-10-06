@@ -4,6 +4,10 @@ import {
   DialogTitle, Field, Input, Select, Stack, Textarea,
 } from '#/components/kit'
 import type { EvidenceKind } from '#/lib/api/schemas'
+import { MAX_FACT_VALUE_CHARS, factLengthHint } from '#/lib/profile/evidence'
+
+/** A short fact (a skill, a role) is a line; anything longer belongs in an achievement or a preference. */
+const MAX_SHORT_CHARS = 500
 
 /**
  * The kinds a person adds by hand, each with the one field its content is keyed by (the same keys an import
@@ -45,6 +49,9 @@ export function AddFactDialog({
   const [text, setText] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const option = ADD_FACT_KINDS.find((candidate) => candidate.kind === kind) ?? ADD_FACT_KINDS[0]
+  // No maxLength on the control: a pasted text that is too long is kept and the count says by how much,
+  // instead of being cut without a word.
+  const limit = option.long ? MAX_FACT_VALUE_CHARS : MAX_SHORT_CHARS
 
   useEffect(() => {
     if (open) {
@@ -59,6 +66,10 @@ export function AddFactDialog({
     const value = text.trim()
     if (!value) {
       setFormError('Write the fact first.')
+      return
+    }
+    if (value.length > limit) {
+      setFormError(`Shorten this to ${limit.toLocaleString('en-US')} characters.`)
       return
     }
     setFormError(null)
@@ -86,16 +97,16 @@ export function AddFactDialog({
                   ))}
                 </Select>
               </Field>
-              <Field label={option.fieldLabel} error={shownError}>
+              <Field label={option.fieldLabel} error={shownError} help={option.long || text.trim().length > limit * 0.8 ? factLengthHint(text.trim().length, limit) : undefined}>
                 {option.long ? (
                   <Textarea
-                    autosize maxRows={8} rows={3} value={text} maxLength={2000} disabled={submitting}
+                    autosize maxRows={8} rows={3} value={text} disabled={submitting}
                     placeholder={option.placeholder}
                     onChange={(event) => setText(event.target.value)}
                   />
                 ) : (
                   <Input
-                    value={text} maxLength={500} disabled={submitting} placeholder={option.placeholder}
+                    value={text} disabled={submitting} placeholder={option.placeholder}
                     onChange={(event) => setText(event.target.value)}
                   />
                 )}

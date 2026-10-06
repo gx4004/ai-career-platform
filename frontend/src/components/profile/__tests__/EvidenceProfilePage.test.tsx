@@ -288,6 +288,23 @@ describe('EvidenceProfilePage', () => {
     expect(await screen.findByText('Added 2 suggestions to review.')).toBeTruthy()
   })
 
+  it('hands the saved facts to CV Studio', async () => {
+    renderPage()
+    expect((await screen.findByRole('link', { name: 'Start a CV from these facts' })).getAttribute('href')).toBe('/cv-studio')
+  })
+
+  it('drops the "facts found" stamp once nothing is left to review', async () => {
+    resumeCarry.resumeText = 'x'.repeat(80)
+    api.importEvidenceFromResume.mockResolvedValue({ items: [items[0], items[1]] })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /Import from your CV/ }))
+    expect(await screen.findByText('Added 2 suggestions to review.')).toBeTruthy()
+
+    api.listEvidenceItems.mockResolvedValue({ items: items.map((item) => ({ ...item, confirmation_state: 'confirmed' as const })) })
+    fireEvent.click(screen.getByRole('button', { name: 'Save: Backend Engineer' }))
+    await waitFor(() => expect(screen.queryByText('Added 2 suggestions to review.')).toBeNull())
+  })
+
   it('shows the Skills to build panel', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { name: 'Skills to build' })).toBeTruthy()

@@ -43,6 +43,8 @@ export type TableProps<T> = {
   getRowId: (row: T) => string
   /** compact 36px rows, comfortable 44px (default). */
   density?: RowDensity
+  /** Vertical alignment of every cell: middle (default), or top for rows whose cells run to several lines. */
+  cellAlign?: 'middle' | 'top'
   /** Header row stays in view while the page scrolls (or while the table scrolls, with maxHeight). */
   stickyHeader?: boolean
   /** Scroll the table inside this height (any CSS length); the header sticks to the top of it. */
@@ -111,6 +113,7 @@ export function Table<T>({
   rows,
   getRowId,
   density = 'comfortable',
+  cellAlign = 'middle',
   stickyHeader = false,
   maxHeight,
   sort = null,
@@ -147,6 +150,7 @@ export function Table<T>({
         className="kit-table"
         role="table"
         data-density={density}
+        data-cell-align={cellAlign === 'top' ? 'top' : undefined}
         data-sortable={hasSortable ? 'true' : undefined}
         aria-busy={loading || undefined}
       >

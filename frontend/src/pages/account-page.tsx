@@ -26,6 +26,7 @@ import {
   RowTitle,
   Section,
   Skeleton,
+  Stack,
   Sticker,
 } from '#/components/kit'
 import { DataControls } from '#/components/profile/DataControls'
@@ -46,7 +47,17 @@ export function AccountPage() {
     return (
       <Page width="narrow">
         <PageHeader title="Account" />
-        <Skeleton variant="card" count={2} label="Loading your account" />
+        {/* The two panels the page opens with, framed from the first frame. */}
+        <Panel>
+          <PanelBody>
+            <Skeleton lines={3} label="Loading your account" />
+          </PanelBody>
+        </Panel>
+        <Panel aria-hidden>
+          <PanelBody>
+            <Skeleton lines={4} />
+          </PanelBody>
+        </Panel>
       </Page>
     )
   }
@@ -135,69 +146,71 @@ export function AccountPage() {
       {googleEnabled ? <Section title="Sign-in options" description="Google sign-in is available." /> : null}
 
       <Section title="Session and password">
-        {resetLink.isError ? (
-          <Notice tone="danger" onDismiss={() => resetLink.reset()}>
-            {describeFailure(resetLink.error, 'We could not send the link. Try again in a moment.').message}
-          </Notice>
-        ) : resetSent ? (
-          <Notice tone="success" onDismiss={() => setResetSent(null)}>
-            A link to choose a new password is on its way to {resetSent.email}.
-            {resetSent.devUrl ? (
-              <>
-                {' '}
-                Local development has no mail provider:{' '}
-                <a href={resetSent.devUrl}>open the reset link</a>.
-              </>
-            ) : null}
-          </Notice>
-        ) : null}
-        <List className="settings-list" aria-label="Session">
-          <Row>
-            <RowLeading>
-              <KeyRound aria-hidden />
-            </RowLeading>
-            <RowBody>
-              <RowTitle>Password</RowTitle>
-              {user.has_password === false ? (
-                <RowSubtitle>You sign in with Google. We email {user.email} a link to add a password.</RowSubtitle>
-              ) : (
+        <Stack gap={3}>
+          {resetLink.isError ? (
+            <Notice tone="danger" onDismiss={() => resetLink.reset()}>
+              {describeFailure(resetLink.error, 'We could not send the link. Try again in a moment.').message}
+            </Notice>
+          ) : resetSent ? (
+            <Notice tone="success" onDismiss={() => setResetSent(null)}>
+              A link to choose a new password is on its way to {resetSent.email}.
+              {resetSent.devUrl ? (
                 <>
-                  <RowSubtitle>Changing it signs out every other device.</RowSubtitle>
-                  <div>
-                    <Button variant="link" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
-                      Forgot it? Email me a link
-                    </Button>
-                  </div>
+                  {' '}
+                  Local development has no mail provider:{' '}
+                  <a href={resetSent.devUrl}>open the reset link</a>.
                 </>
-              )}
-            </RowBody>
-            <RowActions reveal={false}>
-              {user.has_password === false ? (
-                <Button variant="secondary" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
-                  Email me a link
+              ) : null}
+            </Notice>
+          ) : null}
+          <List className="settings-list" aria-label="Session">
+            <Row>
+              <RowLeading>
+                <KeyRound aria-hidden />
+              </RowLeading>
+              <RowBody>
+                <RowTitle>Password</RowTitle>
+                {user.has_password === false ? (
+                  <RowSubtitle>You sign in with Google. We email {user.email} a link to add a password.</RowSubtitle>
+                ) : (
+                  <>
+                    <RowSubtitle>Changing it signs out every other device.</RowSubtitle>
+                    <div>
+                      <Button variant="link" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
+                        Forgot it? Email me a link
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </RowBody>
+              <RowActions reveal={false}>
+                {user.has_password === false ? (
+                  <Button variant="secondary" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
+                    Email me a link
+                  </Button>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={() => setChangingPassword(true)}>
+                    Change password
+                  </Button>
+                )}
+              </RowActions>
+            </Row>
+            <Row>
+              <RowLeading>
+                <LogOut aria-hidden />
+              </RowLeading>
+              <RowBody>
+                <RowTitle>Sign out</RowTitle>
+                <RowSubtitle>Sign out on shared computers.</RowSubtitle>
+              </RowBody>
+              <RowActions reveal={false}>
+                <Button variant="secondary" size="sm" onClick={logout}>
+                  Sign out
                 </Button>
-              ) : (
-                <Button variant="secondary" size="sm" onClick={() => setChangingPassword(true)}>
-                  Change password
-                </Button>
-              )}
-            </RowActions>
-          </Row>
-          <Row>
-            <RowLeading>
-              <LogOut aria-hidden />
-            </RowLeading>
-            <RowBody>
-              <RowTitle>Sign out</RowTitle>
-              <RowSubtitle>Sign out on shared computers.</RowSubtitle>
-            </RowBody>
-            <RowActions reveal={false}>
-              <Button variant="secondary" size="sm" onClick={logout}>
-                Sign out
-              </Button>
-            </RowActions>
-          </Row>
-        </List>
+              </RowActions>
+            </Row>
+          </List>
+        </Stack>
       </Section>
 
       <EditNameDialog open={editingName} onOpenChange={setEditingName} currentName={user.full_name} />

@@ -90,4 +90,12 @@ describe('kit Highlight', () => {
     expect(mark.tagName).toBe('MARK')
     expect(mark.classList.contains('kit-highlight')).toBe(true)
   })
+
+  it('draws a whole-sticker link focus ring inside the fill, clear of the 2px ink outline', () => {
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/sticker.css'), 'utf8')
+    const md = css.match(/\.kit-sticker \.kit-stretched:focus-visible::after\s*\{([^}]*)\}/)![1]
+    expect(md).toMatch(/outline-offset:\s*-10px/)
+    const sm = css.match(/\.kit-sticker--sm \.kit-stretched:focus-visible::after\s*\{([^}]*)\}/)![1]
+    expect(sm).toMatch(/outline-offset:\s*-5px/)
+  })
 })

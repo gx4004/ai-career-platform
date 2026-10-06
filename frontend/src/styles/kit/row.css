@@ -176,7 +176,8 @@
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
   text-align: end;
-  font-variant-numeric: var(--numeric-tabular);
+  /* Prose ("6 of 11 skills", "Oct 11"): tabular "1"s would read "1 1". */
+  font-variant-numeric: proportional-nums;
   white-space: nowrap;
 }
 
@@ -243,16 +244,17 @@
     gap: 0;
   }
 
+  /* The flex row's own gap (--s4), so titles in one list start at the same x with or without actions. */
   .kit-row:has(> .kit-row__actions) > .kit-row__leading {
     grid-column: 2;
     grid-row: 1 / span 2;
-    margin-inline-end: var(--space-3);
+    margin-inline-end: var(--s4);
   }
 
   .kit-list[data-numbered] > .kit-row:has(> .kit-row__actions)::before {
     grid-column: 1;
     grid-row: 1 / span 2;
-    margin-inline-end: var(--s3);
+    margin-inline-end: var(--s4);
   }
 
   .kit-row:has(> .kit-row__actions) > .kit-row__body {
@@ -312,11 +314,52 @@
   }
 }
 
+/* placement="overlay": hidden actions take no width at rest and float over the row's end edge when shown, on a
+   white (or, on a hovered link row, lemon-soft) patch. Devices with any touch input keep them inline, below. */
+@media (hover: hover) and (pointer: fine) {
+  .kit-row > .kit-row__actions[data-placement='overlay'] {
+    position: absolute;
+    inset-block-start: 50%;
+    /* A list whose rows have no end padding sets this to 0, so the action ends on the row's edge. */
+    inset-inline-end: var(--kit-row-overlay-inset, var(--s2));
+    margin: 0;
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    transform: translateY(-50%);
+  }
+
+  .kit-row:is([data-interactive], :has(.kit-stretched)):hover > .kit-row__actions[data-placement='overlay'],
+  .kit-row[data-selected] > .kit-row__actions[data-placement='overlay'] {
+    background: var(--lemon-soft);
+  }
+}
+
 /* Only a device with no touch input at all hides them: on a touchscreen laptop or a tablet with a trackpad a
    finger cannot hover, so Delete and the other revealed actions stay in view. Must follow the block above. */
 @media (any-pointer: coarse) {
   .kit-row__actions[data-reveal],
   .kit-row__reveal {
     opacity: 1;
+  }
+
+  .kit-row > .kit-row__actions[data-placement='overlay'] {
+    position: relative;
+    inset: auto;
+    margin-inline-start: auto;
+    border-radius: 0;
+    background: none;
+    transform: none;
+  }
+
+  .kit-row[data-density='compact'] > .kit-row__actions[data-placement='overlay'] {
+    margin-block: calc(var(--s2) * -1);
+  }
+}
+
+/* Where the overlay floats (no touch input at all), the row keeps one sm icon button's room at its end edge, so
+   the shown action never covers the label's last words or the meta's badge. */
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .kit-row:has(> .kit-row__actions[data-placement='overlay']) {
+    padding-inline-end: calc(var(--control-sm) + var(--kit-row-overlay-inset, var(--s2)));
   }
 }

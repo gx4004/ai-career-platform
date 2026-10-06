@@ -45,6 +45,12 @@ export type ToolbarProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & {
   sort?: ReactNode
   /** Result count ("148 jobs"). End of the row on desktop, under it on phones. Announced politely when it changes. */
   count?: ReactNode
+  /**
+   * Where the count sits on desktop. "end" (default) closes the row; "below" gives it its own line under the
+   * controls, so a count whose wording changes as you type ("148 jobs · newest first", "0 matches") never
+   * resizes the search field beside it.
+   */
+  countPlacement?: 'end' | 'below'
   /** Always-visible trailing controls, such as a view toggle. */
   actions?: ReactNode
   /** How many filters are applied: shown on the phone Filters button and enables "Clear filters". */
@@ -69,6 +75,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
     filters,
     sort,
     count,
+    countPlacement = 'end',
     actions,
     activeFilters = 0,
     onClearFilters,
@@ -83,7 +90,12 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
   const hasFilters = Boolean(filters) || Boolean(sort)
   const canClear = Boolean(onClearFilters) && activeFilters > 0
   return (
-    <div ref={ref} className={cn('kit-toolbar', className)} {...rest}>
+    <div
+      ref={ref}
+      className={cn('kit-toolbar', className)}
+      data-count={countPlacement === 'below' ? 'below' : undefined}
+      {...rest}
+    >
       {search ? <div className="kit-toolbar__search">{search}</div> : null}
       {hasFilters ? (
         <>

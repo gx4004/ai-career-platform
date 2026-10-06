@@ -14,7 +14,8 @@ function ChangeCard({ change, decision, onDecide }: {
 }) {
   const blocked = change.support === 'unsupported'
   return (
-    <Card selected={decision === 'accept'} aria-label={`Suggestion for ${change.job_requirement}`}>
+    // A used suggestion takes the soft selected fill, so its pressed (lemon) "Use suggestion" still reads on it.
+    <Card tone={decision === 'accept' ? 'lemon' : undefined} aria-label={`Suggestion for ${change.job_requirement}`}>
       <CardHeader>
         <CardTitle headingLevel={4}>For this job: {change.job_requirement}</CardTitle>
       </CardHeader>
@@ -27,11 +28,11 @@ function ChangeCard({ change, decision, onDecide }: {
         ]}
       />
       {blocked ? (
-        <Notice>We can’t back this up yet. Add and confirm it in your Evidence, then generate again.</Notice>
+        <Notice>We can’t back this up yet. Add it to your profile and save it, then generate again.</Notice>
       ) : (
         <Cluster justify="between" gap={3}>
           <Badge tone={change.support === 'confirmed' ? 'success' : 'neutral'} size="sm">
-            {change.support === 'confirmed' ? 'Based on facts you confirmed in your Evidence' : 'Reworded from what your CV already says'}
+            {change.support === 'confirmed' ? 'Based on facts you saved on your profile' : 'Reworded from what your CV already says'}
           </Badge>
           <Cluster gap={2} role="group" aria-label="Your decision">
             <Button type="button" size="sm" variant="secondary" aria-pressed={decision === 'reject'} onClick={() => onDecide('reject')}>

@@ -75,6 +75,14 @@ describe('applyFieldEdits', () => {
   it('refuses to save a fact with every field cleared', () => {
     expect(applyFieldEdits({ title: 'Engineer' }, { title: '' })).toMatchObject({ ok: false })
   })
+
+  it('says which field is too long instead of letting the API cut it', () => {
+    expect(applyFieldEdits({ text: 'x' }, { text: 'a'.repeat(2001) })).toEqual({
+      ok: false,
+      error: 'Shorten text to 2,000 characters.',
+    })
+    expect(applyFieldEdits({ text: 'x' }, { text: 'a'.repeat(2000) })).toMatchObject({ ok: true })
+  })
 })
 
 describe('factDisplay', () => {

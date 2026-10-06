@@ -68,7 +68,8 @@ export const JumpNav = forwardRef<HTMLElement, JumpNavProps>(function JumpNav(
           if (record.isIntersecting) setActive(record.target.id)
         }
       },
-      { rootMargin: '-20% 0px -70% 0px' },
+      // A 15% band: a short section (one paragraph) still crosses it under a normal wheel notch.
+      { rootMargin: '-15% 0px -70% 0px' },
     )
     for (const item of items) {
       const node = document.getElementById(item.id)
@@ -78,6 +79,19 @@ export const JumpNav = forwardRef<HTMLElement, JumpNavProps>(function JumpNav(
     // items is compared by its ids: a new array with the same ids must not rebuild the observer
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
+
+  // On phones the strip scrolls sideways: keep the current link in view, or the reader loses the position cue.
+  // The strip is scrolled on its own (not scrollIntoView, which would also move the page).
+  useEffect(() => {
+    if (!strip || !active || strip.scrollWidth <= strip.clientWidth || typeof strip.scrollTo !== 'function') return
+    const link = Array.from(strip.querySelectorAll<HTMLElement>('a')).find((node) => node.getAttribute('href') === `#${active}`)
+    if (!link) return
+    // 16px of the previous link stays visible, unless the current one is too long to fit with it.
+    const inset = Math.max(0, Math.min(16, strip.clientWidth - link.offsetWidth))
+    const delta = link.getBoundingClientRect().left - strip.getBoundingClientRect().left - inset
+    if (Math.abs(delta) < 1) return
+    strip.scrollTo({ left: strip.scrollLeft + delta, behavior: reduced ? 'auto' : 'smooth' })
+  }, [active, strip, reduced])
 
   const scrollCleanup = useRef<(() => void) | null>(null)
 

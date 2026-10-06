@@ -49,6 +49,33 @@ describe('WorkflowHandoffBanner', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('claims nothing when only analysis context came along (no field on this form shows it)', () => {
+    // A Resume Analyzer result opened cold: a target role and the report travel, but Job Match has no
+    // field for either, and its resume and job description boxes are empty.
+    writeWorkflowContext({
+      lastToolId: 'resume',
+      targetRole: 'Platform Engineer',
+      recommendedDirectionRole: 'Platform Engineer',
+      updatedAt: Date.now(),
+    })
+    const { container } = render(<WorkflowHandoffBanner toolId="job-match" />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('counts a target role only on a form with a target role field', () => {
+    writeWorkflowContext({ lastToolId: 'resume', targetRole: 'Platform Engineer', updatedAt: Date.now() })
+    render(<WorkflowHandoffBanner toolId="career" />)
+    expect(screen.getByText(/Carried over from/i)).toBeTruthy()
+  })
+
+  it('names where a resume found in the account came from', () => {
+    seedContext({ jobDescription: undefined, resumeSource: 'your CV Studio CV “Platform CV”' })
+    render(<WorkflowHandoffBanner toolId="job-match" />)
+    expect(screen.getByRole('status').textContent).toBe(
+      'Carried over from Resume Analyzer, with your CV Studio CV “Platform CV” as the resume',
+    )
+  })
+
   it('renders nothing on the tool that produced the context', () => {
     seedContext()
     const { container } = render(<WorkflowHandoffBanner toolId="resume" />)

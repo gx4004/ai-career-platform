@@ -1,35 +1,46 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button, Checkbox, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogForm,
   DialogHeader, DialogTitle, EmptyState, Field, Input, Notice, Section, Skeleton, Stack,
 } from '#/components/kit'
+import { useSession } from '#/hooks/useSession'
 import { createCvDocument, listEvidenceItems } from '#/lib/api/client'
 import type { CvDocument, EvidenceItem } from '#/lib/api/schemas'
-import { EVIDENCE_QUERY_KEY, KIND_LABELS, contentEntries } from '#/lib/profile/evidence'
+import { EVIDENCE_QUERY_KEY, KIND_SINGULAR_LABELS, contentEntries } from '#/lib/profile/evidence'
+
+/** A fact can be 2,000 characters; a checkbox label shows its start, and the CV gets all of it. */
+const SUMMARY_CHARS = 160
 
 function evidenceSummary(item: EvidenceItem) {
   const content = contentEntries(item.content)
     .map(({ value }) => value)
     .filter(Boolean)
     .join(' · ')
-  return content || 'Confirmed fact'
+  if (!content) return 'Saved fact'
+  return content.length > SUMMARY_CHARS ? `${content.slice(0, SUMMARY_CHARS - 1).trimEnd()}…` : content
 }
 
 export function CreateCvDocumentDialog({
   open,
+  preselectAll = false,
   onOpenChange,
   onCreated,
   onCloseAutoFocus,
 }: {
   open: boolean
+  /** Tick every saved fact once they load (the profile's "Start a CV from these facts" hand-off). */
+  preselectAll?: boolean
   onOpenChange: (open: boolean) => void
   onCreated: (document: CvDocument) => void
   /** Where focus goes on close, when the control that opened the dialog is gone (a menu item). */
   onCloseAutoFocus?: (event: Event) => void
 }) {
-  const [name, setName] = useState('My CV')
+  // Named after its person, like an import, so the export is "Jordan Ellis CV.pdf" rather than "My CV.pdf".
+  const fullName = useSession().user?.full_name?.trim()
+  const defaultName = fullName ? `${fullName} CV` : 'My CV'
+  const [name, setName] = useState(defaultName)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -42,12 +53,24 @@ export function CreateCvDocumentDialog({
     (item) => item.confirmation_state === 'confirmed',
   )
 
+  const preselected = useRef(false)
+
   useEffect(() => {
     if (!open) return
-    setName('My CV')
+    setName(defaultName)
     setSelectedIds([])
     setError('')
-  }, [open])
+    preselected.current = false
+  }, [open, defaultName])
+
+  // Declared after the reset so a cached list is ticked in the same commit the dialog opens.
+  useEffect(() => {
+    if (!open || !preselectAll || !evidenceQuery.isSuccess || preselected.current) return
+    preselected.current = true
+    setSelectedIds(evidenceQuery.data.filter((item) => item.confirmation_state === 'confirmed').map((item) => item.id))
+  }, [open, preselectAll, evidenceQuery.isSuccess, evidenceQuery.data])
+
+  const allSelected = confirmedItems.length > 0 && confirmedItems.every((item) => selectedIds.includes(item.id))
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -75,8 +98,7 @@ export function CreateCvDocumentDialog({
           <DialogHeader>
             <DialogTitle>Start a new CV</DialogTitle>
             <DialogDescription>
-              Start blank, or pick facts you’ve already confirmed in your Evidence and we’ll add
-              them for you.
+              Start blank, or pick facts you saved on your profile and we’ll add them for you.
             </DialogDescription>
           </DialogHeader>
 
@@ -86,22 +108,37 @@ export function CreateCvDocumentDialog({
                 <Input value={name} maxLength={120} required disabled={submitting} onChange={(event) => setName(event.target.value)} />
               </Field>
 
-              <Section headingLevel={3} title="Facts from your Evidence (optional)">
+              <Section
+                headingLevel={3}
+                size="sm"
+                title="Facts from your profile"
+                actions={confirmedItems.length > 1 ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={submitting}
+                    onClick={() => setSelectedIds(allSelected ? [] : confirmedItems.map((item) => item.id))}
+                  >
+                    {allSelected ? 'Clear' : 'Select all'}
+                  </Button>
+                ) : null}
+              >
                 {evidenceQuery.isLoading ? (
-                  <div role="status" aria-label="Loading your Evidence"><Skeleton lines={3} /></div>
+                  <div role="status" aria-label="Loading your profile"><Skeleton lines={3} /></div>
                 ) : evidenceQuery.isError ? (
                   <Notice tone="danger" action={<Button type="button" size="sm" variant="secondary" onClick={() => void evidenceQuery.refetch()}>Try again</Button>}>
-                    We couldn’t load your Evidence. You can still start a blank CV.
+                    We couldn’t load your profile. You can still start a blank CV.
                   </Notice>
                 ) : confirmedItems.length === 0 ? (
-                  <EmptyState size="inline" title="You haven’t confirmed any facts in your Evidence yet, so this CV will start blank." />
+                  <EmptyState size="inline" title="You haven’t saved any facts on your profile yet, so this CV will start blank." />
                 ) : (
                   <Stack gap={3}>
                     {confirmedItems.map((item) => (
                       <Checkbox
                         key={item.id}
                         label={evidenceSummary(item)}
-                        description={KIND_LABELS[item.kind]}
+                        description={KIND_SINGULAR_LABELS[item.kind]}
                         checked={selectedIds.includes(item.id)}
                         disabled={submitting}
                         onCheckedChange={(checked) => setSelectedIds((current) => checked

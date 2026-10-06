@@ -13,7 +13,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => navigateMock,
-    Link: ({ to, children, ...props }: { to: string; children: React.ReactNode }) => (
+    Link: ({ to, children, activeOptions: _active, ...props }: { to: string; children: React.ReactNode; activeOptions?: unknown }) => (
       <a href={to} {...props}>{children}</a>
     ),
   }
@@ -62,7 +62,7 @@ describe('ToolResultScreen — guest banner and result actions', () => {
     renderResumeResult()
 
     expect(screen.getByText('This result is not saved')).toBeTruthy()
-    expect(screen.getByText(/Create a free account to keep it/)).toBeTruthy()
+    expect(screen.getByText(/Create a free account and your next runs are saved/)).toBeTruthy()
     expect(screen.queryByText(/Resume Analyzer result/)).toBeNull()
     expect(screen.queryByRole('button', { name: /try next/i })).toBeNull()
     expect(screen.queryByLabelText('Try next suggestion')).toBeNull()

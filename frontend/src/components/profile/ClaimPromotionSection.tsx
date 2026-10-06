@@ -4,7 +4,7 @@ import type { ToolId } from '#/lib/tools/registry'
 import { PromoteClaimButton } from './PromoteClaimButton'
 
 /**
- * "Save to your Evidence Profile" block appended to a saved result (R11, #148).
+ * "Save to your profile" block appended to a saved result (R11, #148).
  *
  * Promotion is an authenticated, per-claim action (D-066): guests render
  * nothing, and tools whose output has no reusable claims render nothing, so
@@ -26,8 +26,8 @@ export function ClaimPromotionSection({
 
   return (
     <Section
-      title="Save to your Evidence Profile"
-      description="Add this detail as a suggested item you can review and confirm later."
+      title="Save to your profile"
+      description="Adds it as a suggestion you can review and save on your profile."
       landmark
     >
       <List aria-label="Claims you can add">

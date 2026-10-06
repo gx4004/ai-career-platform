@@ -102,7 +102,7 @@ export function DashboardPage() {
         </>
       )}
       {!isMobile && (
-        <OnboardingTour open={onboarding.open} onComplete={onboarding.complete} onSkip={onboarding.skip} />
+        <OnboardingTour open={onboarding.open} signedIn={isAuthenticated} onComplete={onboarding.complete} onSkip={onboarding.skip} />
       )}
     </Page>
   )

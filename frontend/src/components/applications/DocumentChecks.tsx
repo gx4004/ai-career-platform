@@ -62,10 +62,13 @@ function writeHidden(applicationId: string, ids: Set<string>) {
 export function DocumentChecks({
   applicationId,
   sent = false,
+  hasDocuments = true,
 }: {
   applicationId: string
   /** Already applied: the checks no longer change what was sent. */
   sent?: boolean
+  /** A CV version or cover letter (chosen or drafted) exists; without one every check would pass vacuously. */
+  hasDocuments?: boolean
 }) {
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   // Read after mount: the server render has no storage.
@@ -81,7 +84,9 @@ export function DocumentChecks({
     mutationFn: () => reviewApplication(applicationId),
     onSuccess: () => classify.reset(),
   })
-  const all = review.data?.findings ?? []
+  // Results of an earlier run no longer describe anything once the documents are unpicked.
+  const result = hasDocuments ? review.data : undefined
+  const all = result?.findings ?? []
   // Hiding a finding only tidies the list: the tally and the marks still count what the checks found.
   const findings = all.filter((item) => !hidden.has(item.id))
   const clear = CHECKS.filter((check) => !all.some((item) => item.category === check.category)).length
@@ -95,8 +100,14 @@ export function DocumentChecks({
           : 'Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you.'
       }
       actions={
-        <Button variant="secondary" size="sm" onClick={() => review.mutate()} loading={review.isPending} disabled={review.isPending}>
-          {review.isPending ? 'Checking…' : review.data ? 'Check again' : 'Run the checks'}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => review.mutate()}
+          loading={review.isPending}
+          disabled={review.isPending || !hasDocuments}
+        >
+          {review.isPending ? 'Checking…' : result ? 'Check again' : 'Run the checks'}
         </Button>
       }
     >
@@ -106,7 +117,7 @@ export function DocumentChecks({
             {review.error instanceof Error && review.error.message ? review.error.message : "The checks couldn't run. Try again."}
           </Notice>
         ) : null}
-        {review.data ? (
+        {result ? (
           <>
             <p className="camp-note" aria-live="polite">
               {findings.length
@@ -138,7 +149,11 @@ export function DocumentChecks({
           </Notice>
         ) : null}
         {classify.isError ? <Notice tone="danger">Next steps couldn't be suggested. Nothing was added.</Notice> : null}
-        {!review.data ? (
+        {!hasDocuments ? (
+          <p className="camp-note" data-testid="checks-idle">
+            Pick a CV version or cover letter above to check them.
+          </p>
+        ) : !result ? (
           <p className="camp-note" data-testid="checks-idle">
             {CHECKS.length} checks, not run yet: {CHECKS.map((check) => check.short).join(', ')}.
           </p>

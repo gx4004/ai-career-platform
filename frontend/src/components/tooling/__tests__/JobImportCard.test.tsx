@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { JobImportCard } from '#/components/tooling/JobImportCard'
@@ -11,6 +12,13 @@ let sessionStatus: 'guest' | 'authenticated' = 'authenticated'
 
 vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({ status: sessionStatus, openAuthDialog: vi.fn() }),
+}))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
 }))
 vi.mock('#/lib/api/client', () => ({
   importJobUrl: importJobUrlMock,
@@ -40,6 +48,36 @@ function renderCard(onImported = vi.fn(), onSubmit = vi.fn()) {
       </QueryClientProvider>,
     ),
   }
+}
+
+/** The card next to a real job description field, as on the tool pages. */
+function Harness({ initial, onImported }: { initial: string; onImported: (text: string) => void }) {
+  const [text, setText] = useState(initial)
+  return (
+    <>
+      <JobImportCard
+        current={text}
+        onImported={(next) => {
+          onImported(next)
+          setText(next)
+        }}
+      />
+      <textarea aria-label="Job description" value={text} onChange={(event) => setText(event.target.value)} />
+    </>
+  )
+}
+
+function renderWithField(initial: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const onImported = vi.fn()
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Harness initial={initial} onImported={onImported} />
+    </QueryClientProvider>,
+  )
+  return { onImported, field: () => screen.getByLabelText('Job description') as HTMLTextAreaElement }
 }
 
 const application = {
@@ -88,6 +126,37 @@ describe('JobImportCard', () => {
       expect(onImported).not.toHaveBeenCalled()
     })
 
+    it('does not overwrite a typed description without asking', async () => {
+      importJobUrlMock.mockResolvedValue({ job_description: 'The imported posting text, long enough to read.' })
+      const { onImported, field } = renderWithField('My own notes about this role')
+      typeUrl('https://www.jobs.example.com/backend')
+      fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+      expect(await screen.findByText('Imported the posting from jobs.example.com')).toBeTruthy()
+      expect(onImported).not.toHaveBeenCalled()
+      expect(field().value).toBe('My own notes about this role')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Keep mine' }))
+      expect(screen.queryByText('Imported the posting from jobs.example.com')).toBeNull()
+      expect(field().value).toBe('My own notes about this role')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Replace my description' }))
+      expect(field().value).toBe('The imported posting text, long enough to read.')
+      expect(screen.getByText('Job description filled from jobs.example.com.')).toBeTruthy()
+    })
+
+    it('fills an empty description and can undo it', async () => {
+      importJobUrlMock.mockResolvedValue({ job_description: 'The imported posting text, long enough to read.' })
+      const { field } = renderWithField('')
+      typeUrl()
+      fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+      expect(await screen.findByText('Job description filled from jobs.example.com.')).toBeTruthy()
+      expect(field().value).toBe('The imported posting text, long enough to read.')
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(field().value).toBe('')
+      expect(screen.queryByText('Job description filled from jobs.example.com.')).toBeNull()
+    })
+
     it('imports on Enter without submitting the tool form behind it', async () => {
       importJobUrlMock.mockResolvedValue({ job_description: 'A real posting with plenty of detail about the role.' })
       const { onImported, onSubmit } = renderCard()
@@ -126,6 +195,31 @@ describe('JobImportCard', () => {
       }, expect.anything()))
       expect(await screen.findByText('Listing attached to Senior Backend Engineer at Northwind Labs.')).toBeTruthy()
       expect(onImported).toHaveBeenCalled()
+    })
+
+    it('points to Discover instead of a dead-end picker when there are no applications yet', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [], total: 0 })
+      importJobUrlMock.mockResolvedValue({ job_description: 'A real posting with plenty of detail about the role.' })
+      const { onImported } = renderCard()
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      expect(await screen.findByText(/You have no applications yet/)).toBeTruthy()
+      expect(screen.getByRole('link', { name: 'Find jobs' }).getAttribute('href')).toBe('/discovery')
+      expect(screen.queryByLabelText('Application')).toBeNull()
+      expect(screen.queryByLabelText('Pasted listing text')).toBeNull()
+      // The import itself is not held back by a pick that cannot be made.
+      typeUrl()
+      fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+      await waitFor(() => expect(onImported).toHaveBeenCalled())
+    })
+
+    it('offers the pasted listing only once an application is picked', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
+      renderCard()
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
+      expect(screen.queryByLabelText('Pasted listing text')).toBeNull()
+      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
+      expect(screen.getByLabelText('Pasted listing text')).toBeTruthy()
     })
 
     it('keeps applied applications out of reach: listed last, disabled and marked Applied', async () => {

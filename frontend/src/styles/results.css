@@ -12,34 +12,21 @@
   justify-content: flex-end;
 }
 
-/* The guest "not saved" sticker: text, the two choices and the dismiss on one row; on narrow screens the choices drop under the text and the dismiss stays beside the title. */
-.result-unsaved {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  grid-template-areas: 'text actions dismiss';
-  align-items: center;
-  gap: var(--s3) var(--s4);
+/* A report header has up to six actions (Undo after a re-generate) and an application link in its meta.
+   The title and meta keep their natural width; when the actions do not fit beside them they drop to a
+   row of their own, right-aligned, instead of squeezing "Resume Analyzer" onto two lines. */
+.kit-page-header:has(.result-actions) .kit-page-header__identity {
+  flex: 1 0 auto;
+  max-inline-size: 100%;
 }
 
-.result-unsaved__text {
-  grid-area: text;
+.kit-page-header:has(.result-actions) .kit-page-header__identity > .kit-page-header__text {
+  flex-basis: auto;
 }
 
-.result-unsaved__actions {
-  grid-area: actions;
-}
-
-.result-unsaved__dismiss {
-  grid-area: dismiss;
-  align-self: start;
-}
-
-@media (max-width: 860px) {
-  .result-unsaved {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'text dismiss'
-      'actions actions';
+@media (min-width: 861px) {
+  .kit-page-header__actions:has(> .result-actions) {
+    margin-inline-start: auto;
   }
 }
 
@@ -50,8 +37,67 @@
 }
 
 .result-seal-skeleton {
+  inline-size: min(300px, 100%);
   aspect-ratio: 1;
   block-size: auto;
+}
+
+.result-tile-skeleton,
+.result-tile-skeleton > .kit-skeleton__bar {
+  border-radius: var(--r-lg);
+}
+
+/* The actions' place in the header while the run loads: as wide as the five buttons, never wider than the page. */
+.result-loading__actions {
+  max-inline-size: 100%;
+  block-size: 44px;
+}
+
+/* The loading jump-nav strip is as tall as the real one (40px links in 8px padding). */
+.result-loading__jump {
+  overflow: hidden;
+}
+
+/* On touch the real links take the touch-target height (kit jump-nav.css): so does the placeholder bar. */
+@media (pointer: coarse) {
+  .result-loading__jump > .kit-skeleton {
+    min-block-size: var(--touch-target);
+  }
+}
+
+/* Phones: the seal is 220px and the unscored tool tile is not shown (useBreakpoint's mobile is <= 639px). */
+@media (max-width: 639px) {
+  .result-seal-skeleton {
+    inline-size: min(220px, 100%);
+  }
+
+  .result-hero__side > .result-tile-skeleton {
+    display: none;
+  }
+
+  /* Phones: the actions take two rows (Re-generate and New input, then Star, Copy and Export: 56 + 8 + 44,
+     New input keeps its 56px touch height), measured against the loaded header. */
+  .result-loading__actions {
+    block-size: 108px;
+  }
+
+  /* The one primary leads on a phone and takes the first row's free width, with New input beside it; Star,
+     Copy and Export follow on the next row. DOM order is unchanged, so the keyboard order matches desktop. */
+  .result-actions > .result-actions__primary {
+    order: -2;
+    flex: 1 1 auto;
+  }
+
+  .result-actions > .result-actions__new {
+    order: -1;
+  }
+}
+
+/* Below ~354px Star, Copy and Export no longer share a row: three rows (56 + 8 + 44 + 8 + 44). */
+@media (max-width: 353px) {
+  .result-loading__actions {
+    block-size: 160px;
+  }
 }
 
 /* An expired or missing result has no PageHeader above it: give it the header's top space. */
@@ -94,11 +140,19 @@
 }
 
 .result-hero__side {
+  position: relative;
   display: grid;
   justify-items: center;
   gap: var(--s5);
   padding-top: var(--s2);
   min-width: 0;
+}
+
+/* The score's "?" sits in the side's top corner, clear of the round seal. */
+.result-hero__help {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
 }
 
 .result-hero__tags {
@@ -291,10 +345,6 @@
 /* ── Rows that carry a block under their title (Why it matters / Fix): the status badge stays on the title line, and the block lines up with the title instead of sitting 8px inside it. ── */
 .kit-row.result-row--stacked {
   align-items: flex-start;
-}
-
-.kit-kv.result-why {
-  margin-inline-start: calc(var(--space-2) * -1);
 }
 
 /* ── Text ── */
@@ -498,6 +548,11 @@
     gap: var(--s6);
   }
 
+  /* No score to show first: the headline and the work lead, the facts follow. */
+  .result-hero:not([data-scored]) .result-hero__side {
+    order: 1;
+  }
+
   .result-fixes {
     grid-template-columns: minmax(0, 1fr);
     padding-inline-end: 6px;
@@ -523,4 +578,9 @@
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s3);
   }
+}
+
+/* Practice mode scrolls its block to the top on entry: clear the sticky jump nav. */
+.result-practice {
+  scroll-margin-top: 72px;
 }

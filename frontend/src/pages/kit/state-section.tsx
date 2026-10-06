@@ -214,11 +214,12 @@ export function StateSection() {
           <Specimen label="card">
             <Skeleton variant="card" count={2} />
           </Specimen>
-          <Specimen label="row: compact / comfortable / with a leading square">
+          <Specimen label="row: compact / comfortable / with a leading square / with a tool tile">
             <div className="kit-gallery__stack">
               <Skeleton variant="row" density="compact" count={2} />
               <Skeleton variant="row" count={2} />
               <Skeleton variant="row" leading count={2} />
+              <Skeleton variant="row" leading="tile" count={2} />
             </div>
           </Specimen>
         </div>

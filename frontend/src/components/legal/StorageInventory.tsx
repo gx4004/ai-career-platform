@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { EmptyState, Table } from '#/components/kit'
 import type { TableColumn } from '#/components/kit'
 import { readStorageInventory, type StorageEntry } from '#/components/legal/storageCatalogue'
+import { subscribeConsent } from '#/lib/consent'
 
 const COLUMNS: TableColumn<StorageEntry>[] = [
   { id: 'name', header: 'Name', primary: true, cell: (entry) => <code>{entry.name}</code> },
@@ -12,12 +13,19 @@ const COLUMNS: TableColumn<StorageEntry>[] = [
 
 /**
  * "What we store on your device", read live from this browser: the real keys, with what each one is for.
- * Values are never shown. `version` re-reads the list (the page bumps it after resetting consent).
+ * Values are never shown. It re-reads when the cookie choice changes (here or in another tab) and when `version` changes.
  */
 export function StorageInventory({ version = 0 }: { version?: number }) {
   const [entries, setEntries] = useState<StorageEntry[] | null>(null)
   useEffect(() => {
-    setEntries(readStorageInventory())
+    const read = () => setEntries(readStorageInventory())
+    read()
+    const unsubscribe = subscribeConsent(read)
+    window.addEventListener('storage', read)
+    return () => {
+      unsubscribe()
+      window.removeEventListener('storage', read)
+    }
   }, [version])
 
   if (entries === null) return null

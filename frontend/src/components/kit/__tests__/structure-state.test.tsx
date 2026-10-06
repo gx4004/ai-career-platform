@@ -168,6 +168,13 @@ describe('kit Skeleton', () => {
     expect(rows[0].querySelector('.kit-skeleton__leading')).toBeTruthy()
   })
 
+  it('row can lead with the 40px tool-tile square a run row has, so the text does not move when it loads', () => {
+    const { container } = render(<Skeleton variant="row" leading="tile" />)
+    expect(container.querySelector('.kit-skeleton__leading.kit-skeleton__leading--tile')).toBeTruthy()
+    const plain = render(<Skeleton variant="row" leading />)
+    expect(plain.container.querySelector('.kit-skeleton__leading--tile')).toBeNull()
+  })
+
   it('never uses a shimmer: it is bars with a pulse class, nothing sweeping', () => {
     const { container } = render(<Skeleton variant="page" />)
     expect(container.querySelector('[class*="shimmer"]')).toBeNull()

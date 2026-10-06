@@ -78,7 +78,7 @@ export function LoginPage() {
   if (status === 'authenticated' && welcome) {
     // Straight after signing up the page stamps a seal: the account exists, and the page moves on.
     return (
-      <AuthShell>
+      <AuthShell aside={false}>
         <AuthStamp word="Hi!">
           <EmptyState
             size="page"
@@ -99,7 +99,7 @@ export function LoginPage() {
 
   if (status === 'authenticated' && leaving) {
     return (
-      <AuthShell>
+      <AuthShell aside={false}>
         <p className="auth-hint" role="status">
           Signed in. Taking you there…
         </p>
@@ -126,7 +126,7 @@ export function LoginPage() {
         }
       />
     )
-    return <AuthShell>{signedIn}</AuthShell>
+    return <AuthShell aside={false}>{signedIn}</AuthShell>
   }
 
   const copy = authCopy(view, resetting)

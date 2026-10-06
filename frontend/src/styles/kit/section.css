@@ -190,6 +190,11 @@
     flex-wrap: wrap;
   }
 
+  /* Only the action wraps: the text keeps its place beside the icon however narrow the notice is. */
+  .kit-notice__body {
+    flex: 1 1 0;
+  }
+
   .kit-notice__dismiss {
     order: 1;
   }

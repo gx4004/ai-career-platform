@@ -73,6 +73,13 @@
   cursor: not-allowed;
 }
 
+/* Disabled (STICKER 1.7): stone fill, ink-3 text and outline, like every other disabled control. */
+.kit-chip[data-disabled] {
+  border-color: var(--ink-3);
+  background: var(--stone);
+  color: var(--ink-3);
+}
+
 /* Touch: the whole chip and its remove button are a 44px target. */
 @media (pointer: coarse) {
   .kit-chip {

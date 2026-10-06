@@ -18,7 +18,7 @@ export function PortfolioToolPage() {
   return (
     <ToolPageShell toolId="portfolio">
       {mutation.isPending ? (
-        <ToolPageLoading toolId="portfolio" mutationDone={!mutation.isPending} />
+        <ToolPageLoading toolId="portfolio" mutationDone={!mutation.isPending} onCancel={mutation.cancel} />
       ) : (
         <ToolForm
           toolId="portfolio"
@@ -42,7 +42,7 @@ export function PortfolioToolPage() {
           <Field
             label={targetRoleField.label}
             id="portfolio-targetRole"
-            help={getSeededFieldNote('targetRole', bridge) || undefined}
+            help={getSeededFieldNote('targetRole', bridge, String(draft.targetRole ?? '')) || undefined}
             error={errors.targetRole}
           >
             <Input

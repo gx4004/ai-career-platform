@@ -5,9 +5,11 @@ import {
 } from '#/components/kit'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import {
-  KIND_LABELS,
+  KIND_SINGULAR_LABELS,
+  MAX_FACT_VALUE_CHARS,
   applyFieldEdits,
   contentEntries,
+  factLengthHint,
   fieldLabel,
 } from '#/lib/profile/evidence'
 
@@ -63,7 +65,7 @@ export function EditFactDialog({
         <DialogForm onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              Edit {current ? KIND_LABELS[current.kind].toLowerCase() : 'fact'}
+              Edit {current ? KIND_SINGULAR_LABELS[current.kind].toLowerCase() : 'fact'}
             </DialogTitle>
             <DialogDescription>
               Saving keeps it in your profile as a saved fact. Clear a field to remove it.
@@ -73,7 +75,11 @@ export function EditFactDialog({
           <DialogBody>
             <Stack gap={4}>
               {entries.map(({ key, value }) => (
-                <Field key={key} label={fieldLabel(key)}>
+                <Field
+                  key={key}
+                  label={fieldLabel(key)}
+                  help={(values[key] ?? '').length > MAX_FACT_VALUE_CHARS * 0.8 ? factLengthHint((values[key] ?? '').trim().length) : undefined}
+                >
                   {value.length > LONG_VALUE ? (
                     <Textarea
                       autosize maxRows={10} value={values[key] ?? ''} disabled={submitting}

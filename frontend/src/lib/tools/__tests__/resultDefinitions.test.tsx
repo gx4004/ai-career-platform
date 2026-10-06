@@ -532,7 +532,10 @@ describe('FixFirstList', () => {
     expect(container.querySelectorAll('li.kit-sticker').length).toBe(2)
     const more = screen.getByRole('list', { name: 'More to fix' })
     expect(more.textContent).toContain('C')
-    expect((more as HTMLElement).style.counterReset).toBe('kit-row 2')
+    // The List is a size container, which scopes a counter-reset on it; each row sets its own number instead.
+    expect((more as HTMLElement).style.counterReset).toBe('')
+    const rows = Array.from(more.querySelectorAll<HTMLElement>(':scope > .kit-row'))
+    expect(rows.map((row) => row.style.counterSet)).toEqual(['kit-row 3'])
   })
 
   it('renders nothing without actions', () => {
@@ -590,7 +593,7 @@ describe('result summary', () => {
       missing_keywords: ['B'],
     })
     expect(summary.bars).toEqual([{ label: 'Requirements met', value: 1, max: 2, valueLabel: '1 of 2' }])
-    expect(summary.facts.map((f) => f.label)).toEqual(['Verdict', 'Keywords matched', 'Missing'])
+    expect(summary.facts.map((f) => f.label)).toEqual(['Verdict', 'Keywords found', 'Keywords missing'])
   })
 
   it('has no score for generative tools', () => {
@@ -741,15 +744,15 @@ describe('cover letter sheet', () => {
     expect(screen.getByText('Kubernetes')).toBeTruthy()
   })
 
-  it('offers the edited letter as Markdown and a sanitised file name', () => {
+  it('offers the edited letter as Markdown under a slugged file name', () => {
     const item = { ...makeItem('cover-letter', payload), label: 'Backend / Lumen: letter?' }
     const definition = resultDefinitions['cover-letter']
     render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
     fireEvent.change(screen.getByLabelText('Opening paragraph'), { target: { value: 'Edited opening.' } })
     const md = definition.download?.(payload, item, 'md')
-    expect(md?.filename).toBe('Backend Lumen letter.md')
+    expect(md?.filename).toBe('backend-lumen-letter.md')
     expect(md?.content).toContain('Edited opening.')
-    expect(definition.download?.(payload, item, 'txt')?.filename).toBe('Backend Lumen letter.txt')
+    expect(definition.download?.(payload, item, 'txt')?.filename).toBe('backend-lumen-letter.txt')
   })
 
   it('keeps an edit in this tab (never in localStorage) and shows it after a reload', async () => {

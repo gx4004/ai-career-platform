@@ -10,12 +10,13 @@ export function HistoryRoutePage() {
   return (
     <HistoryPage
       search={search}
-      onSearchChange={(next) =>
+      onSearchChange={(next, options) =>
         navigate({
           search: (current) => ({
             ...current,
             ...next,
           }),
+          replace: options?.replace,
         })
       }
     />

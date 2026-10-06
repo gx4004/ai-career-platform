@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { AlertTriangle } from 'lucide-react'
 import { Button, EmptyState, ErrorState, List, Section, Skeleton } from '#/components/kit'
 import type { ReactNode } from 'react'
 import { useHistory } from '#/hooks/useHistory'
@@ -59,6 +60,7 @@ export function RunList({
         </List>
       ) : query.isError ? (
         <ErrorState
+          icon={<AlertTriangle aria-hidden />}
           title={`${title} couldn't be loaded`}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}

@@ -12,9 +12,11 @@ import {
   Split,
   Stack,
   StageMark,
+  useToast,
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { deleteApplication, getApplication, updateApplication } from '#/lib/api/client'
+import { ApiError, describeFailure } from '#/lib/api/errors'
 import type { ApplicationDetail, ApplicationStatus } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { ActivityPanel, DocumentsPanel, FactsPanel, JobPanel, NotesPanel, TasksPanel } from './ApplicationSections'
@@ -29,6 +31,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [identityError, setIdentityError] = useState<string | null>(null)
   const authenticated = status === 'authenticated'
@@ -44,9 +47,14 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   const remove = useMutation({
     mutationFn: () => deleteApplication(applicationId),
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey })
-      void invalidateApplications(queryClient)
-      void navigate({ to: '/campaigns' })
+      const detail = queryClient.getQueryData<ApplicationDetail>(queryKey)
+      const name = detail ? roleOnly(applicationTitle(detail), detail.company) : 'the application'
+      // Leave first: invalidating while this page is mounted would refetch the deleted application (a 404).
+      void Promise.resolve(navigate({ to: '/campaigns' })).then(() => {
+        queryClient.removeQueries({ queryKey })
+        void invalidateApplications(queryClient)
+        toast({ tone: 'success', title: `Deleted “${name}”.` })
+      })
     },
   })
 
@@ -55,7 +63,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   if (status === 'loading' || status === 'unreachable') return <ApplicationSkeleton />
   if (!authenticated) {
     return (
-      <Page>
+      <Page className="camp-state">
         <ErrorState
           size="page"
           role="status"
@@ -71,14 +79,22 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   }
   if (query.isPending) return <ApplicationSkeleton />
   if (query.isError || !query.data) {
+    // Only a 404 means the application is gone; anything else is a failure worth retrying.
+    const missing = query.error instanceof ApiError && query.error.status === 404
     return (
-      <Page>
+      <Page className="camp-state">
         <ErrorState
           size="page"
-          role="status"
+          role={missing ? 'status' : 'alert'}
           headingLevel={1}
           title="This application couldn't be opened"
-          description="It may have been deleted."
+          description={
+            missing
+              ? 'It may have been deleted.'
+              : describeFailure(query.error, 'Something went wrong on our side. Try again in a moment.').message
+          }
+          onRetry={missing ? undefined : () => void query.refetch()}
+          retrying={query.isFetching}
           backAction={<Button asChild variant="secondary"><Link to="/campaigns">All applications</Link></Button>}
         />
       </Page>
@@ -123,7 +139,15 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
         }
       >
         <DocumentsPanel application={application} />
-        <DocumentChecks applicationId={application.id} sent={application.applied_at !== null} />
+        <DocumentChecks
+          applicationId={application.id}
+          sent={application.applied_at !== null}
+          hasDocuments={Boolean(
+            application.selected_materials.cv_variant ||
+              application.selected_materials.cover_letter ||
+              application.drafts?.cover_letter?.body.trim(),
+          )}
+        />
         <JobPanel application={application} />
         <NotesPanel application={application} />
         <ActivityPanel application={application} />
@@ -168,7 +192,7 @@ function deleteSummary(application: ApplicationDetail) {
 
 function ApplicationSkeleton() {
   return (
-    <Page aria-busy="true">
+    <Page aria-busy="true" className="camp-state">
       <Stack gap={3}>
         <Skeleton size="meta" width="8rem" />
         <Skeleton size="display" width="40%" label="Loading this application…" />

@@ -84,6 +84,13 @@ describe('kit Table', () => {
     expect(container.firstElementChild?.hasAttribute('data-stack')).toBe(false)
   })
 
+  it('top-aligns cells only when asked', () => {
+    const { rerender } = render(<Table caption="Users" columns={COLUMNS} rows={USERS} getRowId={(user) => user.id} />)
+    expect(screen.getByRole('table').getAttribute('data-cell-align')).toBeNull()
+    rerender(<Table caption="Users" columns={COLUMNS} rows={USERS} getRowId={(user) => user.id} cellAlign="top" />)
+    expect(screen.getByRole('table').getAttribute('data-cell-align')).toBe('top')
+  })
+
   it('records the row density', () => {
     render(<Table caption="Users" columns={COLUMNS} rows={USERS} getRowId={(user) => user.id} density="compact" />)
     expect(screen.getByRole('table').getAttribute('data-density')).toBe('compact')

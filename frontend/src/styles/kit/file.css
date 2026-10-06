@@ -38,10 +38,6 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.kit-file[data-invalid] .kit-file__trigger {
-  --kit-button-border: var(--danger-ink);
-}
-
 .kit-file__info {
   display: flex;
   flex: 1 1 8rem;
@@ -112,8 +108,8 @@
   background: var(--lemon-soft);
 }
 
+/* Invalid: the outline stays ink like every other field; the rose-soft fill and the message under it mark the error (STICKER 1.16). */
 .kit-file[data-variant='dropzone'][data-invalid] {
-  border-color: var(--danger-ink);
   background: var(--rose-soft);
 }
 

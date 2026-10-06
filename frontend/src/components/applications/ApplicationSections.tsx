@@ -275,7 +275,7 @@ export function TasksPanel({ application }: Props) {
           </div>
         </form>
         {application.tasks.length ? (
-          <List aria-label="Tasks">
+          <List aria-label="Tasks" framed={false} className="camp-tasks">
             {[...open, ...done].map((task) => (
               <Row key={task.id} density="compact">
                 <RowBody>
@@ -295,7 +295,7 @@ export function TasksPanel({ application }: Props) {
                     </span>
                   </RowMeta>
                 ) : null}
-                <RowActions>
+                <RowActions placement="overlay">
                   <Button
                     type="button"
                     iconOnly
@@ -356,7 +356,8 @@ const EVENT_LABELS: Record<string, string> = {
   prepared: 'Application prepared',
   answers_saved: 'Answers saved',
   applied: 'Marked as applied',
-  applied_undone: 'Moved back from Applied',
+  // Recorded when a move back to Saved clears the applied mark, from whichever stage it was in.
+  applied_undone: 'No longer marked as applied',
   autofill: 'Form filled by Autopilot',
   task_created: 'Task added',
   task_completed: 'Task done',

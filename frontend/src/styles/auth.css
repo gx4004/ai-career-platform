@@ -56,6 +56,11 @@ html:has(.cookie-banner) .auth-page {
   min-inline-size: 0;
 }
 
+/* "Sign in instead" / "Reset password" under the taken-address notice. */
+.auth-taken__actions {
+  margin-block-start: var(--s3);
+}
+
 .kit-button.auth-wide {
   inline-size: 100%;
 }

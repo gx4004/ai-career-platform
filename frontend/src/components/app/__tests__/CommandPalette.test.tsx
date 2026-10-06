@@ -68,6 +68,21 @@ describe('CommandPalette', () => {
     expect(navigate).toHaveBeenCalledWith({ to: '/discovery' })
   })
 
+  it('ranks word starts above inner matches: "cover" opens Cover Letter, not Discover', async () => {
+    renderPalette()
+    act(() => openCommandPalette())
+
+    const input = await screen.findByRole('combobox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'cover' } })
+    const options = screen.getAllByRole('option')
+    expect(options[0].textContent).toContain('Cover Letter')
+    // The weaker substring match is still offered, just lower.
+    expect(screen.getByRole('option', { name: /Discover/ })).toBeTruthy()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(navigate).toHaveBeenCalledWith({ to: '/cover-letter' })
+  })
+
   it('lists applications and moves the selection with the arrow keys', async () => {
     renderPalette()
     openCommandPalette()

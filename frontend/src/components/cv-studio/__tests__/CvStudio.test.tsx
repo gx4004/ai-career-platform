@@ -16,7 +16,7 @@ const api = vi.hoisted(() => ({
   tailorCvDocument: vi.fn(), applyCvTailoring: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
 }))
-const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn() }))
+const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn(), user: null as { full_name?: string | null } | null }))
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => session }))
 
@@ -67,7 +67,7 @@ async function openMenu(name: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks(); session.status = 'authenticated'; clickedDownload = ''
+  vi.clearAllMocks(); session.status = 'authenticated'; session.user = null; clickedDownload = ''
   window.innerWidth = 1440
   window.sessionStorage.clear()
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:artifact') })
@@ -89,16 +89,51 @@ beforeEach(() => {
 })
 
 describe('CV Studio empty state', { timeout: 15_000 }, () => {
+  it('names a CV started from the profile after its owner', async () => {
+    session.user = { full_name: 'Jordan Ellis' }
+    api.listCvDocuments.mockResolvedValue({ items: [] })
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Start from your profile' }))
+    const dialog = await screen.findByRole('dialog')
+    expect((within(dialog).getByLabelText('CV name') as HTMLInputElement).value).toBe('Jordan Ellis CV')
+  })
+
   it('welcomes a new owner with import and evidence starts', async () => {
     api.listCvDocuments.mockResolvedValue({ items: [] })
     view()
     expect(await screen.findByText('Let’s start with your CV')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Start from your Evidence' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start from your profile' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create CV' }))
     await waitFor(() => expect(api.createCvDocument).toHaveBeenCalledWith({ name: 'My CV', seed_evidence_item_ids: [] }))
     expect((await screen.findByLabelText('Document name') as HTMLInputElement).value).toBe('Principal CV')
     expect(api.getCvDocument).toHaveBeenCalledWith('d1')
+  })
+
+  it('opens Start a new CV once when the profile sent the owner here', async () => {
+    const handled = vi.fn()
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><CvStudio startFrom="profile" onStartHandled={handled} /></QueryClientProvider>)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Start a new CV' })).toBeTruthy()
+    expect(handled).toHaveBeenCalledOnce()
+  })
+
+  it('ticks every saved fact when the profile sent the owner here, and Select all / Clear toggles them', async () => {
+    const fact = (id: string, text: string, state: 'confirmed' | 'unconfirmed' = 'confirmed') => ({
+      id, kind: 'achievement' as const, content: { text }, provenance: 'user-entered' as const,
+      confirmation_state: state, created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z',
+    })
+    api.listEvidenceItems.mockResolvedValue({ items: [fact('f1', 'Cut p95 latency by 38%'), fact('f2', 'Led a team of six'), fact('f3', 'Draft idea', 'unconfirmed')] })
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><CvStudio startFrom="profile" onStartHandled={vi.fn()} /></QueryClientProvider>)
+    const dialog = await screen.findByRole('dialog')
+    const boxes = await within(dialog).findAllByRole('checkbox')
+    expect(boxes).toHaveLength(2)
+    await waitFor(() => expect(boxes.every((box) => (box as HTMLInputElement).checked)).toBe(true))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }))
+    expect(boxes.some((box) => (box as HTMLInputElement).checked)).toBe(false)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Select all' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create CV' }))
+    await waitFor(() => expect(api.createCvDocument).toHaveBeenCalledWith({ name: 'My CV', seed_evidence_item_ids: ['f1', 'f2'] }))
   })
 
   it('imports a PDF through a reviewed proposal and opens the new CV', async () => {
@@ -241,6 +276,15 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     expect(within(switcher).getByRole('option', { name: 'Renamed CV' })).toBeTruthy()
     expect(within(switcher).getByRole('option', { name: 'Research CV' })).toBeTruthy()
     expect(api.listCvDocuments).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the open CV when the switcher picks it again', async () => {
+    const other = { ...document, id: 'd2', name: 'Research CV' }
+    api.listCvDocuments.mockResolvedValue({ items: [document, other] })
+    view()
+    const switcher = await screen.findByLabelText('Your CVs')
+    fireEvent.change(switcher, { target: { value: document.id } })
+    expect((screen.getByLabelText('Document name') as HTMLInputElement).value).toBe(document.name)
   })
 
   it('opens a section’s editor in a bottom sheet on a phone', async () => {
@@ -491,7 +535,7 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
     view()
     expect(screen.queryByRole('button', { name: /New CV/ })).toBeNull()
     const menu = await openMenu('More options')
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Start from your Evidence/ }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Start from your profile/ }))
     expect(await screen.findByRole('dialog')).toBeTruthy()
   })
 

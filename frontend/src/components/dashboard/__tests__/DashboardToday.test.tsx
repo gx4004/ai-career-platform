@@ -3,15 +3,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DashboardToday } from '#/components/dashboard/DashboardToday'
+import { ToastProvider } from '#/components/kit'
 
 const getToday = vi.hoisted(() => vi.fn())
 const adopt = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn())
+const getApplication = vi.hoisted(() => vi.fn())
+const writeWorkflowContext = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
   getToday,
   adoptDiscoveryRecommendation: adopt,
+  getApplication,
 }))
+vi.mock('#/lib/tools/drafts', () => ({ writeWorkflowContext }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated' }) }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to, params, ...props }: { children: ReactNode; to: string; params?: Record<string, string> } & Record<string, unknown>) => (
@@ -50,11 +55,18 @@ function plan(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** The ToastProvider keeps an (empty) alert announcer on the page: find the alert that says it. */
+async function expectAlert(text: string) {
+  await waitFor(() => expect(screen.getAllByRole('alert').some((el) => el.textContent?.includes(text))).toBe(true))
+}
+
 function renderToday() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <DashboardToday />
+      <ToastProvider>
+        <DashboardToday />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -64,11 +76,13 @@ describe('DashboardToday', () => {
     getToday.mockReset()
     adopt.mockReset()
     navigate.mockReset()
+    getApplication.mockReset()
+    writeWorkflowContext.mockReset()
   })
 
   it('shows a match with its skills fit sample and adds it to applications', async () => {
-    getToday.mockResolvedValue(plan())
-    adopt.mockResolvedValue({ id: 'app-1' })
+    getToday.mockResolvedValueOnce(plan()).mockResolvedValue(plan({ best_matches: [] }))
+    adopt.mockResolvedValue({ id: 'app-1', title: 'Platform Engineer' })
     renderToday()
 
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
@@ -81,12 +95,16 @@ describe('DashboardToday', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Platform Engineer to applications' }))
 
     await waitFor(() => expect(adopt.mock.calls[0][0]).toBe('listing-1'))
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith({
-        to: '/campaigns/$campaignId',
-        params: { campaignId: 'app-1' },
-      }),
-    )
+    // It stays on the dashboard: the row leaves the list and a toast offers the new application.
+    expect(await screen.findByText('Added to your applications', { selector: '.kit-toast__title' })).toBeTruthy()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Add Platform Engineer to applications' })).toBeNull())
+    expect(navigate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'View application' }))
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/campaigns/$campaignId',
+      params: { campaignId: 'app-1' },
+    })
   })
 
   it('lists applications that need action with the reason and the wait', async () => {
@@ -140,6 +158,34 @@ describe('DashboardToday', () => {
     expect(within(more).getByRole('link', { name: 'Role a3' })).toBeTruthy()
     expect(within(more).getByText('and 2 more in Applications')).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: /^Needs action\s*5$/ })).toBeTruthy()
+  })
+
+  it('carries the application into Interview Q&A from "Prep for the round"', async () => {
+    getToday.mockResolvedValue(
+      plan({
+        needs_action: [
+          { application_id: 'a1', title: 'Backend Engineer', company: 'Globex', status: 'interviewing', reason: 'interview', deadline: null, applied_at: null, days_since_applied: null },
+        ],
+        needs_action_total: 1,
+      }),
+    )
+    getApplication.mockResolvedValue({
+      id: 'a1',
+      label: 'Backend Engineer at Globex',
+      listing: { title: 'Backend Engineer', company: 'Globex', description: 'Run our APIs.' },
+    })
+    renderToday()
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Prep for the round' }))
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/interview' }))
+    expect(getApplication).toHaveBeenCalledWith('a1')
+    expect(writeWorkflowContext.mock.calls[0][0]).toMatchObject({
+      targetRole: 'Backend Engineer',
+      jobDescription: 'Backend Engineer at Globex\n\nRun our APIs.',
+      workspaceId: 'a1',
+      workspaceLabel: 'Backend Engineer at Globex',
+    })
   })
 
   it('stamps a deadline with its date and how far away it is', async () => {
@@ -209,8 +255,9 @@ describe('DashboardToday', () => {
     fireEvent.click(add)
     fireEvent.click(add)
     resolve({ id: 'app-1' })
-    await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText('Added to your applications', { selector: '.kit-toast__title' })).toBeTruthy()
     expect(adopt).toHaveBeenCalledTimes(1)
+    expect(document.querySelectorAll('.kit-toast__title')).toHaveLength(1)
   })
 
   it('keeps Add visible at rest: it is not one of the hover-revealed actions', async () => {
@@ -265,7 +312,7 @@ describe('DashboardToday', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add Platform Engineer to applications' }))
 
-    expect((await screen.findByRole('alert')).textContent).toContain('That job could not be added')
+    await expectAlert('That job could not be added')
     expect(navigate).not.toHaveBeenCalled()
   })
 
@@ -278,7 +325,7 @@ describe('DashboardToday', () => {
     expect(busy.length).toBe(2)
 
     reject(new Error('down'))
-    expect((await screen.findByRole('alert')).textContent).toContain("couldn't be loaded")
+    await expectAlert("couldn't be loaded")
     getToday.mockResolvedValue(plan())
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()

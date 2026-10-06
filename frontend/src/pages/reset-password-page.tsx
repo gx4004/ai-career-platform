@@ -5,10 +5,20 @@ import { AuthShell } from '#/components/auth/AuthShell'
 import { AuthStamp } from '#/components/auth/AuthStamp'
 import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
 import { PasswordInput } from '#/components/auth/PasswordInput'
+import { focusFirstError, newPasswordError } from '#/components/auth/auth-validation'
 import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Panel, PanelBody } from '#/components/kit'
 import { confirmPasswordReset } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
-import { newPasswordSchema } from '#/lib/api/schemas'
+
+/** Removes the reset token (fragment or legacy query) from the address bar without a navigation. */
+function scrubTokenFromUrl() {
+  const url = new URL(window.location.href)
+  if (url.hash || url.searchParams.has('token')) {
+    url.hash = ''
+    url.searchParams.delete('token')
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
+  }
+}
 
 const backToSignIn = (
   <Button asChild variant="ghost" size="sm">
@@ -39,21 +49,33 @@ export function ResetPasswordPage() {
     if (!consumed.current) {
       const fragment = new URLSearchParams(window.location.hash.slice(1))
       consumed.current = { token: fragment.get('token') ?? legacyQueryToken }
-
-      const url = new URL(window.location.href)
-      if (url.hash || url.searchParams.has('token')) {
-        url.hash = ''
-        url.searchParams.delete('token')
-        window.history.replaceState(
-          window.history.state,
-          '',
-          `${url.pathname}${url.search}`,
-        )
-      }
+      scrubTokenFromUrl()
     }
     setToken(consumed.current.token)
     setTokenReady(true)
   }, [legacyQueryToken])
+
+  // A fresh link opened in this same tab is only a hash change (/reset-password#token=...): take the new token,
+  // scrub it again and start over, even from the invalid-link state.
+  const clearFailure = failure.clear
+  useEffect(() => {
+    const onHashChange = () => {
+      const next = new URLSearchParams(window.location.hash.slice(1)).get('token')
+      if (!next) return
+      consumed.current = { token: next }
+      scrubTokenFromUrl()
+      setToken(next)
+      setLinkRejected(false)
+      setStatus('idle')
+      setPassword('')
+      setConfirm('')
+      setPasswordError('')
+      setConfirmError('')
+      clearFailure()
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [clearFailure])
 
   if (!tokenReady) {
     return (
@@ -68,21 +90,24 @@ export function ResetPasswordPage() {
   if (!token || linkRejected) {
     return (
       <AuthShell>
-        <ErrorState
-          headingLevel={1}
-          role="none"
-          title="Invalid reset link"
-          description={
-            linkRejected
-              ? 'This reset link has expired or was already used. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
-              : 'This password reset link is missing or expired. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
-          }
-          backAction={
-            <Button asChild>
-              <Link to="/login">Back to sign in</Link>
-            </Button>
-          }
-        />
+        <AuthStamp word="Oops" tone="rose">
+          <ErrorState
+            size="page"
+            headingLevel={1}
+            role="none"
+            title="Invalid reset link"
+            description={
+              linkRejected
+                ? 'This reset link has expired or was already used. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
+                : 'This password reset link is missing or expired. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
+            }
+            backAction={
+              <Button asChild>
+                <Link to="/login">Back to sign in</Link>
+              </Button>
+            }
+          />
+        </AuthStamp>
       </AuthShell>
     )
   }
@@ -92,6 +117,7 @@ export function ResetPasswordPage() {
       <AuthShell>
         <AuthStamp word="Done">
           <EmptyState
+            size="page"
             headingLevel={1}
             title="Password updated"
             description="Your password has been reset. Sign in with your new password to continue."
@@ -112,13 +138,16 @@ export function ResetPasswordPage() {
     setPasswordError('')
     setConfirmError('')
 
-    const passwordResult = newPasswordSchema.safeParse(password)
-    if (!passwordResult.success) {
-      setPasswordError(passwordResult.error.issues[0]?.message || 'Password is invalid')
-      return
-    }
-    if (password !== confirm) {
-      setConfirmError('Passwords do not match.')
+    const passwordProblem = newPasswordError(password)
+    const confirmProblem = passwordProblem ? undefined : !confirm ? 'Enter the password again.' : password !== confirm ? 'Passwords do not match.' : undefined
+    setPasswordError(passwordProblem ?? '')
+    setConfirmError(confirmProblem ?? '')
+    if (
+      focusFirstError([
+        ['new-password', passwordProblem],
+        ['confirm-password', confirmProblem],
+      ])
+    ) {
       return
     }
 
@@ -143,11 +172,11 @@ export function ResetPasswordPage() {
       <PageHeader title="Set a new password" lead="Choose a strong password you haven't used before." />
       <Panel className="auth-panel">
         <PanelBody>
-          <form onSubmit={handleSubmit} className="auth-form__fields">
+          <form onSubmit={handleSubmit} className="auth-form__fields" noValidate>
             <Field
               label="New password"
               id="new-password"
-              help={passwordError || failure.failure?.fields.new_password ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
+              help={passwordError || failure.failure?.fields.new_password ? undefined : 'At least 8 characters.'}
               error={passwordError || failure.failure?.fields.new_password || undefined}
             >
               <PasswordInput

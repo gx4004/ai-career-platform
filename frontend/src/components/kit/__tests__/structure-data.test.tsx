@@ -131,6 +131,19 @@ describe('kit KeyValue', () => {
     expect(container.querySelector('dd')?.getAttribute('data-mono')).toBe('true')
   })
 
+  it('marks only numeric values for tabular figures', () => {
+    const { container } = render(
+      <KeyValue
+        items={[
+          { label: 'Email', value: 'ada.1791@example.com' },
+          { label: 'Runs', value: '1,144', numeric: true },
+        ]}
+      />,
+    )
+    const values = [...container.querySelectorAll('dd')].map((node) => node.getAttribute('data-numeric'))
+    expect(values).toEqual([null, 'true'])
+  })
+
   it('shows a quiet dash and "Not provided" for blank values', () => {
     const { container } = render(
       <KeyValue

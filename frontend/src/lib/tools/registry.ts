@@ -56,7 +56,7 @@ export type ToolDefinition = {
   authRequiredToRun: boolean
   guestDemoAllowed: boolean
   providerFailureMode: 'heuristic_fallback' | 'explicit_error'
-  submit: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
+  submit: (payload: Record<string, unknown>, options?: { signal?: AbortSignal }) => Promise<Record<string, unknown>>
 }
 
 export const tools: Record<ToolId, ToolDefinition> = {

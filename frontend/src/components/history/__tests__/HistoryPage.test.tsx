@@ -208,6 +208,7 @@ describe('HistoryPage', () => {
     state.total = 0
     renderPage({ tool: 'career' })
     expect(screen.getByText('No runs match these filters')).toBeTruthy()
+    expect(screen.getByText('0 matches')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Start with Resume' })).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Clear filters' }).length).toBeGreaterThan(0)
   })
@@ -217,6 +218,16 @@ describe('HistoryPage', () => {
     state.total = 0
     renderPage()
     expect(screen.getByRole('link', { name: 'Start with Resume' })).toBeTruthy()
+    // Nothing to search or filter yet.
+    expect(screen.queryByRole('searchbox')).toBeNull()
+  })
+
+  it('leaves a page past the end for the last page that has runs, never showing the first-run copy', () => {
+    state.items = []
+    state.total = 12
+    const onChange = renderPage({ page: 9 })
+    expect(screen.queryByText('No runs yet')).toBeNull()
+    expect(onChange).toHaveBeenCalledWith({ page: 2 }, { replace: true })
   })
 
   it('shows a search-only empty state with its own Clear filters and no Filters badge', () => {
@@ -253,7 +264,7 @@ describe('HistoryPage', () => {
 
   it('does not link older application drafts or CV Studio runs back to /history', () => {
     state.items = [
-      { ...baseRun, id: 'd1', tool_name: 'application-drafts', label: 'Draft', workspace: { id: 'ws-9', label: 'Acme', is_pinned: false } },
+      { ...baseRun, id: 'd1', tool_name: 'application-drafts', label: 'Draft', workspace: { id: 'ws-9', label: 'Acme', is_pinned: false, status: 'saved' } },
       { ...baseRun, id: 'c1', tool_name: 'cv-quality', label: 'Old check' },
     ]
     renderPage()
@@ -261,14 +272,20 @@ describe('HistoryPage', () => {
     expect(hrefs).not.toContain('/history')
     expect(hrefs).toContain('/campaigns/ws-9')
     expect(screen.getByText('Application')).toBeTruthy()
-    expect(screen.getByText('Workspace: Acme')).toBeTruthy()
+    expect(screen.getByText('Application: Acme')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Old check' })).toBeNull()
   })
 
-  it('omits the Workspace line when it repeats the run label', () => {
-    state.items = [{ ...baseRun, workspace: { id: 'w', label: 'My resume run', is_pinned: false } }]
+  it('omits the Application line when it repeats the run label', () => {
+    state.items = [{ ...baseRun, workspace: { id: 'w', label: 'My resume run', is_pinned: false, status: 'saved' } }]
     renderPage()
-    expect(screen.queryByText(/Workspace:/)).toBeNull()
+    expect(screen.queryByText(/Application:/)).toBeNull()
+  })
+
+  it('names only a workspace that targets a job, never the internal one behind a standalone run', () => {
+    state.items = [{ ...baseRun, workspace: { id: 'w', label: 'Interview Prep (5 questions)', is_pinned: false } }]
+    renderPage()
+    expect(screen.queryByText(/Workspace:|Application:/)).toBeNull()
   })
 
   it('renames a run with Save and cancels with Escape', async () => {

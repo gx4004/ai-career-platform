@@ -464,9 +464,11 @@
   outline-offset: 0;
 }
 
-/* Account menu: it opens upward from the footer and is as wide as the button. */
+/* Account menu: it opens upward from the footer and is exactly as wide as the button, so a long email is clipped
+   inside the sidebar instead of widening the menu past its edge. The icon rail's button is narrow: 11rem at least there. */
 .kit-menu.app-account-menu {
-  min-width: var(--radix-dropdown-menu-trigger-width);
+  width: max(11rem, var(--radix-dropdown-menu-trigger-width));
+  min-width: 0;
 }
 
 .app-account__who {
@@ -491,6 +493,7 @@
 }
 
 .app-account__email {
+  min-width: 0;
   overflow: hidden;
   color: var(--ink-2);
   font-size: var(--fs-meta);
@@ -1040,6 +1043,22 @@ html:has(.cookie-banner):not(:has(.app-main)) body {
 
   html:has(.cookie-banner):not(:has(.app-main)) body {
     padding-bottom: 6rem;
+  }
+}
+
+/* Very narrow phones: the sentence takes the full width and the two choices sit under it, right-aligned. */
+@media (max-width: 360px) {
+  .cookie-banner__inner {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+
+  .cookie-banner__text {
+    flex-basis: 100%;
+  }
+
+  .cookie-banner__actions {
+    margin-inline-start: auto;
   }
 }
 

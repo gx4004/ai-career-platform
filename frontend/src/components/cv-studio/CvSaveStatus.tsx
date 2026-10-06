@@ -31,7 +31,8 @@ function useNow() {
 }
 
 /**
- * The studio's save state in the top bar: a kit Badge with an icon and a word (never colour alone).
+ * The studio's save state in the top bar, an icon and a word (never colour alone): a mint disc and "Saved" at rest,
+ * a kit Badge while saving and when something needs you.
  * Saved says when ("Saved 2 min ago"), and a tooltip adds the exact time and when the server copy was last checked.
  */
 export function CvSaveStatus({ state, savedAt, checkedAt, onRetry }: {
@@ -54,18 +55,23 @@ export function CvSaveStatus({ state, savedAt, checkedAt, onRetry }: {
     : kind === 'error' || kind === 'conflict'
       ? <TriangleAlert aria-hidden="true" />
       : <Check aria-hidden="true" />
-  const tone = kind === 'saving' ? 'stone' : kind === 'error' ? 'rose' : kind === 'conflict' ? 'lemon' : 'mint'
+  const tone = kind === 'saving' ? 'stone' : kind === 'error' ? 'rose' : 'lemon'
 
   const text = kind === 'saving'
     ? 'Saving…'
     : kind === 'error'
       ? 'Not saved'
-      : kind === 'conflict'
-        ? 'Newer version elsewhere'
-        : savedAt ? `Saved ${savedAgo(savedAt, now)}` : 'Saved'
+      : 'Newer version elsewhere'
 
-  const body = (
-    <Badge tone={tone} className="cvs-save" role="status" aria-live="polite" data-testid="save-status" data-state={kind} tabIndex={0}>
+  const status = { role: 'status', 'aria-live': 'polite', 'data-testid': 'save-status', 'data-state': kind, tabIndex: 0 } as const
+  // Saved is the quiet, usual state: a mint disc and a word (cv.png). The states that need you stay loud pills.
+  const body = kind === 'saved' ? (
+    <span className="cvs-save cvs-save--saved" {...status}>
+      <span className="cvs-save__disc" aria-hidden="true">{icon}</span>
+      Saved{savedAt ? <> <span className="cvs-save__ago">{savedAgo(savedAt, now)}</span></> : null}
+    </span>
+  ) : (
+    <Badge tone={tone} className="cvs-save" {...status}>
       {icon}
       {text}
     </Badge>

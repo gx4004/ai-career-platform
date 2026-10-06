@@ -57,9 +57,6 @@ import {
 
 type View = 'board' | 'list'
 
-// A board card is about this tall once its meta lines are in; the loading placeholder matches it.
-const CARD_HEIGHT = 112
-
 // The kit's compact width: one stage at a time instead of five columns.
 const COMPACT_QUERY = '(max-width: 767px)'
 function useCompact() {
@@ -111,6 +108,8 @@ export function ApplicationsPage() {
         },
       )
       void invalidateApplications(queryClient)
+      // "Added … to Saved" stops being true once that card moves on.
+      setAdded((current) => (current?.id === updated.id ? null : current))
     },
     onError: (error, { card }) =>
       setMoveError(`“${applicationTitle(card)}” couldn't be moved. ${error instanceof Error ? error.message : 'Try again.'}`),
@@ -137,10 +136,12 @@ export function ApplicationsPage() {
   }
 
   // Board | List is the view; on a phone the board shows one stage at a time, chosen by a second control.
+  // Both controls are already in place (disabled) while the board loads, so nothing under them moves when it arrives.
   const viewSwitch = (
     <Segmented
       aria-label="View"
       size="sm"
+      disabled={waiting}
       value={view}
       onValueChange={setView}
       options={[
@@ -154,11 +155,12 @@ export function ApplicationsPage() {
       <StageSwitcher value={shownStage}>
         <Segmented
           aria-label="Stage"
+          disabled={waiting}
           value={shownStage}
           onValueChange={setPhoneStage}
           options={STAGES.map((stage) => ({
             value: stage.id as Stage,
-            label: <>{stage.label} <Count value={byStage(stage.id).length} /></>,
+            label: <>{stage.label} <Count value={waiting ? '–' : byStage(stage.id).length} /></>,
           }))}
         />
       </StageSwitcher>
@@ -171,8 +173,9 @@ export function ApplicationsPage() {
         meta={waiting ? [<Skeleton key="meta" size="meta" width="7rem" />] : items.length ? summaryMeta(items) : undefined}
         actions={
           <Cluster gap={2} justify="end">
-            {items.length ? (
-              <Button size="sm" variant="secondary" aria-label="Add a job by hand" onClick={() => setAdding(true)}>
+            {/* Held in place (disabled) while the board loads, so the header does not shift when it arrives. */}
+            {waiting || items.length ? (
+              <Button size="sm" variant="secondary" aria-label="Add a job by hand" disabled={waiting} onClick={() => setAdding(true)}>
                 <Plus aria-hidden="true" /> Add a job
               </Button>
             ) : null}
@@ -204,15 +207,29 @@ export function ApplicationsPage() {
       {waiting ? (
         <>
           <p className="kit-sr-only" role="status">Loading applications</p>
-          <div className="camp-board" aria-busy="true">
-            {STAGES.filter((stage) => !compact || stage.id === STAGES[0].id).map((stage) => (
-              <Column key={stage.id} stage={stage.id} title={stage.label} compact={compact}>
-                {Array.from({ length: stage.id === 'saved' ? 2 : 1 }, (_, index) => (
-                  <Skeleton key={index} variant="block" width="100%" height={CARD_HEIGHT} />
-                ))}
-              </Column>
-            ))}
-          </div>
+          <Stack gap={3}>
+            <Stack gap={2}>
+              {viewSwitch}
+              {stageSwitch}
+            </Stack>
+            <div className="camp-board" aria-busy="true">
+              {STAGES.filter((stage) => !compact || stage.id === STAGES[0].id).map((stage) => (
+                <Column key={stage.id} stage={stage.id} title={stage.label} count="pending" compact={compact}>
+                  <ol className="camp-col__list" role="list">
+                    {Array.from({ length: stage.id === 'saved' ? 2 : 1 }, (_, index) => (
+                      <li key={index}>
+                        {/* The real card's frame from the first frame: only its lines arrive later. */}
+                        <Card as="div" aria-hidden="true">
+                          <Skeleton width="72%" />
+                          <Skeleton size="meta" lines={2} width="55%" />
+                        </Card>
+                      </li>
+                    ))}
+                  </ol>
+                </Column>
+              ))}
+            </div>
+          </Stack>
         </>
       ) : query.isError ? (
         <ErrorState
@@ -302,7 +319,8 @@ function Column({
 }: {
   stage: Stage
   title: string
-  count?: number
+  /** 'pending' holds the count block's place while the board loads. */
+  count?: number | 'pending'
   compact: boolean
   children: ReactNode
 }) {
@@ -314,8 +332,9 @@ function Column({
       title={
         <span className="camp-col__title">
           {title}
-          {count !== undefined ? ' ' : null}
-          {count !== undefined ? <StageMark stage={stage} variant="count" count={count} /> : null}
+          {typeof count === 'number' ? ' ' : null}
+          {count === 'pending' ? <Skeleton variant="block" width={40} height={40} /> : null}
+          {typeof count === 'number' ? <StageMark stage={stage} variant="count" count={count} /> : null}
         </span>
       }
       rule={false}

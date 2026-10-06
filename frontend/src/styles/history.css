@@ -30,22 +30,40 @@
   vertical-align: -2px;
 }
 
-/* One width for the "Continue: Tool" link, text at its start, so it begins at the same x on every row. */
-.history-row__continue {
+/* One width for the "Continue: Tool" link, text at its start, so it begins at the same x on every row
+   (the kit button centres its label, so this needs the button's own specificity). */
+.history-row .kit-button.history-row__continue {
   min-inline-size: 10.5rem;
   justify-content: flex-start;
+}
+
+/* The time keeps one slot whether or not the run is starred, so the actions before it line up on every row
+   (on a narrow list the time moves under the title instead). */
+@container kit-list (min-width: 32rem) {
+  .history-row > .kit-row__meta {
+    min-inline-size: 5.5rem;
+  }
 }
 
 .history-row .kit-row__reveal {
   gap: var(--space-1);
 }
 
-/* A long label is one line and a long workspace or summary two: the rhythm of the list survives, the whole text is on the result page. */
+/* A long label, workspace or summary stops after two lines: the part that tells runs apart (the job, the score at the
+   end) still shows on a phone, the rhythm of the list survives, and the whole text is on the result page. */
 .history-row .kit-row__title {
-  display: block;
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+/* A phone gives the title a third of the width: one more line keeps "(Data Platform Engineer)" in view. */
+@container kit-list (max-width: 31.9375rem) {
+  .history-row .kit-row__title {
+    -webkit-line-clamp: 3;
+  }
 }
 
 .history-row__clamp {

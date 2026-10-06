@@ -21,7 +21,7 @@ export function InterviewToolPage() {
   return (
     <ToolPageShell toolId="interview">
       {mutation.isPending ? (
-        <ToolPageLoading toolId="interview" mutationDone={!mutation.isPending} />
+        <ToolPageLoading toolId="interview" mutationDone={!mutation.isPending} onCancel={mutation.cancel} />
       ) : (
         <ToolForm
           toolId="interview"
@@ -42,11 +42,14 @@ export function InterviewToolPage() {
             error={errors.resumeText}
           />
 
-          <JobImportCard onImported={(description) => setField('jobDescription', description)} />
+          <JobImportCard
+            current={String(draft.jobDescription ?? '')}
+            onImported={(description) => setField('jobDescription', description)}
+          />
           <Field
             label={jobField.label}
             id="interview-jobDescription"
-            help={getSeededFieldNote('jobDescription', bridge) || undefined}
+            help={getSeededFieldNote('jobDescription', bridge, String(draft.jobDescription ?? '')) || undefined}
             error={errors.jobDescription}
           >
             <Textarea

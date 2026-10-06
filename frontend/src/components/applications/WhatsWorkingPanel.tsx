@@ -97,7 +97,7 @@ function Segment({ segment }: { segment: InsightSegment }) {
           value={segment.reply_rate ?? 0}
           valueLabel={
             <>
-              {`${segment.reply_rate}%`} <span className="camp-sample">n={segment.applied}</span>
+              {`${segment.reply_rate}%`} <span className="camp-sample">of {segment.applied}</span>
             </>
           }
         />

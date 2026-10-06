@@ -13,7 +13,6 @@ import {
   List,
   Notice,
   Panel,
-  PanelBody,
   PanelHeader,
   Row,
   RowBody,
@@ -94,7 +93,7 @@ export function InterviewPracticeMode({
 }: {
   questions: Question[]
   onExit: () => void
-  /** The interview run being practised, so its attempts are not mixed with another run's. */
+  /** The interview run being practiced, so its attempts are not mixed with another run's. */
   runId?: string
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -104,13 +103,18 @@ export function InterviewPracticeMode({
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [attempts, setAttempts] = useState<AttemptsByQuestion>(() => readAttempts(runId))
 
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const questionRef = useRef<HTMLParagraphElement | null>(null)
   const summaryBackRef = useRef<HTMLButtonElement | null>(null)
   const summaryTouched = useRef(false)
 
   // Switching from the report to practice replaces the button that was just pressed: start at the question.
+  // Scroll the practice block to the top first, so the answer box is on screen too (a plain focus scrolls only
+  // as far as the question).
   useEffect(() => {
-    questionRef.current?.focus()
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    rootRef.current?.scrollIntoView?.({ block: 'start', behavior: reduced ? 'auto' : 'smooth' })
+    questionRef.current?.focus({ preventScroll: true })
   }, [])
 
   // The summary replaces the button that opened it (and the question replaces the summary): keep focus on the new view.
@@ -129,7 +133,7 @@ export function InterviewPracticeMode({
   const done = attempts[currentIndex] ?? []
   const attemptCount = done.length
   const maxedOut = attemptCount >= MAX_ATTEMPTS
-  const practised = questions.filter((_, i) => (attempts[i]?.length ?? 0) > 0).length
+  const practiced = questions.filter((_, i) => (attempts[i]?.length ?? 0) > 0).length
 
   const record = (next: AttemptsByQuestion) => {
     setAttempts(next)
@@ -192,7 +196,7 @@ export function InterviewPracticeMode({
       .map((_, index) => ({ index, last: attempts[index]?.[attempts[index].length - 1] }))
       .filter((entry): entry is { index: number; last: Attempt } => Boolean(entry.last))
       .sort((a, b) => b.last.feedback.weaknesses.length - a.last.feedback.weaknesses.length || a.index - b.index)[0]
-    const practiseAgain = () => {
+    const practiceAgain = () => {
       if (!weakest) return
       const next = { ...attempts }
       delete next[weakest.index]
@@ -206,7 +210,7 @@ export function InterviewPracticeMode({
             <ArrowLeft aria-hidden="true" />
             Back to practice
           </Button>
-          <Count value={`${practised} of ${questions.length} practised`} />
+          <Count value={`${practiced} of ${questions.length} practiced`} />
         </Cluster>
         <Panel flush>
           <PanelHeader title="Practice summary" />
@@ -219,13 +223,13 @@ export function InterviewPracticeMode({
                     <RowTitle>{q.question || `Question ${index + 1}`}</RowTitle>
                     <RowSubtitle>
                       {list.length === 0
-                        ? 'Not practised yet.'
+                        ? 'Not practiced yet.'
                         : `${list.length} ${list.length === 1 ? 'attempt' : 'attempts'}; ${list[list.length - 1].feedback.weaknesses.length} to improve in the last one.`}
                     </RowSubtitle>
                   </RowBody>
                   <RowMeta>
                     {list.length === 0 ? (
-                      <Badge tone="stone">Not practised</Badge>
+                      <Badge tone="stone">Not practiced yet</Badge>
                     ) : improved(list) ? (
                       <Badge tone="mint">Improved</Badge>
                     ) : list.length >= 2 ? (
@@ -241,13 +245,13 @@ export function InterviewPracticeMode({
         </Panel>
         <Cluster>
           {weakest ? (
-            <Button type="button" onClick={practiseAgain}>
+            <Button type="button" onClick={practiceAgain}>
               <RotateCcw aria-hidden="true" />
-              Practise the weakest again
+              Practice the weakest again
             </Button>
           ) : null}
           <Button type="button" variant="secondary" onClick={() => setSummaryOpen(false)}>
-            Keep practising
+            Keep practicing
           </Button>
         </Cluster>
       </Stack>
@@ -255,7 +259,7 @@ export function InterviewPracticeMode({
   }
 
   return (
-    <Stack gap={6}>
+    <Stack gap={6} ref={rootRef} className="result-practice">
       <Cluster justify="between">
         <Button type="button" variant="link" className="tool-link" onClick={onExit}>
           <ArrowLeft aria-hidden="true" />
@@ -263,7 +267,7 @@ export function InterviewPracticeMode({
         </Button>
         <Cluster>
           <Count value={`${currentIndex + 1} / ${questions.length}`} aria-label={`Question ${currentIndex + 1} of ${questions.length}`} />
-          <Button type="button" variant="secondary" size="sm" disabled={practised === 0} onClick={() => setSummaryOpen(true)}>
+          <Button type="button" variant="secondary" size="sm" disabled={practiced === 0} onClick={() => setSummaryOpen(true)}>
             <ListChecks aria-hidden="true" />
             See summary
           </Button>
@@ -309,23 +313,22 @@ export function InterviewPracticeMode({
                 .map((attempt, i) => ({ attempt, n: i + 1 }))
                 .reverse()
                 .map(({ attempt, n }) => (
-                  <Panel key={`${n}-${n === done.length}`} tone={n === done.length ? 'white' : 'stone'}>
-                    <PanelBody>
-                      <Disclosure
-                        variant="section"
-                        defaultOpen={n === done.length}
-                        title={`Attempt ${n}`}
-                        meta={`${attempt.feedback.weaknesses.length} to improve`}
-                      >
-                        <Stack gap={4}>
-                          <Prose>
-                            <strong>Your answer: </strong>
-                            {attempt.answer}
-                          </Prose>
-                          <FeedbackBody feedback={attempt.feedback} />
-                        </Stack>
-                      </Disclosure>
-                    </PanelBody>
+                  // The attempt is the framed object: its Disclosure row sits directly in the panel (no second set of rules).
+                  <Panel key={`${n}-${n === done.length}`} flush tone={n === done.length ? 'white' : 'stone'}>
+                    <Disclosure
+                      variant="section"
+                      defaultOpen={n === done.length}
+                      title={`Attempt ${n}`}
+                      meta={`${attempt.feedback.weaknesses.length} to improve`}
+                    >
+                      <Stack gap={4}>
+                        <Prose>
+                          <strong>Your answer: </strong>
+                          {attempt.answer}
+                        </Prose>
+                        <FeedbackBody feedback={attempt.feedback} />
+                      </Stack>
+                    </Disclosure>
                   </Panel>
                 ))}
             </Stack>

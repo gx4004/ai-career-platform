@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { AlertTriangle } from 'lucide-react'
 import { Button, ErrorState, List, Row, RowActions, RowBody, RowSubtitle, RowTitle, Section, Skeleton } from '#/components/kit'
 import { useDashboardCv } from '#/components/dashboard/useDashboardCv'
 import { formatRunDate } from '#/components/dashboard/RunRow'
@@ -20,7 +21,7 @@ export function DashboardCv() {
   if (!latest) {
     return isError ? (
       <Section title="Your CV">
-        <ErrorState title="Your CV couldn't be loaded" onRetry={retry} retrying={fetching} />
+        <ErrorState icon={<AlertTriangle aria-hidden />} title="Your CV couldn't be loaded" onRetry={retry} retrying={fetching} />
       </Section>
     ) : null
   }

@@ -55,6 +55,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--s3);
+  /* The heading is exactly the 40px block tall, whether the block holds a count or the loading placeholder. */
+  vertical-align: top;
 }
 
 /* First run: one lemon card with the ways in. */
@@ -446,3 +448,21 @@
   }
 }
 
+/* An application page without its header (loading, signed out, not found): the header's 40px top space. */
+.kit-page.camp-state {
+  padding-block-start: var(--s8);
+}
+
+@media (max-width: 860px) {
+  .kit-page.camp-state {
+    padding-block-start: var(--s6);
+  }
+}
+
+/* Tasks in the rail: rows start at the panel body's edge, aligned with the "Add a task" field above them. */
+.kit-list.camp-tasks > .kit-row {
+  /* Delete (overlay on a fine pointer) ends on the same edge as the Add button above. */
+  --kit-row-overlay-inset: 0px;
+  padding-inline: 0;
+  border-inline-start-width: 0;
+}

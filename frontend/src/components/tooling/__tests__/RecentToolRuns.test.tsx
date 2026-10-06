@@ -87,6 +87,24 @@ describe('RecentToolRuns', () => {
     expect(screen.getByText('Data Analyst at Harbor Health')).toBeTruthy()
   })
 
+  it('adds the time when two rows would otherwise read the same', async () => {
+    const at = (id: string, createdAt: string) => ({ ...run(id, 'Resume Analysis (93/100)'), created_at: createdAt })
+    getHistoryMock.mockResolvedValue({
+      items: [at('r1', '2026-10-03T14:02:00Z'), at('r2', '2026-10-03T10:00:00Z'), run('r3', 'Other run')],
+      total: 3, page: 1, page_size: 3, has_more: false,
+    })
+    renderRuns()
+    await screen.findByRole('link', { name: 'Other run' })
+    const metas = [...screen.getByRole('list', { name: 'Recent runs' }).querySelectorAll('li')].map(
+      (row) => row.querySelector('.kit-row__meta')?.textContent ?? '',
+    )
+    const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    expect(metas[0]).toContain(time('2026-10-03T14:02:00Z'))
+    expect(metas[1]).toContain(time('2026-10-03T10:00:00Z'))
+    // A row with nothing to confuse it with keeps the plain date.
+    expect(metas[2]).not.toContain(time('2026-10-03T10:00:00Z'))
+  })
+
   it('shows nothing for a new user and nothing for a guest (no request is made)', async () => {
     getHistoryMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 3, has_more: false })
     const { container } = renderRuns()

@@ -9,6 +9,8 @@ const parseCvMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 vi.mock('#/lib/api/client', () => ({ parseCv: parseCvMock }))
+const setResumeCarryMock = vi.hoisted(() => vi.fn())
+vi.mock('#/lib/tools/resumeCarryStore', () => ({ setResumeCarry: setResumeCarryMock }))
 vi.mock('#/lib/tools/drafts', () => ({
   writeWorkflowContext: (payload: unknown) => writeWorkflowContextMock(payload),
 }))
@@ -27,6 +29,7 @@ describe('DashboardResumeUpload', () => {
     navigateMock.mockReset()
     writeWorkflowContextMock.mockReset()
     parseCvMock.mockReset()
+    setResumeCarryMock.mockReset()
   })
 
   it('offers a file chooser for PDF or DOCX, and says that a dropped file works too', () => {
@@ -66,6 +69,8 @@ describe('DashboardResumeUpload', () => {
       resumePendingReview: true,
     })
     expect(typeof writeWorkflowContextMock.mock.calls[0]?.[0]?.updatedAt).toBe('number')
+    // The Resume Analyzer names the file instead of claiming a hand-off from another tool.
+    expect(setResumeCarryMock).toHaveBeenCalledWith('Parsed dashboard resume text', 'cv.pdf')
   })
 
   it('shows the parse error', async () => {
@@ -76,6 +81,21 @@ describe('DashboardResumeUpload', () => {
     })
     expect((await screen.findByRole('alert')).textContent).toContain('Could not read that file')
     expect(navigateMock).not.toHaveBeenCalled()
+    // The dropzone turns to the error state, not the picked-file (success) look.
+    const input = screen.getByLabelText('Resume file')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.closest('.kit-file')?.getAttribute('data-invalid')).toBe('true')
+  })
+
+  it('clears the last error when another file is picked', async () => {
+    parseCvMock.mockRejectedValueOnce(new Error('Could not read that file')).mockReturnValue(new Promise(() => {}))
+    renderUpload()
+    fireEvent.change(screen.getByLabelText('Resume file'), { target: { files: [new File(['x'], 'bad.pdf')] } })
+    await screen.findByRole('alert')
+
+    fireEvent.change(screen.getByLabelText('Resume file'), { target: { files: [new File(['y'], 'good.pdf')] } })
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(screen.getByLabelText('Resume file').getAttribute('aria-invalid')).toBeNull()
   })
 
   it('says it is parsing while the file is read and blocks a second pick', async () => {

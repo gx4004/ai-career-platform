@@ -254,6 +254,7 @@ export function AdminDiscoverySourcesPage() {
           <Table
             caption="Discovery sources"
             density="compact"
+            cellAlign="top"
             columns={columns}
             rows={sources}
             getRowId={(source) => source.id}

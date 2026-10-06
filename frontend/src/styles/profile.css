@@ -75,6 +75,22 @@
   min-width: 0;
 }
 
+/* A long fact (a 2,000-character achievement) stops after four lines so it cannot bury the list; Edit shows all of it. */
+.profile-fact .kit-row__title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone the title column is ~140-200px beside the row tools: an ordinary fact needs more lines to stay whole. */
+@container kit-list (max-width: 31.9375rem) {
+  .profile-fact .kit-row__title {
+    -webkit-line-clamp: 8;
+  }
+}
+
 /* A fact's remaining values: kept as typed (line breaks included), long strings wrap. */
 .profile-line {
   white-space: pre-wrap;
@@ -135,6 +151,13 @@
   justify-items: start;
   gap: var(--space-3);
   max-inline-size: 36rem;
+}
+
+/* Nothing tilts on a phone except the seal, the brand mark and stamps (STICKER 1.15). */
+@media (max-width: 639px) {
+  .kit-sticker.profile-import::before {
+    transform: none;
+  }
 }
 
 .profile-import > p {

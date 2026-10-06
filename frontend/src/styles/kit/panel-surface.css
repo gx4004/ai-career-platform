@@ -18,6 +18,9 @@
 
 .kit-panel-surface__header {
   display: flex;
+  /* Too narrow for title and actions on one line: the actions take the next line whole instead of
+     squeezing their labels onto two lines each. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--s4);
@@ -49,6 +52,17 @@
   align-items: center;
   gap: var(--s2);
   margin-inline-start: auto;
+}
+
+.kit-panel-surface__actions .kit-button {
+  white-space: nowrap;
+}
+
+/* Phones: a wrapped action line starts under the title rather than floating at the far edge. */
+@media (max-width: 479px) {
+  .kit-panel-surface__actions {
+    margin-inline-start: 0;
+  }
 }
 
 .kit-panel-surface__body {

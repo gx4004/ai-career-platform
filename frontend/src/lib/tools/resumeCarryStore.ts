@@ -75,10 +75,13 @@ export function getResumeCarryFilename(): string {
 
 export function setResumeCarry(text: string, name?: string): void {
   if (text) {
+    const previous = sessionStorage.getItem(STORAGE_KEY)
     sessionStorage.setItem(STORAGE_KEY, text)
     // Every write restarts the idle lifetime; an untouched copy still expires.
     sessionStorage.setItem(UPDATED_AT_KEY, String(Date.now()))
     if (name) sessionStorage.setItem(FILENAME_KEY, name)
+    // Different text with no file behind it (pasted or edited): the old file name no longer describes it.
+    else if (text !== previous) sessionStorage.removeItem(FILENAME_KEY)
   } else {
     sessionStorage.removeItem(STORAGE_KEY)
     sessionStorage.removeItem(FILENAME_KEY)

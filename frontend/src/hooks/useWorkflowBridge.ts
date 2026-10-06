@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react'
-import type { ToolDraftState } from '#/lib/tools/drafts'
+import { useEffect, useRef, useState } from 'react'
+import type { ToolDraftState, WorkflowContextState } from '#/lib/tools/drafts'
 import { readWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolId } from '#/lib/tools/registry'
 import { getWorkflowTargetRole } from '#/lib/tools/workflowContext'
@@ -10,11 +10,14 @@ export function useWorkflowBridge(
   setDraft: (updater: (current: ToolDraftState) => ToolDraftState) => void,
 ) {
   const seededRef = useRef(false)
+  // Read after mount: the server render has no session storage, so the first client render must not see it either (hydration).
+  const [context, setContext] = useState<WorkflowContextState | null>(null)
 
   useEffect(() => {
     if (seededRef.current) return
 
     const context = readWorkflowContext()
+    setContext(context)
     if (!context) return
 
     let changed = false
@@ -55,7 +58,6 @@ export function useWorkflowBridge(
     }
   }, [setDraft, toolId]) // Only run once on mount; seededRef prevents re-seeding
 
-  const context = useMemo(() => readWorkflowContext(), [])
   const seededResume = Boolean(context?.resumeText)
   const resumePendingReview = Boolean(context?.resumePendingReview && context?.resumeText)
   const seededJob = Boolean(context?.jobDescription)
@@ -65,6 +67,9 @@ export function useWorkflowBridge(
   const seededGaps = Boolean(context?.strongestMissingSkills?.length)
 
   return {
+    /** The values that were carried in, so a "carried in" note can stop once the user replaces them. */
+    carriedJobDescription: context?.jobDescription ?? '',
+    carriedTargetRole: getWorkflowTargetRole(context) ?? '',
     seededResume,
     resumePendingReview,
     seededJob,

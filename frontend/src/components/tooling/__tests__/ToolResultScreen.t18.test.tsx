@@ -13,7 +13,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => vi.fn(),
-    Link: ({ to, children, params: _params, ...props }: { to: string; children: React.ReactNode; params?: unknown }) => (
+    Link: ({ to, children, params: _params, activeOptions: _active, ...props }: { to: string; children: React.ReactNode; params?: unknown; activeOptions?: unknown }) => (
       <a href={to} {...props}>{children}</a>
     ),
   }
@@ -74,7 +74,7 @@ describe('ToolResultScreen follow-ups (T18)', () => {
     sessionStatus.value = 'guest'
   })
 
-  it('shows the guest sticker with a create-account button that asks for the register view', () => {
+  it('shows the guest notice with a create-account button that asks for the register view', () => {
     const item = setTransientResult('resume', { summary: { headline: 'Test headline' } })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -82,8 +82,10 @@ describe('ToolResultScreen follow-ups (T18)', () => {
         <ToolResultScreen toolId="resume" historyId={item.id} />
       </QueryClientProvider>,
     )
-    const sticker = screen.getByText('This result is not saved').closest('.kit-sticker') as HTMLElement
-    expect(sticker.getAttribute('data-tone')).toBe('lemon')
+    // A lemon-soft Notice (STICKER 4.R.2), not a saturated sticker that reads like a Fix-first card.
+    const notice = screen.getByText('This result is not saved').closest('.kit-notice') as HTMLElement
+    expect(notice).toBeTruthy()
+    expect(notice.closest('.kit-sticker')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Create free account' }))
     expect(openAuthDialogMock).toHaveBeenCalledWith(expect.objectContaining({ view: 'register', toolId: 'resume' }))
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))

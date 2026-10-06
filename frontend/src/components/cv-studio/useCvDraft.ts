@@ -223,6 +223,8 @@ export function useCvDraft(enabled: boolean) {
 
   /** Open another document (or none): drops the current draft without saving it again. */
   function open(id: string | null) {
+    // The same id keeps the query key, so a cleared draft would never be filled again.
+    if (id === documentId) return
     setDraft(null)
     setDirty(false)
     setConflict(null)
