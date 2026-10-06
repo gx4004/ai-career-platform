@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { API_URL } from '#/lib/api/client'
-import { ApiError } from '#/lib/api/errors'
+import { request } from '#/lib/api/client'
 import {
   discoverySourceListSchema,
   discoverySourceSchema,
@@ -10,64 +9,9 @@ import {
 
 export type { DiscoverySource, DiscoverySourceList } from '#/lib/api/discoverySchemas'
 
-async function adminFetch(path: string, options: RequestInit = {}) {
-  const headers = new Headers(options.headers || {})
-  if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json')
-  }
-  return fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-    signal: AbortSignal.timeout(30_000),
-  })
-}
-
-async function adminRequest<T>(
-  path: string,
-  options: RequestInit = {},
-  schema?: z.ZodType<T>,
-): Promise<T> {
-  let response = await adminFetch(path, options)
-
-  if (response.status === 401 && path !== '/auth/refresh') {
-    const refreshResponse = await adminFetch('/auth/refresh', {
-      method: 'POST',
-      body: '{}',
-    }).catch(() => null)
-
-    if (refreshResponse?.ok) {
-      response = await adminFetch(path, options)
-    } else {
-      window.dispatchEvent(new CustomEvent('cw:session-expired'))
-    }
-  }
-
-  const parsed = await response
-    .clone()
-    .json()
-    .catch(async () => response.text().catch(() => ''))
-
-  if (!response.ok) {
-    const detail =
-      typeof parsed === 'string'
-        ? parsed
-        : typeof parsed === 'object' && parsed && 'detail' in parsed
-          ? String((parsed as Record<string, unknown>).detail)
-          : undefined
-    throw new ApiError(detail || 'Request failed', response.status, detail)
-  }
-
-  if (schema) {
-    try {
-      return schema.parse(parsed)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid response shape'
-      throw new ApiError('Server returned an unexpected response', 502, message)
-    }
-  }
-
-  return parsed as T
+// Admin calls follow the same session and failure rules as every other request; they are cheap, so they give up sooner.
+function adminRequest<T>(path: string, options: RequestInit = {}, schema?: z.ZodType<T>): Promise<T> {
+  return request<T>(path, { ...options, schema, timeoutMs: 30_000 })
 }
 
 function buildQs(params: Record<string, string | number | undefined>): string {

@@ -48,6 +48,7 @@ import {
 import type { LetterSaveState } from '#/components/tooling/ResultParts'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import type { ToolRunDetail } from '#/lib/api/schemas'
+import { safeFileName } from '#/lib/tools/exports'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
 
 type AnyObject = Record<string, unknown>
@@ -1757,8 +1758,7 @@ export type ResultDefinition = {
 
 /** A file name from a run label: no path characters, no trailing dots. */
 function sanitizeBaseName(label: string) {
-  const cleaned = label.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/g, '')
-  return cleaned || 'cover-letter'
+  return safeFileName(label) || 'cover-letter'
 }
 
 function fact(label: string, value: string | number | null | undefined) {

@@ -124,9 +124,10 @@ describe('skeleton.css is calm', () => {
 })
 
 describe('functional-only CSS exceptions', () => {
-  it('gradients appear only where they are a functional cue: the Segmented overflow edge and 1px hairlines', () => {
+  it('gradients appear only where they are a functional cue: the Segmented and JumpNav overflow edges and 1px hairlines', () => {
     const allowed: Record<string, RegExp> = {
       'segmented.css': /functional overflow cue/,
+      'jump-nav.css': /functional overflow cue/,
       'row.css': /hairline/,
       'skeleton.css': /hairline|1px/,
     }

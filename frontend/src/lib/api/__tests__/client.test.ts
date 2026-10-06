@@ -22,6 +22,7 @@ import {
   API_URL,
   __resetRefreshState,
 } from '#/lib/api/client'
+import { markSessionHint } from '#/lib/auth/sessionHint'
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
@@ -40,6 +41,7 @@ function mockJsonResponse(data: unknown, status = 200) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
   __resetRefreshState()
 })
 
@@ -159,6 +161,8 @@ describe('API client', () => {
     })
 
     it('dispatches cw:session-expired when refresh fails after a 401', async () => {
+      // A refresh is only attempted in a browser that has held a session.
+      markSessionHint()
       const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
       mockFetch.mockResolvedValueOnce(
         mockJsonResponse({ detail: 'Unauthorized' }, 401),
@@ -188,6 +192,7 @@ describe('API client', () => {
     })
 
     it('attempts silent refresh for cookie-only sessions', async () => {
+      markSessionHint()
       const userData = { id: '1', email: 'test@example.com', is_active: true }
       mockFetch.mockResolvedValueOnce(
         mockJsonResponse({ detail: 'Unauthorized' }, 401),

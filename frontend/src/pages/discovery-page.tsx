@@ -521,6 +521,8 @@ function OpenApplication({ listing }: { listing: DiscoveryListing }) {
         to="/campaigns/$campaignId"
         params={{ campaignId: listing.application_id }}
         aria-label={`Open application for ${listing.title}`}
+        // "Open" replaces "Add" the moment the add lands: the second click of a double click on Add must not follow it.
+        onClick={(event) => { if (event.detail > 1) event.preventDefault() }}
       >
         Open
       </Link>
@@ -713,7 +715,7 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
         )}
         {applicationId ? (
           <Button asChild className="disc-footer__add">
-            <Link to="/campaigns/$campaignId" params={{ campaignId: applicationId }}>
+            <Link to="/campaigns/$campaignId" params={{ campaignId: applicationId }} onClick={(event) => { if (event.detail > 1) event.preventDefault() }}>
               <Check aria-hidden="true" /> View application
             </Link>
           </Button>

@@ -1,5 +1,5 @@
 import { API_URL } from '#/lib/api/client'
-import { getStoredConsent } from '#/lib/consent'
+import { hasAnalyticsConsent } from '#/lib/consent'
 
 const TELEMETRY_URL = `${API_URL}/telemetry/events`
 
@@ -51,7 +51,8 @@ type TelemetryPayload = {
   failure_category?: 'tool_request_failed' | 'render_error' | 'route_error' | 'chunk_load_error'
   export_format?: 'txt' | 'md'
   has_feedback?: boolean
-  session_status?: 'loading' | 'guest' | 'authenticated'
+  /** `unreachable` is accepted from the session and left out: the ingest contract knows the other three. */
+  session_status?: 'loading' | 'guest' | 'authenticated' | 'unreachable'
   duration_ms?: number
 }
 
@@ -84,6 +85,7 @@ function buildTelemetryBody(payload: TelemetryPayload): string {
   for (const [key, value] of Object.entries(payload)) {
     if (allowed.has(key) && value !== undefined) filtered[key] = value
   }
+  if (filtered.session_status === 'unreachable') delete filtered.session_status
   // occurred_at is stamped here, not accepted from the caller, so it is added
   // after filtering rather than being part of the allowlist.
   filtered.occurred_at = new Date().toISOString()
@@ -93,8 +95,8 @@ function buildTelemetryBody(payload: TelemetryPayload): string {
 export function trackTelemetry(payload: TelemetryPayload): void {
   if (typeof window === 'undefined') return
 
-  // Respect cookie consent — skip analytics if user declined
-  if (getStoredConsent() === 'rejected') return
+  // Analytics leave the browser only after the visitor accepted them; no choice yet means no.
+  if (!hasAnalyticsConsent()) return
 
   const body = buildTelemetryBody(payload)
 

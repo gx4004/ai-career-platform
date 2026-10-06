@@ -306,12 +306,37 @@ describe('ToolRouteScreen', () => {
     }
   })
 
+  it('names what a cold re-generate filled in and what is still needed, in one line', async () => {
+    window.sessionStorage.clear()
+    window.sessionStorage.setItem(
+      'career-workbench:workflow-context',
+      JSON.stringify({
+        resumeText: 'Alex Morgan. Platform engineer, eight years of Python, Go and Kubernetes work.',
+        resumeSource: 'your CV Studio CV “Platform CV”',
+        jobLabel: 'Staff Engineer at Northwind',
+        updatedAt: Date.now(),
+      }),
+    )
+    window.history.pushState({}, '', '/job-match?parent_run_id=run-1')
+    try {
+      renderScreen('job-match')
+      expect(
+        await screen.findByText(
+          /Filled in: your CV Studio CV “Platform CV”\. Runs don’t keep their inputs, so add the job description for Staff Engineer at Northwind below\./,
+        ),
+      ).toBeTruthy()
+    } finally {
+      window.sessionStorage.clear()
+      window.history.pushState({}, '', '/')
+    }
+  })
+
   it('tells a cold re-generate that the resume has to be added again', async () => {
     window.sessionStorage.clear()
     window.history.pushState({}, '', '/resume?parent_run_id=run-1')
     try {
       renderScreen('resume')
-      expect(await screen.findByText(/did not keep your resume in this tab/)).toBeTruthy()
+      expect(await screen.findByText(/Runs don’t keep their inputs, so add your resume below\./)).toBeTruthy()
     } finally {
       window.history.pushState({}, '', '/')
     }

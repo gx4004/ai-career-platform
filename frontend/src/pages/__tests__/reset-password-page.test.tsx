@@ -140,6 +140,20 @@ describe('ResetPasswordPage states', () => {
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login')
   })
 
+  it('turns a token the server rejects into the invalid-link state, with the way back to request a new one', async () => {
+    const { ApiError } = await import('#/lib/api/errors')
+    confirmPasswordResetMock.mockRejectedValueOnce(new ApiError('Invalid or expired reset token', 400, 'Invalid or expired reset token') as never)
+    window.history.replaceState({}, '', '/reset-password#token=old-token')
+    render(<ResetPasswordPage />)
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-1' } })
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'new-password-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Invalid reset link' })).toBeTruthy()
+    expect(screen.getByText(/expired or was already used/)).toBeTruthy()
+    expect(screen.getByText(/Forgot password\?/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Back to sign in' }).getAttribute('href')).toBe('/login')
+  })
+
   it('keeps the token it consumed when effects run twice (dev strict mode)', () => {
     window.history.replaceState({}, '', '/reset-password#token=fragment-token')
     render(

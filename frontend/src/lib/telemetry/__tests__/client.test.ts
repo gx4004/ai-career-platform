@@ -6,8 +6,9 @@ describe('telemetry client', () => {
   const sendBeaconMock = vi.fn()
 
   beforeEach(() => {
+    // Telemetry is analytics: it only leaves the browser once the visitor accepted it.
     vi.stubGlobal('localStorage', {
-      getItem: vi.fn().mockReturnValue(null),
+      getItem: vi.fn().mockReturnValue('accepted'),
       setItem: vi.fn(),
       removeItem: vi.fn(),
       clear: vi.fn(),
@@ -94,6 +95,33 @@ describe('telemetry client', () => {
 
     expect(sendBeaconMock).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sends nothing before the visitor has made a cookie choice (integration-sweep-D19)', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    })
+    sendBeaconMock.mockReturnValue(true)
+
+    trackTelemetry({ event_name: 'landing_page_viewed' })
+    captureAppError(new Error('boom'), { source: 'error-boundary' })
+
+    expect(sendBeaconMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves out a session status the ingest contract does not know (unreachable)', async () => {
+    sendBeaconMock.mockReturnValue(true)
+
+    trackTelemetry({ event_name: 'result_page_loaded', tool_id: 'resume', session_status: 'unreachable' })
+
+    const blob = sendBeaconMock.mock.calls[0]?.[1] as Blob
+    const payload = JSON.parse(await blob.text())
+    expect(payload.event_name).toBe('result_page_loaded')
+    expect(payload).not.toHaveProperty('session_status')
   })
 
   it('strips fields outside the allowlist before anything leaves the browser', async () => {

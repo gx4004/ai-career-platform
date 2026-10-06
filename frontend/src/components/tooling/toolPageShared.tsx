@@ -28,6 +28,7 @@ import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
 import { readWorkflowContext } from '#/lib/tools/drafts'
 import { getResumeCarryText } from '#/lib/tools/resumeCarryStore'
+import { getWorkflowTargetRole } from '#/lib/tools/workflowContext'
 import { historyRunHref } from '#/lib/tools/historyToolLabel'
 import { formatRunDate } from '#/lib/tools/runLabel'
 import { useToolDraft } from '#/hooks/useToolDraft'
@@ -95,33 +96,53 @@ export function useToolPageState(toolId: ToolId) {
 /** The input form's height at submit, per tool: the working panel takes the same room, so the page does not jump while a run is in flight. */
 const formHeights: Partial<Record<ToolId, number>> = {}
 
+type RegenNote = { feedback: string | null; filled: string[]; missing: string[] }
+
+function joinWords(items: string[]) {
+  return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
+
 /**
- * "Regenerating with: <feedback>" when this page was opened from a result's Re-generate, and whether the resume came along.
+ * "Regenerating with: <feedback>" when this page was opened from a result's Re-generate: what was filled in
+ * (and from where) and, in one line, what still has to be provided. Runs do not keep their inputs, so a
+ * result opened in a new tab carries only what the Re-generate could find in the account.
  * Read after mount: the server render has no query string and the carry lives in the tab's session storage.
  */
 function RegenerateNote({ toolId }: { toolId: ToolId }) {
-  const [note, setNote] = useState<{ feedback: string | null; missingResume: boolean; filled: string | null } | null>(null)
+  const [note, setNote] = useState<RegenNote | null>(null)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (!params.get('parent_run_id')) return
     const fields = workflowConfigs[toolId].fields
     const needsResume = fields.some((field) => field.name === 'resumeText')
-    const hasJob = fields.some((field) => field.name === 'jobDescription')
-    let resume = ''
-    let job = ''
+    const needsJob = fields.some((field) => field.name === 'jobDescription' && field.required)
+    const needsRole = fields.some((field) => field.name === 'targetRole')
+    let context: ReturnType<typeof readWorkflowContext> = null
+    let carried = ''
     try {
-      const context = readWorkflowContext()
-      resume = (context?.resumeText || getResumeCarryText()).trim()
-      job = hasJob ? (context?.jobDescription ?? '').trim() : ''
+      context = readWorkflowContext()
+      carried = getResumeCarryText()
     } catch {
       /* storage unavailable: treat as nothing carried */
     }
-    const filled = [resume ? 'resume' : '', job ? 'job description' : ''].filter(Boolean).join(' and ')
-    setNote({
-      feedback: params.get('feedback')?.trim() || null,
-      missingResume: needsResume && !resume,
-      filled: filled || null,
-    })
+    const resume = (context?.resumeText || carried).trim()
+    const job = (context?.jobDescription ?? '').trim()
+    const role = needsRole ? getWorkflowTargetRole(context) : undefined
+    const filled: string[] = []
+    const missing: string[] = []
+    if (needsResume) {
+      if (resume) filled.push(context?.resumeSource && context.resumeText ? context.resumeSource : 'your resume from this tab')
+      else missing.push('your resume')
+    }
+    if (needsJob) {
+      if (job) filled.push(context?.jobSource ?? 'the job description from this tab')
+      else missing.push(context?.jobLabel ? `the job description for ${context.jobLabel}` : 'the job description')
+    }
+    if (needsRole) {
+      if (role) filled.push('the target role')
+      else missing.push('a target role')
+    }
+    setNote({ feedback: params.get('feedback')?.trim() || null, filled, missing })
   }, [toolId])
   if (!note) return null
   return (
@@ -132,10 +153,12 @@ function RegenerateNote({ toolId }: { toolId: ToolId }) {
           {/[.!?]$/.test(note.feedback) ? '' : '.'}
         </>
       ) : (
-        'Regenerating from an earlier run. Change anything below, then run it again.'
+        'Regenerating from an earlier run.'
       )}
-      {note.missingResume ? ' This run did not keep your resume in this tab: add it below.' : null}
-      {note.filled ? ` Your ${note.filled} from this session ${note.filled.includes(' and ') ? 'are' : 'is'} filled in.` : null}
+      {note.filled.length > 0 ? ` Filled in: ${joinWords(note.filled)}.` : null}
+      {note.missing.length > 0
+        ? ` Runs don’t keep their inputs, so add ${joinWords(note.missing)} below.`
+        : ' Change anything below, then run it again.'}
     </Notice>
   )
 }

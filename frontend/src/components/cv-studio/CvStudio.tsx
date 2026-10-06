@@ -16,6 +16,7 @@ import type { CvDocument, CvHeader, CvSection, CvStyle, CvVariant } from '#/lib/
 import { addSection, moveSection, moveSectionTo } from '#/lib/cv-studio/editor'
 import { EMPTY_HEADER } from '#/lib/cv-studio/header'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
+import { safeFileName } from '#/lib/tools/exports'
 import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
 import { CvAtsPanel, useCvQuality } from './CvAtsPanel'
 import { CvDesignPanel } from './CvDesignPanel'
@@ -31,7 +32,7 @@ import { CvTailorDialog } from './CvTailorDialog'
 import { CvVersionPreviewDialog } from './CvVersionPreviewDialog'
 import { CvVersionsPanel } from './CvVersionsPanel'
 import type { VersionExport } from './CvVersionsPanel'
-import { VARIANT_EXPORT_READY, VersionExportUnavailable, fetchVariantArtifactBlob } from './cvApi'
+import { VersionExportUnavailable, fetchVariantArtifactBlob } from './cvApi'
 import { LIST_KEY, useCvDraft } from './useCvDraft'
 
 /** What the side panel shows: a studio tool, or the editor of the header or of the section clicked on the paper. */
@@ -59,7 +60,7 @@ function download(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-const safeFilename = (name: string) => name.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'cv'
+const cvFileBase = (name: string) => safeFileName(name) || 'cv'
 
 /** The studio's frame while the CV loads: the same bar, tools column and desk, so nothing moves when it arrives. */
 function StudioSkeleton() {
@@ -103,6 +104,7 @@ export function CvStudio() {
   const [notice, setNotice] = useState<{ text: string; variant?: CvVariant } | null>(null)
   const [moment, setMoment] = useState<ExportMoment | null>(null)
   const momentCount = useRef(0)
+  const [momentVariant, setMomentVariant] = useState<CvVariant | null>(null)
   const [zoom, setZoom] = useState<'fit' | 'read'>('fit')
   const [previewVariant, setPreviewVariant] = useState<CvVariant | null>(null)
   const [versionExport, setVersionExport] = useState<VersionExport>(null)
@@ -196,9 +198,11 @@ export function CvStudio() {
   }
 
   /** The moment an export lands: the page count comes from the file itself, the checks from this CV's last ATS run. */
-  async function celebrate(format: 'pdf' | 'docx', filename: string, blob: Blob) {
-    const checks = quality.data?.checks
+  async function celebrate(format: 'pdf' | 'docx', filename: string, blob: Blob, variant: CvVariant | null = null) {
+    // The ATS checks were run on the working CV: a saved version's file does not borrow them.
+    const checks = variant ? undefined : quality.data?.checks
     momentCount.current += 1
+    setMomentVariant(variant)
     setMoment({
       id: momentCount.current, format, filename,
       pages: format === 'pdf' ? await countPdfPages(blob) : null,
@@ -219,7 +223,7 @@ export function CvStudio() {
       const blob = await fetchCvArtifactBlob(draft.id, format).catch(() => {
         throw new Error(`We couldn’t create the ${format.toUpperCase()} just now. Please try again.`)
       })
-      const filename = `${safeFilename(draft.name)}.${format}`
+      const filename = `${cvFileBase(draft.name)}.${format}`
       download(blob, filename)
       await celebrate(format, filename, blob)
     })
@@ -236,9 +240,9 @@ export function CvStudio() {
           ? 'Exporting a saved version isn’t available on this server yet. Use it as your CV, then export that.'
           : `We couldn’t create the ${format.toUpperCase()} just now. Please try again.`)
       })
-      const filename = `${safeFilename(variant.name)}.${format}`
+      const filename = `${cvFileBase(variant.name)}.${format}`
       download(blob, filename)
-      await celebrate(format, filename, blob)
+      await celebrate(format, filename, blob, variant)
     })
     setVersionExport(null)
   }
@@ -389,7 +393,7 @@ export function CvStudio() {
       ) : tool === 'versions' ? (
         <CvVersionsPanel
           variants={draft.variants} currentSections={draft.sections} busy={dirty} exporting={versionExport}
-          onSave={saveVersion} onRestore={restoreVersion} onPreview={setPreviewVariant} onExport={VARIANT_EXPORT_READY ? (variant, format) => void exportVersion(variant, format) : undefined}
+          onSave={saveVersion} onRestore={restoreVersion} onPreview={setPreviewVariant} onExport={(variant, format) => void exportVersion(variant, format)}
         />
       ) : (
         <CvOutline
@@ -514,9 +518,7 @@ export function CvStudio() {
               action={notice.variant ? (
                 <Cluster gap={2}>
                   <Button type="button" size="sm" variant="secondary" onClick={() => { setPreviewVariant(notice.variant ?? null); setNotice(null) }}>Preview</Button>
-                  {VARIANT_EXPORT_READY ? (
-                    <Button type="button" size="sm" variant="secondary" loading={versionExport?.variantId === notice.variant.id && versionExport.format === 'pdf'} onClick={() => notice.variant && void exportVersion(notice.variant, 'pdf')}>Export PDF</Button>
-                  ) : null}
+                  <Button type="button" size="sm" variant="secondary" loading={versionExport?.variantId === notice.variant.id && versionExport.format === 'pdf'} onClick={() => notice.variant && void exportVersion(notice.variant, 'pdf')}>Export PDF</Button>
                 </Cluster>
               ) : undefined}
             >
@@ -540,8 +542,16 @@ export function CvStudio() {
 
       {moment ? (
         <CvExportMoment
-          moment={moment} raised={previewVariant !== null || dialog !== null} otherBusy={exporting === (moment.format === 'pdf' ? 'docx' : 'pdf')} onClose={() => setMoment(null)}
-          onDownloadOther={() => void exportFile(moment.format === 'pdf' ? 'docx' : 'pdf')}
+          moment={moment} raised={previewVariant !== null || dialog !== null} onClose={() => setMoment(null)}
+          otherBusy={momentVariant
+            ? versionExport?.variantId === momentVariant.id && versionExport.format !== moment.format
+            : exporting === (moment.format === 'pdf' ? 'docx' : 'pdf')}
+          // The other format of the same file: a saved version's moment offers that version, never the working CV.
+          onDownloadOther={() => {
+            const other = moment.format === 'pdf' ? 'docx' : 'pdf'
+            if (momentVariant) void exportVersion(momentVariant, other)
+            else void exportFile(other)
+          }}
         />
       ) : null}
 
@@ -555,7 +565,7 @@ export function CvStudio() {
       <CvVersionPreviewDialog
         variant={previewVariant} documentName={draft.name} header={draft.header} style={draft.style} catalog={catalog} currentSections={draft.sections}
         exporting={versionExport} canRestore={!dirty} error={actionError}
-        onOpenChange={(next) => { if (!next) setPreviewVariant(null) }} onExport={VARIANT_EXPORT_READY ? (variant, format) => void exportVersion(variant, format) : undefined} onRestore={restoreFromPreview}
+        onOpenChange={(next) => { if (!next) setPreviewVariant(null) }} onExport={(variant, format) => void exportVersion(variant, format)} onRestore={restoreFromPreview}
       />
       <ConfirmDialog
         open={confirmOpen} onOpenChange={setConfirmOpen} pending={deleting}

@@ -18,6 +18,8 @@ export function intentCopy(intent: PendingIntent, view: 'login' | 'register'): {
       }
     case 'export-pdf':
       return { title: 'Sign in to export', text: `${back}.` }
+    case 'open-result':
+      return { title: 'Sign in to open this result', text: "It's saved to your account. You'll go straight back to it." }
     default:
       return intent.to && intent.to !== '/' ? { title: 'Sign in to continue', text: `${back}.` } : null
   }

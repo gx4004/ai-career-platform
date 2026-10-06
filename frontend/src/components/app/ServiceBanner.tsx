@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CloudOff, WifiOff } from 'lucide-react'
 import { Button } from '#/components/kit'
 import { ApiError } from '#/lib/api/errors'
-import { getCurrentUser, getHealth } from '#/lib/api/client'
+import { getHealth } from '#/lib/api/client'
+import { CURRENT_USER_QUERY_KEY, fetchSessionUser } from '#/lib/auth/currentUser'
 
 const POLL_MS = 15_000
 
@@ -25,10 +26,13 @@ function useOffline() {
   )
 }
 
-/** A refused connection or a 5xx is an outage; a 401 or a 4xx is an answer from a server that is up. */
-function isOutage(error: unknown) {
-  if (error == null) return false
-  return !(error instanceof ApiError) || error.status >= 500
+type Outage = 'unreachable' | 'server-error'
+
+/** A refused connection (status 0) or a 5xx is an outage; a 401 or another 4xx is an answer from a server that is up. */
+function outageOf(error: unknown): Outage | null {
+  if (error == null) return null
+  if (!(error instanceof ApiError) || error.status === 0) return 'unreachable'
+  return error.status >= 500 ? 'server-error' : null
 }
 
 /**
@@ -40,13 +44,22 @@ function useServiceStatus() {
   const queryClient = useQueryClient()
   const offline = useOffline()
   const health = useQuery({ queryKey: ['health'], queryFn: getHealth, retry: false, enabled: false })
-  const user = useQuery({ queryKey: ['current-user'], queryFn: getCurrentUser, retry: false, enabled: false })
-  const unreachable = !offline && (isOutage(health.error) || isOutage(user.error))
+  const user = useQuery({ queryKey: CURRENT_USER_QUERY_KEY, queryFn: fetchSessionUser, retry: false, enabled: false })
+  const outages = [outageOf(health.error), outageOf(user.error)]
+  // A server that cannot be reached at all says more than one that answered with an error.
+  const outage: Outage | null = offline
+    ? null
+    : outages.includes('unreachable')
+      ? 'unreachable'
+      : outages.includes('server-error')
+        ? 'server-error'
+        : null
+  const unreachable = outage !== null
 
   const retry = () =>
     Promise.allSettled([
       queryClient.fetchQuery({ queryKey: ['health'], queryFn: getHealth, staleTime: 0 }),
-      queryClient.fetchQuery({ queryKey: ['current-user'], queryFn: getCurrentUser, staleTime: 0 }),
+      queryClient.fetchQuery({ queryKey: CURRENT_USER_QUERY_KEY, queryFn: fetchSessionUser, staleTime: 0 }),
     ])
 
   useEffect(() => {
@@ -63,26 +76,31 @@ function useServiceStatus() {
   }, [offline])
 
   const fetching = health.isFetching || user.isFetching
-  return { offline, unreachable, retrying: fetching, retry }
+  return { offline, outage, retrying: fetching, retry }
 }
 
+const COPY = {
+  offline: { title: 'You’re offline.', text: 'Pages stay as they are, but running tools and saving need a connection.' },
+  unreachable: { title: 'Can’t reach the server.', text: 'Your sign-in is untouched. We’ll keep trying on our own.' },
+  'server-error': { title: 'The server ran into a problem.', text: 'Your sign-in is untouched. We’ll try again on our own.' },
+} as const
+
 /**
- * A slim lemon band at the top of the shell when the browser is offline or the server cannot be reached.
- * A dropped connection is not a sign-out: the page keeps what it has, and says so.
+ * A slim lemon band at the top of the shell when the browser is offline, the server cannot be reached, or it
+ * answers with errors. None of these is a sign-out: the page keeps what it has, and says so.
  */
 export function ServiceBanner() {
-  const { offline, unreachable, retrying, retry } = useServiceStatus()
-  if (!offline && !unreachable) return null
+  const { offline, outage, retrying, retry } = useServiceStatus()
+  const kind = offline ? 'offline' : outage
+  if (!kind) return null
 
   const Icon = offline ? WifiOff : CloudOff
+  const copy = COPY[kind]
   return (
-    <div className="app-service-banner" role="status" data-kind={offline ? 'offline' : 'unreachable'}>
+    <div className="app-service-banner" role="status" data-kind={kind}>
       <Icon aria-hidden className="app-service-banner__icon" />
       <p className="app-service-banner__text">
-        <strong>{offline ? 'You’re offline.' : 'Can’t reach the server.'}</strong>{' '}
-        {offline
-          ? 'Pages stay as they are, but running tools and saving need a connection.'
-          : 'Your sign-in is untouched. We’ll keep trying on our own.'}
+        <strong>{copy.title}</strong> {copy.text}
       </p>
       <Button type="button" variant="secondary" size="sm" loading={retrying} onClick={() => void retry()}>
         Retry

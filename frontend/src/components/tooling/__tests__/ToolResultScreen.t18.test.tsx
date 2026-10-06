@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import { ToolResultScreen } from '#/components/tooling/ToolResultScreen'
 import { clearTransientResults, setTransientResult } from '#/lib/tools/demoRuns'
 
@@ -44,7 +45,9 @@ function renderCached(toolId: 'job-match' | 'resume', run: Record<string, unknow
   client.setQueryData(['tool-run', run.id], run)
   render(
     <QueryClientProvider client={client}>
-      <ToolResultScreen toolId={toolId} historyId={String(run.id)} />
+      <ToastProvider>
+        <ToolResultScreen toolId={toolId} historyId={String(run.id)} />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }

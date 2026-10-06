@@ -37,7 +37,8 @@ vi.mock('#/lib/privacy/browserData', () => ({
   clearSensitiveBrowserData: clearSensitiveBrowserDataMock,
 }))
 
-vi.mock('#/lib/navigation/redirect', () => ({
+vi.mock('#/lib/navigation/redirect', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/navigation/redirect')>()),
   navigateToPath: navigateToPathMock,
 }))
 
@@ -140,6 +141,7 @@ function renderAuthFlow() {
 
 describe('AuthDialog', () => {
   beforeEach(() => {
+    window.localStorage.clear()
     storageState.local = {}
     storageState.session = {}
     loginMock.mockReset()
@@ -217,6 +219,8 @@ describe('AuthDialog', () => {
 
   it('purges every owner-scoped query while retaining deployment-level cache on logout', async () => {
     const { queryClient } = renderAuthFlow()
+    // The sign-in form fetches the providers list; the session no longer does on every page.
+    queryClient.setQueryData(['auth-providers'], { providers: [] })
     queryClient.setQueryData(['evidence-profile', 'items'], {
       items: [{ id: 'owner-a-evidence' }],
     })
@@ -268,7 +272,9 @@ describe('AuthDialog', () => {
   })
 
   it('remounts owner-local component state when the authenticated identity ends', async () => {
-    renderAuthFlow()
+    const { queryClient } = renderAuthFlow()
+    // The identity must be known first: resolving it is not a reason to remount.
+    await waitFor(() => expect(queryClient.getQueryData(['current-user'])).toBeTruthy())
 
     fireEvent.click(screen.getByRole('button', { name: 'Seed local state' }))
     expect(screen.getByTestId('owner-local-state').textContent).toBe(
@@ -321,10 +327,7 @@ describe('AuthDialog', () => {
   it('writes a pendingIntent with the current path when cw:session-expired fires for a previously authed user', async () => {
     const { queryClient } = renderAuthFlow()
 
-    await waitFor(() => {
-      expect(getCurrentUserMock).toHaveBeenCalled()
-    })
-
+    await waitFor(() => expect(queryClient.getQueryData(['current-user'])).toBeTruthy())
     await new Promise((resolve) => setTimeout(resolve, 0))
     fireEvent.click(screen.getByRole('button', { name: 'Seed local state' }))
     queryClient.setQueryData(['applications', 'board'], {
