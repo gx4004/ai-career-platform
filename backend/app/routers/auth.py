@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -25,11 +27,15 @@ from app.routers.google_auth import google_sign_in_configured
 from app.schemas.auth import (
     AuthProvidersResponse,
     AuthSessionResponse,
+    ChangePasswordRequest,
     DeleteAccountRequest,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
+    PasswordResetRequestResponse,
+    ProfileUpdateRequest,
     RegisterRequest,
+    SessionStateResponse,
     UserResponse,
 )
 from app.services.email_blocklist import is_disposable_email
@@ -109,6 +115,89 @@ def register(request: Request, response: Response, body: RegisterRequest, db: Se
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return _user_response(current_user)
+
+
+@router.get("/session", response_model=SessionStateResponse)
+def get_session(current_user: User | None = Depends(get_optional_current_user)):
+    """The signed-in user or null, always a 200: a guest's page load is not a failed request.
+
+    Reads the same access cookie (or bearer token) as ``/me`` and never refreshes or
+    sets cookies; an expired, revoked or malformed token is simply a guest.
+    """
+    return SessionStateResponse(user=_user_response(current_user) if current_user else None)
+
+
+@router.patch("/me", response_model=UserResponse)
+@limiter.limit("10/minute")
+def update_me(
+    request: Request,
+    body: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if body.email is not None:
+        # The own address in other capitals is no change, only normalisation.
+        if body.email != current_user.email.lower():
+            if settings.DISPOSABLE_EMAIL_BLOCK_ENABLED and is_disposable_email(body.email):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Disposable email addresses are not allowed",
+                )
+            taken = (
+                db.query(User.id)
+                .filter(func.lower(User.email) == body.email, User.id != current_user.id)
+                .first()
+            )
+            if taken:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Email already registered",
+                )
+        current_user.email = body.email
+    if "full_name" in body.model_fields_set:
+        current_user.full_name = body.full_name
+    try:
+        db.commit()
+    except IntegrityError:
+        # Lost a race for the address: the unique lower(email) index is the real guard.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered",
+        ) from None
+    db.refresh(current_user)
+    return _user_response(current_user)
+
+
+@router.post("/change-password", response_model=AuthSessionResponse)
+@limiter.limit("5/minute")
+def change_password(
+    request: Request,
+    response: Response,
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Sync on purpose (bcrypt, see login). A wrong current password is a 400, not a
+    # 401: the client reads a 401 as an expired session.
+    if not current_user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account has no password yet. Use \"Forgot password\" to set one.",
+        )
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    current_user.hashed_password = hash_password(body.new_password)
+    # Ends every other session (and any copied token); this one gets fresh cookies.
+    current_user.token_version = (current_user.token_version or 0) + 1
+    db.commit()
+    access = create_access_token(current_user.id, current_user.token_version)
+    refresh = create_refresh_token(current_user.id, current_user.token_version)
+    set_auth_cookies(response, access, refresh)
+    return AuthSessionResponse()
 
 
 @router.post("/refresh", response_model=AuthSessionResponse)
@@ -216,7 +305,12 @@ def get_providers():
     return AuthProvidersResponse(providers=providers)
 
 
-@router.post("/password-reset/request", status_code=200)
+@router.post(
+    "/password-reset/request",
+    status_code=200,
+    response_model=PasswordResetRequestResponse,
+    response_model_exclude_none=True,
+)
 @limiter.limit("3/minute")
 async def request_password_reset(
     request: Request,
@@ -224,6 +318,9 @@ async def request_password_reset(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
+    result = PasswordResetRequestResponse(
+        message="If an account with this email exists, a reset link has been sent."
+    )
     user = db.query(User).filter(func.lower(User.email) == body.email).first()
     if user:
         token = create_password_reset_token(user.email, user.hashed_password or "")
@@ -232,7 +329,29 @@ async def request_password_reset(
         # requests, Referer headers, or ordinary server access logs.
         reset_url = f"{frontend_base}/reset-password#token={token}"
         background_tasks.add_task(send_password_reset_email, user.email, reset_url)
-    return {"message": "If an account with this email exists, a reset link has been sent."}
+        if _dev_reset_link_allowed(request, reset_url):
+            result.dev_reset_url = reset_url
+    return result
+
+
+def _dev_reset_link_allowed(request: Request, reset_url: str) -> bool:
+    """Hand the reset link back only to a caller on this machine, in development.
+
+    Anywhere else it would let whoever knows an address take over the account.
+    ENVIRONMENT and FRONTEND_URL both default to local values, so a deployment
+    that forgot both settings is caught only by the caller check: a request from
+    another machine or through a hosting proxy does not arrive from loopback (the
+    local Vite dev proxy does, which is the intended path).
+    """
+    if settings.ENVIRONMENT != "development":
+        return False
+    if (request.client.host if request.client else "") not in {"127.0.0.1", "::1"}:
+        return False
+    parsed = urlparse(reset_url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "http" and (
+        host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".localhost")
+    )
 
 
 @router.post("/password-reset/confirm", status_code=200)

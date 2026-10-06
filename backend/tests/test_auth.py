@@ -257,6 +257,9 @@ def test_password_reset_request_schedules_email_as_background_task(client, test_
         return True
 
     monkeypatch.setattr("app.routers.auth.send_password_reset_email", fake_send)
+    # Outside development the answer never reveals whether the address exists
+    # (development alone hands back the reset link, B13).
+    monkeypatch.setattr("app.routers.auth.settings.ENVIRONMENT", "production")
 
     existing_resp = client.post(
         f"{PREFIX}/password-reset/request",

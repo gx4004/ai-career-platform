@@ -711,6 +711,11 @@ export const authSessionResponseSchema = z.strictObject({
   ok: z.boolean(),
 })
 
+/** GET /auth/session: the signed-in user or null for a guest; always a 200, never a 401. */
+export const sessionStateSchema = z.object({
+  user: userSchema.nullable(),
+})
+
 // The backend returns an array of provider name strings (e.g. ["google"]);
 // only enabled providers are included. The display shape (label, enabled flag)
 // is derived in the session layer.
@@ -745,6 +750,8 @@ export const importedJobSchema = z.object({
   job_description: z.string(),
   source_url: z.string().url().nullable().optional(),
   retrieved_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  // False when no fetch tier produced a posting: job_description is then empty (paste the listing instead).
+  readable: z.boolean().optional(),
 })
 
 export const importJobUrlSchema = z.strictObject({
@@ -982,6 +989,27 @@ export const registerRequestSchema = z.object({
 })
 export const passwordResetConfirmRequestSchema = z.object({
   token: z.string(),
+  new_password: newPasswordSchema,
+})
+
+/** POST /auth/password-reset/request. `dev_reset_url` only ever arrives in local development. */
+export const passwordResetRequestResponseSchema = z.object({
+  message: z.string(),
+  dev_reset_url: z.string().optional(),
+})
+
+/** PATCH /auth/me: send at least one of the two; the answer is the updated user (userSchema). */
+export const profileUpdateRequestSchema = z
+  .strictObject({
+    full_name: z.string().max(200).nullable().optional(),
+    // The backend trims before validating, so a padded address is valid.
+    email: z.string().trim().pipe(z.email()).optional(),
+  })
+  .refine((v) => v.full_name !== undefined || v.email !== undefined, 'Send a name or an email address to change')
+
+/** POST /auth/change-password; the answer is authSessionResponseSchema and renews this session's cookies. */
+export const changePasswordRequestSchema = z.strictObject({
+  current_password: z.string().min(1),
   new_password: newPasswordSchema,
 })
 
@@ -1318,6 +1346,10 @@ export const portfolioResultSchema = sharedResultEnvelopeSchema
 
 export type User = z.infer<typeof userSchema>
 export type AuthSessionResponse = z.infer<typeof authSessionResponseSchema>
+export type SessionState = z.infer<typeof sessionStateSchema>
+export type PasswordResetRequestResponse = z.infer<typeof passwordResetRequestResponseSchema>
+export type ProfileUpdateRequest = z.input<typeof profileUpdateRequestSchema>
+export type ChangePasswordRequest = z.input<typeof changePasswordRequestSchema>
 export type HealthCheck = z.infer<typeof healthCheckSchema>
 export type ParsedCvResult = z.infer<typeof parsedCvSchema>
 export type ImportedJobPost = z.infer<typeof importedJobSchema>

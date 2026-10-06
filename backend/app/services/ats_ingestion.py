@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
+import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
@@ -146,17 +147,36 @@ def run_ats_ingestion(db: Session) -> ATSIngestSummary:
         try:
             summary.outcomes.append(ingest_ats_source(db, source))
         except Exception as exc:  # noqa: BLE001 — one source's failure must not stop the rest
-            db.rollback()
             summary.failures[source_key] = f"{type(exc).__name__}: {exc}"
-            logger.warning(
-                "ats ingestion source failed source_key=%s error_type=%s",
-                source_key,
-                type(exc).__name__,
-            )
-            # A failed run keeps the source's last listing count.
-            _stamp(source, f"failed: {type(exc).__name__}", None)
-            db.commit()
+            _record_failure(db, source, exc)
     return summary
+
+
+def retry_ats_source(db: Session, source: DiscoverySource) -> None:
+    """Fetch one source now (the admin retry); the outcome is stamped on the source either way."""
+    try:
+        ingest_ats_source(db, source)
+    except Exception as exc:  # noqa: BLE001 — a failed fetch is recorded, not raised
+        _record_failure(db, source, exc)
+
+
+def failure_outcome(exc: Exception) -> str:
+    """The stored outcome of a failed run; an HTTP error keeps its status code."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"failed: {type(exc).__name__} {exc.response.status_code}"
+    return f"failed: {type(exc).__name__}"
+
+
+def _record_failure(db: Session, source: DiscoverySource, exc: Exception) -> None:
+    db.rollback()
+    logger.warning(
+        "ats ingestion source failed source_key=%s error_type=%s",
+        source.source_key,
+        type(exc).__name__,
+    )
+    # A failed run keeps the source's last listing count.
+    _stamp(source, failure_outcome(exc), None)
+    db.commit()
 
 
 def run_ats_ingestion_once() -> ATSIngestSummary | None:

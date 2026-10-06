@@ -45,6 +45,8 @@ export const discoverySourceSchema = z.object({
   // Latest ingestion run, stamped once per run (#369).
   last_fetched_at: offsetDateTimeSchema.nullable(),
   last_outcome: z.string().nullable(),
+  // The last failure in an operator's words (computed from last_outcome); null when it worked.
+  failure_reason: z.string().nullable().optional(),
   listing_count: z.number().int().nonnegative().nullable(),
   created_at: offsetDateTimeSchema,
   updated_at: offsetDateTimeSchema,
