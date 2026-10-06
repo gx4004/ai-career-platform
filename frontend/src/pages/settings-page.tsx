@@ -17,12 +17,12 @@ import {
   Section,
   useToast,
 } from '#/components/kit'
+import { outageOf } from '#/components/app/ServiceBanner'
 import { DataControls } from '#/components/profile/DataControls'
 import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
 import { getHealth } from '#/lib/api/client'
-import { ApiError } from '#/lib/api/errors'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 
 export function SettingsPage() {
@@ -32,17 +32,21 @@ export function SettingsPage() {
   // A real check on this page (the session's health only says the server answered /auth/me). Same key as
   // the service banner's, so a fresh result is shared; a visit always asks again.
   const health = useQuery({ queryKey: ['health'], queryFn: getHealth, retry: false, staleTime: 0 })
-  // Same split as the service banner: no answer at all is "can't reach"; an answer that is a 5xx (or a health
-  // body that is not ok) is the server's own error, so the two messages on this screen never contradict.
-  const connection = health.data
-    ? health.data.status === 'ok'
-      ? 'ok'
-      : 'server-error'
-    : health.isError
-      ? health.error instanceof ApiError && health.error.status >= 500
-        ? 'server-error'
-        : 'offline'
-      : 'checking'
+  // The service banner's reading of the same check, so the two never contradict: the latest failure wins over
+  // an older good answer still held in data; no answer at all is "can't reach", a 5xx (or a health body that
+  // is not ok) is the server's own error, and a 4xx is an answer from a server that is up.
+  const outage = health.isError ? outageOf(health.error) : null
+  const connection = outage === 'unreachable'
+    ? 'offline'
+    : outage === 'server-error'
+      ? 'server-error'
+      : health.isError
+        ? 'ok'
+        : health.data
+          ? health.data.status === 'ok'
+            ? 'ok'
+            : 'server-error'
+          : 'checking'
   const isAuthenticated = status === 'authenticated' && user !== null
 
   return (

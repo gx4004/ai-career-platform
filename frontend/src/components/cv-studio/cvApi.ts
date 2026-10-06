@@ -1,5 +1,6 @@
 import { getCvDocument } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
+import { timeoutSignal } from '#/lib/api/signals'
 import { cvDocumentSchema, cvDocumentUpdateSchema } from '#/lib/api/schemas'
 import type { CvDocumentUpdate } from '#/lib/api/schemas'
 
@@ -34,7 +35,7 @@ export async function fetchVariantArtifactBlob(documentId: string, variantId: st
   await getCvDocument(documentId)
   const response = await fetch(
     `${apiBase()}/cv-documents/${encodeURIComponent(documentId)}/variants/${encodeURIComponent(variantId)}/artifacts/${format}`,
-    { credentials: 'include', signal: AbortSignal.timeout(180_000) },
+    { credentials: 'include', signal: timeoutSignal(180_000) },
   )
   if (response.status === 404 || response.status === 405 || response.status === 501) throw new VersionExportUnavailable()
   if (!response.ok) throw new ApiError('Artifact export failed', response.status)

@@ -463,6 +463,43 @@ describe('DiscoveryPage', () => {
     await waitFor(() => expect(undismissRecommendation).toHaveBeenCalledWith('listing-7'))
   })
 
+  describe('restoring from Hidden while a "Hid … Undo" toast is up', () => {
+    const DATA_ANALYST = { listing_id: 'listing-7', title: 'Data Analyst', company: 'Harbor Health', location: 'Remote', remote: true, posted_at: null, hidden_at: '2026-10-02T09:00:00Z' }
+    const PLATFORM = { listing_id: 'listing-1', title: 'Platform Engineer', company: 'Acme Systems', location: null, remote: null, posted_at: null, hidden_at: '2026-10-05T09:00:00Z' }
+
+    async function hidePlatformThenOpenHidden() {
+      hiddenJobs.mockResolvedValue({ total: 2, items: [PLATFORM, DATA_ANALYST] })
+      renderPage()
+      const menu = await openMenu(await findCard())
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Hide this job' }))
+      expect(await screen.findByText('Hid “Platform Engineer”.', { selector: '.kit-toast__title' })).toBeTruthy()
+      fireEvent.click(await screen.findByRole('button', { name: 'Hidden jobs, 2' }))
+      return screen.findByRole('dialog', { name: 'Hidden jobs' })
+    }
+
+    it('keeps the Undo of another job when a different one is restored', async () => {
+      const sheet = await hidePlatformThenOpenHidden()
+
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Restore Data Analyst' }))
+
+      expect(await screen.findByText('Restored “Data Analyst”.', { selector: '.kit-toast__title' })).toBeTruthy()
+      // Past the toast exit animation: the Undo for Platform Engineer is still open.
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      const hid = screen.getByText('Hid “Platform Engineer”.', { selector: '.kit-toast__title' })
+      expect(hid.closest('[data-state]')?.getAttribute('data-state')).toBe('open')
+      expect(screen.getByRole('button', { name: 'Undo', hidden: true })).toBeTruthy()
+    })
+
+    it('closes the Undo when the job it was raised for is the one restored', async () => {
+      const sheet = await hidePlatformThenOpenHidden()
+
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Restore Platform Engineer' }))
+
+      expect(await screen.findByText('Restored “Platform Engineer”.', { selector: '.kit-toast__title' })).toBeTruthy()
+      await waitFor(() => expect(screen.queryByText('Hid “Platform Engineer”.', { selector: '.kit-toast__title' })).toBeNull())
+    })
+  })
+
   it('offers no hidden-jobs button while nothing is hidden', async () => {
     renderPage()
     await findCard()

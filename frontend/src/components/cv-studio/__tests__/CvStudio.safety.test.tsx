@@ -129,6 +129,63 @@ describe('two tabs never overwrite each other silently (cv-studio-d03)', () => {
     expect(saveStatus().textContent).toContain('Saved')
   })
 
+  it('a tab that is merely hidden checks for a newer copy before it saves, instead of overwriting it', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ ...document, name: 'My edit' }) }))
+    vi.stubGlobal('fetch', fetchMock)
+    const visibility = vi.spyOn(window.document, 'visibilityState', 'get').mockReturnValue('hidden')
+    try {
+      view()
+      const name = await screen.findByLabelText('Document name')
+      api.getCvDocument.mockResolvedValue(elsewhere)
+      fireEvent.change(name, { target: { value: 'My edit' } })
+      // Switching to another tab, inside the autosave window.
+      act(() => { window.document.dispatchEvent(new Event('visibilitychange')) })
+
+      expect(await screen.findByText('This CV was saved somewhere else', {}, { timeout: 2500 })).toBeTruthy()
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(api.updateCvDocument).not.toHaveBeenCalled()
+    } finally {
+      visibility.mockRestore()
+    }
+  })
+
+  it('a hidden tab starts its checked save at once, not on the autosave timer', async () => {
+    const visibility = vi.spyOn(window.document, 'visibilityState', 'get').mockReturnValue('hidden')
+    try {
+      view()
+      const name = await screen.findByLabelText('Document name')
+      const before = api.getCvDocument.mock.calls.length
+      fireEvent.change(name, { target: { value: 'My edit' } })
+      act(() => { window.document.dispatchEvent(new Event('visibilitychange')) })
+      // Well inside the 650 ms autosave window: only the hidden-tab flush can have asked the server already.
+      await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 100)) })
+      expect(api.getCvDocument.mock.calls.length).toBeGreaterThan(before)
+    } finally {
+      visibility.mockRestore()
+    }
+  })
+
+  it('a tab hidden and then closed while its checked save waits still sends the edit with keepalive', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ ...document, name: 'My edit' }) }))
+    vi.stubGlobal('fetch', fetchMock)
+    const visibility = vi.spyOn(window.document, 'visibilityState', 'get').mockReturnValue('hidden')
+    try {
+      view()
+      const name = await screen.findByLabelText('Document name')
+      api.getCvDocument.mockReturnValue(new Promise(() => {})) // the server check never answers before unload
+      fireEvent.change(name, { target: { value: 'My edit' } })
+      act(() => { window.document.dispatchEvent(new Event('visibilitychange')) })
+      act(() => { window.dispatchEvent(new Event('pagehide')) })
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+      expect(url).toContain('/cv-documents/d1')
+      expect(init).toMatchObject({ method: 'PATCH', keepalive: true })
+      expect(JSON.parse(init.body as string)).toMatchObject({ name: 'My edit' })
+    } finally {
+      visibility.mockRestore()
+    }
+  })
+
   it('saves over the newer version only when told to keep this copy', async () => {
     view()
     const name = await screen.findByLabelText('Document name')

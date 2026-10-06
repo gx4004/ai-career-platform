@@ -169,6 +169,37 @@ describe('Settings page structure', () => {
     expect(await within(screen.getByRole('list', { name: 'General' })).findByText('Server error')).toBeTruthy()
   })
 
+  it('a re-check that fails is not still called connected (the banner says unreachable)', async () => {
+    api.getHealth.mockResolvedValueOnce({ status: 'ok' }).mockRejectedValueOnce(new ApiError("Can't reach the server.", 0))
+    const { client } = renderPage()
+    const general = within(screen.getByRole('list', { name: 'General' }))
+    expect(await general.findByText('Connected')).toBeTruthy()
+
+    await client.refetchQueries({ queryKey: ['health'] })
+
+    expect(await general.findByText("Can't reach the server")).toBeTruthy()
+    expect(general.queryByText('Connected')).toBeNull()
+  })
+
+  it('a re-check answered with a 5xx after a good one says server error', async () => {
+    api.getHealth.mockResolvedValueOnce({ status: 'ok' }).mockRejectedValueOnce(new ApiError('The server ran into a problem.', 502))
+    const { client } = renderPage()
+    const general = within(screen.getByRole('list', { name: 'General' }))
+    expect(await general.findByText('Connected')).toBeTruthy()
+
+    await client.refetchQueries({ queryKey: ['health'] })
+
+    expect(await general.findByText('Server error')).toBeTruthy()
+  })
+
+  it('a 4xx is an answer from a server that is up, as the service banner reads it, not an unreachable one', async () => {
+    api.getHealth.mockRejectedValueOnce(new ApiError('Too many requests', 429))
+    renderPage()
+    const general = within(screen.getByRole('list', { name: 'General' }))
+    expect(await general.findByText('Connected')).toBeTruthy()
+    expect(general.queryByText("Can't reach the server")).toBeNull()
+  })
+
   it('groups the rows under two headings, each row a title with its explanation and one control', async () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy()

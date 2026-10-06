@@ -5,11 +5,16 @@ import { writePendingIntent } from '#/lib/auth/pendingIntent'
 import { safeInternalPath } from '#/lib/navigation/redirect'
 import { queryClient } from '#/lib/query/queryClient'
 
-type GuardContext = { location: Pick<ParsedLocation, 'href'> }
+/** `preload` is true when the router runs the guard for a hover or touch preload, not a visit. */
+export type GuardContext = { location: Pick<ParsedLocation, 'href'>; preload?: boolean }
 
-/** Sign-in first, then straight back to the page that asked for it. */
-export function redirectToSignIn(location: GuardContext['location']) {
-  const to = safeInternalPath(location.href)
+/**
+ * Sign-in first, then straight back to the page that asked for it. A preload only peeks: it still redirects
+ * (the router then preloads /login, without navigating) but remembers nothing, so hovering a link never
+ * replaces the page a real visit asked to come back to.
+ */
+export function redirectToSignIn(location: GuardContext['location'], preload = false) {
+  const to = preload ? null : safeInternalPath(location.href)
   if (to) writePendingIntent({ to, reason: 'protected-route', createdAt: Date.now() })
   return redirect({ to: '/login' })
 }
@@ -19,12 +24,12 @@ export function redirectToSignIn(location: GuardContext['location']) {
  * second one); a guest is sent to sign in and comes back here afterwards. An outage is not a sign-out: the
  * page renders and its own requests show the problem.
  */
-export async function requireUser({ location }: GuardContext) {
+export async function requireUser({ location, preload }: GuardContext) {
   let user
   try {
     user = await queryClient.fetchQuery({ queryKey: CURRENT_USER_QUERY_KEY, queryFn: fetchSessionUser })
   } catch {
     return
   }
-  if (!user) throw redirectToSignIn(location)
+  if (!user) throw redirectToSignIn(location, preload)
 }

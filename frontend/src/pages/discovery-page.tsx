@@ -175,11 +175,14 @@ export function DiscoveryPage() {
     mutationFn: (listingId: string) => undismissDiscoveryRecommendation(listingId),
     onSuccess: refresh,
   })
+  // The job the "Hid … Undo" toast is about: restoring that job (and only that one) from Hidden closes it.
+  const hiddenToastListingId = useRef<string | null>(null)
   const hide = useMutation({
     mutationFn: (listing: DiscoveryListing) => dismissDiscoveryRecommendation(listing.listing_id),
     retry: false,
     onSuccess: (_result, listing) => {
       if (openListing?.listing_id === listing.listing_id) setOpenListing(null)
+      hiddenToastListingId.current = listing.listing_id
       toast({
         id: 'discovery-hidden',
         icon: <EyeOff aria-hidden="true" />,
@@ -459,8 +462,11 @@ export function DiscoveryPage() {
         onRestore={(job) =>
           undoHide.mutate(job.listing_id, {
             onSuccess: () => {
-              // The "Hid … Undo" toast would now contradict this one.
-              dismiss('discovery-hidden')
+              // The "Hid … Undo" toast for this same job would now contradict this one; another job's stays.
+              if (hiddenToastListingId.current === job.listing_id) {
+                hiddenToastListingId.current = null
+                dismiss('discovery-hidden')
+              }
               toast({ tone: 'success', title: `Restored “${job.title}”.` })
             },
           })
