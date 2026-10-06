@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
@@ -29,6 +30,10 @@ from app.services.tool_runs import (
     persist_tool_run,
     require_valid_parent_run,
 )
+
+# What the AI layer raises once a call has really failed (ai_client._with_retry re-raises the last one).
+_MODEL_FAILURES = (RuntimeError, TimeoutError, json.JSONDecodeError)
+AI_UNAVAILABLE_DETAIL = "The AI service is unavailable right now. Please try again in a moment."
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +173,10 @@ async def run_tool_pipeline(
             duration_ms=failed_duration_ms,
             failure_category=exc.__class__.__name__,
         )
+        if not isinstance(exc, HTTPException) and isinstance(exc, _MODEL_FAILURES):
+            # The model call gave up (retries spent, timed out, unreadable output). Generative tools have
+            # no heuristic to fall back on, so say so with a 503 instead of an unexplained 500.
+            raise HTTPException(status_code=503, detail=AI_UNAVAILABLE_DETAIL) from exc
         raise
 
 
