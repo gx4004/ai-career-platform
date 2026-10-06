@@ -218,12 +218,13 @@ export function ResultJumpNav({ containerRef }: { containerRef: RefObject<HTMLEl
  * Where to go from here: the registry's two next tools for this one, each opening with the resume
  * and job the workflow already carries. Not a list of suggestions made up per result.
  */
-export function WhatNext({ tool }: { tool: ToolDefinition }) {
+export function WhatNext({ tool, lead }: { tool: ToolDefinition; lead?: ReactNode }) {
   const actions = tool.nextActions.filter((action) => action.to !== tool.id)
-  if (actions.length === 0) return null
+  if (actions.length === 0 && !lead) return null
   return (
     <Section id="what-next" title="What next">
       <List aria-label="What next">
+        {lead}
         {actions.map((action) => {
           const target = tools[action.to]
           return (

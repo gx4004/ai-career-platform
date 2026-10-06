@@ -45,6 +45,11 @@ export type WorkflowContextState = {
    * over from an unrelated tool run never reopens the dialog on its own.
    */
   tailorPending?: boolean
+  /** Where a Re-generate found the resume / job text when the tab carried none ("your CV Studio CV “…”"). */
+  resumeSource?: string
+  jobSource?: string
+  /** "Staff Engineer at Northwind", from the re-generated run's application, for the "still needed" line. */
+  jobLabel?: string
   resumeAnalysis?: ResumeResult
   jobMatch?: JobMatchResult
   careerResult?: CareerResult

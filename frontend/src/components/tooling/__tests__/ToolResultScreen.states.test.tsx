@@ -25,6 +25,10 @@ vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({ status: sessionStatus, openAuthDialog: openAuthDialogMock }),
 }))
 vi.mock('#/lib/telemetry/client', () => ({ trackTelemetry: vi.fn() }))
+// Re-generate first fills in what the account has (a network lookup); here it has nothing to add.
+const seedRegenerateMock = vi.hoisted(() => vi.fn(async () => undefined))
+vi.mock('#/lib/tools/regenerateSeed', () => ({ seedRegenerate: seedRegenerateMock }))
+
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
   getHistoryItem: getHistoryItemMock,
@@ -119,7 +123,8 @@ describe('ToolResultScreen states', () => {
     expect(regenerate.getAttribute('aria-expanded')).toBe('true')
     fireEvent.change(screen.getByLabelText('Re-generate feedback'), { target: { value: 'More numbers' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/resume?parent_run_id=run-1&feedback=More+numbers' })
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/resume?parent_run_id=run-1&feedback=More+numbers' }))
+    expect(seedRegenerateMock).toHaveBeenCalledTimes(1)
   })
 
   it('names the run in the header only when the label says more than the page already does', async () => {

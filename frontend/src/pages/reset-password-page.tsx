@@ -7,6 +7,7 @@ import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailure
 import { PasswordInput } from '#/components/auth/PasswordInput'
 import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Panel, PanelBody } from '#/components/kit'
 import { confirmPasswordReset } from '#/lib/api/client'
+import { ApiError } from '#/lib/api/errors'
 import { newPasswordSchema } from '#/lib/api/schemas'
 
 const backToSignIn = (
@@ -29,6 +30,7 @@ export function ResetPasswordPage() {
   const failure = useFormFailure()
   const [passwordError, setPasswordError] = useState('')
   const [confirmError, setConfirmError] = useState('')
+  const [linkRejected, setLinkRejected] = useState(false)
 
   // The link's token is read once and scrubbed from the address bar. A re-run of this effect (the router
   // seeing the scrubbed URL, a dev-mode remount) must keep the token it already consumed.
@@ -63,14 +65,18 @@ export function ResetPasswordPage() {
     )
   }
 
-  if (!token) {
+  if (!token || linkRejected) {
     return (
       <AuthShell>
         <ErrorState
           headingLevel={1}
           role="none"
           title="Invalid reset link"
-          description="This password reset link is missing or expired. Request a new one and we'll email you a fresh link."
+          description={
+            linkRejected
+              ? 'This reset link has expired or was already used. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
+              : 'This password reset link is missing or expired. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
+          }
           backAction={
             <Button asChild>
               <Link to="/login">Back to sign in</Link>
@@ -122,6 +128,12 @@ export function ResetPasswordPage() {
       setStatus('success')
     } catch (err) {
       setStatus('error')
+      // The server answers 400 only for a token it will not accept (expired, used, tampered): that is the
+      // invalid-link state, not a form error. Anything else (rate limit, offline) stays on the form.
+      if (err instanceof ApiError && err.status === 400) {
+        setLinkRejected(true)
+        return
+      }
       failure.fail(err, 'This reset link may have expired. Request a new one.')
     }
   }

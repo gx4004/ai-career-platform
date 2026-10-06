@@ -323,7 +323,8 @@
 }
 
 .kit-gallery__grid--wide {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+  /* 31rem: a numbered Pagination with gaps on both sides (the widest wide specimen) fits one column without spilling. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 31rem), 1fr));
 }
 
 .kit-gallery__paragraph {

@@ -62,6 +62,29 @@ describe('ServiceBanner', () => {
     await vi.waitFor(() => expect(getHealth).toHaveBeenCalledTimes(2))
   })
 
+  it('tells a server error apart from a server it cannot reach', async () => {
+    getCurrentUser.mockRejectedValue(new ApiError('Something went wrong on our side. Try again in a moment.', 503))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await client.prefetchQuery({ queryKey: ['current-user'], queryFn: getCurrentUser })
+    renderBanner(client)
+
+    const banner = await screen.findByRole('status')
+    expect(banner.textContent).toContain('The server ran into a problem')
+    expect(banner.textContent).not.toContain('Can’t reach the server')
+    expect(banner.getAttribute('data-kind')).toBe('server-error')
+  })
+
+  it('names a refused connection as unreachable', async () => {
+    getCurrentUser.mockRejectedValue(new ApiError("Can't reach the server. Check your connection and try again.", 0))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await client.prefetchQuery({ queryKey: ['current-user'], queryFn: getCurrentUser })
+    renderBanner(client)
+
+    const banner = await screen.findByRole('status')
+    expect(banner.textContent).toContain('Can’t reach the server')
+    expect(banner.getAttribute('data-kind')).toBe('unreachable')
+  })
+
   it('treats a 401 as an answer, not an outage', async () => {
     getHealth.mockResolvedValue({ status: 'ok' })
     getCurrentUser.mockRejectedValue(new ApiError('Not authenticated', 401))

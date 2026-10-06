@@ -82,9 +82,15 @@ export function SkillTally({ listing }: { listing: DiscoveryListing }) {
   const matched = listing.matched_skills.length
   const total = matched + listing.missing_skills.length
   if (listing.skills_fit === null || total === 0) return null
+  // A fit that rests on few listed skills is held down on purpose (2 of 2 can read 50%): say what it rests on.
+  const fewListed = listing.fit_confidence === 'low'
+  const noun = total === 1 ? 'skill' : 'skills'
   return (
-    <span className="disc-skills">
-      <span>{`${matched} of ${total} ${total === 1 ? 'skill' : 'skills'}`}</span>
+    <span className="disc-skills" title={fewListed ? 'The posting names few skills, so read this fit as a rough guide.' : undefined}>
+      <span>
+        {fewListed ? `${total} ${noun} listed` : `${matched} of ${total} ${noun}`}
+        {fewListed ? <span className="kit-sr-only">{`, ${matched} matched`}</span> : null}
+      </span>
       <SkillPips matched={matched} total={total} aria-hidden="true" />
     </span>
   )

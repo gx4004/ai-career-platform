@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, Clock, Compass, Plus } from 'lucide-react'
+import { ArrowRight, Check, Clock, Compass, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -88,8 +88,11 @@ export function DashboardToday() {
 function BestMatches({ plan }: { plan: TodayPlan }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // One request at a time: the mutation state lags a render behind a double click, so the guard is a ref.
+  const adding = useRef(false)
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
+    retry: false,
     onSuccess: async (application) => {
       await invalidateApplications(queryClient)
       navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } })
@@ -97,10 +100,12 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
   })
 
   // "Best" only holds for listings the fit stamp itself rates fair or better; when nothing reaches
-  // that, the closest ones are still worth seeing, but they are not called best.
+  // that, the closest ones are still worth seeing, but they are not called best. Weaker ones are not
+  // dropped silently: a last row says how many more Discover has.
   const strong = plan.best_matches.filter((listing) => listing.skills_fit !== null && fitLevel(listing.skills_fit).level !== 'low')
   const closest = strong.length === 0 && plan.best_matches.length > 0
   const shown = closest ? plan.best_matches : strong
+  const weaker = plan.best_matches.length - shown.length
   const title = closest ? 'Closest matches to add' : 'Best matches to add'
 
   return (
@@ -121,9 +126,25 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
                 key={listing.listing_id}
                 listing={listing}
                 adding={adopt.isPending && adopt.variables === listing.listing_id}
-                onAdd={() => adopt.mutate(listing.listing_id)}
+                onAdd={() => {
+                  if (adding.current) return
+                  adding.current = true
+                  adopt.mutate(listing.listing_id, { onSettled: () => { adding.current = false } })
+                }}
               />
             ))}
+            {weaker > 0 ? (
+              <Row>
+                <RowBody>
+                  <Button asChild variant="link" size="sm">
+                    <Link to="/discovery">
+                      {weaker} weaker {weaker === 1 ? 'match' : 'matches'} in Discover
+                      <ArrowRight aria-hidden="true" />
+                    </Link>
+                  </Button>
+                </RowBody>
+              </Row>
+            ) : null}
           </List>
           {adopt.isError ? (
             <Notice tone="danger" className="dash-notice">
@@ -142,7 +163,11 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
   const fit = listing.skills_fit
   const matched = listing.matched_skills.length
   const total = matched + listing.missing_skills.length
-  const sample = `${matched} of ${total} ${total === 1 ? 'skill' : 'skills'}`
+  // A fit that rests on few listed skills is held down on purpose (2 of 2 can read 50%): say what it rests on.
+  const fewListed = listing.fit_confidence === 'low'
+  const sample = fewListed
+    ? `${total} ${total === 1 ? 'skill' : 'skills'} listed`
+    : `${matched} of ${total} ${total === 1 ? 'skill' : 'skills'}`
   const isMobile = useBreakpoint() === 'mobile'
   return (
     <Row className="dash-match">
@@ -166,8 +191,11 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
       </RowBody>
       {total > 0 ? (
         <RowMeta>
-          <span className="dash-skills">
-            <span>{sample}</span>
+          <span className="dash-skills" title={fewListed ? 'The posting names few skills, so read this fit as a rough guide.' : undefined}>
+            <span>
+              {sample}
+              {fewListed ? <span className="kit-sr-only">{`, ${matched} matched`}</span> : null}
+            </span>
             <SkillPips matched={matched} total={total} aria-hidden="true" />
           </span>
         </RowMeta>
@@ -263,7 +291,7 @@ function ActionSticker({ item, now }: { item: TodayActionItem; now: Date }) {
             </Link>
           </StretchedLink>
         </h3>
-        {item.company ? <p className="dash-act__company">{item.company}</p> : null}
+        {item.company ? <p className="dash-act__company" title={item.company}>{item.company}</p> : null}
       </div>
       <div className="dash-act__side">
         {deadline && !Number.isNaN(deadline.getTime()) ? (

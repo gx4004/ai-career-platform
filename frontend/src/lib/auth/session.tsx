@@ -16,33 +16,45 @@ import {
 } from '@tanstack/react-query'
 import {
   API_URL,
-  getAuthProviders,
-  getCurrentUser,
   getHealth,
   login as loginRequest,
   logout as logoutRequest,
   register as registerRequest,
 } from '#/lib/api/client'
 import type { HealthCheck, OAuthProvider, User } from '#/lib/api/schemas'
+import { CURRENT_USER_QUERY_KEY, fetchSessionUser } from '#/lib/auth/currentUser'
 import {
   clearPendingIntent,
   readPendingIntent,
   writePendingIntent,
 } from '#/lib/auth/pendingIntent'
-import { navigateToPath } from '#/lib/navigation/redirect'
+import { clearSessionHint, hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
+import { navigateToPath, safeInternalPath } from '#/lib/navigation/redirect'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 import type { ToolId } from '#/lib/tools/registry'
 
 export type SessionState = {
-  status: 'loading' | 'guest' | 'authenticated'
+  /**
+   * `unreachable`: a browser that was signed in could not ask the server who it is (offline, 5xx). It is
+   * neither a guest nor a known user; the shell's service banner says so, and pages should not offer sign-in.
+   */
+  status: 'loading' | 'guest' | 'authenticated' | 'unreachable'
   user: User | null
   providers: OAuthProvider[]
+  /** A /health result when something fetched one; otherwise `{ status: 'ok' }` once the server answered the session check. */
   health: HealthCheck | null
   authDialogOpen: boolean
   authView: 'login' | 'register'
   authError: string
   openAuthDialog: (
-    intent?: { to?: string; reason?: string; label?: string; toolId?: ToolId },
+    intent?: {
+      to?: string
+      reason?: string
+      label?: string
+      toolId?: ToolId
+      /** Start on the Create account tab instead of Sign in. */
+      view?: 'login' | 'register'
+    },
     action?: () => void | Promise<void>,
   ) => void
   closeAuthDialog: () => void
@@ -84,6 +96,21 @@ function purgeOwnerScopedQueryData(queryClient: QueryClient) {
 
 const SessionContext = createContext<SessionState | null>(null)
 
+const SERVER_ANSWERED: HealthCheck = { status: 'ok' }
+
+/**
+ * A number that changes only when a known owner leaves (sign-out, expiry, a different account). Keyed on it,
+ * the tree drops the previous owner's local state then, and is NOT remounted while the session first
+ * resolves or when a guest signs in (which would lose what they typed and the sign-up welcome).
+ */
+function useOwnerEpoch(userId: string | null, settled: boolean): number {
+  const [owner, setOwner] = useState<{ id: string | null; epoch: number }>({ id: null, epoch: 0 })
+  if (settled && owner.id !== userId) {
+    setOwner({ id: userId, epoch: owner.id ? owner.epoch + 1 : owner.epoch })
+  }
+  return owner.epoch
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
@@ -107,24 +134,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const userQuery = useQuery({
-    queryKey: ['current-user'],
-    queryFn: getCurrentUser,
+    queryKey: CURRENT_USER_QUERY_KEY,
+    queryFn: fetchSessionUser,
     retry: false,
   })
 
-  // /auth/providers is fetched primarily so a missing or misconfigured
-  // endpoint surfaces in tests/telemetry; the response itself is intentionally
-  // not surfaced as account-connection state. See NO_PROVIDERS above.
-  useQuery({
-    queryKey: ['auth-providers'],
-    queryFn: getAuthProviders,
-    retry: false,
-  })
-
+  // Neither the providers list (only the sign-in form needs it) nor /health (a database check) runs on every
+  // page any more. The health result is read from the cache when something fetched it (the service banner).
   const healthQuery = useQuery({
     queryKey: ['health'],
     queryFn: getHealth,
     retry: false,
+    enabled: false,
   })
 
   // Listen for session-expired events from API client. Only act on them if we
@@ -134,13 +155,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const handleExpired = () => {
       if (!hadAuthRef.current) return
       hadAuthRef.current = false
+      clearSessionHint()
       clearSensitiveBrowserData()
       purgeOwnerScopedQueryData(queryClient)
-      queryClient.setQueryData(['current-user'], null)
+      queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null)
 
       if (typeof window !== 'undefined') {
-        const path = window.location.pathname + window.location.search
-        if (path.startsWith('/') && !path.startsWith('//')) {
+        const path = safeInternalPath(window.location.pathname + window.location.search)
+        if (path) {
           writePendingIntent({
             to: path,
             reason: 'session-expired',
@@ -172,22 +194,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await action()
     }
 
-    if (pendingIntent?.to && typeof window !== 'undefined') {
-      const to = pendingIntent.to
-      // Only allow relative paths to prevent open redirect
-      if (to.startsWith('/') && !to.startsWith('//')) {
-        if (window.location.pathname !== to) {
-          navigateToPath(to)
-        }
-      }
-    }
+    if (typeof window === 'undefined') return
+    // On the sign-in page the page itself moves on (it may first welcome a new account).
+    if (window.location.pathname === '/login') return
+    const to = safeInternalPath(pendingIntent?.to)
+    if (to && window.location.pathname + window.location.search !== to) navigateToPath(to)
   }, [])
 
   const openAuthDialog = useCallback<SessionState['openAuthDialog']>(
     (intent, action) => {
       if (intent) {
         writePendingIntent({
-          ...intent,
+          to: intent.to,
+          reason: intent.reason,
+          label: intent.label,
+          toolId: intent.toolId,
           createdAt: Date.now(),
         })
       }
@@ -195,18 +216,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       pendingActionRef.current = action || null
 
       // Navigate to /login instead of opening a popup dialog
-      navigateToPath('/login')
+      navigateToPath(intent?.view === 'register' ? '/login?view=register' : '/login')
     },
     [],
   )
 
   const completeAuthentication = useCallback(async () => {
+    markSessionHint()
     // A successful credential exchange can establish a different owner in the
     // same tab. Purge before resolving that identity so no prior-owner query or
     // mutation payload can render during the transition.
     purgeOwnerScopedQueryData(queryClient)
-    queryClient.setQueryData(['current-user'], null)
-    await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null)
+    try {
+      await queryClient.fetchQuery({ queryKey: CURRENT_USER_QUERY_KEY, queryFn: fetchSessionUser, staleTime: 0 })
+    } catch {
+      // The cookies are set: the person is signed in even if the server cannot say who they are right now.
+      // The query keeps the error (status 'unreachable', the service banner re-checks); repeating the sign-in
+      // would not help, and a repeated sign-up would fail as an existing account.
+    }
     closeAuthDialog()
     await consumePendingIntent()
   }, [closeAuthDialog, consumePendingIntent, queryClient])
@@ -251,6 +279,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch {
       // Local session cleanup still runs so the UI does not stay stuck.
     } finally {
+      clearSessionHint()
       clearSensitiveBrowserData()
       clearPendingIntent()
       pendingActionRef.current = null
@@ -258,8 +287,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setAuthError('')
       hadAuthRef.current = false
       purgeOwnerScopedQueryData(queryClient)
-      queryClient.setQueryData(['current-user'], null)
-      await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+      // Known without asking: the server was just told to end this session.
+      queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null)
     }
   }, [queryClient])
 
@@ -267,14 +296,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     ? 'loading'
     : userQuery.data
       ? 'authenticated'
-      : 'guest'
+      : userQuery.isError && hasSessionHint()
+        ? 'unreachable'
+        : 'guest'
+  const ownerEpoch = useOwnerEpoch(userQuery.data?.id ?? null, !userQuery.isPending)
+  const serverAnswered = userQuery.isSuccess
 
   const value = useMemo<SessionState>(
     () => ({
       status,
       user: userQuery.data || null,
       providers: NO_PROVIDERS,
-      health: healthQuery.data || null,
+      health: healthQuery.data ?? (serverAnswered ? SERVER_ANSWERED : null),
       authDialogOpen,
       authView,
       authError,
@@ -306,6 +339,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       closeAuthDialog,
       googleLogin,
       healthQuery.data,
+      serverAnswered,
       login,
       logout,
       openAuthDialog,
@@ -317,7 +351,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <SessionContext.Provider value={value}>
-      <Fragment key={userQuery.data?.id ?? 'guest'}>
+      <Fragment key={ownerEpoch}>
         {children}
       </Fragment>
     </SessionContext.Provider>

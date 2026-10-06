@@ -20,8 +20,6 @@ const api = vi.hoisted(() => ({
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => session }))
-// The backend route for a saved version's file is not there yet; these tests cover the wiring for when it ships.
-vi.mock('#/components/cv-studio/cvApi', async (importOriginal) => ({ ...(await importOriginal<typeof import('#/components/cv-studio/cvApi')>()), VARIANT_EXPORT_READY: true }))
 
 const experience = {
   id: 's1', kind: 'experience' as const, title: 'Experience', visible: true, position: 0,

@@ -7,6 +7,9 @@ import { AdminUsersPage } from '#/pages/admin/admin-users-page'
 const getAdminUsersMock = vi.hoisted(() => vi.fn())
 const setAdminStatusMock = vi.hoisted(() => vi.fn())
 
+const session = vi.hoisted(() => ({ user: null as { id: string } | null }))
+vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated', user: session.user }) }))
+
 vi.mock('#/lib/api/admin', () => ({
   getAdminUsers: getAdminUsersMock,
   setAdminStatus: setAdminStatusMock,
@@ -26,7 +29,7 @@ const user = (id: string, overrides: Record<string, unknown> = {}) => ({
 function renderPage(items: unknown[], total = items.length, currentUserId?: string) {
   getAdminUsersMock.mockResolvedValue({ items, total, page: 1, page_size: 20 })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  if (currentUserId) client.setQueryData(['current-user'], { id: currentUserId })
+  session.user = currentUserId ? { id: currentUserId } : null
   render(
     <QueryClientProvider client={client}>
       <ToastProvider>

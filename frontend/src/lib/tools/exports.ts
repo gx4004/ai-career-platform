@@ -1,4 +1,4 @@
-import { API_URL } from '#/lib/api/client'
+import { requestBlob } from '#/lib/api/client'
 
 type AnyObject = Record<string, unknown>
 
@@ -77,6 +77,8 @@ export function formatExportContent(
     .join('\n\n')
 }
 
+const MAX_NAME_LENGTH = 80
+
 export function sanitizeDownloadTitle(title: string, format: ExportFormat): string {
   const fallback = format === 'md' ? 'career-workbench-export.md' : 'career-workbench-export.txt'
   const cleaned = title
@@ -86,25 +88,33 @@ export function sanitizeDownloadTitle(title: string, format: ExportFormat): stri
     .replace(/^-+|-+$/g, '')
 
   if (!cleaned) return fallback
-  return `${cleaned}.${format}`
+  return `${cleaned.slice(0, MAX_NAME_LENGTH).replace(/-+$/, '')}.${format}`
+}
+
+/**
+ * A file name that is safe to hand to `a.download`: no path separators, quotes, reserved or
+ * control characters, no trailing dots, at most 80 characters before the extension.
+ * Returns '' when nothing usable is left, so callers can fall back.
+ */
+export function safeFileName(name: string, extension?: string): string {
+  const ext = extension ? `.${extension.replace(/^\./, '')}` : ''
+  let base = name
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/[\\/:*?"'`<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (ext && base.toLowerCase().endsWith(ext.toLowerCase())) base = base.slice(0, -ext.length)
+  base = base.slice(0, MAX_NAME_LENGTH).replace(/[. ]+$/g, '').replace(/^[. ]+/g, '')
+  return base ? `${base}${ext}` : ''
 }
 
 export async function exportPdf(historyId: string): Promise<void> {
-  const res = await fetch(
-    `${API_URL}/history/${historyId}/export/pdf`,
-    { credentials: 'include' },
-  )
-  if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent('cw:session-expired'))
-    throw new Error('PDF export requires sign-in')
-  }
-  if (!res.ok) throw new Error('PDF export failed')
-
-  const blob = await res.blob()
+  // Same session rules as every other request: a lapsed access token is refreshed and retried, not a sign-out.
+  const { blob, filename } = await requestBlob(`/history/${encodeURIComponent(historyId)}/export/pdf`)
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `result-${historyId}.pdf`
+  a.download = safeFileName(filename ?? '', 'pdf') || `result-${historyId}.pdf`
   a.click()
   URL.revokeObjectURL(url)
 }

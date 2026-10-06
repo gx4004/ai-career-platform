@@ -746,9 +746,14 @@ export const importedJobSchema = z.object({
 
 export const importJobUrlSchema = z.strictObject({
   url: z.string().url().max(2_048).refine((value) => {
-    const protocol = new URL(value).protocol
-    return protocol === 'http:' || protocol === 'https:'
-  }, 'URL must use HTTP or HTTPS'),
+    // Checks run even after .url() failed, so a bare "example.com/job" must not throw here.
+    try {
+      const protocol = new URL(value).protocol
+      return protocol === 'http:' || protocol === 'https:'
+    } catch {
+      return false
+    }
+  }, 'Enter a full link starting with https://'),
   campaign_id: z.string().optional(),
 })
 export const importJobTextSchema = z.strictObject({

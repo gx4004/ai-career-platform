@@ -20,16 +20,13 @@ import {
 import type { TableColumn } from '#/components/kit'
 import { getAdminUsers, setAdminStatus } from '#/lib/api/admin'
 import type { AdminUserItem, AdminUserListResponse } from '#/lib/api/admin'
+import { useSession } from '#/hooks/useSession'
 import { adminDate } from './toolLabel'
 import { countMeta } from './count-meta'
 
-/**
- * Who is signed in, read from the session's own cache entry so the page can keep an admin from changing their own role.
- * Read, not observed: an observer without a queryFn logs an error whenever the query is refetched.
- */
+/** Who is signed in, from the session (subscribed), so the page can keep an admin from changing their own role. */
 function useCurrentUserId() {
-  const queryClient = useQueryClient()
-  return queryClient.getQueryData<{ id: string } | null>(['current-user'])?.id ?? null
+  return useSession().user?.id ?? null
 }
 
 const displayName = (user: AdminUserItem) => user.full_name || user.email

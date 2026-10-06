@@ -46,6 +46,8 @@ import {
 } from '#/lib/tools/exports'
 import { FixFirstList, resultDefinitions } from '#/lib/tools/resultDefinitions'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
+import { seedRegenerate } from '#/lib/tools/regenerateSeed'
+import { TrackJobRow } from '#/components/tooling/TrackJob'
 import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { trackTelemetry } from '#/lib/telemetry/client'
@@ -75,6 +77,7 @@ export function ToolResultScreen({
   const [copied, setCopied] = useState(false)
   const [regenOpen, setRegenOpen] = useState(false)
   const [regenFeedback, setRegenFeedback] = useState('')
+  const [regenSeeding, setRegenSeeding] = useState(false)
   const [practicing, setPracticing] = useState(false)
   const [scoreDelta, setScoreDelta] = useState<number | null>(null)
   const [parentRunId, setParentRunId] = useState<string | null>(null)
@@ -257,11 +260,23 @@ export function ToolResultScreen({
       : item.label || resolvedTool.shortLabel
   const savedResult = item.saved
   const guestResult = !savedResult
-  function handleRegenSubmit() {
+  async function handleRegenSubmit() {
+    if (regenSeeding) return
     const params = new URLSearchParams()
     params.set('parent_run_id', historyId)
     if (regenFeedback.trim()) {
       params.set('feedback', regenFeedback.trim())
+    }
+    // A result opened cold has nothing in this tab to carry: fill in what the account still has first.
+    if (item && !guestResult) {
+      setRegenSeeding(true)
+      try {
+        await seedRegenerate(item, resolvedTool.id)
+      } catch {
+        /* seeding is best effort: the form asks for anything missing */
+      } finally {
+        setRegenSeeding(false)
+      }
     }
     void navigate({ to: `${resolvedTool.route}?${params.toString()}` })
   }
@@ -512,7 +527,7 @@ export function ToolResultScreen({
                 <p className="result-note">
                   {carriesInput
                     ? 'Your resume and job from this session are filled in on the next screen; your feedback goes with them.'
-                    : 'This run does not keep your resume text. Paste it again on the next screen; your feedback goes with it.'}
+                    : 'Runs don’t keep their inputs. The next screen fills in what your account has, like your newest CV Studio CV, and asks for the rest.'}
                 </p>
                 <Cluster justify="end">
                   <Button
@@ -526,7 +541,7 @@ export function ToolResultScreen({
                   >
                     Cancel
                   </Button>
-                  <Button type="button" variant="secondary" size="sm" onClick={handleRegenSubmit}>
+                  <Button type="button" variant="secondary" size="sm" loading={regenSeeding} onClick={() => void handleRegenSubmit()}>
                     Submit
                   </Button>
                 </Cluster>
@@ -555,7 +570,14 @@ export function ToolResultScreen({
             payload={payload as Record<string, unknown>}
             authenticated={status === 'authenticated'}
           />
-          <WhatNext tool={resolvedTool} />
+          <WhatNext
+            tool={resolvedTool}
+            lead={
+              resolvedTool.id === 'job-match' && savedResult && status === 'authenticated' ? (
+                <TrackJobRow item={item} />
+              ) : undefined
+            }
+          />
           {summaryInfo.note ? <p className="result-footnote">{summaryInfo.note}</p> : null}
         </div>
       </Page>

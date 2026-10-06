@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { ApiError } from '#/lib/api/errors'
+import { ApiError, apiErrorFromResponse, apiErrorFromZod, networkErrorFrom } from '#/lib/api/errors'
+import { clearSessionHint, hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
 import { gapClassificationListResponseSchema } from '#/lib/api/gapClassificationSchemas'
 import { gapResponseOfferSchema } from '#/lib/api/gapResponseSchemas'
 import {
@@ -97,7 +98,7 @@ export function exportCvDocuments() {
 
 export function createCvDocument(payload: CvDocumentCreate) {
   return request('/cv-documents', {
-    method: 'POST', body: cvDocumentCreateSchema.parse(payload), schema: cvDocumentSchema,
+    method: 'POST', body: parseRequest(cvDocumentCreateSchema, payload), schema: cvDocumentSchema,
   })
 }
 
@@ -115,13 +116,13 @@ export function deleteAllCvDocuments() {
 
 export function updateCvDocument(documentId: string, payload: CvDocumentUpdate) {
   return request(`/cv-documents/${documentId}`, {
-    method: 'PATCH', body: cvDocumentUpdateSchema.parse(payload), schema: cvDocumentSchema,
+    method: 'PATCH', body: parseRequest(cvDocumentUpdateSchema, payload), schema: cvDocumentSchema,
   })
 }
 
 export function snapshotCvVariant(documentId: string, name: string) {
   return request(`/cv-documents/${documentId}/variants`, {
-    method: 'POST', body: cvVariantCreateSchema.parse({ name, target_role: null }), schema: cvVariantSchema,
+    method: 'POST', body: parseRequest(cvVariantCreateSchema, { name, target_role: null }), schema: cvVariantSchema,
   })
 }
 
@@ -154,30 +155,14 @@ export function proposeCvImport(file: File) {
 
 export function acceptCvImport(proposal: CvImportProposal) {
   return request('/cv-documents/import/accept', {
-    method: 'POST', body: cvImportAcceptSchema.parse(proposal), schema: cvDocumentSchema,
+    method: 'POST', body: parseRequest(cvImportAcceptSchema, proposal), schema: cvDocumentSchema,
   })
 }
 
 /** The saved CV rendered in its saved style: exactly what Export downloads. */
-export async function fetchCvArtifactBlob(documentId: string, format: 'docx' | 'pdf', retry = false): Promise<Blob> {
-  const url = `${API_URL}/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}`
-  const response = await fetch(url, {
-    credentials: 'include', signal: AbortSignal.timeout(180_000),
-  })
-  if (response.status === 401 && !retry && Date.now() >= refreshCooldownUntil) {
-    try {
-      if (!refreshPromise) refreshPromise = silentRefresh()
-      await refreshPromise
-      refreshPromise = null
-      return fetchCvArtifactBlob(documentId, format, true)
-    } catch {
-      refreshPromise = null
-      refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
-      dispatchSessionExpired()
-    }
-  }
-  if (!response.ok) throw new ApiError('Artifact export failed', response.status)
-  return response.blob()
+export async function fetchCvArtifactBlob(documentId: string, format: 'docx' | 'pdf'): Promise<Blob> {
+  const { blob } = await requestBlob(`/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}`)
+  return blob
 }
 
 export function tailorCvDocument(documentId: string, payload: { job_title: string; job_description: string }) {
@@ -185,7 +170,7 @@ export function tailorCvDocument(documentId: string, payload: { job_title: strin
 }
 
 export function applyCvTailoring(documentId: string, payload: unknown) {
-  return request(`/cv-documents/${documentId}/tailoring/apply`, { method: 'POST', body: cvTailoringApplySchema.parse(payload), schema: cvVariantSchema })
+  return request(`/cv-documents/${documentId}/tailoring/apply`, { method: 'POST', body: parseRequest(cvTailoringApplySchema, payload), schema: cvVariantSchema })
 }
 
 function trimTrailingSlash(value: string): string {
@@ -208,7 +193,11 @@ export const API_URL = resolveApiUrl()
 type RequestOptions<T> = Omit<RequestInit, 'body'> & {
   body?: RequestInit['body'] | Record<string, unknown>
   schema?: z.ZodType<T>
+  /** Give up after this long; 3 minutes by default, for LLM calls. */
+  timeoutMs?: number
 }
+
+const DEFAULT_TIMEOUT_MS = 180_000
 
 function normalizeBody(body: RequestInit['body'] | Record<string, unknown> | undefined) {
   if (!body) return undefined
@@ -243,6 +232,9 @@ export function __resetRefreshState() {
   sessionExpiredDispatchedAt = 0
 }
 
+/** The server refused the refresh token itself (as opposed to being slow, down or rate-limited). */
+class RefreshRejected extends Error {}
+
 async function silentRefresh(): Promise<void> {
   // Refresh endpoint sets new HttpOnly cookies server-side; response body is ignored.
   // 10s ceiling so a hung auth endpoint can't block every 401-retry indefinitely
@@ -254,75 +246,116 @@ async function silentRefresh(): Promise<void> {
     credentials: 'include',
     signal: AbortSignal.timeout(10_000),
   })
+  if (res.status === 401 || res.status === 403) throw new RefreshRejected('refresh rejected')
   if (!res.ok) throw new Error('refresh failed')
+}
+
+function refreshOnce(): Promise<void> {
+  if (!refreshPromise) {
+    refreshPromise = silentRefresh().finally(() => {
+      refreshPromise = null
+    })
+  }
+  return refreshPromise
+}
+
+// Paths whose 401 is an answer, not an expired session: a wrong password must not look like one.
+const NO_REFRESH_PATHS = new Set(['/auth/refresh', '/auth/login'])
+
+/**
+ * fetch() with the app's session rules, shared by every call that needs the signed-in cookie (JSON requests,
+ * file downloads): a dropped connection or a timeout becomes a NetworkError; a 401 triggers one silent refresh
+ * and one retry, but only in a browser that has held a session (an anonymous visitor has nothing to refresh,
+ * and would otherwise spend the shared refresh limit on every page view). The person is signed out only when
+ * the refresh token itself is refused or the session already ended elsewhere (no hint left), never because
+ * the refresh was slow, down or rate-limited.
+ */
+async function fetchWithSession(path: string, makeInit: () => RequestInit): Promise<Response> {
+  const send = async () => {
+    try {
+      return await fetch(`${API_URL}${path}`, makeInit())
+    } catch (error) {
+      throw networkErrorFrom(error)
+    }
+  }
+
+  const response = await send()
+  if (response.status !== 401 || NO_REFRESH_PATHS.has(path)) return response
+  if (!hasSessionHint()) {
+    // Nothing to refresh. A tab that still shows a signed-in user (the hint went with a sign-out or a refused
+    // refresh in another tab) must hear that its session ended; the session ignores this for a guest.
+    dispatchSessionExpired()
+    return response
+  }
+
+  // A refresh failed a moment ago without being refused (a refused one clears the hint above): it was slow,
+  // down or rate-limited, so this 401 is answered as it is, without another refresh and without a sign-out.
+  if (Date.now() < refreshCooldownUntil) return response
+  try {
+    await refreshOnce()
+    // The refresh cookie was just renewed, so the hint lives as long as it does.
+    markSessionHint()
+  } catch (error) {
+    refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
+    if (error instanceof RefreshRejected) {
+      clearSessionHint()
+      dispatchSessionExpired()
+    }
+    return response
+  }
+  const retried = await send()
+  if (retried.status === 401) {
+    clearSessionHint()
+    dispatchSessionExpired()
+  }
+  return retried
+}
+
+/** Validate what is about to be sent; a mistake is an ApiError 422 with a sentence, not a Zod dump. */
+function parseRequest<T>(schema: z.ZodType<T>, payload: unknown): T {
+  const result = schema.safeParse(payload)
+  if (result.success) return result.data
+  throw apiErrorFromZod(result.error)
+}
+
+async function readBody(response: Response): Promise<unknown> {
+  return response
+    .clone()
+    .json()
+    .catch(async () => response.text().catch(() => ''))
 }
 
 export async function request<T>(
   path: string,
   options: RequestOptions<T> = {},
-  _isRetry = false,
 ): Promise<T> {
-  const headers = new Headers(options.headers || {})
-  const body = normalizeBody(options.body as RequestInit['body'])
+  const { schema, timeoutMs = DEFAULT_TIMEOUT_MS, ...init } = options
+  const headers = new Headers(init.headers || {})
+  const body = normalizeBody(init.body as RequestInit['body'])
 
   if (body && !(body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
+  const response = await fetchWithSession(path, () => ({
+    ...init,
     body,
     headers,
     credentials: 'include',
-    signal: AbortSignal.timeout(180_000), // 3 minute timeout for LLM calls
-  })
+    signal: AbortSignal.timeout(timeoutMs),
+  }))
 
-  const parsed = await response
-    .clone()
-    .json()
-    .catch(async () => response.text().catch(() => ''))
+  const parsed = await readBody(response)
 
-  if (!response.ok) {
-    // Try silent refresh on 401 (skip for refresh endpoint itself and retries)
-    if (
-      response.status === 401 &&
-      !_isRetry &&
-      path !== '/auth/refresh' &&
-      Date.now() >= refreshCooldownUntil
-    ) {
-      try {
-        if (!refreshPromise) {
-          refreshPromise = silentRefresh()
-        }
-        await refreshPromise
-        refreshPromise = null
-        return request(path, options, true)
-      } catch {
-        refreshPromise = null
-        refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
-        dispatchSessionExpired()
-      }
-    } else if (response.status === 401) {
-      dispatchSessionExpired()
-    }
+  if (!response.ok) throw apiErrorFromResponse(response.status, parsed, response.headers)
 
-    const detail =
-      typeof parsed === 'string'
-        ? parsed
-        : typeof parsed === 'object' && parsed && 'detail' in parsed
-          ? String(parsed.detail)
-          : undefined
-
-    throw new ApiError(detail || 'Request failed', response.status, detail)
-  }
-
-  if (options.schema) {
+  if (schema) {
     // Convert a Zod parse failure into an ApiError so downstream consumers can
     // rely on a uniform error shape (`.status`, `.detail`). A 200 with a body
     // that no longer matches the schema is a backend/frontend contract drift,
     // not a 4xx; surface it as 502 so users see "service issue" not "bad input".
     try {
-      return options.schema.parse(parsed)
+      return schema.parse(parsed)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid response shape'
       throw new ApiError('Server returned an unexpected response', 502, message)
@@ -330,6 +363,31 @@ export async function request<T>(
   }
 
   return parsed as T
+}
+
+/** A file the signed-in cookie unlocks (PDF, DOCX), with the name the server suggested for it. */
+export async function requestBlob(path: string): Promise<{ blob: Blob; filename: string | null }> {
+  const response = await fetchWithSession(path, () => ({
+    credentials: 'include',
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+  }))
+  if (!response.ok) throw apiErrorFromResponse(response.status, await readBody(response), response.headers)
+  return { blob: await response.blob(), filename: filenameFromDisposition(response.headers?.get('Content-Disposition')) }
+}
+
+function filenameFromDisposition(header: string | null | undefined): string | null {
+  if (!header) return null
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  const plain = /filename="?([^";]+)"?/i.exec(header)
+  const raw = encoded?.[1] ?? plain?.[1]
+  if (!raw) return null
+  try {
+    const name = decodeURIComponent(raw).trim()
+    // A name from a header is only ever a file name, never a path.
+    return name && !/[\\/]/.test(name) ? name : null
+  } catch {
+    return null
+  }
 }
 
 export type HistoryQueryParams = {
@@ -345,7 +403,7 @@ export type HistoryQueryParams = {
 export async function login(payload: z.input<typeof loginRequestSchema>): Promise<void> {
   await request('/auth/login', {
     method: 'POST',
-    body: loginRequestSchema.parse(payload),
+    body: parseRequest(loginRequestSchema, payload),
     schema: authSessionResponseSchema,
   })
 }
@@ -353,7 +411,7 @@ export async function login(payload: z.input<typeof loginRequestSchema>): Promis
 export function register(payload: z.input<typeof registerRequestSchema>) {
   return request('/auth/register', {
     method: 'POST',
-    body: registerRequestSchema.parse(payload),
+    body: parseRequest(registerRequestSchema, payload),
     schema: userSchema,
   })
 }
@@ -456,7 +514,7 @@ export function undismissDiscoveryRecommendation(listingId: string) {
 
 export function createEvidenceItem(payload: EvidenceItemCreate) {
   return request('/evidence-profile/items', {
-    method: 'POST', body: evidenceItemCreateSchema.parse(payload), schema: evidenceItemSchema,
+    method: 'POST', body: parseRequest(evidenceItemCreateSchema, payload), schema: evidenceItemSchema,
   })
 }
 
@@ -465,7 +523,7 @@ export function updateEvidenceItem(
   payload: EvidenceItemUpdate,
 ) {
   return request(`/evidence-profile/items/${itemId}`, {
-    method: 'PATCH', body: evidenceItemUpdateSchema.parse(payload), schema: evidenceItemSchema,
+    method: 'PATCH', body: parseRequest(evidenceItemUpdateSchema, payload), schema: evidenceItemSchema,
   })
 }
 
@@ -481,7 +539,7 @@ export function confirmEvidenceItem(itemId: string) {
 export function confirmEvidenceItems(ids: string[]) {
   return request('/evidence-profile/items/confirm', {
     method: 'POST',
-    body: evidenceItemIdsSchema.parse({ ids }),
+    body: parseRequest(evidenceItemIdsSchema, { ids }),
     schema: evidenceItemListSchema,
   })
 }
@@ -506,7 +564,7 @@ export function exportCareerData() {
 export function importEvidenceFromResume(resumeText: string) {
   return request('/evidence-profile/import', {
     method: 'POST',
-    body: evidenceImportRequestSchema.parse({ resume_text: resumeText }),
+    body: parseRequest(evidenceImportRequestSchema, { resume_text: resumeText }),
     schema: evidenceItemListSchema,
   })
 }
@@ -525,7 +583,7 @@ export function parseCv(file: File) {
 export function importJobUrl(payload: { url: string; campaign_id?: string }) {
   return request('/job-posts/import-url', {
     method: 'POST',
-    body: importJobUrlSchema.parse(payload),
+    body: parseRequest(importJobUrlSchema, payload),
     schema: importedJobSchema,
   })
 }
@@ -537,14 +595,14 @@ export function importJobText(payload: {
   job_description: string
 }) {
   return request('/job-posts/import-text', {
-    method: 'POST', body: importJobTextSchema.parse(payload), schema: importedJobSchema,
+    method: 'POST', body: parseRequest(importJobTextSchema, payload), schema: importedJobSchema,
   })
 }
 
 export function runResumeAnalysis(payload: z.input<typeof resumeAnalyzeRequestSchema>) {
   return request('/resume/analyze', {
     method: 'POST',
-    body: resumeAnalyzeRequestSchema.parse(payload),
+    body: parseRequest(resumeAnalyzeRequestSchema, payload),
     schema: resumeResultSchema,
   })
 }
@@ -552,7 +610,7 @@ export function runResumeAnalysis(payload: z.input<typeof resumeAnalyzeRequestSc
 export function runJobMatch(payload: z.input<typeof jobMatchRequestSchema>) {
   return request('/job-match/match', {
     method: 'POST',
-    body: jobMatchRequestSchema.parse(payload),
+    body: parseRequest(jobMatchRequestSchema, payload),
     schema: jobMatchResultSchema,
   })
 }
@@ -560,7 +618,7 @@ export function runJobMatch(payload: z.input<typeof jobMatchRequestSchema>) {
 export function runCoverLetter(payload: z.input<typeof coverLetterRequestSchema>) {
   return request('/cover-letter/generate', {
     method: 'POST',
-    body: coverLetterRequestSchema.parse(payload),
+    body: parseRequest(coverLetterRequestSchema, payload),
     schema: coverLetterResultSchema,
   })
 }
@@ -568,7 +626,7 @@ export function runCoverLetter(payload: z.input<typeof coverLetterRequestSchema>
 export function runInterview(payload: z.input<typeof interviewRequestSchema>) {
   return request('/interview/questions', {
     method: 'POST',
-    body: interviewRequestSchema.parse(payload),
+    body: parseRequest(interviewRequestSchema, payload),
     schema: interviewResultSchema,
   })
 }
@@ -588,7 +646,7 @@ export function runInterviewPracticeFeedback(payload: {
 export function runCareer(payload: z.input<typeof careerRequestSchema>) {
   return request('/career/recommend', {
     method: 'POST',
-    body: careerRequestSchema.parse(payload),
+    body: parseRequest(careerRequestSchema, payload),
     schema: careerResultSchema,
   })
 }
@@ -596,7 +654,7 @@ export function runCareer(payload: z.input<typeof careerRequestSchema>) {
 export function runPortfolio(payload: z.input<typeof portfolioRequestSchema>) {
   return request('/portfolio/recommend', {
     method: 'POST',
-    body: portfolioRequestSchema.parse(payload),
+    body: parseRequest(portfolioRequestSchema, payload),
     schema: portfolioResultSchema,
   })
 }
@@ -660,7 +718,7 @@ export function updateHistoryWorkspace(
 ) {
   return request(`/history/workspaces/${workspaceId}`, {
     method: 'PATCH',
-    body: workspaceUpdateSchema.parse(payload),
+    body: parseRequest(workspaceUpdateSchema, payload),
     schema: workspaceSummarySchema,
   })
 }
@@ -682,7 +740,7 @@ export function getApplication(applicationId: string) {
 export function updateApplication(applicationId: string, payload: ApplicationUpdate) {
   return request(`/applications/${applicationId}`, {
     method: 'PATCH',
-    body: applicationUpdateSchema.parse(payload),
+    body: parseRequest(applicationUpdateSchema, payload),
     schema: applicationDetailSchema,
   })
 }
@@ -770,7 +828,7 @@ export function getApplicationPreferences() {
 export function saveApplicationPreferences(payload: ApplicationPreferencesUpdate) {
   return request('/applications/preferences', {
     method: 'PUT',
-    body: applicationPreferencesUpdateSchema.parse(payload),
+    body: parseRequest(applicationPreferencesUpdateSchema, payload),
     schema: applicationPreferencesSchema,
   })
 }
@@ -782,7 +840,7 @@ export function getApplicationDetails() {
 export function saveApplicationDetails(payload: ApplicationDetailsUpdate) {
   return request('/applications/details', {
     method: 'PUT',
-    body: applicationDetailsUpdateSchema.parse(payload),
+    body: parseRequest(applicationDetailsUpdateSchema, payload),
     schema: applicationDetailsSchema,
   })
 }
@@ -802,7 +860,7 @@ export function requestPasswordReset(payload: { email: string }) {
 export function confirmPasswordReset(payload: z.input<typeof passwordResetConfirmRequestSchema>) {
   return request<{ message: string }>('/auth/password-reset/confirm', {
     method: 'POST',
-    body: passwordResetConfirmRequestSchema.parse(payload),
+    body: parseRequest(passwordResetConfirmRequestSchema, payload),
   })
 }
 

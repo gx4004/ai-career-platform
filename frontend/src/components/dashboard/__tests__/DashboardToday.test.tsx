@@ -181,6 +181,8 @@ describe('DashboardToday', () => {
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: /^Best matches to add/ })).toBeTruthy()
     expect(screen.queryByText('Data Engineer')).toBeNull()
+    // Not dropped silently: the list says how many weaker ones Discover has, and the count is the rows shown.
+    expect(screen.getByRole('link', { name: '1 weaker match in Discover' }).getAttribute('href')).toBe('/discovery')
     unmount()
 
     getToday.mockResolvedValue(plan({ best_matches: [weak] }))
@@ -188,6 +190,28 @@ describe('DashboardToday', () => {
     expect(await screen.findByText('Data Engineer')).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: /^Closest matches to add/ })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: /^Best matches to add/ })).toBeNull()
+  })
+
+  it('says what a low-confidence fit rests on instead of "2 of 2 skills" next to 50%', async () => {
+    getToday.mockResolvedValue(
+      plan({ best_matches: [{ ...LISTING, skills_fit: 50, fit_confidence: 'low', matched_skills: ['Go', 'Python'], missing_skills: [] }] }),
+    )
+    renderToday()
+    expect(await screen.findByText('2 skills listed')).toBeTruthy()
+    expect(screen.queryByText('2 of 2 skills')).toBeNull()
+  })
+
+  it('sends one add for a double click', async () => {
+    getToday.mockResolvedValue(plan())
+    let resolve: (value: { id: string }) => void = () => {}
+    adopt.mockReturnValue(new Promise((r) => { resolve = r }))
+    renderToday()
+    const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+    fireEvent.click(add)
+    fireEvent.click(add)
+    resolve({ id: 'app-1' })
+    await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1))
+    expect(adopt).toHaveBeenCalledTimes(1)
   })
 
   it('keeps Add visible at rest: it is not one of the hover-revealed actions', async () => {

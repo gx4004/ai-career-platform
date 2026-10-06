@@ -149,6 +149,16 @@
     align-self: center;
   }
 
+  /* Beside a date stamp the company keeps one line, whatever the date's width: the full name is in the
+     title. Other stickers let a long name wrap between words. */
+  .dash-act:has(.dash-date-stamp) .dash-act__company {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
   .dash-act__side {
     grid-column: 2;
     grid-row: 3;
@@ -165,9 +175,23 @@
     gap: var(--s2);
   }
 
-  .kit-stat.dash-date-stamp .kit-stat__number {
+  /* [data-size] outranks the kit's stamp size (3rem), which otherwise wins on source order. */
+  .kit-stat.dash-date-stamp[data-size] .kit-stat__number {
     font-size: 2rem;
     line-height: 2rem;
+  }
+
+  .kit-stat.dash-date-stamp .kit-stat__label {
+    white-space: nowrap;
+  }
+}
+
+/* The narrowest phones: the date goes back over its label, so the company keeps most of its line. */
+@media (max-width: 359px) {
+  .kit-stat.dash-date-stamp {
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 0;
   }
 }
 

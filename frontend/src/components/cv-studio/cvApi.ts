@@ -20,13 +20,6 @@ export async function keepalivePatch(documentId: string, payload: CvDocumentUpda
   return cvDocumentSchema.parse(await response.json())
 }
 
-/**
- * Whether the backend serves `GET /cv-documents/{id}/variants/{variantId}/artifacts/{format}`. It does not yet
- * (backend lane, cv-studio-d11), so version cards offer Preview and Restore only: no export control that can only fail.
- * Set to true when the route ships.
- */
-export const VARIANT_EXPORT_READY = false
-
 /** Thrown when the server has no file route for a saved version (an older backend). */
 export class VersionExportUnavailable extends Error {
   constructor() { super('Exporting a saved version is not available on this server yet.') }

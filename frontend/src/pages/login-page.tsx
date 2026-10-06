@@ -1,5 +1,5 @@
 import { Link, useRouter } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { authCopy } from '#/components/auth/auth-copy'
 import { AuthIntentNotice } from '#/components/auth/AuthIntentNotice'
@@ -8,6 +8,11 @@ import { AuthShell } from '#/components/auth/AuthShell'
 import { AuthStamp } from '#/components/auth/AuthStamp'
 import { Button, EmptyState, Notice, PageHeader } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
+import { readPendingIntent } from '#/lib/auth/pendingIntent'
+import { safeInternalPath } from '#/lib/navigation/redirect'
+
+/** How long a new account's welcome stays before the page moves on by itself. */
+const WELCOME_MS = 2400
 
 const OAUTH_ERROR_COPY: Record<string, string> = {
   signup_via_email_required:
@@ -25,6 +30,16 @@ export function LoginPage() {
   const router = useRouter()
   // Set the moment an account is being created, so the page can celebrate it instead of reading "already signed in".
   const [welcome, setWelcome] = useState(false)
+  // Read inside the submit handlers, which close over an earlier render.
+  const welcomeRef = useRef(false)
+  const onRegistering = useCallback((registering: boolean) => {
+    welcomeRef.current = registering
+    setWelcome(registering)
+  }, [])
+  // Where sign-in leads: the link the visitor followed (?returnTo=), then the page that asked for it (pending
+  // intent, possibly older), else the dashboard. Captured on arrival, because signing in consumes the intent.
+  const destination = useRef('/dashboard')
+  const [leaving, setLeaving] = useState(false)
 
   const [view, setView] = useState<'login' | 'register'>('login')
   const [resetting, setResetting] = useState(false)
@@ -37,6 +52,9 @@ export function LoginPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
+    destination.current =
+      safeInternalPath(params.get('returnTo')) ?? safeInternalPath(readPendingIntent()?.to) ?? '/dashboard'
+    if (params.get('view') === 'register') setView('register')
     const code = params.get('oauth_error')
     if (!code) return
     const copy = OAUTH_ERROR_COPY[code] ?? 'Sign-in failed. Please try again.'
@@ -44,18 +62,58 @@ export function LoginPage() {
     if (code === 'signup_via_email_required') setView('register')
   }, [])
 
+  const moveOn = useCallback(() => {
+    setLeaving(true)
+    void router.navigate({ href: destination.current, replace: true })
+  }, [router])
+
+  const signedInNow = status === 'authenticated'
+  // A new account gets its moment, then the page continues on its own.
+  useEffect(() => {
+    if (!signedInNow || !welcome || leaving) return
+    const timer = window.setTimeout(moveOn, WELCOME_MS)
+    return () => window.clearTimeout(timer)
+  }, [signedInNow, welcome, leaving, moveOn])
+
+  if (status === 'authenticated' && welcome) {
+    // Straight after signing up the page stamps a seal: the account exists, and the page moves on.
+    return (
+      <AuthShell>
+        <AuthStamp word="Hi!">
+          <EmptyState
+            size="page"
+            headingLevel={1}
+            title="Your account is ready"
+            description="Your runs, favorites and CV drafts now stay with you."
+            action={
+              <Button type="button" onClick={moveOn}>
+                Continue
+                <ArrowRight aria-hidden />
+              </Button>
+            }
+          />
+        </AuthStamp>
+      </AuthShell>
+    )
+  }
+
+  if (status === 'authenticated' && leaving) {
+    return (
+      <AuthShell>
+        <p className="auth-hint" role="status">
+          Signed in. Taking you there…
+        </p>
+      </AuthShell>
+    )
+  }
+
   if (status === 'authenticated') {
-    // Straight after signing up the same page stamps a seal: the account exists, and the next step is the dashboard.
     const signedIn = (
       <EmptyState
         size="page"
         headingLevel={1}
         title="You're already signed in"
-        description={
-          welcome
-            ? 'Your account is ready. Your runs, favorites and CV drafts now stay with you.'
-            : 'Head back to your dashboard to keep going.'
-        }
+        description="Head back to your dashboard to keep going."
         action={
           <div className="auth-actions">
             <Button asChild>
@@ -68,7 +126,7 @@ export function LoginPage() {
         }
       />
     )
-    return <AuthShell>{welcome ? <AuthStamp word="Hi!">{signedIn}</AuthStamp> : signedIn}</AuthShell>
+    return <AuthShell>{signedIn}</AuthShell>
   }
 
   const copy = authCopy(view, resetting)
@@ -96,7 +154,11 @@ export function LoginPage() {
         onViewChange={setView}
         resetting={resetting}
         onResettingChange={setResetting}
-        onRegistering={setWelcome}
+        onRegistering={onRegistering}
+        onSuccess={() => {
+          // Signing in moves straight on; a new account is welcomed first (above).
+          if (!welcomeRef.current) moveOn()
+        }}
         notice={
           resetting ? null : (
             <>
