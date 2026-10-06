@@ -26,11 +26,13 @@ from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
 from app.models.campaign_task import CampaignTask
 from app.models.cv_document import CvDocument, CvVariant
+from app.models.gap_classification import GapClassification
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.applications import (
     ApplicationCard,
+    ApplicationCreate,
     ApplicationDetail,
     ApplicationDrafts,
     ApplicationList,
@@ -41,6 +43,7 @@ from app.schemas.applications import (
     AvailableMaterials,
     BulkPrepareResult,
     CvVariantReference,
+    EventPage,
     EventResponse,
     ListingResponse,
     NextTask,
@@ -50,11 +53,18 @@ from app.schemas.applications import (
     SnapshotResponse,
     TaskCreate,
 )
+from app.services.application_details import standing_answers
 from app.services.application_drafts import DRAFTS_TOOL_NAME, compose_application_drafts
 from app.services.autopilot.policy import ats_form_url, is_allowed
+from app.services.campaign_listings import application_label, attach_listing
 from app.services.campaign_reviewer import cover_document_text
 from app.services.discovery_adoption import adopt_recommendation
-from app.services.discovery_recommendations import VisibleListing, best_matches
+from app.services.discovery_recommendations import (
+    VisibleListing,
+    best_matches,
+    load_match_profile,
+)
+from app.services.import_source import map_source_family
 from app.services.quality_signals import keyword_present
 
 SNAPSHOT_SCHEMA_VERSION = "application-snapshot/v1"
@@ -383,6 +393,33 @@ def snapshot_response(snapshot: ApplicationSnapshot | None) -> SnapshotResponse 
     )
 
 
+TRACKING_EVENT_TYPES = ("created", "listing_attached", "listing_adopted")
+
+
+def _event_response(event: CampaignEvent) -> EventResponse:
+    return EventResponse(
+        id=event.id,
+        event_type=event.event_type,
+        details=event.details,
+        provenance=event.details.get("provenance", "user"),
+        created_at=event.created_at,
+    )
+
+
+def _tracked_at(db: Session, workspace: Workspace) -> datetime:
+    """When the owner started tracking this job. The workspace row can be older (a Job
+    Match run becomes an application later), so the first tracking event wins."""
+    first = (
+        db.query(func.min(CampaignEvent.created_at))
+        .filter(
+            CampaignEvent.workspace_id == workspace.id,
+            CampaignEvent.event_type.in_(TRACKING_EVENT_TYPES),
+        )
+        .scalar()
+    )
+    return _as_utc(first or workspace.created_at)
+
+
 def application_detail(db: Session, workspace: Workspace) -> ApplicationDetail:
     available = _available_materials(db, workspace.user_id)
     tasks = list(workspace.campaign_tasks)
@@ -394,6 +431,12 @@ def application_detail(db: Session, workspace: Workspace) -> ApplicationDetail:
         .all()
     )
     answers = workspace.answers or {}
+    events_total = (
+        db.query(func.count(CampaignEvent.id))
+        .filter(CampaignEvent.workspace_id == workspace.id)
+        .scalar()
+        or 0
+    )
 
     def pick(items, value):
         return next((item for item in items if item.id == value), None)
@@ -406,6 +449,7 @@ def application_detail(db: Session, workspace: Workspace) -> ApplicationDetail:
     return ApplicationDetail(
         **card.model_dump(),
         role=workspace.role,
+        created_at=_tracked_at(db, workspace),
         listing=_listing_response(workspace.listing),
         notes=workspace.notes,
         selected_materials=SelectedMaterials(
@@ -426,19 +470,91 @@ def application_detail(db: Session, workspace: Workspace) -> ApplicationDetail:
         ],
         answers={key: str(value) for key, value in answers.items()},
         tasks=tasks,
-        events=[
-            EventResponse(
-                id=event.id,
-                event_type=event.event_type,
-                details=event.details,
-                provenance=event.details.get("provenance", "user"),
-                created_at=event.created_at,
-            )
-            for event in reversed(recent_events)
-        ],
+        events=[_event_response(event) for event in reversed(recent_events)],
+        events_total=events_total,
         snapshot=snapshot_response(workspace.snapshot),
         autofill_supported=autofill_supported(workspace),
     )
+
+
+def event_page(db: Session, workspace: Workspace, *, offset: int, limit: int) -> EventPage:
+    """The activity log counted back from the newest event, each page oldest first."""
+    query = db.query(CampaignEvent).filter(CampaignEvent.workspace_id == workspace.id)
+    total = query.count()
+    rows = (
+        query.order_by(CampaignEvent.created_at.desc(), CampaignEvent.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return EventPage(
+        items=[_event_response(event) for event in reversed(rows)],
+        total=total,
+    )
+
+
+# ── Creating ──
+
+
+def create_application(
+    db: Session, user: User, body: ApplicationCreate
+) -> tuple[Workspace, bool]:
+    """Track a job by hand or from a Job Match. Returns the application and whether
+    it is new (tracking the same Job Match twice returns the first application)."""
+    workspace: Workspace | None = None
+    run: ToolRun | None = None
+    if body.history_id:
+        run = (
+            db.query(ToolRun)
+            .filter(ToolRun.id == body.history_id, ToolRun.user_id == user.id)
+            .with_for_update()  # two quick clicks must not both start an application
+            .one_or_none()
+        )
+        if run is None:
+            raise ApplicationNotFound(body.history_id)
+        if run.tool_name != "job-match":
+            raise InvalidReference("Only a Job Match result can be tracked this way")
+        workspace = run.workspace
+        if workspace is not None and (
+            workspace.status is not None or workspace.current_listing_id is not None
+        ):
+            return workspace, False
+    if workspace is None:
+        workspace = Workspace(user_id=user.id)
+        db.add(workspace)
+        db.flush()
+        if run is not None:
+            run.workspace_id = workspace.id
+    workspace.role = body.role
+    workspace.company = body.company
+    workspace.label = application_label(body.role, body.company)
+    workspace.status = ApplicationStatus.SAVED.value
+    workspace.status_changed_at = _now()
+    workspace.deadline = _as_utc(body.deadline)
+    if run is not None:
+        score = (run.result_payload or {}).get("match_score")
+        workspace.match_score = (
+            score if isinstance(score, int) and not isinstance(score, bool) else None
+        )
+    record_event(
+        db, workspace.id, "created", {"source": "job_match" if run is not None else "manual"}
+    )
+    db.flush()
+    if body.description:
+        attach_listing(
+            db,
+            user_id=user.id,
+            campaign_id=workspace.id,
+            title=body.role,
+            company=body.company,
+            description=body.description,
+            source_url=body.source_url,
+            apply_url=body.source_url,
+            source_family=map_source_family(body.source_url) if body.source_url else "paste",
+        )
+    db.commit()
+    db.refresh(workspace)
+    return workspace, True
 
 
 # ── Editing ──
@@ -465,16 +581,16 @@ def _apply_update(db: Session, workspace: Workspace, body: ApplicationUpdate) ->
         workspace.role = (body.role or "").strip() or None
     if "notes" in fields:
         workspace.notes = body.notes if body.notes and body.notes.strip() else None
-    if "deadline" in fields and workspace.deadline != body.deadline:
+    if "deadline" in fields and _as_utc(workspace.deadline) != _as_utc(body.deadline):
         previous = workspace.deadline
-        workspace.deadline = body.deadline
+        workspace.deadline = _as_utc(body.deadline)
         record_event(
             db,
             workspace.id,
             "deadline_changed",
             {
-                "from": previous.isoformat() if previous else None,
-                "to": body.deadline.isoformat() if body.deadline else None,
+                "from": _as_utc(previous).isoformat() if previous else None,
+                "to": _as_utc(body.deadline).isoformat() if body.deadline else None,
             },
         )
     if "cv_variant_id" in fields:
@@ -503,11 +619,18 @@ def set_status(db: Session, workspace: Workspace, status: str) -> None:
     if status == "no_reply" and current != "applied":
         raise ApplicationConflict("Only an applied application can be marked no reply.")
     if status == "saved" and workspace.applied_at is not None:
-        # Undo a mis-click: the application was not sent after all.
+        # Undo a mis-click: the application was not sent after all. The snapshot
+        # describes a send that did not happen, so it goes, but the timeline keeps
+        # its id and digest to show which record was discarded.
+        discarded: dict = {}
         if workspace.snapshot is not None:
+            discarded = {
+                "snapshot_id": workspace.snapshot.id,
+                "content_sha256": workspace.snapshot.content_sha256,
+            }
             db.delete(workspace.snapshot)
         workspace.applied_at = None
-        record_event(db, workspace.id, "applied_undone", {})
+        record_event(db, workspace.id, "applied_undone", discarded)
     workspace.status = status
     workspace.status_changed_at = _now()
     record_event(db, workspace.id, "status_changed", {"from": current, "to": status})
@@ -787,6 +910,12 @@ def _owner_has_cv(db: Session, user_id: str) -> bool:
 ComposeFn = Callable[..., Awaitable[dict[str, Any]]]
 
 
+# One prepare at a time per application. In-process only: it does not cover several
+# workers. If the multi-instance trigger fires, replace it with a row lock or an
+# in-flight marker in the database.
+_PREPARING: set[str] = set()
+
+
 async def prepare_application(
     db: Session, user: User, workspace: Workspace, *, compose_fn: ComposeFn | None = None
 ) -> None:
@@ -796,11 +925,25 @@ async def prepare_application(
     Questions only the owner may answer become open questions. Answers typed for a
     question that comes back keep applying, because keys are stable.
     """
+    if workspace.applied_at is not None:
+        raise ApplicationConflict("This application is already marked applied.")
+    if workspace.id in _PREPARING:
+        # A double click or a retry: one prepare at a time per application, so the
+        # timeline and run history never fill with duplicates.
+        raise ApplicationConflict("This application is already being prepared.")
+    _PREPARING.add(workspace.id)
+    try:
+        await _prepare(db, user, workspace, compose_fn)
+    finally:
+        _PREPARING.discard(workspace.id)
+
+
+async def _prepare(
+    db: Session, user: User, workspace: Workspace, compose_fn: ComposeFn | None
+) -> None:
     # Local import breaks the tool_runs <-> tool_pipeline import cycle.
     from app.services.tool_pipeline import run_tool_pipeline
 
-    if workspace.applied_at is not None:
-        raise ApplicationConflict("This application is already marked applied.")
     listing = workspace.listing
     if listing is None:
         raise ApplicationConflict("Add the job posting before preparing this application.")
@@ -831,17 +974,75 @@ async def prepare_application(
     )
     workspace.drafts_run_id = response.get("history_id")
     workspace.open_questions = list(response.get("open_questions") or [])
+    prefilled = _prefill_standing_answers(db, workspace)
     if workspace.status is None:
         workspace.status = "saved"
     record_event(
         db,
         workspace.id,
         "prepared",
-        {"open_question_count": len(workspace.open_questions)},
+        {
+            "open_question_count": len(unanswered_questions(workspace)),
+            "prefilled_count": prefilled,
+        },
     )
     workspace.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(workspace)
+
+
+_SALARY_EXPECTATION_WORDS = ("expect", "desired", "looking for", "target", "range", "require")
+_SALARY_HISTORY_WORDS = ("current", "present", "previous", "last", "past", "history", "earn")
+_AUTHORIZATION_WORDS = ("authori", "right to work", "permit", "status")
+
+
+def _standing_field(question: dict) -> str | None:
+    """Which standing answer, if any, speaks to a stop question.
+
+    Only a clear match: a figure or claim in the wrong field would be typed into a
+    real form (ADR 0009), so anything ambiguous stays open for the owner.
+    """
+    category = question.get("category")
+    text = str(question.get("question", "")).casefold()
+    if category == "salary":
+        asks_history = any(word in text for word in _SALARY_HISTORY_WORDS)
+        asks_expectation = any(word in text for word in _SALARY_EXPECTATION_WORDS)
+        return None if asks_history and not asks_expectation else "salary_expectation"
+    if category == "relocation":
+        return "relocation"
+    if category in ("work_authorization", "eligibility"):
+        sponsorship = "sponsor" in text
+        authorization = any(word in text for word in _AUTHORIZATION_WORDS)
+        if sponsorship and authorization:
+            return None  # two questions in one: one answer cannot cover both
+        if sponsorship:
+            return "visa_sponsorship" if category == "work_authorization" else None
+        # A bare "visa" question ("valid visa to work in the UK?") is not clearly
+        # either answer.
+        return "work_authorization" if authorization and "work" in text else None
+    return None
+
+
+def _prefill_standing_answers(db: Session, workspace: Workspace) -> int:
+    """Answer stop questions from the owner's standing answers (ADR 0009).
+
+    They count as the owner's own typed input, but stay ordinary answers on this
+    application: editable, and never replacing something already typed here.
+    """
+    pending = unanswered_questions(workspace)
+    if not pending:
+        return 0
+    standing = standing_answers(db, workspace.user_id)
+    answers = dict(workspace.answers or {})
+    filled = 0
+    for question in pending:
+        field = _standing_field(question)
+        if field and standing.get(field):
+            answers[question["key"]] = standing[field]
+            filled += 1
+    if filled:
+        workspace.answers = answers
+    return filled
 
 
 def _passes_preferences(row: VisibleListing, prefs: ApplicationPreferences) -> bool:
@@ -877,7 +1078,11 @@ async def prepare_for_me(
     if not _owner_has_cv(db, user.id):
         return BulkPrepareResult(reason="no_cv", max_per_run=max_per_run)
 
-    matches = [row for row in best_matches(db, user.id, now=now) if _passes_preferences(row, prefs)]
+    ranked = best_matches(db, user.id, now=now)
+    if not ranked and not load_match_profile(db, user.id).has_evidence:
+        # Nothing can be ranked without confirmed evidence: not a keyword problem.
+        return BulkPrepareResult(reason="no_evidence", max_per_run=max_per_run)
+    matches = [row for row in ranked if _passes_preferences(row, prefs)]
     existing = {
         workspace.discovery_listing_id: workspace
         for workspace in db.query(Workspace).filter(
@@ -901,7 +1106,13 @@ async def prepare_for_me(
             continue
         if workspace is None:
             workspace = adopt_recommendation(db, user.id, rec.listing_id, visible=rec)
-        await prepare_application(db, user, workspace, compose_fn=compose_fn)
+        try:
+            await prepare_application(db, user, workspace, compose_fn=compose_fn)
+        except ApplicationConflict:
+            # Already being prepared elsewhere (or applied meanwhile): leave it alone and
+            # keep what this run has already prepared.
+            skipped += 1
+            continue
         prepared.append(workspace)
     return BulkPrepareResult(
         reason="prepared",
@@ -950,11 +1161,16 @@ def save_preferences(
 
 
 def add_task(db: Session, workspace: Workspace, body: TaskCreate) -> CampaignTask:
-    task = CampaignTask(workspace_id=workspace.id, title=body.title.strip(), deadline=body.deadline)
+    task = CampaignTask(
+        workspace_id=workspace.id, title=body.title.strip(), deadline=_as_utc(body.deadline)
+    )
     db.add(task)
     db.flush()
     record_event(
-        db, workspace.id, "task_created", {"task_id": task.id, "has_deadline": bool(task.deadline)}
+        db,
+        workspace.id,
+        "task_created",
+        {"task_id": task.id, "title": task.title, "has_deadline": bool(task.deadline)},
     )
     db.commit()
     db.refresh(task)
@@ -979,7 +1195,7 @@ def set_task_completed(db: Session, task: CampaignTask, completed: bool) -> Camp
             db,
             task.workspace_id,
             "task_completed" if completed else "task_reopened",
-            {"task_id": task.id},
+            {"task_id": task.id, "title": task.title},
         )
         db.commit()
         db.refresh(task)
@@ -987,7 +1203,9 @@ def set_task_completed(db: Session, task: CampaignTask, completed: bool) -> Camp
 
 
 def delete_task(db: Session, task: CampaignTask) -> None:
-    record_event(db, task.workspace_id, "task_deleted", {"task_id": task.id})
+    record_event(
+        db, task.workspace_id, "task_deleted", {"task_id": task.id, "title": task.title}
+    )
     db.delete(task)
     db.commit()
 
@@ -1001,11 +1219,22 @@ def delete_application(db: Session, workspace: Workspace) -> None:
     PostgreSQL cascades these; deleting them here keeps SQLite, which does not
     enforce foreign keys, identical.
     """
-    for model in (CampaignTask, ApplicationSnapshot, CampaignEvent):
+    for model in (CampaignTask, ApplicationSnapshot, CampaignEvent, GapClassification):
         db.query(model).filter(model.workspace_id == workspace.id).delete(
             synchronize_session=False
         )
-    db.expire(workspace, ["campaign_tasks", "snapshot", "campaign_events"])
+    # The drafts and checks were made for this card alone. Runs from the owner's own
+    # tools (Cover Letter, Interview Q&A) stay in History, detached from it.
+    workspace.drafts_run_id = None
+    db.flush()
+    db.query(ToolRun).filter(
+        ToolRun.workspace_id == workspace.id,
+        ToolRun.tool_name.in_((DRAFTS_TOOL_NAME, "application-reviewer")),
+    ).delete(synchronize_session=False)
+    db.query(ToolRun).filter(ToolRun.workspace_id == workspace.id).update(
+        {ToolRun.workspace_id: None}, synchronize_session=False
+    )
+    db.expire(workspace, ["campaign_tasks", "snapshot", "campaign_events", "tool_runs"])
     db.delete(workspace)
     db.commit()
 

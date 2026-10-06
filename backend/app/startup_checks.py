@@ -14,7 +14,8 @@ from urllib.parse import urlparse
 
 from app.config import Settings
 
-DEFAULT_SECRET_KEY = "change-me-to-a-random-secret-key"
+# Derived, not copied, so the boot check follows the model default if it changes.
+DEFAULT_SECRET_KEY = Settings.model_fields["SECRET_KEY"].default
 
 # Variables a hosted platform sets. Railway is the deployment target; a service
 # that sees one of these but runs as ENVIRONMENT=development was misconfigured.
