@@ -391,4 +391,5 @@ def _user_response(user: User) -> UserResponse:
         is_active=user.is_active,
         is_admin=getattr(user, "is_admin", False),
         created_at=user.created_at.isoformat() if user.created_at else None,
+        has_password=bool(user.hashed_password),
     )

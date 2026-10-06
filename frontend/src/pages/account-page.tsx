@@ -158,17 +158,29 @@ export function AccountPage() {
             </RowLeading>
             <RowBody>
               <RowTitle>Password</RowTitle>
-              <RowSubtitle>Changing it signs out every other device.</RowSubtitle>
-              <div>
-                <Button variant="link" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
-                  Forgot it? Email me a link
-                </Button>
-              </div>
+              {user.has_password === false ? (
+                <RowSubtitle>You sign in with Google. We email {user.email} a link to add a password.</RowSubtitle>
+              ) : (
+                <>
+                  <RowSubtitle>Changing it signs out every other device.</RowSubtitle>
+                  <div>
+                    <Button variant="link" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
+                      Forgot it? Email me a link
+                    </Button>
+                  </div>
+                </>
+              )}
             </RowBody>
             <RowActions reveal={false}>
-              <Button variant="secondary" size="sm" onClick={() => setChangingPassword(true)}>
-                Change password
-              </Button>
+              {user.has_password === false ? (
+                <Button variant="secondary" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
+                  Email me a link
+                </Button>
+              ) : (
+                <Button variant="secondary" size="sm" onClick={() => setChangingPassword(true)}>
+                  Change password
+                </Button>
+              )}
             </RowActions>
           </Row>
           <Row>
