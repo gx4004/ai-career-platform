@@ -184,6 +184,11 @@ class TaskResponse(BaseModel):
     completed: bool
     created_at: datetime
 
+    @field_validator("deadline", "created_at")
+    @classmethod
+    def normalize_to_utc(cls, value: datetime | None) -> datetime | None:
+        return _as_utc(value) if value is not None else None
+
 
 class SnapshotResponse(BaseModel):
     id: str
@@ -192,8 +197,17 @@ class SnapshotResponse(BaseModel):
     created_at: datetime
 
 
+class EventPage(BaseModel):
+    """A page of the activity log, oldest first; ``total`` counts every event."""
+
+    items: list[EventResponse]
+    total: int = Field(ge=0)
+
+
 class ApplicationDetail(ApplicationCard):
     role: str | None = None
+    # When the owner started tracking this job (not when the posting was read).
+    created_at: datetime | None = None
     listing: ListingResponse | None = None
     notes: str | None = None
     selected_materials: SelectedMaterials
@@ -203,9 +217,40 @@ class ApplicationDetail(ApplicationCard):
     answers: dict[str, str] = Field(default_factory=dict)
     tasks: list[TaskResponse] = Field(default_factory=list)
     events: list[EventResponse] = Field(default_factory=list)
+    # Every event the application has; ``events`` carries only the newest window.
+    events_total: int = Field(default=0, ge=0)
     snapshot: SnapshotResponse | None = None
     # Autopilot is on and the form is a Greenhouse, Lever or Ashby page it may open.
     autofill_supported: bool = False
+
+
+class ApplicationCreate(BaseModel):
+    """Start tracking a job by hand, or from a Job Match the owner already ran.
+
+    The role and company name the card. A posting is optional: without one the
+    application is a tracked job the owner can add the posting to later.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    role: str = Field(min_length=1, max_length=200)
+    company: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, min_length=20, max_length=20_000)
+    source_url: str | None = Field(default=None, max_length=2_048)
+    deadline: datetime | None = None
+    # A Job Match run (its History id) to track: its workspace becomes the application.
+    history_id: str | None = Field(default=None, max_length=64)
+
+    _deadline_tz = field_validator("deadline")(_require_timezone)
+
+    @field_validator("source_url")
+    @classmethod
+    def _source_is_web_link(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        if not re.match(r"^https?://\S+$", value, re.IGNORECASE):
+            raise ValueError("must be an http or https address")
+        return value
 
 
 class ApplicationUpdate(BaseModel):
@@ -247,7 +292,7 @@ class AnswersUpdate(BaseModel):
 
 
 class TaskCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     title: str = Field(min_length=1, max_length=240)
     deadline: datetime | None = None
 
@@ -314,6 +359,8 @@ _HOST_WITH_PORT = re.compile(
     re.IGNORECASE,
 )
 _EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Digits with the usual separators, an optional leading +, and an optional extension.
+_PHONE_SHAPE = re.compile(r"^\+?[\d\s().\-/]+(?:\s*(?:ext\.?|x)\s*\d{1,6})?$", re.IGNORECASE)
 
 
 def _plain_link(value: str) -> str:
@@ -352,6 +399,15 @@ class ApplicationDetailsBody(BaseModel):
             raise ValueError("must be an email address")
         return value
 
+    @field_validator("phone")
+    @classmethod
+    def _phone_shape(cls, value: str) -> str:
+        if value and (
+            not _PHONE_SHAPE.match(value) or not 5 <= sum(ch.isdigit() for ch in value) <= 20
+        ):
+            raise ValueError("must be a phone number")
+        return value
+
     @field_validator("linkedin", "website")
     @classmethod
     def _links_are_plain(cls, value: str) -> str:
@@ -368,6 +424,11 @@ class ApplicationDetailsResponse(ApplicationDetailsBody):
     def _email_shape(cls, value: str) -> str:
         return value
 
+    @field_validator("phone")
+    @classmethod
+    def _phone_shape(cls, value: str) -> str:
+        return value
+
     @field_validator("linkedin", "website")
     @classmethod
     def _links_are_plain(cls, value: str) -> str:
@@ -379,8 +440,9 @@ class ApplicationDetailsResponse(ApplicationDetailsBody):
 
 class BulkPrepareResult(BaseModel):
     # ``prepared``: ran. ``no_preferences``: no keywords saved, nothing ran.
-    # ``no_cv``: the owner has no CV yet, nothing ran.
-    reason: Literal["prepared", "no_preferences", "no_cv"]
+    # ``no_cv``: the owner has no CV yet, nothing ran. ``no_evidence``: nothing in the
+    # Evidence Profile is confirmed yet, so no job can be ranked for the owner.
+    reason: Literal["prepared", "no_preferences", "no_cv", "no_evidence"]
     prepared: list[ApplicationCard] = Field(default_factory=list)
     matched_count: int = 0
     skipped_existing_count: int = 0

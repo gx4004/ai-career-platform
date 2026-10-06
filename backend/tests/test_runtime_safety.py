@@ -32,7 +32,9 @@ PREFIX = "/api/v1"
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 BLOCK_SECONDS = 0.5
 # /health is a SELECT 1; anything near the blocking time means the loop stalled.
-HEALTH_BUDGET_SECONDS = 0.25
+# The margin is wide (0.4 of a 0.5 s block): the original serialised at ~0.5 s per
+# call, so it still fails there, while a loaded machine does not flake the fixed code.
+HEALTH_BUDGET_SECONDS = 0.4
 
 
 @pytest.fixture
@@ -276,7 +278,7 @@ def _mock_job_page(monkeypatch, body_bytes: int):
         lambda **_kwargs: httpx.MockTransport(handler),
     )
 
-    async def no_browser(_url):
+    async def no_browser(_url, **_kwargs):
         raise RuntimeError("browser tier unavailable")
 
     monkeypatch.setattr("app.services.job_scraper._fetch_with_playwright", no_browser)
@@ -306,6 +308,31 @@ def test_guest_import_still_works_for_a_normal_sized_page(client, monkeypatch, p
 
     assert response.status_code == 200
     assert response.json()["job_title"] == "Backend Engineer"
+
+
+def test_the_browser_tier_inherits_the_guest_page_cap(
+    client, auth_headers, monkeypatch, public_dns
+):
+    """Tier 1 failing for another reason must not let a guest reach the 2 MB default."""
+    from app.services.job_scraper import _MAX_RESPONSE_BYTES, GUEST_MAX_RESPONSE_BYTES
+
+    monkeypatch.setattr(
+        "app.services.job_scraper.httpx.AsyncHTTPTransport",
+        lambda **_kwargs: httpx.MockTransport(lambda _request: httpx.Response(403)),
+    )
+    caps = []
+
+    async def spy_browser(_url, **kwargs):
+        caps.append(kwargs.get("max_response_bytes"))
+        return _JOB_HTML
+
+    monkeypatch.setattr("app.services.job_scraper._fetch_with_playwright", spy_browser)
+    body = {"url": "https://jobs.example.com/backend"}
+
+    client.post(f"{PREFIX}/job-posts/import-url", json=body)
+    client.post(f"{PREFIX}/job-posts/import-url", json=body, headers=auth_headers)
+
+    assert caps == [GUEST_MAX_RESPONSE_BYTES, _MAX_RESPONSE_BYTES]
 
 
 # ── CON-6: bounded CV parser concurrency ──
@@ -573,11 +600,17 @@ def test_start_script_disables_access_logs_and_sets_shutdown_and_concurrency_lim
     assert "--timeout-keep-alive" in args
 
 
-def test_dockerfile_default_command_matches_the_start_script_flags():
-    dockerfile = (BACKEND_DIR / "Dockerfile").read_text()
+def test_dockerfile_default_command_uses_the_same_flag_values_as_the_start_script(tmp_path):
+    import re
 
-    for flag in ("--no-access-log", "--timeout-graceful-shutdown", "--limit-concurrency"):
-        assert flag in dockerfile
+    start_args = _uvicorn_args_from_start_sh(tmp_path)
+    cmd = json.loads(
+        re.search(r"^CMD (\[.*\])$", (BACKEND_DIR / "Dockerfile").read_text(), re.M).group(1)
+    )
+
+    assert "--no-access-log" in cmd
+    for flag in ("--timeout-graceful-shutdown", "--limit-concurrency", "--timeout-keep-alive"):
+        assert cmd[cmd.index(flag) + 1] == start_args[start_args.index(flag) + 1], flag
 
 
 # ── CFG-2: boot-time config validation ──
@@ -701,8 +734,7 @@ def test_production_boot_with_the_default_secret_refuses_to_start():
             "AUTOPILOT_EXPERIMENT_ENABLED": "false",
         }
     )
-    env.pop("SECRET_KEY", None)
-    with_default = subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-c", "import app.main"],
         cwd=BACKEND_DIR,
         env={**env, "SECRET_KEY": "change-me-to-a-random-secret-key"},
@@ -712,8 +744,8 @@ def test_production_boot_with_the_default_secret_refuses_to_start():
         timeout=60,
     )
 
-    assert with_default.returncode != 0
-    assert "SECRET_KEY" in with_default.stderr
+    assert result.returncode != 0
+    assert "SECRET_KEY" in result.stderr
 
 
 # ── CON-9: supervised schedulers with a leader guard ──
@@ -774,3 +806,175 @@ def test_a_crashing_scheduler_is_logged_and_does_not_take_the_app_down(
     text = " ".join(r.getMessage() for r in caplog.records)
     assert "RuntimeError" in text
     assert "scheduler boom" not in text
+
+
+def test_a_follower_takes_over_when_the_leader_lock_frees(scheduler_spies, monkeypatch):
+    """Rolling deploy: the old instance holds the lock while the new one boots."""
+    calls = []
+
+    def acquire():
+        calls.append(1)
+        return len(calls) >= 3
+
+    monkeypatch.setattr("app.main.try_acquire_scheduler_leader", acquire)
+    monkeypatch.setattr("app.main.LEADER_RETRY_SECONDS", 0.05)
+
+    with TestClient(app) as http:
+        assert http.get(f"{PREFIX}/health/live").status_code == 200  # boot did not wait on the lock
+        time.sleep(0.5)
+
+    assert len(calls) == 3
+    assert sorted(scheduler_spies) == ["ats", "expiry"]
+
+
+def test_a_follower_stops_retrying_on_shutdown(scheduler_spies, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "app.main.try_acquire_scheduler_leader", lambda: calls.append(1) or False
+    )
+    monkeypatch.setattr("app.main.LEADER_RETRY_SECONDS", 0.05)
+
+    with TestClient(app):
+        time.sleep(0.2)
+    after_shutdown = len(calls)
+    time.sleep(0.3)
+
+    assert len(calls) == after_shutdown
+    assert scheduler_spies == []
+
+
+def test_the_dummy_password_hash_is_warmed_at_boot(monkeypatch):
+    from app.auth.security import dummy_password_hash
+
+    dummy_password_hash.cache_clear()
+    monkeypatch.setattr("app.main.try_acquire_scheduler_leader", lambda: False)
+    monkeypatch.setattr("app.main.LEADER_RETRY_SECONDS", 3600)
+
+    with TestClient(app):
+        assert dummy_password_hash.cache_info().currsize == 1
+
+
+# ── CON-9: the advisory-lock election itself, against a faked connection ──
+
+
+class _FakeResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalar(self):
+        return self._value
+
+
+class _FakeConnection:
+    def __init__(self, granted=True, fail=False):
+        self.granted, self.fail, self.closed = granted, fail, False
+
+    def execute(self, *_args, **_kwargs):
+        if self.fail:
+            raise RuntimeError("db down")
+        return _FakeResult(self.granted)
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeEngine:
+    def __init__(self, connection):
+        self._connection, self.disposed = connection, False
+
+    def connect(self):
+        return self._connection
+
+    def dispose(self):
+        self.disposed = True
+
+
+@pytest.fixture
+def fake_postgres_lock(monkeypatch):
+    import app.database as database
+
+    made = []
+
+    def install(connection):
+        engine = _FakeEngine(connection)
+        made.append(engine)
+        monkeypatch.setattr(database, "create_engine", lambda *a, **k: engine)
+        return engine
+
+    monkeypatch.setattr(database, "_is_sqlite", False)
+    monkeypatch.setattr(database, "_leader_connection", None)
+    monkeypatch.setattr(database, "_leader_engine", None, raising=False)
+    return install
+
+
+def test_leader_lock_acquired_keeps_the_connection_open(fake_postgres_lock):
+    import app.database as database
+
+    connection = _FakeConnection(granted=True)
+    fake_postgres_lock(connection)
+
+    assert database.try_acquire_scheduler_leader() is True
+    assert connection.closed is False
+    assert database.try_acquire_scheduler_leader() is True  # already leading: no second lock
+
+
+def test_leader_lock_declined_releases_the_connection_and_engine(fake_postgres_lock):
+    import app.database as database
+
+    connection = _FakeConnection(granted=False)
+    engine = fake_postgres_lock(connection)
+
+    assert database.try_acquire_scheduler_leader() is False
+    assert connection.closed is True
+    assert engine.disposed is True
+
+
+def test_leader_lock_fails_open_and_cleans_up_when_it_cannot_be_attempted(
+    fake_postgres_lock, caplog
+):
+    import app.database as database
+
+    connection = _FakeConnection(fail=True)
+    engine = fake_postgres_lock(connection)
+
+    with caplog.at_level(logging.WARNING):
+        assert database.try_acquire_scheduler_leader() is True
+
+    assert connection.closed is True
+    assert engine.disposed is True
+    assert "RuntimeError" in " ".join(r.getMessage() for r in caplog.records)
+    assert "db down" not in " ".join(r.getMessage() for r in caplog.records)
+
+
+def test_releasing_the_leader_lock_closes_the_connection_and_engine(fake_postgres_lock):
+    import app.database as database
+
+    connection = _FakeConnection(granted=True)
+    engine = fake_postgres_lock(connection)
+    database.try_acquire_scheduler_leader()
+
+    database.release_scheduler_leader()
+
+    assert connection.closed is True
+    assert engine.disposed is True
+    assert database._leader_connection is None
+
+
+# ── REL-5: the rate limiter's own warning must not log the client address ──
+
+
+async def test_a_rate_limited_login_does_not_log_the_client_address(app_db, caplog):
+    with caplog.at_level(logging.DEBUG):
+        async with _asgi_client() as http:
+            statuses = [
+                (
+                    await http.post(
+                        f"{PREFIX}/auth/login",
+                        json={"email": "nobody@example.com", "password": "wrong-password"},
+                    )
+                ).status_code
+                for _ in range(12)
+            ]
+
+    assert 429 in statuses
+    assert "203.0.113.9" not in " ".join(r.getMessage() for r in caplog.records)

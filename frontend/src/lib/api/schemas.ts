@@ -89,8 +89,13 @@ const runReferenceSchema = z.object({
   id: z.string(), label: z.string().nullable().default(null),
   parent_run_id: z.string().nullable().default(null), created_at: offsetDateTime,
 })
+export const applicationEventPageSchema = z.object({
+  items: z.array(applicationEventSchema),
+  total: z.number().int().nonnegative(),
+})
 export const applicationDetailSchema = applicationCardSchema.extend({
   role: z.string().nullable().default(null),
+  created_at: offsetDateTime.nullable().default(null),
   listing: applicationListingSchema.nullable().default(null),
   notes: z.string().nullable().default(null),
   selected_materials: z.object({
@@ -124,8 +129,23 @@ export const applicationDetailSchema = applicationCardSchema.extend({
   answers: z.record(z.string(), z.string()).default({}),
   tasks: z.array(applicationTaskSchema).default([]),
   events: z.array(applicationEventSchema).default([]),
+  events_total: z.number().int().nonnegative().default(0),
   snapshot: applicationSnapshotSchema.nullable().default(null),
   autofill_supported: z.boolean().default(false),
+})
+// POST /applications: track a job by hand, or from a Job Match (history_id).
+export const applicationCreateSchema = z.strictObject({
+  role: z.string().trim().min(1).max(200),
+  company: z.string().trim().min(1).max(200),
+  description: z.string().trim().min(20).max(20_000).nullable().optional(),
+  source_url: z
+    .string()
+    .max(2048)
+    .refine((v) => v.trim() === '' || /^https?:\/\/\S+$/i.test(v.trim()), 'Enter an http(s) address')
+    .nullable()
+    .optional(),
+  deadline: offsetDateTime.nullable().optional(),
+  history_id: z.string().max(64).nullable().optional(),
 })
 export const applicationUpdateSchema = z.strictObject({
   label: z.string().max(200).nullable().optional(),
@@ -176,6 +196,18 @@ const detailsEmail = z
   .string()
   .max(320)
   .refine((v) => v.trim() === '' || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()), 'Enter a valid email address')
+// Mirrors _PHONE_SHAPE: digits with the usual separators and an optional extension,
+// 5 to 20 digits in all.
+const detailsPhone = z
+  .string()
+  .max(50)
+  .refine((raw) => {
+    const v = raw.trim()
+    if (v === '') return true
+    if (!/^\+?[\d\s().\-/]+(?:\s*(?:ext\.?|x)\s*\d{1,6})?$/i.test(v)) return false
+    const digits = v.replace(/\D/g, '').length
+    return digits >= 5 && digits <= 20
+  }, 'Enter a valid phone number')
 const detailsLink = z
   .string()
   .max(500)
@@ -191,11 +223,12 @@ const detailsLink = z
 export const applicationDetailsUpdateSchema = z.strictObject({
   ...applicationDetailsFields,
   email: detailsEmail,
+  phone: detailsPhone,
   linkedin: detailsLink,
   website: detailsLink,
 })
 export const bulkPrepareResultSchema = z.object({
-  reason: z.enum(['prepared', 'no_preferences', 'no_cv']),
+  reason: z.enum(['prepared', 'no_preferences', 'no_cv', 'no_evidence']),
   prepared: z.array(applicationCardSchema).default([]),
   matched_count: z.number().int().nonnegative().default(0),
   skipped_existing_count: z.number().int().nonnegative().default(0),
@@ -1289,6 +1322,8 @@ export type ApplicationCard = z.infer<typeof applicationCardSchema>
 export type ApplicationList = z.infer<typeof applicationListSchema>
 export type ApplicationDetail = z.infer<typeof applicationDetailSchema>
 export type ApplicationUpdate = z.input<typeof applicationUpdateSchema>
+export type ApplicationCreate = z.input<typeof applicationCreateSchema>
+export type ApplicationEventPage = z.infer<typeof applicationEventPageSchema>
 export type ApplicationTask = z.infer<typeof applicationTaskSchema>
 export type ApplicationEvent = z.infer<typeof applicationEventSchema>
 export type ApplicationPreferences = z.infer<typeof applicationPreferencesSchema>

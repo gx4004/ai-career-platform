@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
+from app.auth.security import dummy_password_hash
 from app.config import (
     resolve_allowed_origins,
     settings,
@@ -49,6 +50,10 @@ from app.services.retention import run_discovered_listing_expiry_scheduler
 from app.startup_checks import redacted_config_summary, validate_startup_config
 
 configure_logging()
+# slowapi warns on every 429 with the client address in the message, which the
+# logging policy forbids (and credential stuffing would flood). The structured
+# request line already records the 429.
+logging.getLogger("slowapi").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 
@@ -75,35 +80,48 @@ async def _supervise(name: str, run_scheduler) -> None:
         await asyncio.sleep(SCHEDULER_RESTART_DELAY_SECONDS)
 
 
+LEADER_RETRY_SECONDS = 30.0
+
+
+async def _run_schedulers_when_leader() -> None:
+    """Win the scheduler leader lock, then run the supervised schedulers.
+
+    On a rolling deploy the previous instance still holds the lock while this one
+    boots, so a single attempt at start-up would leave the new instance without
+    schedulers for good once the old one exits. A follower therefore retries until
+    the lock frees. Cancelling this task cancels the schedulers it started.
+    """
+    while not await asyncio.to_thread(try_acquire_scheduler_leader):
+        logger.info("scheduler leader held by another instance; retrying")
+        await asyncio.sleep(LEADER_RETRY_SECONDS)
+    await asyncio.gather(
+        _supervise("discovered_listing_expiry", run_discovered_listing_expiry_scheduler),
+        _supervise("ats_ingestion", run_ats_ingestion_scheduler),
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start the recurring discovered-listing expiry and ATS ingestion tasks.
 
     See `app.services.retention` for why an app-startup task is the chosen
-    mechanism. Only the instance holding the scheduler leader lock starts them
-    (a no-op on SQLite). Tasks are cancelled cleanly on shutdown.
+    mechanism. Only the instance holding the scheduler leader lock runs them (a
+    no-op on SQLite); a follower keeps trying until the lock frees. The task is
+    cancelled cleanly on shutdown.
     `run_ats_ingestion_scheduler` (#323) returns immediately as a no-op when its
     own flags are off, so the task always exists but never fetches unless
     deliberately enabled.
     """
-    tasks: list[asyncio.Task] = []
-    if await asyncio.to_thread(try_acquire_scheduler_leader):
-        tasks = [
-            asyncio.create_task(
-                _supervise("discovered_listing_expiry", run_discovered_listing_expiry_scheduler)
-            ),
-            asyncio.create_task(_supervise("ats_ingestion", run_ats_ingestion_scheduler)),
-        ]
-    else:
-        logger.info("scheduler leader held by another instance; schedulers not started")
+    # Warm the dummy hash now so the first unknown-email login costs the same as
+    # every later one (CON-2).
+    await asyncio.to_thread(dummy_password_hash)
+    scheduler_task = asyncio.create_task(_run_schedulers_when_leader())
     try:
         yield
     finally:
-        for task in tasks:
-            task.cancel()
-        for task in tasks:
-            with suppress(asyncio.CancelledError):
-                await task
+        scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduler_task
         await asyncio.to_thread(release_scheduler_leader)
 
 

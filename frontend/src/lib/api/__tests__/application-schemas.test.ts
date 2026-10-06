@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applicationDetailSchema,
+  applicationCreateSchema,
   applicationDetailsUpdateSchema,
   applicationListSchema,
   applicationStatusSchema,
@@ -100,5 +101,22 @@ describe('application details update contract', () => {
       expect(applicationDetailsUpdateSchema.safeParse({ ...base, website: link }).success).toBe(false)
     }
     expect(applicationDetailsUpdateSchema.safeParse({ ...base, email: 'not-an-email' }).success).toBe(false)
+  })
+  it('checks the phone shape like the API does', () => {
+    for (const phone of ['', '+44 20 7946 0958', '(415) 555-0132', '020 7946 0958 ext. 12']) {
+      expect(applicationDetailsUpdateSchema.safeParse({ ...base, phone }).success).toBe(true)
+    }
+    for (const phone of ['call me maybe', '12', '+1 (555) 12345678901234567890']) {
+      expect(applicationDetailsUpdateSchema.safeParse({ ...base, phone }).success).toBe(false)
+    }
+  })
+})
+
+describe('application create contract', () => {
+  const body = { role: 'Data Engineer', company: 'Fjord' }
+  it('accepts a web address or none, and refuses other schemes', () => {
+    expect(applicationCreateSchema.safeParse({ ...body, source_url: 'https://fjord.example/jobs/1' }).success).toBe(true)
+    expect(applicationCreateSchema.safeParse({ ...body, source_url: null }).success).toBe(true)
+    expect(applicationCreateSchema.safeParse({ ...body, source_url: 'javascript:alert(1)' }).success).toBe(false)
   })
 })

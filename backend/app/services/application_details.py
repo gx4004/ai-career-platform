@@ -46,3 +46,21 @@ def delete_details(db: Session, user_id: str) -> None:
     db.query(ApplicationDetails).filter(ApplicationDetails.user_id == user_id).delete(
         synchronize_session=False
     )
+
+
+def standing_answers(db: Session, user_id: str) -> dict[str, str]:
+    """The owner's non-empty saved answers, by field name. Nothing before they save."""
+    row = _row(db, user_id)
+    if row is None:
+        return {}
+    return {
+        name: value.strip()
+        for name in (
+            "work_authorization",
+            "visa_sponsorship",
+            "notice_period",
+            "salary_expectation",
+            "relocation",
+        )
+        if isinstance(value := getattr(row, name), str) and value.strip()
+    }

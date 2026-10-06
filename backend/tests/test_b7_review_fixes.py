@@ -13,10 +13,10 @@ import pytest
 
 from app.models.campaign_listing import CampaignListing
 from app.models.cv_document import CvDocument, CvVariant
+from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
 from app.services.campaign_reviewer import review_campaign_materials
-from app.models.evidence_item import EvidenceItem
 from app.services.evidence_injection import (
     EvidencePayload,
     build_evidence_payload,

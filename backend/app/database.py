@@ -74,6 +74,18 @@ def get_db():
 # single-process by construction and is always the leader.
 _SCHEDULER_LEADER_LOCK_KEY = 0x43574B53  # "CWKS"
 _leader_connection = None
+_leader_engine = None
+
+
+def _close_lock_resources(connection, engine) -> None:
+    for resource, closer in ((connection, "close"), (engine, "dispose")):
+        if resource is not None:
+            try:
+                getattr(resource, closer)()
+            except Exception as exc:
+                logger.warning(
+                    "scheduler leader cleanup failed error_type=%s", type(exc).__name__
+                )
 
 
 def try_acquire_scheduler_leader() -> bool:
@@ -81,12 +93,14 @@ def try_acquire_scheduler_leader() -> bool:
 
     Fails open (returns True with a warning) if the lock cannot be attempted, so a
     database blip at boot does not silently disable retention on a single
-    instance; duplicate runs are idempotent and only waste fetches.
+    instance; duplicate runs are idempotent and only waste fetches. A declined or
+    failed attempt closes its connection and engine, so a follower can retry.
     """
-    global _leader_connection
+    global _leader_connection, _leader_engine
     if _is_sqlite or _leader_connection is not None:
         return True
     connection = None
+    lock_engine = None
     try:
         # A dedicated, never-pooled, autocommit connection: the lock lives as long
         # as this session, and no open transaction can be reaped by
@@ -105,23 +119,19 @@ def try_acquire_scheduler_leader() -> bool:
             "scheduler leader election failed; running schedulers error_type=%s",
             type(exc).__name__,
         )
-        if connection is not None:
-            connection.close()
+        _close_lock_resources(connection, lock_engine)
         return True
     if not acquired:
-        connection.close()
+        _close_lock_resources(connection, lock_engine)
         return False
     _leader_connection = connection
+    _leader_engine = lock_engine
     return True
 
 
 def release_scheduler_leader() -> None:
-    global _leader_connection
-    if _leader_connection is not None:
-        try:
-            _leader_connection.close()  # closing the session releases the lock
-        except Exception as exc:
-            logger.warning(
-                "scheduler leader release failed error_type=%s", type(exc).__name__
-            )
-        _leader_connection = None
+    global _leader_connection, _leader_engine
+    # Closing the session releases the lock.
+    _close_lock_resources(_leader_connection, _leader_engine)
+    _leader_connection = None
+    _leader_engine = None

@@ -164,7 +164,9 @@ async def _fetch_resource_with_httpx(
     raise httpx.HTTPError("Too many redirects")
 
 
-async def _fetch_with_playwright(url: str) -> str:
+async def _fetch_with_playwright(
+    url: str, *, max_response_bytes: int = _MAX_RESPONSE_BYTES
+) -> str:
     from playwright.async_api import async_playwright
 
     async with async_playwright() as p:
@@ -190,7 +192,9 @@ async def _fetch_with_playwright(url: str) -> str:
                     await route.abort()
                     return
                 try:
-                    resource = await _fetch_resource_with_httpx(request.url, _BROWSER_CONTENT_TYPES)
+                    resource = await _fetch_resource_with_httpx(
+                        request.url, _BROWSER_CONTENT_TYPES, max_response_bytes
+                    )
                     fetched_bytes += len(resource.content)
                     if fetched_bytes > _MAX_BROWSER_BYTES:
                         await route.abort()
@@ -270,12 +274,14 @@ async def scrape_job_posting(
             # A thin page: try the bounded fallback tier, then the paste path.
             html = None
 
-    # Tier 2: Playwright fallback (10s timeout). Skipped for an over-budget page:
-    # the browser would fetch the same document under the default cap and so
-    # sidestep the smaller guest budget.
+    # Tier 2: Playwright fallback (10s timeout). It fetches under the same page cap
+    # as tier 1 (so a guest cannot sidestep the smaller budget), and is skipped for
+    # a page already known to be over that cap.
     if html is None and not too_large:
         try:
-            html = await _fetch_with_playwright(url)
+            html = await _fetch_with_playwright(
+                url, max_response_bytes=max_response_bytes
+            )
             rendered = await asyncio.to_thread(_parse_job_data, html, url)
             if len(rendered.job_description or "") > _SUBSTANTIVE_DESCRIPTION_CHARS:
                 return rendered

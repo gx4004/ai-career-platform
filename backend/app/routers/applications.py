@@ -8,7 +8,7 @@ import hashlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
@@ -19,6 +19,7 @@ from app.models.gap_classification import GapClassification
 from app.models.user import User
 from app.schemas.applications import (
     AnswersUpdate,
+    ApplicationCreate,
     ApplicationDetail,
     ApplicationDetailsBody,
     ApplicationDetailsResponse,
@@ -28,6 +29,7 @@ from app.schemas.applications import (
     ApplicationUpdate,
     AutofillRunStatus,
     BulkPrepareResult,
+    EventPage,
     ReviewResponse,
     TaskCreate,
     TaskResponse,
@@ -96,6 +98,24 @@ def list_applications(
     return service.list_applications(db, current_user.id)
 
 
+@router.post("", response_model=ApplicationDetail, status_code=201)
+def create_application(
+    body: ApplicationCreate,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Track a job by hand, or turn a Job Match result into an application.
+
+    Tracking the same Job Match again returns the application it already became (200).
+    """
+    with _errors():
+        workspace, created = service.create_application(db, current_user, body)
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    return service.application_detail(db, workspace)
+
+
 @router.get("/insights", response_model=WhatsWorking)
 def get_insights(
     current_user: User = Depends(get_current_user),
@@ -162,6 +182,18 @@ def get_application(
     db: Session = Depends(get_db),
 ):
     return service.application_detail(db, _load(db, current_user, application_id))
+
+
+@router.get("/{application_id}/events", response_model=EventPage)
+def list_events(
+    application_id: str,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The activity log counted back from the newest event; each page is oldest first."""
+    return service.event_page(db, _load(db, current_user, application_id), offset=offset, limit=limit)
 
 
 @router.patch("/{application_id}", response_model=ApplicationDetail)
