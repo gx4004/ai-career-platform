@@ -41,7 +41,7 @@ function useSidebar() {
   return context
 }
 
-/** The same context, or null outside a provider (phones have no sidebar; the command palette still mounts there). */
+/** The same context, or null outside a provider (the command palette also mounts where no sidebar is shown). */
 function useOptionalSidebar() {
   return React.useContext(SidebarContext)
 }
@@ -75,10 +75,12 @@ function SidebarProvider({
     if (!railRoute) setRailOpen(false)
   }, [railRoute])
 
+  // A saved preference wins; without one the default applies, and it is re-read once the width is known
+  // (the first render does not know it, so a tablet would otherwise keep the desktop's expanded sidebar).
   React.useEffect(() => {
     const stored = getSidebarOpenFromCookie()
-    if (stored !== null) setControlled(stored)
-  }, [setControlled])
+    setControlled(stored ?? defaultOpen)
+  }, [defaultOpen, setControlled])
 
   const setOpen = React.useCallback(
     (value: boolean) => {

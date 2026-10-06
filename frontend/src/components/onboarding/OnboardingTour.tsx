@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { Button } from '#/components/kit'
+import { Button, Kbd } from '#/components/kit'
 
 type TourStep = {
   target: string
@@ -145,7 +145,10 @@ export function OnboardingTour({
           </Button>
         </div>
         <h2 className="app-tour__title">{current.title}</h2>
-        <p className="app-tour__body">{current.body}</p>
+        <p className="app-tour__body">
+          {/* Shortcuts render as keys, so the symbol comes from the system face, not a font subset. */}
+          {current.body.split('⌘K').flatMap((part, index) => (index === 0 ? [part] : [<Kbd key={index}>⌘K</Kbd>, part]))}
+        </p>
         <div className="app-tour__footer">
           {isLast ? null : (
             <Button type="button" variant="ghost" size="sm" onClick={onSkip}>
