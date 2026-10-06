@@ -356,8 +356,12 @@ export function useLetterAutosave(runId: string | undefined, draft: LetterDraft,
   latest.current = draft
   const dirty = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The save on its way to the server, if any: a flush (the PDF export) waits for it instead of returning
+  // while the server still holds the previous letter.
+  const inFlight = useRef<Promise<void> | null>(null)
 
   const save = useCallback(async () => {
+    while (inFlight.current) await inFlight.current
     if (!runId || !dirty.current) return
     dirty.current = false
     const snapshot = latest.current
@@ -367,14 +371,25 @@ export function useLetterAutosave(runId: string | undefined, draft: LetterDraft,
       return
     }
     setState('saving')
+    const attempt = (async () => {
+      try {
+        await saveLetterToServer(runId, snapshot)
+        clearLetterDraft(runId)
+        setState('saved')
+      } catch (error) {
+        const status = (error as { status?: number } | null)?.status
+        // No save endpoint on this server: the edit stays on this device and says so.
+        const unsupported = status === 404 || status === 405 || status === 501
+        // A save that failed is still owed: the next flush (or edit) tries it again.
+        if (!unsupported) dirty.current = true
+        setState(unsupported ? 'saved-local' : 'error')
+      }
+    })()
+    inFlight.current = attempt
     try {
-      await saveLetterToServer(runId, snapshot)
-      clearLetterDraft(runId)
-      setState('saved')
-    } catch (error) {
-      const status = (error as { status?: number } | null)?.status
-      // No save endpoint on this server: the edit stays on this device and says so.
-      setState(status === 404 || status === 405 || status === 501 ? 'saved-local' : 'error')
+      await attempt
+    } finally {
+      if (inFlight.current === attempt) inFlight.current = null
     }
   }, [persistToServer, runId])
 

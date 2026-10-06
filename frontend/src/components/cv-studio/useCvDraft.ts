@@ -39,7 +39,7 @@ class RevisionConflict extends Error {
  * PATCH can never commit after a newer one).
  *
  * Nothing is lost silently:
- * - the pending edit is flushed when the studio unmounts, the tab is hidden or the page is closing;
+ * - the pending edit is flushed when the studio unmounts, the tab is hidden (a checked save) or the page is closing;
  * - before every save the server's `updated_at` is compared with the copy this draft was based on, so a
  *   second tab (or device) that saved in the meantime raises a conflict instead of being overwritten.
  */
@@ -164,10 +164,23 @@ export function useCvDraft(enabled: boolean) {
     }
   }, [dirty, draft, conflict, persist, rememberSaved])
 
-  // A pending edit is sent at once when the tab is hidden or the page is closing (keepalive, so the request outlives the page).
+  // A pending edit is sent at once when the tab is hidden or the page is closing. Only a closing page uses the
+  // keepalive save, which skips the newer-copy check (there is no time to ask); a tab that is merely hidden
+  // (switched away from) saves the normal, checked way, so it never overwrites a copy saved elsewhere.
   useEffect(() => {
-    const flush = () => { void pending.current?.run(true) }
-    const onVisibility = () => { if (document.visibilityState === 'hidden') flush() }
+    const flush = () => {
+      if (pending.current) {
+        void pending.current.run(true)
+        return
+      }
+      // A checked save started when the tab was hidden may still be waiting on its server check; the page is
+      // closing now and will cancel it, so send the edit with keepalive instead of losing it.
+      const current = latest.current
+      if (!current.dirty || !current.draft || current.conflict || inFlight.current === 0) return
+      const payload = toPayload(current.draft)
+      if (JSON.stringify(payload).length <= KEEPALIVE_LIMIT) void keepalivePatch(current.draft.id, payload).catch(() => undefined)
+    }
+    const onVisibility = () => { if (document.visibilityState === 'hidden') void pending.current?.run(false) }
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       const current = latest.current
       if (!current.dirty || !current.draft) return

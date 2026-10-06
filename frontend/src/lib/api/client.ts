@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ApiError, apiErrorFromResponse, apiErrorFromZod, networkErrorFrom } from '#/lib/api/errors'
 import { clearSessionHint, hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
+import { combineSignals, timeoutSignal } from '#/lib/api/signals'
 import { gapClassificationListResponseSchema } from '#/lib/api/gapClassificationSchemas'
 import { gapResponseOfferSchema } from '#/lib/api/gapResponseSchemas'
 import { discoverySourceSchema } from '#/lib/api/discoverySchemas'
@@ -249,7 +250,7 @@ async function silentRefresh(): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
     credentials: 'include',
-    signal: AbortSignal.timeout(10_000),
+    signal: timeoutSignal(10_000),
   })
   if (res.status === 401 || res.status === 403) throw new RefreshRejected('refresh rejected')
   if (!res.ok) throw new Error('refresh failed')
@@ -262,6 +263,22 @@ function refreshOnce(): Promise<void> {
     })
   }
   return refreshPromise
+}
+
+/**
+ * One silent refresh asked for by the session read (GET /auth/session said a refresh cookie is present
+ * although this browser holds no session hint). It shares the refresh mutex and cooldown with the 401 path,
+ * and a failure only answers false: there is no session in this browser to end, so nobody is signed out.
+ */
+export async function refreshSession(): Promise<boolean> {
+  if (Date.now() < refreshCooldownUntil) return false
+  try {
+    await refreshOnce()
+    return true
+  } catch {
+    refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
+    return false
+  }
 }
 
 // Paths whose 401 is an answer, not an expired session: a wrong password must not look like one.
@@ -348,7 +365,7 @@ export async function request<T>(
     headers,
     credentials: 'include',
     // A caller's signal (a tool run the user cancelled) stops the request too, alongside the timeout.
-    signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
+    signal: init.signal ? combineSignals([init.signal, timeoutSignal(timeoutMs)]) : timeoutSignal(timeoutMs),
   }))
 
   const parsed = await readBody(response)
@@ -375,7 +392,7 @@ export async function request<T>(
 export async function requestBlob(path: string): Promise<{ blob: Blob; filename: string | null }> {
   const response = await fetchWithSession(path, () => ({
     credentials: 'include',
-    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+    signal: timeoutSignal(DEFAULT_TIMEOUT_MS),
   }))
   if (!response.ok) throw apiErrorFromResponse(response.status, await readBody(response), response.headers)
   return { blob: await response.blob(), filename: filenameFromDisposition(response.headers?.get('Content-Disposition')) }
@@ -429,9 +446,13 @@ export function getCurrentUser() {
   })
 }
 
-/** The signed-in user or null for a guest: a 200 either way, never a 401 (and never a refresh). */
+/**
+ * The signed-in user or null for a guest: a 200 either way, never a 401 (and never a refresh). `refreshable`
+ * says a guest's refresh cookie would succeed; a server that does not send it means nothing to refresh.
+ */
 export function getSessionState() {
-  return request('/auth/session', { method: 'GET', schema: sessionStateSchema })
+  // Under the refresh cookie's path (it is scoped to /auth/refresh), so `refreshable` can see that cookie.
+  return request('/auth/refresh/session', { method: 'GET', schema: sessionStateSchema })
 }
 
 /** Change the account's own name (null clears it); the answer is the updated user. */

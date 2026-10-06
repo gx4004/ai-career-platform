@@ -25,7 +25,7 @@ vi.mock('#/lib/api/client', async (importOriginal) => ({
 const { requireUser } = await import('#/lib/auth/userGuard')
 const { requireAdmin } = await import('#/lib/auth/adminGuard')
 
-const where = (href: string) => ({ location: { href, pathname: href.split(/[?#]/)[0] } }) as never
+const where = (href: string, preload = false) => ({ location: { href, pathname: href.split(/[?#]/)[0] }, preload }) as never
 
 async function redirected(run: () => Promise<unknown>) {
   try {
@@ -76,6 +76,24 @@ describe('requireUser', () => {
     expect(readPendingIntent()).toBeNull()
   })
 
+  it('a hover or touch preload of a protected page remembers nothing, though it still redirects', async () => {
+    getCurrentUser.mockRejectedValue(new ApiError('Not authenticated', 401))
+
+    const target = await redirected(() => requireUser(where('/campaigns?tab=saved', true)))
+
+    expect(target?.to).toBe('/login')
+    expect(readPendingIntent()).toBeNull()
+  })
+
+  it('a preload does not replace the page a real visit asked to come back to', async () => {
+    getCurrentUser.mockRejectedValue(new ApiError('Not authenticated', 401))
+    await redirected(() => requireUser(where('/campaigns?tab=saved')))
+
+    await redirected(() => requireUser(where('/discovery', true)))
+
+    expect(readPendingIntent()?.to).toBe('/campaigns?tab=saved')
+  })
+
   it('never remembers an unsafe destination', async () => {
     getCurrentUser.mockRejectedValue(new ApiError('Not authenticated', 401))
 
@@ -112,6 +130,15 @@ describe('requireAdmin', () => {
 
     expect(target?.to).toBe('/login')
     expect(readPendingIntent()?.to).toBe('/admin/users')
+  })
+
+  it('a preload of /admin by a guest remembers nothing', async () => {
+    getCurrentUser.mockRejectedValue(new ApiError('Not authenticated', 401))
+
+    const target = await redirected(() => requireAdmin(where('/admin/users', true)))
+
+    expect(target?.to).toBe('/login')
+    expect(readPendingIntent()).toBeNull()
   })
 
   it('sends a signed-in non-admin to the dashboard without a return trip', async () => {

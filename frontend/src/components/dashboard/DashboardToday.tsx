@@ -293,11 +293,17 @@ function usePrepForRound(item: TodayActionItem) {
     const application = await getApplication(item.application_id).catch(() => null)
     const listing = application?.listing
     try {
+      // The context merges, so every job field is written for this application: an earlier job's description,
+      // label, source or run must not ride along when this application has no saved listing description.
+      const description = listing?.description?.trim()
       writeWorkflowContext({
         targetRole: item.title,
-        ...(listing?.description.trim()
-          ? { jobDescription: `${listing.title} at ${listing.company}\n\n${listing.description.trim()}` }
-          : {}),
+        jobDescription: listing && description ? `${listing.title} at ${listing.company}\n\n${description}` : undefined,
+        jobLabel: undefined,
+        jobSource: undefined,
+        historyId: undefined,
+        // Another job's Job Match result would otherwise seed this interview run (job_match handoff).
+        jobMatch: undefined,
         workspaceId: item.application_id,
         workspaceLabel: application?.label ?? item.title,
         updatedAt: Date.now(),

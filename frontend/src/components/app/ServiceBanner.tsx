@@ -26,10 +26,10 @@ function useOffline() {
   )
 }
 
-type Outage = 'unreachable' | 'server-error'
+export type Outage = 'unreachable' | 'server-error'
 
 /** A refused connection (status 0) or a 5xx is an outage; a 401 or another 4xx is an answer from a server that is up. */
-function outageOf(error: unknown): Outage | null {
+export function outageOf(error: unknown): Outage | null {
   if (error == null) return null
   if (!(error instanceof ApiError) || error.status === 0) return 'unreachable'
   return error.status >= 500 ? 'server-error' : null

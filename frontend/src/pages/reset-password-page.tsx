@@ -152,10 +152,16 @@ export function ResetPasswordPage() {
     }
 
     setStatus('loading')
+    // A fresh link opened in this tab while this reset was on its way replaces the token; the answer for the
+    // old one (refused or accepted) is no longer about the link on screen, so it is dropped.
+    const submittedToken = token
+    const stillCurrent = () => consumed.current?.token === submittedToken
     try {
-      await confirmPasswordReset({ token: token!, new_password: password })
+      await confirmPasswordReset({ token: submittedToken!, new_password: password })
+      if (!stillCurrent()) return
       setStatus('success')
     } catch (err) {
+      if (!stillCurrent()) return
       setStatus('error')
       // The server answers 400 only for a token it will not accept (expired, used, tampered): that is the
       // invalid-link state, not a form error. Anything else (rate limit, offline) stays on the form.

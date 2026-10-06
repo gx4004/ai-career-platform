@@ -1,7 +1,7 @@
 import { redirect } from '@tanstack/react-router'
-import type { ParsedLocation } from '@tanstack/react-router'
 import { CURRENT_USER_QUERY_KEY, fetchSessionUser } from '#/lib/auth/currentUser'
 import { redirectToSignIn } from '#/lib/auth/userGuard'
+import type { GuardContext } from '#/lib/auth/userGuard'
 import { queryClient } from '#/lib/query/queryClient'
 
 /**
@@ -10,13 +10,13 @@ import { queryClient } from '#/lib/query/queryClient'
  * the dashboard. During an outage the layout renders and the admin API, which checks the role itself,
  * refuses the data.
  */
-export async function requireAdmin({ location }: { location: Pick<ParsedLocation, 'href'> }) {
+export async function requireAdmin({ location, preload }: GuardContext) {
   let user
   try {
     user = await queryClient.fetchQuery({ queryKey: CURRENT_USER_QUERY_KEY, queryFn: fetchSessionUser, staleTime: 0 })
   } catch {
     return
   }
-  if (!user) throw redirectToSignIn(location)
+  if (!user) throw redirectToSignIn(location, preload)
   if (!user.is_admin) throw redirect({ to: '/dashboard' })
 }

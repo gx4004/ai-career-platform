@@ -188,6 +188,45 @@ describe('DashboardToday', () => {
     })
   })
 
+  it('"Prep for the round" does not carry an earlier job description into Interview Q&A', async () => {
+    const drafts = await vi.importActual<typeof import('#/lib/tools/drafts')>('#/lib/tools/drafts')
+    writeWorkflowContext.mockImplementation(drafts.writeWorkflowContext)
+    window.sessionStorage.clear()
+    // An earlier hand-off in this tab: another job's description, its label and source, and its run.
+    drafts.writeWorkflowContext({
+      resumeText: 'My resume text',
+      jobDescription: 'Data Scientist at Initech\n\nTrain models.',
+      jobLabel: 'Data Scientist at Initech',
+      jobSource: 'your application “Data Scientist at Initech”',
+      historyId: 'run-old',
+      jobMatch: { summary: { headline: 'Old job' }, interview_focus: ['Old job focus'] } as never,
+      updatedAt: Date.now(),
+    })
+    getToday.mockResolvedValue(
+      plan({
+        needs_action: [
+          { application_id: 'a1', title: 'Backend Engineer', company: 'Globex', status: 'interviewing', reason: 'interview', deadline: null, applied_at: null, days_since_applied: null },
+        ],
+        needs_action_total: 1,
+      }),
+    )
+    // This application has no saved listing description.
+    getApplication.mockResolvedValue({ id: 'a1', label: 'Backend Engineer at Globex', listing: null })
+    renderToday()
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Prep for the round' }))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/interview' }))
+
+    const context = drafts.readWorkflowContext()
+    expect(context).toMatchObject({ targetRole: 'Backend Engineer', workspaceId: 'a1', resumeText: 'My resume text' })
+    expect(context?.jobDescription).toBeUndefined()
+    expect(context?.jobLabel).toBeUndefined()
+    expect(context?.jobSource).toBeUndefined()
+    expect(context?.historyId).toBeUndefined()
+    expect(context?.jobMatch).toBeUndefined()
+    window.sessionStorage.clear()
+  })
+
   it('stamps a deadline with its date and how far away it is', async () => {
     const soon = new Date()
     soon.setDate(soon.getDate() + 5)

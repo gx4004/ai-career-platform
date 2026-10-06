@@ -712,9 +712,11 @@ export const authSessionResponseSchema = z.strictObject({
   ok: z.boolean(),
 })
 
-/** GET /auth/session: the signed-in user or null for a guest; always a 200, never a 401. */
+/** GET /auth/refresh/session (alias /auth/session): the signed-in user or null for a guest; always a 200, never a 401. */
 export const sessionStateSchema = z.object({
   user: userSchema.nullable(),
+  // A guest whose refresh cookie would succeed at POST /auth/refresh.
+  refreshable: z.boolean().optional(),
 })
 
 // The backend returns an array of provider name strings (e.g. ["google"]);
@@ -1199,6 +1201,9 @@ export const jobMatchResultSchema = sharedResultEnvelopeSchema
     tailoring_actions: z.array(tailoringActionSchema),
     interview_focus: z.array(z.string()),
     recruiter_summary: z.string(),
+    // The job the posting names (Track job prefills Role and Company); null when unknown.
+    job_title: z.string().nullable().optional(),
+    company: z.string().nullable().optional(),
   })
   .passthrough()
 

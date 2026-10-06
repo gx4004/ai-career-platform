@@ -170,6 +170,48 @@ describe('ResetPasswordPage states', () => {
     expect(confirmPasswordResetMock).not.toHaveBeenCalled()
   })
 
+  describe('a reset still on its way when a fresh link opens in the same tab', () => {
+    async function submitThenOpenFreshLink() {
+      let settle!: { resolve: () => void; reject: (error: unknown) => void }
+      confirmPasswordResetMock.mockImplementationOnce(
+        () => new Promise<undefined>((resolve, reject) => { settle = { resolve: () => resolve(undefined), reject } }),
+      )
+      window.history.replaceState({}, '', '/reset-password#token=first-token')
+      render(<ResetPasswordPage />)
+      fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-1' } })
+      fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'new-password-1' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+      await waitFor(() => expect(confirmPasswordResetMock).toHaveBeenCalledWith({ token: 'first-token', new_password: 'new-password-1' }))
+
+      window.history.replaceState({}, '', '/reset-password#token=second-token')
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+      await waitFor(() => expect((screen.getByLabelText('New password') as HTMLInputElement).value).toBe(''))
+      return settle
+    }
+
+    it('ignores the first link being refused: the fresh link keeps its form', async () => {
+      const { ApiError } = await import('#/lib/api/errors')
+      const settle = await submitThenOpenFreshLink()
+
+      settle.reject(new ApiError('Invalid or expired reset token', 400, 'Invalid or expired reset token'))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(screen.queryByRole('heading', { level: 1, name: 'Invalid reset link' })).toBeNull()
+      expect(screen.getByRole('heading', { name: 'Set a new password' })).toBeTruthy()
+      expect((screen.getByRole('button', { name: 'Reset password' }) as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    it('ignores the first link succeeding: the fresh link is not reported as used', async () => {
+      const settle = await submitThenOpenFreshLink()
+
+      settle.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(screen.queryByRole('heading', { level: 1, name: 'Password updated' })).toBeNull()
+      expect(screen.getByRole('heading', { name: 'Set a new password' })).toBeTruthy()
+    })
+  })
+
   it('keeps the token it consumed when effects run twice (dev strict mode)', () => {
     window.history.replaceState({}, '', '/reset-password#token=fragment-token')
     render(
