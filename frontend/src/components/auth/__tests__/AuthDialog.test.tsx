@@ -32,8 +32,7 @@ vi.mock('#/lib/api/client', () => ({
   logout: logoutMock,
   register: registerMock,
   // GET /auth/session (a browser without a session hint) answers what /auth/me would, a guest as a 200 null.
-  request: async (path: string) => {
-    if (path !== '/auth/session') throw new Error(`unexpected request ${path}`)
+  getSessionState: async () => {
     try {
       return { user: await getCurrentUserMock() }
     } catch (error) {

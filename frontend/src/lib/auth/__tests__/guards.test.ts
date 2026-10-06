@@ -6,9 +6,8 @@ import { readPendingIntent, clearPendingIntent } from '#/lib/auth/pendingIntent'
 
 const getCurrentUser = vi.hoisted(() => vi.fn())
 // GET /auth/session (a browser without a session hint) answers what /auth/me would, a guest as a 200 null.
-const request = vi.hoisted(() =>
-  vi.fn(async (path: string) => {
-    if (path !== '/auth/session') throw new Error(`unexpected request ${path}`)
+const getSessionState = vi.hoisted(() =>
+  vi.fn(async () => {
     try {
       return { user: await getCurrentUser() }
     } catch (error) {
@@ -20,7 +19,7 @@ const request = vi.hoisted(() =>
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
   getCurrentUser,
-  request,
+  getSessionState,
 }))
 
 const { requireUser } = await import('#/lib/auth/userGuard')

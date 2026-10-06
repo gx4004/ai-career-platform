@@ -15,18 +15,11 @@ import {
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { importJobText, importJobUrl, listApplications } from '#/lib/api/client'
-import type { ApplicationCard } from '#/lib/api/schemas'
+import type { ApplicationCard, ImportedJobPost } from '#/lib/api/schemas'
 
-/**
- * What the importer hands back when no tier could read the page (backend PASTE_FALLBACK_DESCRIPTION).
- * It arrives as a 200 with a sentence in the description field, so it has to be recognised here or it
- * would land in the user's job description.
- */
-const UNREADABLE_PREFIX = 'could not extract the job description'
-
-function isUnreadable(description: string | null | undefined) {
-  const text = (description ?? '').trim()
-  return !text || text.toLowerCase().startsWith(UNREADABLE_PREFIX)
+/** No tier could read a job posting there (a blocked board, or a page that is not a job ad): paste instead. */
+function isUnreadable(data: ImportedJobPost) {
+  return data.readable === false || !data.job_description.trim()
 }
 
 function applicationName(item: ApplicationCard) {
@@ -76,7 +69,7 @@ export function JobImportCard({
       setAttachedTo(null)
     },
     onSuccess: (data, variables) => {
-      if (isUnreadable(data.job_description)) {
+      if (isUnreadable(data)) {
         // Leave whatever the user already has in the job description alone.
         setUnreadable(true)
         return
@@ -144,8 +137,8 @@ export function JobImportCard({
           </Field>
           {unreadable ? (
             <Notice tone="warning" title="Couldn't read that page">
-              Some job sites block automated readers. Paste the job description text below instead; what you
-              already had there is untouched.
+              The site may block automated readers, or the page may not be a job posting. Paste the job
+              description below instead; what you already had there is untouched.
             </Notice>
           ) : null}
           {attachedTo ? <Notice tone="success">Listing attached to {attachedTo}.</Notice> : null}

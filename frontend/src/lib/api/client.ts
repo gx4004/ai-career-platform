@@ -3,9 +3,11 @@ import { ApiError, apiErrorFromResponse, apiErrorFromZod, networkErrorFrom } fro
 import { clearSessionHint, hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
 import { gapClassificationListResponseSchema } from '#/lib/api/gapClassificationSchemas'
 import { gapResponseOfferSchema } from '#/lib/api/gapResponseSchemas'
+import { discoverySourceSchema } from '#/lib/api/discoverySchemas'
 import {
   authProvidersSchema,
   authSessionResponseSchema,
+  changePasswordRequestSchema,
   careerRequestSchema,
   careerResultSchema,
   coverLetterRequestSchema,
@@ -34,11 +36,14 @@ import {
   loginRequestSchema,
   parsedCvSchema,
   passwordResetConfirmRequestSchema,
+  passwordResetRequestResponseSchema,
   portfolioRequestSchema,
+  profileUpdateRequestSchema,
   portfolioResultSchema,
   registerRequestSchema,
   resumeAnalyzeRequestSchema,
   resumeResultSchema,
+  sessionStateSchema,
   toolRunDetailSchema,
   toolRunListSchema,
   toolRunSummarySchema,
@@ -183,8 +188,8 @@ function resolveApiUrl(): string {
     return trimTrailingSlash(configuredUrl)
   }
 
-  // Dev: Vite proxy forwards /api/v1 to backend.
-  // Prod: reverse proxy (nginx/caddy) must route /api/v1 to the backend.
+  // Same origin. Dev: the Vite proxy forwards /api/v1 to the backend. Production: serve.mjs proxies /api/* when
+  // API_PROXY_TARGET is set; without it, build with VITE_API_URL pointing at the API's own (cross-origin) URL.
   return '/api/v1'
 }
 
@@ -420,6 +425,38 @@ export function getCurrentUser() {
   return request('/auth/me', {
     method: 'GET',
     schema: userSchema,
+  })
+}
+
+/** The signed-in user or null for a guest: a 200 either way, never a 401 (and never a refresh). */
+export function getSessionState() {
+  return request('/auth/session', { method: 'GET', schema: sessionStateSchema })
+}
+
+/** Change the account's own name (null clears it); the answer is the updated user. */
+export function updateMe(payload: z.input<typeof profileUpdateRequestSchema>) {
+  return request('/auth/me', {
+    method: 'PATCH',
+    body: parseRequest(profileUpdateRequestSchema, payload),
+    schema: userSchema,
+  })
+}
+
+/** Ends every other session; this tab keeps going on the fresh cookies the answer sets. */
+export async function changePassword(payload: z.input<typeof changePasswordRequestSchema>): Promise<void> {
+  await request('/auth/change-password', {
+    method: 'POST',
+    body: parseRequest(changePasswordRequestSchema, payload),
+    schema: authSessionResponseSchema,
+  })
+}
+
+/** Admin: fetch one discovery source now. A failed fetch is still a 200; its outcome is on the source. */
+export function retrySourceFetch(sourceId: string) {
+  return request(`/admin/discovery-sources/${sourceId}/fetch`, {
+    method: 'POST',
+    schema: discoverySourceSchema,
+    timeoutMs: 60_000,
   })
 }
 
@@ -851,9 +888,10 @@ export function prepareApplicationsForMe() {
 }
 
 export function requestPasswordReset(payload: { email: string }) {
-  return request<{ message: string }>('/auth/password-reset/request', {
+  return request('/auth/password-reset/request', {
     method: 'POST',
     body: payload,
+    schema: passwordResetRequestResponseSchema,
   })
 }
 

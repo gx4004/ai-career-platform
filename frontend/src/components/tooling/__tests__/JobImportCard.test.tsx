@@ -18,7 +18,6 @@ vi.mock('#/lib/api/client', () => ({
   listApplications: listApplicationsMock,
 }))
 
-const FALLBACK = 'Could not extract the job description. Please copy and paste it.'
 
 function renderCard(onImported = vi.fn(), onSubmit = vi.fn()) {
   const queryClient = new QueryClient({
@@ -74,15 +73,18 @@ describe('JobImportCard', () => {
     })
 
     it.each([
-      ['the paste-fallback sentence', FALLBACK],
-      ['an empty page', ''],
-      ['whitespace only', '   \n'],
-    ])('leaves the job description alone and says so for %s (D03)', async (_name, description) => {
-      importJobUrlMock.mockResolvedValue({ job_description: description })
+      // B13: a blocked board or a page that is not a job ad (https://example.com/) answers readable:false.
+      ['a page the importer marks unreadable', { readable: false, job_description: '' }],
+      ['readable:false even when text came back', { readable: false, job_description: 'Example Domain. This domain is for use in examples.' }],
+      ['an empty page', { job_description: '' }],
+      ['whitespace only', { job_description: '   \n' }],
+    ])('leaves the job description alone and says so for %s (D03)', async (_name, answer) => {
+      importJobUrlMock.mockResolvedValue(answer)
       const { onImported } = renderCard()
       typeUrl()
       fireEvent.click(screen.getByRole('button', { name: 'Import' }))
       expect(await screen.findByText("Couldn't read that page")).toBeTruthy()
+      expect(screen.getByText(/Paste the job description below instead/)).toBeTruthy()
       expect(onImported).not.toHaveBeenCalled()
     })
 

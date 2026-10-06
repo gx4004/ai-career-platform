@@ -325,6 +325,24 @@
   }
 }
 
+/* As row.css: only a device with no touch input at all hides them. A finger cannot hover, so on a touchscreen
+   laptop or a tablet with a trackpad the actions stay in view, and an overlay falls back inline (always visible,
+   it must not sit on the card's text). Must follow the block above. */
+@media (any-pointer: coarse) {
+  .kit-card__actions[data-reveal] {
+    opacity: 1;
+  }
+
+  .kit-card__actions[data-placement='overlay'][data-reveal] {
+    position: relative;
+    inset: auto;
+    margin-block: calc((var(--kit-h-sm) - var(--lh-body)) / -2);
+    margin-inline-end: calc(var(--space-2) * -1);
+    border-radius: 0;
+    background: none;
+  }
+}
+
 /* ── StretchedLink ──────────────────────────────────────────────────── */
 
 /* :where() keeps these defaults at zero specificity, so a title class can set its own colour and font. */
