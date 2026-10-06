@@ -99,10 +99,29 @@ def _resume_sections(payload: dict[str, Any]) -> list[dict[str, Any]]:
     evidence = _as_dict(payload.get("evidence"))
     role_fit = _as_dict(payload.get("role_fit"))
 
+    # The snapshot says what the page shows: the score seal, the verdict and the headline,
+    # each once (a headline that opens with the verdict is not followed by it again).
+    headline = _to_str(summary.get("headline")) or ""  # a stored legacy run may have none
+    verdict = _to_str(summary.get("verdict"))
+    score = payload.get("overall_score")
+    snapshot_items = [f"Resume score: {score}/100"] if isinstance(score, int) else []
+    if verdict and verdict not in headline:
+        snapshot_items.append(f"Verdict: {verdict}")
+
+    # Each fix is listed once: rewrites the top actions already carry, and checklist
+    # steps already written above, are not repeated.
+    top_actions = _format_top_actions(payload)
+    rewrites = [
+        item
+        for item in (
+            _join_parts([_to_str(issue.get("title")), _to_str(issue.get("fix"))], separator=": ")
+            for issue in issues[:4]
+        )
+        if item and item not in top_actions
+    ]
+    listed = " ".join(top_actions + rewrites)
     revision_items = [
-        issue.get("fix")
-        for issue in issues[:4]
-        if _to_str(issue.get("fix"))
+        fix for fix in (_to_str(issue.get("fix")) for issue in issues[:4]) if fix and fix not in listed
     ]
     if missing_keywords := _to_str_list(evidence.get("missing_keywords")):
         revision_items.append(
@@ -118,33 +137,18 @@ def _resume_sections(payload: dict[str, Any]) -> list[dict[str, Any]]:
         _section(
             "overview",
             "Resume snapshot",
-            body=_join_parts(
-                [
-                    _to_str(summary.get("headline")),
-                    _to_str(summary.get("verdict")),
-                    _to_str(summary.get("confidence_note")),
-                ]
-            ),
+            body=_join_parts([headline, _to_str(summary.get("confidence_note"))], separator="\n"),
+            items=snapshot_items,
         ),
         _section(
             "actions",
             "Top revision actions",
-            items=_format_top_actions(payload),
+            items=top_actions,
         ),
         _section(
             "rewrite",
             "Rewrite suggestions",
-            items=[
-                _join_parts(
-                    [
-                        _to_str(issue.get("title")),
-                        _to_str(issue.get("fix")),
-                    ],
-                    separator=": ",
-                )
-                for issue in issues[:4]
-                if _to_str(issue.get("title")) or _to_str(issue.get("fix"))
-            ],
+            items=rewrites,
         ),
         _section(
             "checklist",
@@ -174,7 +178,8 @@ def _job_match_sections(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     _to_str(payload.get("recruiter_summary")),
                 ]
             ),
-            items=[f"Match score: {_to_str(payload.get('match_score')) or '0'}%"],
+            # Out of 100, like the page's score seal and the Copy text.
+            items=[f"Match score: {_to_str(payload.get('match_score')) or '0'}/100"],
         ),
         _section(
             "gaps",

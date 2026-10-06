@@ -885,3 +885,42 @@ def test_the_conflict_response_is_documented_in_the_api_schema(client):
     schema = client.get("/openapi.json").json()
     patch = schema["paths"]["/api/v1/cv-documents/{document_id}"]["patch"]
     assert "409" in patch["responses"]
+
+
+# ── a long entry's pieces are each emitted once ──
+
+
+@pytest.mark.parametrize("length", [4, 5, 6, 7])
+def test_a_long_entry_splits_into_groups_that_hold_every_piece_once_in_order(length):
+    from reportlab.platypus import Spacer
+
+    from app.services.cv_rendering import _entry_groups
+
+    flow = [Spacer(1, 400) for _ in range(length)]
+
+    groups = _entry_groups(flow, 400, 800)
+
+    flattened = [item for group in groups for item in group]
+    assert [id(item) for item in flattened] == [id(item) for item in flow]
+
+
+def test_a_tall_four_piece_entry_prints_its_middle_bullet_once(client, auth_headers):
+    bullets = [
+        f"Bullet {name}: " + " ".join(f"delivered outcome {n} for a large customer programme." for n in range(18))
+        for name in ("alpha", "bravo", "charlie")
+    ]
+    sections = [
+        _section(
+            "experience",
+            "Experience",
+            0,
+            [_entry("tall", 0, heading="Staff Engineer", subheading="Acme", start_date="2019",
+                    end_date="2024", bullets=bullets)],
+        )
+    ]
+    document = _create(client, auth_headers, sections)
+
+    flat = " ".join(_pdf_text(_pdf(client, auth_headers, document["id"])).split())
+
+    for name in ("alpha", "bravo", "charlie"):
+        assert flat.count(f"Bullet {name}:") == 1, name

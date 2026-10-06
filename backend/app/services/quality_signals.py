@@ -476,15 +476,16 @@ def _inflection_forms(word: str) -> set[str]:
     """The word and its *inflections* only ("deploy" -> deployed, "mentoring" -> mentored).
 
     Derivational endings (er, ion, ment, ship) are never added or stripped, and a
-    "-ing" keyword never matches its bare stem, so "Marketing" is not shown by
-    "stock market", "Server" by "served" or "Management" by "managed".
+    "-ing" keyword never matches its bare stem or the stem's plural, so "Marketing"
+    is not shown by "stock market(s)", "Accounting" by "key accounts", "Server" by
+    "served" or "Management" by "managed".
     """
     if len(word) < _MIN_STEMMABLE_LENGTH:
         return {word}
     forms = {word}
     if word.endswith("ing"):
         stem = word[:-3]
-        forms |= {stem + tail for tail in ("ed", "es", "s", "e", "ing")}
+        forms |= {stem + tail for tail in ("ed", "es", "e", "ing")}
     elif word.endswith("ed"):
         stem = word[:-2]
         forms |= {stem + tail for tail in ("ed", "es", "e", "ing")}

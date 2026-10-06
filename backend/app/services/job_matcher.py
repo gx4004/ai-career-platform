@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from app.prompts.job_match import build_job_match_prompt
 from app.services.ai_client import complete_structured
 from app.services.evidence_injection import EvidencePayload, render_evidence_section
+from app.services.job_posting import posting_header
 from app.services.quality_signals import (
     build_resume_prepass,
     compute_match_score,
@@ -23,6 +24,27 @@ CONFIDENCE_NOTE = (
     "Directional heuristic based on keyword and evidence overlap, not a recruiter "
     "decision or ATS guarantee."
 )
+
+
+_NOT_NAMED = frozenset({"null", "none", "unknown", "n/a", "na", "not specified", "not stated", "-"})
+
+
+def _named_job(result: dict, job_description: str, fallback_title: str | None) -> tuple[str | None, str | None]:
+    """(job_title, company) as the model read them from the posting, else as the posting's
+    header names them; None when the posting does not say."""
+
+    def clean(value) -> str | None:
+        text = " ".join(str(value).split()) if isinstance(value, str) else ""
+        # A model sometimes writes the word instead of JSON null.
+        if text.lower().strip(".") in _NOT_NAMED:
+            return None
+        return text[:200] or None
+
+    title, company = posting_header(job_description)
+    return (
+        clean(result.get("job_title")) or clean(title) or clean(fallback_title),
+        clean(result.get("company")) or clean(company),
+    )
 
 
 def _headline(verdict: str, matched_keywords: list[str], missing_keywords: list[str]) -> str:
@@ -350,6 +372,8 @@ async def match_job(
     else:
         recruiter_summary = ""
 
+    job_title, company = _named_job(result, job_description, prepass.target_role_label)
+
     # The top-level `verdict` field is locked from the heuristic; force the
     # `summary.verdict` to match it so the score circle and the summary card
     # never disagree. The prompt asks the LLM to preserve locked fields
@@ -382,4 +406,6 @@ async def match_job(
         "tailoring_actions": tailoring_actions,
         "interview_focus": interview_focus[:4],
         "recruiter_summary": recruiter_summary,
+        "job_title": job_title,
+        "company": company,
     }

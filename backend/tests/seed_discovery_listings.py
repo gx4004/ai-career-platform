@@ -154,100 +154,105 @@ SKILLS = [
 ]
 
 
+def seed_listings(db, user: User, now: datetime | None = None) -> None:
+    """Insert (or refresh) the governed sources, the listings and the user's confirmed skills."""
+    now = now or datetime.now(UTC)
+    sources: dict[str, DiscoverySource] = {}
+    for provider, company, *_rest in LISTINGS:
+        slug = company.lower().replace(" ", "")
+        key = f"employer-ats-{provider}-{slug}"
+        if key in sources:
+            continue
+        source = db.query(DiscoverySource).filter_by(source_key=key).one_or_none()
+        if source is None:
+            source = DiscoverySource(
+                source_key=key,
+                display_name=company,
+                source_family="employer_ats",
+                owner="Screenshots harness",
+                terms_status="accepted",
+                terms_reviewed_at=now,
+                terms_reviewed_by="screenshots-harness",
+                allowed_behavior="ats_integration",
+                endpoint_url=ENDPOINTS[provider].format(slug=slug),
+                rate_limit_per_minute=10,
+                attribution_rule="Show the company name, the source name and the original link",
+                retention_days=45,
+                kill_switch=False,
+            )
+            db.add(source)
+            db.flush()
+        sources[key] = source
+
+    for provider, company, title, department, location, remote, days, description in LISTINGS:
+        description = f"{description} {DETAILS[title]}" if title in DETAILS else description
+        digest = hashlib.sha256(f"{title}|{company}|{description}".encode()).hexdigest()
+        existing = (
+            db.query(DiscoveredListing).filter_by(title=title, company=company).first()
+        )
+        if existing is not None:
+            # Re-seeding refreshes the text and the posting date, so the demo
+            # data never goes stale or duplicates.
+            existing.content_sha256 = digest
+            existing.description = description
+            existing.posted_at = now - timedelta(days=days, hours=3)
+            for attribution in existing.attributions:
+                attribution.retrieved_at = now
+            continue
+        listing = DiscoveredListing(
+            content_sha256=digest,
+            title=title,
+            company=company,
+            description=description,
+            location=location,
+            remote=remote,
+            posted_at=now - timedelta(days=days, hours=3),
+            apply_url=f"https://careers.example.com/{digest[:12]}",
+            department=department,
+        )
+        db.add(listing)
+        db.flush()
+        source = sources[f"employer-ats-{provider}-{company.lower().replace(' ', '')}"]
+        db.add(
+            DiscoveredListingAttribution(
+                listing_id=listing.id,
+                source_id=source.id,
+                source_listing_key=digest[:16],
+                source_url=f"https://boards.example.com/{provider}/{digest[:12]}",
+                retrieved_at=now,
+            )
+        )
+
+    known = {
+        item.content.get("name")
+        for item in db.query(EvidenceItem).filter_by(user_id=user.id, kind="skill")
+    }
+    for skill in SKILLS:
+        if skill in known:
+            continue
+        db.add(
+            EvidenceItem(
+                user_id=user.id,
+                kind="skill",
+                content={"name": skill},
+                provenance="user-entered",
+                confirmation_state="confirmed",
+            )
+        )
+    db.commit()
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 1:
         print("usage: python -m tests.seed_discovery_listings <email>", file=sys.stderr)
         return 2
-    now = datetime.now(UTC)
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == argv[0]).one_or_none()
         if user is None:
             print("not-found")
             return 1
-        sources: dict[str, DiscoverySource] = {}
-        for provider, company, *_rest in LISTINGS:
-            slug = company.lower().replace(" ", "")
-            key = f"employer-ats-{provider}-{slug}"
-            if key in sources:
-                continue
-            source = db.query(DiscoverySource).filter_by(source_key=key).one_or_none()
-            if source is None:
-                source = DiscoverySource(
-                    source_key=key,
-                    display_name=company,
-                    source_family="employer_ats",
-                    owner="Screenshots harness",
-                    terms_status="accepted",
-                    terms_reviewed_at=now,
-                    terms_reviewed_by="screenshots-harness",
-                    allowed_behavior="ats_integration",
-                    endpoint_url=ENDPOINTS[provider].format(slug=slug),
-                    rate_limit_per_minute=10,
-                    attribution_rule="Show the company name, the source name and the original link",
-                    retention_days=45,
-                    kill_switch=False,
-                )
-                db.add(source)
-                db.flush()
-            sources[key] = source
-
-        for provider, company, title, department, location, remote, days, description in LISTINGS:
-            description = f"{description} {DETAILS[title]}" if title in DETAILS else description
-            digest = hashlib.sha256(f"{title}|{company}|{description}".encode()).hexdigest()
-            existing = (
-                db.query(DiscoveredListing).filter_by(title=title, company=company).first()
-            )
-            if existing is not None:
-                # Re-seeding refreshes the text and the posting date, so the demo
-                # data never goes stale or duplicates.
-                existing.content_sha256 = digest
-                existing.description = description
-                existing.posted_at = now - timedelta(days=days, hours=3)
-                for attribution in existing.attributions:
-                    attribution.retrieved_at = now
-                continue
-            listing = DiscoveredListing(
-                content_sha256=digest,
-                title=title,
-                company=company,
-                description=description,
-                location=location,
-                remote=remote,
-                posted_at=now - timedelta(days=days, hours=3),
-                apply_url=f"https://careers.example.com/{digest[:12]}",
-                department=department,
-            )
-            db.add(listing)
-            db.flush()
-            source = sources[f"employer-ats-{provider}-{company.lower().replace(' ', '')}"]
-            db.add(
-                DiscoveredListingAttribution(
-                    listing_id=listing.id,
-                    source_id=source.id,
-                    source_listing_key=digest[:16],
-                    source_url=f"https://boards.example.com/{provider}/{digest[:12]}",
-                    retrieved_at=now,
-                )
-            )
-
-        known = {
-            item.content.get("name")
-            for item in db.query(EvidenceItem).filter_by(user_id=user.id, kind="skill")
-        }
-        for skill in SKILLS:
-            if skill in known:
-                continue
-            db.add(
-                EvidenceItem(
-                    user_id=user.id,
-                    kind="skill",
-                    content={"name": skill},
-                    provenance="user-entered",
-                    confirmation_state="confirmed",
-                )
-            )
-        db.commit()
+        seed_listings(db, user)
     finally:
         db.close()
     print("seeded")

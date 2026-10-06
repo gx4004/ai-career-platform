@@ -156,8 +156,9 @@ def test_seed_groups_facts_into_one_human_section_per_kind(client, auth_headers)
     assert first["body"] == "Leads the platform team."
     assert experience["entries"][1]["body"] == "Built billing."
     assert achievements["entries"][0]["body"] == "Cut p95 latency by 38% on the ingest API."
-    assert [e["body"] for e in skills_section["entries"]] == ["Python", "PostgreSQL", "Kubernetes"]
-    assert [e["position"] for e in skills_section["entries"]] == [0, 1, 2]
+    # B16: skills read as one comma-joined line, in the order they were picked.
+    assert [e["body"] for e in skills_section["entries"]] == ["Python, PostgreSQL, Kubernetes"]
+    assert [e["position"] for e in skills_section["entries"]] == [0]
     assert experience["entries"][0]["evidence_item_id"] == role
 
 

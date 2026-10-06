@@ -156,6 +156,9 @@ class SessionStateResponse(BaseModel):
     """`GET /auth/session`: the signed-in user, or null for a guest (never a 401)."""
 
     user: UserResponse | None = None
+    # True only for a guest whose refresh cookie would succeed at POST /auth/refresh,
+    # so a client without a local session hint still knows to refresh once.
+    refreshable: bool = False
 
 
 class AuthProvidersResponse(BaseModel):

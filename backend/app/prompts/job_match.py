@@ -3,7 +3,7 @@ import json
 # Bump when the prompt template changes shape, banned-words list, or output
 # schema. Included in the cache key so a rollout immediately invalidates
 # in-flight cached responses.
-JOB_MATCH_PROMPT_VERSION = "2026-08-13-v2"
+JOB_MATCH_PROMPT_VERSION = "2026-10-06-v3"
 
 
 def build_job_match_prompt(
@@ -88,7 +88,9 @@ Return JSON with this exact schema:
     }
   ],
   "interview_focus": ["<topic to prepare for>"],
-  "recruiter_summary": "<2-4 sentence summary>"
+  "recruiter_summary": "<2-4 sentence summary>",
+  "job_title": "<the job title exactly as the posting names it>" | null,
+  "company": "<the hiring company the posting names; never a former employer, a location or a work mode>" | null
 }"""
 
     user_parts = [
