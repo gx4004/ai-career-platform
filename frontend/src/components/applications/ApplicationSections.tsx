@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -39,6 +39,7 @@ import {
 import type { ApplicationDetail, ApplicationEvent, ApplicationStatus, ApplicationUpdate } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { ApplicationPanel } from './ApplicationPanel'
+import { listApplicationEvents } from './applicationsApi'
 import { dueText, daysUntil, SOON_DAYS } from './deadlines'
 import { STATUS_LABELS, formatDate, timeAgo } from './stages'
 
@@ -61,11 +62,22 @@ export function DocumentsPanel({ application }: Props) {
   const materials = useApplicationUpdate(application.id)
   const { selected_materials: selected, available_materials: available, drafts } = application
   const draftCover = drafts?.cover_letter
+  // Once applied, what was sent is the frozen record in the panel above; the CV and letter picked here
+  // no longer change it, so they read as fixed. Interview prep still matters for what comes next.
+  const sent = application.applied_at !== null
   return (
-    <ApplicationPanel title="What you're sending" description="Pick the version of each document that goes with this application.">
+    <ApplicationPanel
+      title={sent ? 'Your documents' : "What you're sending"}
+      description={
+        sent
+          ? 'The CV and cover letter are kept as they were when you marked it applied. You can still pick interview prep.'
+          : 'Pick the version of each document that goes with this application.'
+      }
+    >
       <Stack gap={4}>
         <MaterialRow
           label="CV version" field="cv_variant_id" value={selected.cv_variant?.id ?? ''} pending={materials.isPending}
+          locked={sent}
           items={available.cv_variants.map((item) => ({ id: item.id, label: `${item.name} (${item.document_name})` }))}
           open={selected.cv_variant ? { to: '/cv-studio' } : null}
           create={{ to: '/cv-studio', label: 'Make one in CV Studio' }}
@@ -73,16 +85,17 @@ export function DocumentsPanel({ application }: Props) {
         />
         <MaterialRow
           label="Cover letter" field="cover_letter_run_id" value={selected.cover_letter?.id ?? ''} pending={materials.isPending}
+          locked={sent}
           items={available.cover_letters.map((item) => ({ id: item.id, label: runLabel(item, 'Cover letter') }))}
           open={selected.cover_letter ? { to: '/cover-letter/result/$historyId', historyId: selected.cover_letter.id } : null}
           create={draftCover ? null : { to: '/cover-letter', label: 'Write a cover letter' }}
           emptyLabel={draftCover ? 'Use the prepared draft' : 'Not chosen yet'}
           onChange={(value) => materials.mutate({ cover_letter_run_id: value || null })}
         />
-        {draftCover && !selected.cover_letter ? (
+        {draftCover && !selected.cover_letter && !sent ? (
           <CopyBlock label="Prepared cover letter" text={draftCover.body} />
         ) : null}
-        {drafts?.screening_answers.length ? (
+        {drafts?.screening_answers.length && !sent ? (
           <Section headingLevel={3} title="Screening answers" rule={false}>
             <Stack gap={2}>
               {drafts.screening_answers.map((item) => (
@@ -110,23 +123,25 @@ export function DocumentsPanel({ application }: Props) {
 
 type OpenTarget = { to: '/cv-studio' } | { to: '/cover-letter/result/$historyId' | '/interview/result/$historyId'; historyId: string }
 
-function MaterialRow({ label, field, value, items, pending, open, create, emptyLabel = 'Not chosen yet', onChange }: {
+function MaterialRow({ label, field, value, items, pending, locked = false, open, create, emptyLabel = 'Not chosen yet', onChange }: {
   label: string
   field: string
   value: string
   items: Array<{ id: string; label: string }>
   pending: boolean
+  /** Shown, not changeable: the application was already sent with it. */
+  locked?: boolean
   open: OpenTarget | null
   create: { to: '/cv-studio' | '/cover-letter' | '/interview'; label: string } | null
   emptyLabel?: string
   onChange: (value: string) => void
 }) {
-  if (!items.length && !create) return null
+  if (!items.length && (!create || locked)) return null
   return (
     <Field label={label} id={`application-${field}`}>
       <Cluster gap={3} className="camp-material">
         {items.length ? (
-          <Select className="camp-material__select" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)}>
+          <Select className="camp-material__select" value={value} disabled={pending || locked} onChange={(event) => onChange(event.target.value)}>
             <option value="">{emptyLabel}</option>
             {items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
           </Select>
@@ -142,7 +157,7 @@ function MaterialRow({ label, field, value, items, pending, open, create, emptyL
               : <Link to={open.to}>Open</Link>}
           </Button>
         ) : null}
-        {!items.length && create ? (
+        {!items.length && create && !locked ? (
           <Button asChild variant="secondary" size="sm"><Link to={create.to}>{create.label}</Link></Button>
         ) : null}
       </Cluster>
@@ -196,7 +211,7 @@ export function JobPanel({ application }: Props) {
   return (
     <ApplicationPanel
       title="Job description"
-      description={listing ? `${listing.title} at ${listing.company} · saved ${formatDate(listing.retrieved_at)}` : undefined}
+      description={listing ? `${listing.title} at ${listing.company} · retrieved ${formatDate(listing.retrieved_at)}` : undefined}
       actions={listing?.source_url ? (
         <Button asChild variant="secondary" size="sm">
           <a href={listing.source_url} target="_blank" rel="noopener noreferrer">
@@ -333,6 +348,7 @@ export function NotesPanel({ application }: Props) {
 // ── Activity ──
 
 const EVENT_LABELS: Record<string, string> = {
+  created: 'Added to your applications',
   deadline_changed: 'Deadline updated',
   listing_attached: 'Job posting added',
   listing_adopted: 'Saved from Job Discovery',
@@ -348,36 +364,108 @@ const EVENT_LABELS: Record<string, string> = {
   task_deleted: 'Task removed',
 }
 
+const MATERIAL_LABELS: Record<string, string> = {
+  cv_variant: 'CV version',
+  cover_letter: 'Cover letter',
+  interview: 'Interview prep',
+  drafts: 'Prepared drafts',
+}
+
+const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
+
 function eventLabel(event: ApplicationEvent) {
+  const { details } = event
   if (event.event_type === 'status_changed') {
-    const to = event.details.to as ApplicationStatus | undefined
+    const to = details.to as ApplicationStatus | undefined
     if (to === 'no_reply') return 'Marked no reply'
     return to && STATUS_LABELS[to] ? `Moved to ${STATUS_LABELS[to]}` : 'Stage changed'
   }
   if (event.event_type === 'autofill') {
-    if (event.details.outcome === 'failed') return 'Autopilot could not fill the form'
-    const filled = Number(event.details.filled_count ?? 0)
-    const left = Number(event.details.needs_you_count ?? 0)
+    if (details.outcome === 'failed') return 'Autopilot could not fill the form'
+    const filled = Number(details.filled_count ?? 0)
+    const left = Number(details.needs_you_count ?? 0)
     return `Autopilot filled ${filled} field${filled === 1 ? '' : 's'}, ${left} left for you`
   }
-  return EVENT_LABELS[event.event_type] ?? 'Updated'
+  if (event.event_type === 'created') {
+    if (details.source === 'manual') return 'Added by hand'
+    if (details.source === 'job_match') return 'Added from a Job Match'
+  }
+  if (event.event_type === 'deadline_changed' && 'to' in details) {
+    const to = text(details.to)
+    return to ? `Deadline set to ${formatDate(to)}` : 'Deadline removed'
+  }
+  if (event.event_type === 'material_selection_changed') {
+    const material = MATERIAL_LABELS[String(details.material_type)]
+    if (material) return `${material} ${details.action === 'cleared' ? 'removed' : 'chosen'}`
+  }
+  // Task events carry the task's title, so a deleted task is still named here.
+  const title = event.event_type.startsWith('task_') ? text(details.title) : null
+  const label = EVENT_LABELS[event.event_type] ?? 'Updated'
+  return title ? `${label}: ${title}` : label
+}
+
+/** Newest first, each event once (the detail's recent window and older pages overlap as new events arrive). */
+function mergeEvents(...lists: ApplicationEvent[][]) {
+  const byId = new Map<string, ApplicationEvent>()
+  for (const list of lists) for (const event of list) byId.set(event.id, event)
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || b.id.localeCompare(a.id),
+  )
+}
+
+const OLDER_PAGE = 50
+
+/**
+ * One "Mark as applied" records two events, the freeze ("applied") and the board move ("status_changed" to
+ * applied), a moment apart. Show it once: the move is dropped when the freeze sits next to it.
+ */
+function withoutAppliedMoveEcho(events: ApplicationEvent[]) {
+  const near = (a: ApplicationEvent, b: ApplicationEvent | undefined) =>
+    b?.event_type === 'applied' && Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 5_000
+  return events.filter(
+    (event, index) =>
+      !(event.event_type === 'status_changed' && event.details.to === 'applied'
+        && (near(event, events[index - 1]) || near(event, events[index + 1]))),
+  )
 }
 
 export function ActivityPanel({ application }: Props) {
-  const events = [...application.events].reverse()
+  // Older events fetched on request. Once any are open, every event already shown is kept here too, so a new
+  // event landing at the top of the detail's window cannot push one out of view.
+  const [older, setOlder] = useState<ApplicationEvent[]>([])
+  useEffect(() => {
+    setOlder((current) => (current.length ? mergeEvents(current, application.events) : current))
+  }, [application.events])
+  const events = mergeEvents(application.events, older)
+  const total = Math.max(application.events_total, events.length)
+  const hidden = total - events.length
+  const loadOlder = useMutation({
+    mutationFn: () => listApplicationEvents(application.id, events.length, OLDER_PAGE),
+    onSuccess: (page) => setOlder((current) => mergeEvents(current, application.events, page.items)),
+  })
   return (
     <Section title="Activity">
       {events.length ? (
-        <List aria-label="Activity">
-          {events.map((event) => (
-            <Row key={event.id} density="compact">
-              <RowBody>
-                <RowTitle>{eventLabel(event)}</RowTitle>
-              </RowBody>
-              <RowMeta>{formatDate(event.created_at)} · {event.provenance === 'system' ? 'Automatic' : 'You'}</RowMeta>
-            </Row>
-          ))}
-        </List>
+        <Stack gap={3}>
+          <List aria-label="Activity">
+            {withoutAppliedMoveEcho(events).map((event) => (
+              <Row key={event.id} density="compact">
+                <RowBody>
+                  <RowTitle>{eventLabel(event)}</RowTitle>
+                </RowBody>
+                <RowMeta>{formatDate(event.created_at)} · {event.provenance === 'system' ? 'Automatic' : 'You'}</RowMeta>
+              </Row>
+            ))}
+          </List>
+          {hidden > 0 ? (
+            <div>
+              <Button type="button" variant="secondary" size="sm" loading={loadOlder.isPending} onClick={() => loadOlder.mutate()}>
+                Show older activity ({hidden})
+              </Button>
+            </div>
+          ) : null}
+          {loadOlder.isError ? <Notice tone="danger">Older activity couldn't be loaded. Try again.</Notice> : null}
+        </Stack>
       ) : (
         <EmptyState size="inline" title="Nothing yet" description="Changes you make to this application will show up here." />
       )}
@@ -458,13 +546,12 @@ function DeadlineEditor({ application }: Props) {
 }
 
 export function FactsPanel({ application }: Props) {
-  const { listing } = application
   const rows: Array<{ label: string; value: ReactNode }> = [
     ...(application.match_score !== null
       ? [{ label: 'Skills fit', value: <span className="camp-fit"><FitStamp value={application.match_score} size="sm" /> when saved</span> }]
       : []),
     ...(OUTCOMES[application.status] ? [{ label: 'Outcome', value: OUTCOMES[application.status] }] : []),
-    ...(listing ? [{ label: 'Saved', value: formatDate(listing.retrieved_at) }] : []),
+    ...(application.created_at ? [{ label: 'Saved', value: formatDate(application.created_at) }] : []),
     { label: 'Last activity', value: timeAgo(application.last_activity_at ?? application.updated_at) },
   ]
   // Only Saved and Offer have a date to set; any other stage shows one that is already there.

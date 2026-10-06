@@ -15,14 +15,14 @@ import {
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { deleteApplication, getApplication, updateApplication } from '#/lib/api/client'
-import type { ApplicationStatus } from '#/lib/api/schemas'
+import type { ApplicationDetail, ApplicationStatus } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { ActivityPanel, DocumentsPanel, FactsPanel, JobPanel, NotesPanel, TasksPanel } from './ApplicationSections'
 import { ApplicationHeader } from './ApplicationHeader'
 import { ApplyPanel } from './ApplyPanel'
 import { DocumentChecks } from './DocumentChecks'
 import { StageMenu } from './StageMenu'
-import { STATUS_LABELS, stageOf } from './stages'
+import { STATUS_LABELS, applicationTitle, roleOnly, stageOf } from './stages'
 
 /** One application on one page: apply, documents, job, tasks, notes, activity. */
 export function ApplicationPage({ applicationId }: { applicationId: string }) {
@@ -121,7 +121,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
         }
       >
         <DocumentsPanel application={application} />
-        <DocumentChecks applicationId={application.id} />
+        <DocumentChecks applicationId={application.id} sent={application.applied_at !== null} />
         <JobPanel application={application} />
         <NotesPanel application={application} />
         <ActivityPanel application={application} />
@@ -137,7 +137,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
         onOpenChange={setDeleteOpen}
         pending={remove.isPending}
         title="Delete this application?"
-        description="This removes it from your board along with its tasks and notes. It doesn't withdraw anything you already sent to the employer."
+        description={deleteSummary(application)}
         confirmLabel={remove.isPending ? 'Deleting…' : 'Delete'}
         icon={<Trash2 aria-hidden="true" />}
         onConfirm={() => remove.mutate()}
@@ -146,6 +146,22 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
       </ConfirmDialog>
     </Page>
   )
+}
+
+/** What deleting takes with it, named from this application's own data. */
+function deleteSummary(application: ApplicationDetail) {
+  const role = roleOnly(applicationTitle(application), application.company)
+  const name = application.company ? `${role} at ${application.company}` : role
+  const tasks = application.tasks.length
+  const parts = [
+    tasks ? `${tasks} ${tasks === 1 ? 'task' : 'tasks'}` : null,
+    application.notes ? 'your notes' : null,
+    application.drafts ? 'the prepared drafts' : null,
+    application.snapshot ? 'the record of what you sent' : null,
+    application.events_total || application.events.length ? 'its activity' : null,
+  ].filter((part): part is string => part !== null)
+  const taken = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]
+  return `“${name}” leaves your board${taken ? ` with ${taken}` : ''}. Cover letters and interview prep you made in the tools stay in History. Nothing you already sent to the employer is withdrawn.`
 }
 
 function ApplicationSkeleton() {

@@ -36,7 +36,12 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
     queryClient.setQueryData(applicationQueryKey(application.id), detail)
     void invalidateApplications(queryClient)
   }
-  const prepare = useMutation({ mutationFn: () => prepareApplication(application.id), onSuccess: onDetail })
+  const prepare = useMutation({
+    mutationFn: () => prepareApplication(application.id),
+    onSuccess: onDetail,
+    // A 409 here is "already being prepared" (another tab, a double click): its drafts arrive with the next read.
+    onError: () => { void invalidateApplications(queryClient) },
+  })
   const answers = useMutation({
     mutationFn: (map: Record<string, string>) => saveApplicationAnswers(application.id, map),
     onSuccess: onDetail,

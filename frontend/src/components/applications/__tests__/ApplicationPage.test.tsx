@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
 }))
 const flags = vi.hoisted(() => ({ autopilot: false }))
 vi.mock('#/lib/api/client', () => api)
+const eventsApi = vi.hoisted(() => ({ createApplication: vi.fn(), listApplicationEvents: vi.fn() }))
+vi.mock('#/components/applications/applicationsApi', () => eventsApi)
 vi.mock('#/lib/flags/featureFlags', () => ({ isAutopilotExperimentEnabled: () => flags.autopilot }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated', openAuthDialog: vi.fn() }) }))
 vi.mock('@tanstack/react-router', () => ({
@@ -234,6 +236,102 @@ describe('ApplicationPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('no longer there')
     expect(alert.textContent).toContain('Open the apply page yourself.')
+  })
+
+  it('dates Saved from when the job was added, not when its posting was read', async () => {
+    api.getApplication.mockResolvedValue({ ...saved, created_at: '2026-10-02T10:00:00Z' })
+    renderPage()
+    const savedOn = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date('2026-10-02T10:00:00Z'))
+    const value = await screen.findByText(savedOn)
+    expect(value.closest('dl')?.textContent).toContain('Saved')
+    // The posting's own retrieval date is not called "saved" anywhere.
+    expect(screen.queryByText(/saved Sep 19/)).toBeNull()
+  })
+
+  it('names each step in the activity, with the task title and the new date', async () => {
+    const at = (minute: number) => `2026-10-01T10:${String(minute).padStart(2, '0')}:00Z`
+    api.getApplication.mockResolvedValue({
+      ...saved,
+      events: [
+        { id: 'e1', event_type: 'created', details: { source: 'manual' }, provenance: 'user', created_at: at(1) },
+        { id: 'e2', event_type: 'task_created', details: { task_id: 't', title: 'Send portfolio' }, provenance: 'user', created_at: at(2) },
+        { id: 'e3', event_type: 'deadline_changed', details: { from: null, to: '2026-10-08T12:00:00Z' }, provenance: 'user', created_at: at(3) },
+        { id: 'e4', event_type: 'material_selection_changed', details: { material_type: 'cv_variant', action: 'selected' }, provenance: 'user', created_at: at(4) },
+      ],
+      events_total: 4,
+    })
+    renderPage()
+    const activity = await screen.findByRole('list', { name: 'Activity' })
+    const rows = within(activity).getAllByRole('listitem').map((row) => row.textContent ?? '')
+    expect(rows[0]).toContain('CV version chosen')
+    expect(rows[1]).toMatch(/Deadline set to/)
+    expect(rows[2]).toContain('Task added: Send portfolio')
+    expect(rows[3]).toContain('Added by hand')
+    expect(screen.queryByRole('button', { name: /Show older activity/ })).toBeNull()
+  })
+
+  it('shows one "Mark as applied" once, while a later move back to Applied still shows', async () => {
+    const at = (minute: number, second = 0) => `2026-10-01T10:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}Z`
+    api.getApplication.mockResolvedValue({
+      ...saved,
+      events: [
+        { id: 'e5', event_type: 'status_changed', details: { from: 'interviewing', to: 'applied' }, provenance: 'user', created_at: at(9) },
+        { id: 'e4', event_type: 'status_changed', details: { from: 'applied', to: 'interviewing' }, provenance: 'user', created_at: at(8) },
+        { id: 'e3', event_type: 'status_changed', details: { from: 'saved', to: 'applied' }, provenance: 'user', created_at: at(2, 1) },
+        { id: 'e2', event_type: 'applied', details: { snapshot_id: 's' }, provenance: 'user', created_at: at(2) },
+        { id: 'e1', event_type: 'created', details: { source: 'manual' }, provenance: 'user', created_at: at(1) },
+      ],
+      events_total: 5,
+    })
+    renderPage()
+    const activity = await screen.findByRole('list', { name: 'Activity' })
+    expect(within(activity).getAllByRole('listitem').map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Moved to Applied'),
+      expect.stringContaining('Moved to Interviewing'),
+      expect.stringContaining('Marked as applied'),
+      expect.stringContaining('Added by hand'),
+    ])
+    expect(screen.queryByRole('button', { name: /Show older activity/ })).toBeNull()
+  })
+
+  it('pages in older activity when there is more than the page shows', async () => {
+    const event = (id: string, minute: number, title: string) => ({
+      id, event_type: 'task_created', details: { title }, provenance: 'user', created_at: `2026-10-01T10:${String(minute).padStart(2, '0')}:00Z`,
+    })
+    api.getApplication.mockResolvedValue({ ...saved, events: [event('e3', 3, 'Third'), event('e4', 4, 'Fourth')], events_total: 4 })
+    eventsApi.listApplicationEvents.mockResolvedValue({ items: [event('e1', 1, 'First'), event('e2', 2, 'Second')], total: 4 })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show older activity (2)' }))
+    await waitFor(() => expect(eventsApi.listApplicationEvents).toHaveBeenCalledWith('app-1', 2, 50))
+    const activity = screen.getByRole('list', { name: 'Activity' })
+    await waitFor(() => expect(within(activity).getAllByRole('listitem')).toHaveLength(4))
+    expect(within(activity).getAllByRole('listitem').map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Fourth'), expect.stringContaining('Third'), expect.stringContaining('Second'), expect.stringContaining('First'),
+    ])
+    expect(screen.queryByRole('button', { name: /Show older activity/ })).toBeNull()
+  })
+
+  it('keeps the CV and letter fixed once applied, but interview prep can still be picked', async () => {
+    api.getApplication.mockResolvedValue({
+      ...applied,
+      available_materials: { ...applied.available_materials, interviews: [{ id: 'iv-1', label: 'Interview prep', parent_run_id: null, created_at: '2026-09-22T10:00:00Z' }] },
+    })
+    renderPage()
+    expect(await screen.findByRole('heading', { name: 'Your documents' })).toBeTruthy()
+    expect((screen.getByLabelText('CV version') as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Interview prep') as HTMLSelectElement).disabled).toBe(false)
+    expect(screen.queryByRole('button', { name: /Copy Prepared cover letter/ })).toBeNull()
+  })
+
+  it('says what deleting takes with it', async () => {
+    api.getApplication.mockResolvedValue({
+      ...applied, notes: 'Recruiter: Tom', events_total: 3,
+      tasks: [{ id: 't-1', title: 'Email Priya', deadline: null, completed: false, created_at: '2026-09-20T10:00:00Z' }],
+    })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete this application' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete this application?' })
+    expect(dialog.textContent).toContain('“Platform Engineer at Northstar Labs” leaves your board with 1 task, your notes, the prepared drafts, the record of what you sent and its activity.')
   })
 
   it('asks before deleting and removes the application once confirmed', async () => {

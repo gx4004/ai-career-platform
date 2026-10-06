@@ -13,6 +13,8 @@ const api = vi.hoisted(() => ({
   prepareApplicationsForMe: vi.fn(),
 }))
 vi.mock('#/lib/api/client', () => api)
+const createApi = vi.hoisted(() => ({ createApplication: vi.fn(), listApplicationEvents: vi.fn() }))
+vi.mock('#/components/applications/applicationsApi', () => createApi)
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, params, children, className }: { to: string; params?: { campaignId?: string }; children: React.ReactNode; className?: string }) => (
     <a href={params?.campaignId ? to.replace('$campaignId', params.campaignId) : to} className={className}>{children}</a>
@@ -168,6 +170,21 @@ describe('ApplicationsPage', () => {
     await waitFor(() => expect(api.updateApplication).toHaveBeenCalledWith('a-5', { status: 'interviewing' }))
   })
 
+  it('offers No reply only for an application that is still Applied', async () => {
+    const mixed = [
+      { ...base, id: 'n-1', title: 'Cloud Engineer', company: 'Vale', status: 'applied', applied_at: '2026-09-01T10:00:00Z' },
+      ...items,
+    ]
+    api.listApplications.mockResolvedValue({ items: mixed, total: mixed.length })
+    renderBoard()
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Move Backend Engineer' }), { key: 'Enter' })
+    expect(within(await screen.findByRole('menu')).queryByRole('menuitem', { name: 'No reply' })).toBeNull()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Move Cloud Engineer' }), { key: 'Enter' })
+    expect(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'No reply' })).toBeTruthy()
+  })
+
   it("shows the server's reason when a move is refused", async () => {
     api.updateApplication.mockRejectedValueOnce(new ApiError('Answer the open questions before marking this applied.', 409))
     renderBoard()
@@ -188,7 +205,7 @@ describe('ApplicationsPage', () => {
     renderBoard()
     expect(await screen.findByRole('heading', { name: 'Add your first job' })).toBeTruthy()
     expect(screen.getByRole('link', { name: /Find a job in Discover/ }).getAttribute('href')).toBe('/discovery')
-    expect(screen.getByRole('link', { name: 'Paste or import a posting' }).getAttribute('href')).toBe('/job-match')
+    expect(screen.getByRole('button', { name: 'Add a job by hand' })).toBeTruthy()
     // One filled button for the view: the card's, not the header's.
     expect(screen.getByRole('link', { name: 'Find jobs' }).className).not.toContain('kit-button--primary')
   })
@@ -231,6 +248,89 @@ describe('ApplicationsPage', () => {
   })
 })
 
+describe('Add a job by hand', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    api.listApplications.mockResolvedValue({ items, total: items.length })
+    api.getApplicationPreferences.mockResolvedValue(prefs)
+    api.getApplicationInsights.mockResolvedValue(noInsights)
+  })
+
+  const created = {
+    ...base, id: 'new-1', title: 'Data Engineer', company: 'Fjord', role: 'Data Engineer', status: 'saved',
+    created_at: '2026-10-06T10:00:00Z', listing: null, events: [], events_total: 1, tasks: [],
+  }
+
+  it('adds a job from a dialog and puts it in Saved', async () => {
+    createApi.createApplication.mockResolvedValue(created)
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    fireEvent.click(screen.getByRole('button', { name: 'Add a job by hand' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add a job by hand' })
+    fireEvent.change(within(dialog).getByLabelText('Role'), { target: { value: ' Data Engineer ' } })
+    fireEvent.change(within(dialog).getByLabelText('Company'), { target: { value: 'Fjord' } })
+    fireEvent.change(within(dialog).getByLabelText(/Link to the posting/), { target: { value: 'https://jobs.example/1' } })
+    fireEvent.change(within(dialog).getByLabelText(/Apply by/), { target: { value: '2026-10-20' } })
+    // The board refetches after the write; the server then lists the new job too.
+    api.listApplications.mockResolvedValue({ items: [created, ...items], total: items.length + 1 })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to Saved' }))
+
+    await waitFor(() => expect(createApi.createApplication).toHaveBeenCalledTimes(1))
+    const payload = createApi.createApplication.mock.calls[0][0]
+    expect(payload).toMatchObject({ role: 'Data Engineer', company: 'Fjord', source_url: 'https://jobs.example/1', description: null })
+    expect(new Date(payload.deadline).getDate()).toBe(20)
+    await waitFor(() => expect(within(column('Saved')).getByText('Data Engineer')).toBeTruthy())
+    expect(screen.getByText(/Added Data Engineer at Fjord to Saved/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Open it' }).getAttribute('href')).toBe('/campaigns/new-1')
+  })
+
+  it('says in plain words what is missing before anything is sent', async () => {
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    fireEvent.click(screen.getByRole('button', { name: 'Add a job by hand' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add a job by hand' })
+    fireEvent.change(within(dialog).getByLabelText(/Link to the posting/), { target: { value: 'jobs.example' } })
+    fireEvent.change(within(dialog).getByLabelText(/Job description/), { target: { value: 'too short' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to Saved' }))
+
+    expect(await within(dialog).findByText(/Enter the role/)).toBeTruthy()
+    expect(within(dialog).getByText('Enter the company you are applying to.')).toBeTruthy()
+    expect(within(dialog).getByText(/starting with https:\/\//)).toBeTruthy()
+    expect(within(dialog).getByText(/at least 20 characters/)).toBeTruthy()
+    expect(createApi.createApplication).not.toHaveBeenCalled()
+    await waitFor(() => expect(document.activeElement?.id).toBe('add-application-role'))
+  })
+
+  it('moves focus to the first field the server refused', async () => {
+    createApi.createApplication.mockRejectedValue(
+      new ApiError('Check the link.', 422, undefined, { fields: { source_url: 'Invalid URL' } }),
+    )
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    fireEvent.click(screen.getByRole('button', { name: 'Add a job by hand' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add a job by hand' })
+    fireEvent.change(within(dialog).getByLabelText('Role'), { target: { value: 'Data Engineer' } })
+    fireEvent.change(within(dialog).getByLabelText('Company'), { target: { value: 'Fjord' } })
+    fireEvent.change(within(dialog).getByLabelText(/Link to the posting/), { target: { value: 'https://bad' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to Saved' }))
+
+    expect(await within(dialog).findByText(/starting with https:\/\//)).toBeTruthy()
+    await waitFor(() => expect(document.activeElement?.id).toBe('add-application-source_url'))
+  })
+
+  it("shows the server's refusal inside the dialog", async () => {
+    createApi.createApplication.mockRejectedValue(new ApiError('Something went wrong on our side. Try again in a moment.', 500))
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    fireEvent.click(screen.getByRole('button', { name: 'Add a job by hand' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add a job by hand' })
+    fireEvent.change(within(dialog).getByLabelText('Role'), { target: { value: 'Data Engineer' } })
+    fireEvent.change(within(dialog).getByLabelText('Company'), { target: { value: 'Fjord' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to Saved' }))
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('Something went wrong on our side')
+  })
+})
+
 describe('Prepare applications for me', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -267,6 +367,13 @@ describe('Prepare applications for me', () => {
   it('asks for keywords when none are saved', async () => {
     await prepare({ reason: 'no_preferences' })
     expect(await screen.findByText(/Add at least one keyword/)).toBeTruthy()
+  })
+
+  it('sends the owner to the profile when nothing is confirmed there yet', async () => {
+    await prepare({ reason: 'no_evidence' })
+    expect(await screen.findByText(/Confirm some evidence in your profile first/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Open your profile' }).getAttribute('href')).toBe('/profile')
+    expect(screen.queryByText(/No new jobs match/)).toBeNull()
   })
 
   it('points to CV Studio when there is no CV yet', async () => {

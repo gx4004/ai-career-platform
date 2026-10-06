@@ -59,7 +59,14 @@ function writeHidden(applicationId: string, ids: Set<string>) {
 }
 
 /** Rule-based content checks on what this application would send, plus next steps for gaps. */
-export function DocumentChecks({ applicationId }: { applicationId: string }) {
+export function DocumentChecks({
+  applicationId,
+  sent = false,
+}: {
+  applicationId: string
+  /** Already applied: the checks no longer change what was sent. */
+  sent?: boolean
+}) {
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   // Read after mount: the server render has no storage.
   useEffect(() => setHidden(readHidden(applicationId)), [applicationId])
@@ -82,7 +89,11 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
   return (
     <ApplicationPanel
       title="Check your documents"
-      description="Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you."
+      description={
+        sent
+          ? 'Quick rule-based checks on the CV and cover letter chosen now. What you sent stays as it was; use what they find for your next application.'
+          : 'Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you.'
+      }
       actions={
         <Button variant="secondary" size="sm" onClick={() => review.mutate()} loading={review.isPending} disabled={review.isPending}>
           {review.isPending ? 'Checking…' : review.data ? 'Check again' : 'Run the checks'}

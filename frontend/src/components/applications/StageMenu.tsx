@@ -12,7 +12,10 @@ import { STATUSES, STATUS_LABELS } from './stages'
 
 const CLOSING: ApplicationStatus[] = ['rejected', 'withdrawn']
 
-/** "Move to…" menu. Any stage can move to any other, including back. */
+/**
+ * "Move to…" menu. Any stage can move to any other, including back, except "No reply": it only
+ * describes an application still waiting on the employer, so it is offered on Applied alone.
+ */
 export function StageMenu({
   status,
   onMove,
@@ -25,7 +28,7 @@ export function StageMenu({
   /** The trigger: a kit Button. */
   children: ReactNode
 }) {
-  const others = STATUSES.filter((option) => option !== status)
+  const others = STATUSES.filter((option) => option !== status && (option !== 'no_reply' || status === 'applied'))
   const open = others.filter((option) => !CLOSING.includes(option))
   const closing = others.filter((option) => CLOSING.includes(option))
   return (
