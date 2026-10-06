@@ -183,7 +183,7 @@ test('retry recovers from a transient request failure without duplicating the ru
   let attempts = 0
   await page.route(`${apiUrl}/resume/analyze`, async (route) => {
     attempts += 1
-    if (attempts <= 2) {
+    if (attempts === 1) {
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
@@ -199,10 +199,12 @@ test('retry recovers from a transient request failure without duplicating the ru
   await page.locator('#resume-resumeText').fill(resumeText)
   await page.getByRole('button', { name: 'Review resume' }).click()
   await expect(page.getByText('Temporary service issue. Please try again.')).toBeVisible()
+  // A tool run is never retried behind the user's back: one click, one request.
+  expect(attempts).toBe(1)
 
   await page.getByRole('button', { name: 'Review resume' }).click()
   await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
-  expect(attempts).toBe(3)
+  expect(attempts).toBe(2)
 
   await gotoHydrated(page, '/history')
   await expect(page.locator('.kit-page-header__meta')).toContainText('1 run')

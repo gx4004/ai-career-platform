@@ -149,7 +149,14 @@ test('clearing context resets downstream', async ({ page }) => {
   await register(page, 'WF Clear')
   await runResumeAnalyzer(page)
 
-  await page.evaluate(() => sessionStorage.removeItem('career-workbench:workflow-context'))
+  // The tab carries two things forward: the workflow context and the resume reused across tools
+  // (cw:resume-carry). Clearing the tab's carried data, as the privacy control does, drops both.
+  await page.evaluate(() => {
+    sessionStorage.removeItem('career-workbench:workflow-context')
+    for (const key of ['cw:resume-carry', 'cw:resume-carry-filename', 'cw:resume-carry-updated-at']) {
+      sessionStorage.removeItem(key)
+    }
+  })
 
   await gotoHydrated(page, '/job-match')
   await expect(page.getByRole('button', { name: 'Paste text instead' })).toBeVisible()
