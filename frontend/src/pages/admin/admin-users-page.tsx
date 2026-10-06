@@ -23,10 +23,13 @@ import type { AdminUserItem, AdminUserListResponse } from '#/lib/api/admin'
 import { adminDate } from './toolLabel'
 import { countMeta } from './count-meta'
 
-/** Who is signed in, from the session's own query, so the page can keep an admin from changing their own role. */
+/**
+ * Who is signed in, read from the session's own cache entry so the page can keep an admin from changing their own role.
+ * Read, not observed: an observer without a queryFn logs an error whenever the query is refetched.
+ */
 function useCurrentUserId() {
-  const { data } = useQuery<{ id: string } | null>({ queryKey: ['current-user'], enabled: false })
-  return data?.id ?? null
+  const queryClient = useQueryClient()
+  return queryClient.getQueryData<{ id: string } | null>(['current-user'])?.id ?? null
 }
 
 const displayName = (user: AdminUserItem) => user.full_name || user.email

@@ -439,6 +439,8 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     expect((within(design).getByRole('radio', { name: /PT Serif/ }) as HTMLInputElement).disabled).toBe(true)
     expect(paper().className).not.toContain('two-column')
     expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#111827')
+    // The plain-Helvetica export has no bold face; the paper keys its heading weight on this flag.
+    expect(paper().getAttribute('data-ats')).toBe('true')
     await waitFor(() => expect(lastPatch()?.style).toMatchObject({ ats_mode: true }), { timeout: 1500 })
   })
 })

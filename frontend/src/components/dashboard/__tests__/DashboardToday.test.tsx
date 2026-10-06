@@ -173,6 +173,23 @@ describe('DashboardToday', () => {
     expect(screen.getByRole('link', { name: 'Confirm evidence' }).getAttribute('href')).toBe('/profile')
   })
 
+  it('calls only fair-or-better fits "best" and labels the rest as the closest', async () => {
+    const weak = { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer', skills_fit: 50 }
+    getToday.mockResolvedValue(plan({ best_matches: [LISTING, weak] }))
+    const { unmount } = renderToday()
+
+    expect(await screen.findByText('Platform Engineer')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: /^Best matches to add/ })).toBeTruthy()
+    expect(screen.queryByText('Data Engineer')).toBeNull()
+    unmount()
+
+    getToday.mockResolvedValue(plan({ best_matches: [weak] }))
+    renderToday()
+    expect(await screen.findByText('Data Engineer')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: /^Closest matches to add/ })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: /^Best matches to add/ })).toBeNull()
+  })
+
   it('keeps Add visible at rest: it is not one of the hover-revealed actions', async () => {
     getToday.mockResolvedValue(plan())
     renderToday()

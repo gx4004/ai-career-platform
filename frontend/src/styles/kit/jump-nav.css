@@ -5,6 +5,9 @@
   padding-block: var(--s2);
   border-block-end: var(--bw) solid var(--ink);
   background: var(--ground);
+  /* Six links outgrow a tablet width too: the strip scrolls instead of widening the page. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .kit-jump-nav[data-sticky='true'] {
@@ -56,11 +59,6 @@
 
 /* Phones: one scrolling row under the sticky app bar. */
 @media (max-width: 639px) {
-  .kit-jump-nav {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
   .kit-jump-nav[data-sticky='true'] {
     top: var(--kit-jump-offset, 70px);
   }
