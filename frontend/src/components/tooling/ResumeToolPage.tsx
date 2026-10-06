@@ -56,41 +56,45 @@ export function ResumeToolPage() {
             onEdit={clearPendingResumeReview}
           />
 
+          {/* Optional: behind a rule, so the resume reads as the one thing this form needs. */}
           {jobField ? (
-            showOptionalJob ? (
-              <>
-                {tool.supportsJobImport ? (
-                  <JobImportCard
-                    current={String(draft.jobDescription ?? '')}
-                    onImported={(description) => setField('jobDescription', description)}
-                  />
-                ) : null}
-                <Field
-                  label={jobField.label}
-                  optional
-                  id="resume-jobDescription"
-                  help={
-                    getSeededFieldNote('jobDescription', bridge, draft.jobDescription)
-                      ? 'A recent job description was loaded. Replace or edit it if needed.'
-                      : 'Add one role for more specific keyword and fit feedback.'
-                  }
-                  error={errors.jobDescription}
-                >
-                  <Textarea
-                    rows={jobField.rows}
-                    value={String(draft.jobDescription ?? '')}
-                    placeholder={jobField.placeholder}
-                    onChange={(event) => setField('jobDescription', event.target.value as never)}
-                  />
-                </Field>
-              </>
-            ) : (
-              <div>
-                <Button type="button" variant="link" className="tool-link" onClick={() => setShowOptionalJob(true)}>
-                  Add target job description
-                </Button>
-              </div>
-            )
+            <div className="tool-optional">
+              {showOptionalJob ? (
+                <>
+                  {tool.supportsJobImport ? (
+                    <JobImportCard
+                      current={String(draft.jobDescription ?? '')}
+                      onImported={(description) => setField('jobDescription', description)}
+                    />
+                  ) : null}
+                  <Field
+                    label={jobField.label}
+                    optional
+                    id="resume-jobDescription"
+                    help={
+                      getSeededFieldNote('jobDescription', bridge, draft.jobDescription)
+                        ? 'A recent job description was loaded. Replace or edit it if needed.'
+                        : 'Add one role for more specific keyword and fit feedback.'
+                    }
+                    error={errors.jobDescription}
+                  >
+                    <Textarea
+                      rows={jobField.rows}
+                      value={String(draft.jobDescription ?? '')}
+                      placeholder={jobField.placeholder}
+                      onChange={(event) => setField('jobDescription', event.target.value as never)}
+                    />
+                  </Field>
+                </>
+              ) : (
+                <div className="tool-optional__ask">
+                  <Button type="button" variant="link" className="tool-link" onClick={() => setShowOptionalJob(true)}>
+                    Add target job description
+                  </Button>
+                  <p className="tool-optional__hint">Optional: sharper keyword and fit feedback for one role.</p>
+                </div>
+              )}
+            </div>
           ) : null}
         </ToolForm>
       )}

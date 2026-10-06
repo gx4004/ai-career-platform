@@ -34,6 +34,11 @@ export type FileInputProps = Omit<
   removeLabel?: string
   /** Show a remove button once something is chosen. Default true. */
   clearable?: boolean
+  /**
+   * Dropzone only: an icon in a lemon disc that leads the area. The hint then reads first, in body type, and
+   * the trigger follows it, all grouped at the start: a compact target instead of a wide strip.
+   */
+  icon?: ReactNode
 }
 
 function formatSize(bytes: number) {
@@ -61,6 +66,7 @@ export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(function F
     onChange,
     removeLabel,
     clearable = true,
+    icon,
     className,
     id: idProp,
     required: requiredProp,
@@ -146,8 +152,14 @@ export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(function F
       data-disabled={field.disabled || undefined}
       data-dragging={dragging || undefined}
       data-has-file={files.length > 0 || undefined}
+      data-icon={variant === 'dropzone' && icon ? 'true' : undefined}
       {...dropHandlers}
     >
+      {variant === 'dropzone' && icon ? (
+        <span className="kit-file__icon" aria-hidden="true">
+          {icon}
+        </span>
+      ) : null}
       <input
         {...rest}
         ref={mergedRef}
@@ -168,7 +180,8 @@ export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(function F
         className={cn('kit-button', `kit-button--${buttonVariant}`, `kit-button--${size}`, 'kit-file__trigger')}
         data-disabled={field.disabled ? 'true' : undefined}
       >
-        <Upload aria-hidden="true" />
+        {/* With a leading icon disc the upload icon is already there: the trigger is just its words. */}
+        {variant === 'dropzone' && icon ? null : <Upload aria-hidden="true" />}
         {triggerText}
       </label>
       {files.length > 0 || hint ? (

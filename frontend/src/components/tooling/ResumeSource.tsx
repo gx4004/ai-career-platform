@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { Upload } from 'lucide-react'
 import {
   Button,
   Cluster,
@@ -320,16 +321,21 @@ export function ResumeSource({
           <FileInput
             key={pickCount}
             variant="dropzone"
+            icon={<Upload />}
             accept={ACCEPT}
             hint="Drop a PDF or DOCX here (up to 10 MB)"
             clearable={false}
             onFilesChange={([file]) => handleFile(file)}
           />
         </Field>
-        <Cluster gap={4} className="tool-links">
+        {/* The two other ways in read as one line: "Paste text instead · Try with a sample resume". */}
+        <Cluster gap={3} className="tool-links">
           <Button type="button" variant="link" className="tool-link" onClick={openEditor}>
             Paste text instead
           </Button>
+          <span className="tool-links__dot" aria-hidden="true">
+            ·
+          </span>
           <Button type="button" variant="link" className="tool-link" onClick={loadSample}>
             Try with a sample resume
           </Button>

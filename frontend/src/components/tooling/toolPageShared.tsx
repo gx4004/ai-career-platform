@@ -1,25 +1,28 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
+  Badge,
   Button,
   ErrorState,
   List,
   Notice,
+  NumberDisc,
   Page,
   PageHeader,
   Panel,
   PanelBody,
   Row,
   RowBody,
-  RowLeading,
   RowMeta,
   RowSubtitle,
   RowTitle,
   Section,
   Skeleton,
+  Split,
   Stack,
   ToolTile,
 } from '#/components/kit'
+import { splitScore } from '#/components/dashboard/RunRow'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
@@ -166,6 +169,11 @@ function RegenerateNote({ toolId }: { toolId: ToolId }) {
   )
 }
 
+/**
+ * A tool input page: the compact header, then the form column (notices, then the form or the working panel)
+ * beside a rail with the user's recent runs of this tool and what the tool gives back. Side by side when the
+ * content is at least 56rem wide (Split asks its own width); below that the rail follows the form.
+ */
 export function ToolPageShell({
   toolId,
   children,
@@ -176,20 +184,47 @@ export function ToolPageShell({
   const tool = tools[toolId]
 
   return (
-    <Page width="narrow">
+    <Page>
       <PageHeader
         title={tool.label}
         lead={tool.summary}
         mark={<ToolTile tone={tool.tone} icon={tool.icon} size="lg" />}
       />
-      <div className="tool-notices">
-        <GuestSaveBanner />
-        <WorkflowHandoffBanner toolId={toolId} />
-        <RegenerateNote toolId={toolId} />
-      </div>
-      {children}
-      <RecentToolRuns toolId={toolId} />
+      <Split
+        className="tool-split"
+        railLabel={`About ${tool.label}`}
+        rail={
+          <>
+            <RecentToolRuns toolId={toolId} />
+            <WhatYouGet toolId={toolId} />
+          </>
+        }
+      >
+        <div className="tool-notices">
+          <GuestSaveBanner />
+          <WorkflowHandoffBanner toolId={toolId} />
+          <RegenerateNote toolId={toolId} />
+        </div>
+        {children}
+      </Split>
     </Page>
+  )
+}
+
+/** What the result page gives back, in the order it shows it: three plain lines from the registry. */
+export function WhatYouGet({ toolId }: { toolId: ToolId }) {
+  const tool = tools[toolId]
+  return (
+    <Section id="what-you-get" title="What you get">
+      <ol className="tool-delivers" aria-labelledby="what-you-get-heading">
+        {tool.delivers.map((line, index) => (
+          <li key={line} className="tool-delivers__item">
+            <NumberDisc n={index + 1} size="sm" />
+            <span>{line}</span>
+          </li>
+        ))}
+      </ol>
+    </Section>
   )
 }
 
@@ -228,7 +263,19 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
   if (status !== 'authenticated' || (!query.isPending && !query.isError && items.length === 0)) return null
 
   return (
-    <Section id="recent-runs" title="Recent runs">
+    <Section
+      id="recent-runs"
+      title="Recent runs"
+      actions={
+        query.isPending || query.isError ? null : (
+          <Button asChild variant="link" size="sm">
+            <Link to="/history" search={{ tool: toolId }}>
+              View all
+            </Link>
+          </Button>
+        )
+      }
+    >
       {query.isError ? (
         <ErrorState
           size="inline"
@@ -243,7 +290,7 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
           ) : (
             items.map((item) => {
               const href = historyRunHref(item)
-              const label = item.label || 'Untitled run'
+              const { name, score } = splitScore(item.label || 'Untitled run')
               const about = aboutOf(item)
               const date = formatRunDate(item.created_at)
               const time =
@@ -252,20 +299,26 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
                   : ''
               return (
                 <Row key={item.id} overflow="truncate">
-                  <RowLeading>
-                    <ToolTile tone={tools[toolId].tone} icon={tools[toolId].icon} size="sm" />
-                  </RowLeading>
                   <RowBody>
                     {href ? (
                       <RowTitle asChild>
-                        <Link to={href}>{label}</Link>
+                        <Link to={href}>{name}</Link>
                       </RowTitle>
                     ) : (
-                      <RowTitle>{label}</RowTitle>
+                      <RowTitle>{name}</RowTitle>
                     )}
-                    {about ? <RowSubtitle>{about}</RowSubtitle> : null}
+                    {/* Plain text, date first: in the narrow rail the subject is what gets cut, with a clean ellipsis. */}
+                    <RowSubtitle title={about || undefined}>
+                      {[time ? `${date}, ${time}` : date, about].filter(Boolean).join(' · ')}
+                    </RowSubtitle>
                   </RowBody>
-                  <RowMeta>{time ? `${date}, ${time}` : date}</RowMeta>
+                  {score ? (
+                    <RowMeta>
+                      <Badge tone={tools[toolId].tone} score>
+                        {score}
+                      </Badge>
+                    </RowMeta>
+                  ) : null}
                 </Row>
               )
             })
@@ -293,9 +346,18 @@ export function ToolPageLoading({
 }) {
   const { status } = useSession()
   const height = formHeights[toolId]
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  // Submitting from the foot of a long form (a phone) leaves the panel's status and track above the viewport: bring its top into view.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel || panel.getBoundingClientRect().top >= 0) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    panel.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+  }, [])
 
   return (
-    <Panel className="tool-loading" style={height ? { minBlockSize: `${Math.round(height)}px` } : undefined}>
+    <Panel ref={panelRef} className="tool-loading" style={height ? { minBlockSize: `${Math.round(height)}px` } : undefined}>
       <PanelBody className="tool-loading__body">
         <CinematicLoader
           toolId={toolId}
