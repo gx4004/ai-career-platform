@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Dialog,
@@ -129,7 +130,7 @@ export function AdminRunsPage() {
             getRowId={(run) => run.id}
             loading={isLoading}
             selectedRowId={selectedRunId}
-            empty={<EmptyState title="No runs found" />}
+            empty={<EmptyState icon={<Search />} title="No runs found" />}
           />
         )}
 

@@ -70,7 +70,7 @@ function getSidebarState(container: HTMLElement) {
     ?.getAttribute('data-state')
 }
 
-function getBrandRowTrigger(container: HTMLElement) {
+function getSidebarTrigger(container: HTMLElement) {
   return container.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]')
 }
 
@@ -170,12 +170,12 @@ describe('AppSidebar', () => {
     ).toBeTruthy()
   })
 
-  it('toggles between expanded and collapsed from the sidebar brand row trigger', async () => {
+  it('toggles between expanded and collapsed from the sidebar footer trigger', async () => {
     const { container } = renderSidebar(true)
 
     expect(getSidebarState(container)).toBe('expanded')
 
-    const trigger = getBrandRowTrigger(container)
+    const trigger = getSidebarTrigger(container)
 
     expect(trigger).toBeTruthy()
 
@@ -183,7 +183,7 @@ describe('AppSidebar', () => {
 
     expect(getSidebarState(container)).toBe('collapsed')
 
-    fireEvent.click(getBrandRowTrigger(container)!)
+    fireEvent.click(getSidebarTrigger(container)!)
 
     expect(getSidebarState(container)).toBe('expanded')
   })
@@ -280,6 +280,6 @@ describe('AppSidebar', () => {
     expect(screen.queryByRole('link', { name: /back to dashboard/i })).toBeNull()
     expect(dashboardLink.getAttribute('data-active')).not.toBe('true')
     expect(resumeLink.getAttribute('data-active')).toBe('true')
-    expect(getBrandRowTrigger(container)).toBeTruthy()
+    expect(getSidebarTrigger(container)).toBeTruthy()
   })
 })

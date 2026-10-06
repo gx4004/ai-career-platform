@@ -219,26 +219,10 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-/*
- * The collapse control is a small sticker hanging on the sidebar's right edge. Beside the wordmark there is
- * no room for it (the wordmark alone takes 170 of the 230px), and putting it in the row made the two overlap.
- */
-.kit-button.app-sidebar__trigger {
-  --kit-button-h: 1.75rem;
-
-  position: absolute;
-  inset-block-start: calc(var(--s5) + 5px);
-  inset-inline-end: -1rem;
-  padding: 0;
-}
-
-@media (pointer: coarse) {
-  .kit-button.app-sidebar__trigger {
-    --kit-button-h: var(--touch-target);
-
-    inset-block-start: calc(var(--s5) - 3px);
-    inset-inline-end: calc(var(--touch-target) / -2);
-  }
+/* Collapse / expand: a quiet row at the foot of the sidebar, inside the ink edge in both states. */
+.app-sidebar__button.app-sidebar__trigger {
+  color: var(--ink-2);
+  font-weight: var(--fw-semibold);
 }
 
 /* Search: a quiet ground-coloured field, not a raised button. */
@@ -542,6 +526,16 @@
   content: '';
 }
 
+/* The footer (collapse, account) gets the same short rule: on a short screen the rail scrolls above it, and the rule
+   makes the cut-off row read as a list that continues rather than a clipped icon. */
+.app-sidebar[data-state='collapsed'] .app-sidebar__footer::before {
+  display: block;
+  width: 2rem;
+  margin: 0 auto;
+  border-block-start: var(--bw) solid var(--line);
+  content: '';
+}
+
 /* 48px square targets, no labels (they stay in the accessibility tree: the link is named by its text). */
 .app-sidebar[data-state='collapsed'] .app-sidebar__button {
   justify-content: center;
@@ -668,6 +662,13 @@
 }
 
 /* ── Phone tab tray ────────────────────────────────────────────────── */
+
+/* Toasts and other floating notices clear the tray while it is on screen (read by kit/toast.css). */
+@media (max-width: 639px) {
+  :root:has(.app-tabbar) {
+    --kit-toast-clearance: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + var(--s3));
+  }
+}
 
 .app-tabbar {
   position: fixed;

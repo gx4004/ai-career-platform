@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { History } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -93,7 +94,7 @@ export function AdminDashboardPage() {
                   <Skeleton variant="row" density="compact" leading count={6} label="Loading runs by tool" />
                 </Panel>
               ) : stats.data && byTool.length === 0 ? (
-                <EmptyState title="No runs yet" />
+                <EmptyState icon={<History />} title="No runs yet" />
               ) : stats.data ? (
                 <Panel flush>
                   <List framed={false} className="admin-tools" aria-label="Runs by tool">
@@ -161,7 +162,7 @@ function ActivityPanel({ days }: { days: DayCount[] | undefined }) {
       </Panel>
     )
   }
-  if (days.length === 0) return <EmptyState title="No run history" />
+  if (days.length === 0) return <EmptyState icon={<History />} title="No run history" />
   const total = days.reduce((sum, day) => sum + day.count, 0)
   const busiest = days.reduce((best, day) => (day.count > best.count ? day : best), days[0])
   return (

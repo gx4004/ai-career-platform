@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Zap } from 'lucide-react'
+import { Layers, MessageCircle, Zap } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -1230,7 +1230,7 @@ function InterviewView({ payload, runId }: { payload: AnyObject; runId?: string 
         }
       >
         {visibleQuestions.length === 0 ? (
-          <EmptyState title="No questions in this run" />
+          <EmptyState icon={<MessageCircle />} title="No questions in this run" />
         ) : (
           <ResultList
             numbered
@@ -1604,7 +1604,7 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
 
       <ReportSection title="The build sequence" count={countOf(orderedSteps.length, 'project')}>
         {orderedSteps.length === 0 ? (
-          <EmptyState title="No projects in this run" />
+          <EmptyState icon={<Layers />} title="No projects in this run" />
         ) : (
           <ol className="result-path" aria-label="Build sequence">
             {orderedSteps.map(({ step, project }, index) => (

@@ -57,7 +57,6 @@ export function AppSidebar() {
           >
             <AppBrandLockup mode={collapsed ? 'compact' : 'full'} />
           </Link>
-          <SidebarTrigger />
         </div>
         <SidebarTooltip tooltip="Search" shortcut="⌘K">
           <Button
@@ -105,6 +104,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <SidebarTrigger />
         <SidebarUserMenu />
         <nav className="app-sidebar__legal" aria-label="Legal">
           <Link to="/privacy">Privacy</Link>

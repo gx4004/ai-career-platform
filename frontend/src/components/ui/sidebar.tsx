@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Slot } from 'radix-ui'
 
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { Button, Tooltip } from '#/components/kit'
+import { Tooltip } from '#/components/kit'
 import { cn } from '#/lib/utils'
 
 /*
@@ -144,28 +144,32 @@ function Sidebar({
   )
 }
 
-function SidebarTrigger({ className, ...props }: Omit<React.ComponentProps<typeof Button>, 'iconOnly' | 'children'>) {
+/**
+ * Collapse / expand, as a quiet row at the foot of the sidebar (above the account). It lives inside the
+ * sidebar in both states: the old 28px chip hung across the ink edge and, at 44px on touch, covered the brand.
+ */
+function SidebarTrigger({ className, ...props }: Omit<React.ComponentProps<'button'>, 'children'>) {
   const { state, toggleSidebar } = useSidebar()
   const collapsed = state === 'collapsed'
   const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar'
   return (
-    <Tooltip content={label} shortcut="⌘B" side={collapsed ? 'right' : 'bottom'}>
-      <Button
-        data-slot="sidebar-trigger"
-        iconOnly
-        variant="secondary"
-        size="sm"
-        aria-label={label}
-        className={cn('app-sidebar__trigger', className)}
-        {...props}
-        onClick={(event) => {
-          props.onClick?.(event)
-          toggleSidebar()
-        }}
-      >
-        {collapsed ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}
-      </Button>
-    </Tooltip>
+    <SidebarMenuButton
+      type="button"
+      data-slot="sidebar-trigger"
+      tooltip={label}
+      shortcut="⌘B"
+      aria-label={collapsed ? label : undefined}
+      aria-keyshortcuts="Meta+B Control+B"
+      className={cn('app-sidebar__trigger', className)}
+      {...props}
+      onClick={(event) => {
+        props.onClick?.(event)
+        toggleSidebar()
+      }}
+    >
+      {collapsed ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}
+      <span>{label}</span>
+    </SidebarMenuButton>
   )
 }
 

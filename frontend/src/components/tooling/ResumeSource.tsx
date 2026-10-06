@@ -326,7 +326,7 @@ export function ResumeSource({
             onFilesChange={([file]) => handleFile(file)}
           />
         </Field>
-        <Cluster gap={4}>
+        <Cluster gap={4} className="tool-links">
           <Button type="button" variant="link" className="tool-link" onClick={openEditor}>
             Paste text instead
           </Button>

@@ -202,7 +202,7 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
       setProfileOpen(false)
       toast({
         tone: 'success',
-        title: 'Evidence profile deleted',
+        title: 'Profile deleted',
         description: 'Your runs, CVs and applications are untouched.',
       })
     } catch (failure) {
@@ -241,7 +241,7 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
             <Trash2 aria-hidden />
           </RowLeading>
           <RowBody>
-            <RowTitle>Delete evidence profile</RowTitle>
+            <RowTitle>Delete profile</RowTitle>
             <RowSubtitle>
               Erase the facts saved on your profile without deleting your account
               {detailed ? '. Your runs, CVs and applications stay.' : '.'}
@@ -267,7 +267,7 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
           <RowBody>
             <RowTitle>Delete account</RowTitle>
             <RowSubtitle>
-              Permanently delete your account, saved runs and workspaces. This cannot be undone.
+              Permanently delete your account and everything in it: runs, CVs, profile facts and applications. This cannot be undone.
             </RowSubtitle>
           </RowBody>
           <RowActions reveal={false}>
@@ -284,9 +284,9 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
         open={profileOpen}
         onOpenChange={setProfileOpen}
         pending={erasing}
-        title="Delete your evidence profile?"
+        title="Delete your profile?"
         description="This immediately removes every fact on your profile, saved or suggested. It does not delete your account, and it cannot be undone."
-        confirmLabel="Delete evidence profile"
+        confirmLabel="Delete all facts"
         icon={<Trash2 aria-hidden />}
         onConfirm={() => void eraseProfile()}
       >

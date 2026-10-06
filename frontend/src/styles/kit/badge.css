@@ -118,12 +118,15 @@
 
 /* ── Count ─────────────────────────────────────────────────────────── */
 
-/* Text variant: a tabular number beside a heading, tab or button label. */
+/*
+ * Text variant: a number beside a heading, tab or button label. A lone figure, not a column, so proportional:
+ * Onest's tabular "1" opens a gap that reads "12" as "1 2" (as meta.css and the admin counts already do).
+ */
 .kit-count {
   color: var(--ink-2);
   font-size: var(--fs-meta);
   font-weight: var(--fw-semibold);
-  font-variant-numeric: var(--numeric-tabular);
+  font-variant-numeric: proportional-nums;
   line-height: 1;
 }
 

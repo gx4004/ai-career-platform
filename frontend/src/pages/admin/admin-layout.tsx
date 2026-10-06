@@ -51,7 +51,6 @@ function AdminSidebar({ pathname }: { pathname: string }) {
           <Link to="/dashboard" className="app-sidebar__brand" aria-label="Career Workbench, back to the app">
             <AppBrandLockup mode={state === 'collapsed' ? 'compact' : 'full'} />
           </Link>
-          <SidebarTrigger />
         </div>
       </SidebarHeader>
       <SidebarContent aria-label="Admin navigation">
@@ -74,6 +73,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <SidebarTrigger />
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Back to app">

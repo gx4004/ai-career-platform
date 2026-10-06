@@ -188,7 +188,7 @@ export function LoginForm({
             required
           />
         </Field>
-        <Stack gap={1}>
+        <Stack gap={2}>
           <Field label="Password" id="login-password" error={errors.password || signIn.failure?.fields.password}>
             <PasswordInput
               size="lg"

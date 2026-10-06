@@ -29,11 +29,12 @@
   }
 }
 
-/* Above the floating tab tray, which exists at 639px and below only. */
-@media (max-width: 639px) {
-  .kit-toast-region {
-    bottom: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s3));
-  }
+/*
+ * Above the floating tab tray when there is one: the app shell sets --kit-toast-clearance while the tray is
+ * on screen (phones, app pages). Pages without the tray (landing, sign-in, legal) keep the toast at the edge.
+ */
+.kit-toast-region {
+  bottom: calc(var(--kit-toast-clearance, var(--s4)) + env(safe-area-inset-bottom, 0px));
 }
 
 .kit-toast {
@@ -119,6 +120,39 @@
 
 .kit-toast .kit-toast__close {
   flex: none;
+}
+
+/*
+ * Phones: a toast with an action ("View application", "Undo") gives the text the whole row and drops the
+ * action under it, so the title is not squeezed into one-word lines beside the button. Close stays top right.
+ */
+@media (max-width: 479px) {
+  .kit-toast:has(.kit-toast__action) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: var(--s2);
+  }
+
+  .kit-toast:has(.kit-toast__action) > .kit-toast__icon {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  .kit-toast:has(.kit-toast__action) > .kit-toast__text {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .kit-toast .kit-toast__action {
+    grid-row: 2;
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .kit-toast:has(.kit-toast__action) > .kit-toast__close {
+    grid-row: 1;
+    grid-column: 3;
+  }
 }
 
 /* The slap-on of the signature, shortened for a small panel: it lands level and never rotates at rest. */

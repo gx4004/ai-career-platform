@@ -378,7 +378,7 @@
   z-index: var(--z-popover);
   box-sizing: border-box;
   border: 3px solid var(--ink);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   box-shadow:
     0 0 0 2px var(--lemon),
     0 0 0 100vmax var(--surface-scrim);

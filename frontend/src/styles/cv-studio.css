@@ -488,6 +488,11 @@
   .kit-list.cvs-outline > .kit-row.cvs-sec:is(:hover, [data-over]) .kit-row__reveal {
     background: var(--lemon-soft);
   }
+
+  /* While the controls are up, the count gives way, so a long name never shows a count cut mid-word ("2 er"). */
+  .kit-list.cvs-outline > .kit-row.cvs-sec:is(:hover, :focus-within, [data-over]) .kit-row__subtitle {
+    visibility: hidden;
+  }
 }
 
 @media (any-pointer: coarse) {
