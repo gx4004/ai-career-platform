@@ -1,8 +1,9 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Briefcase, ChevronDown, MoreHorizontal, Pin } from 'lucide-react'
+import { Briefcase, ChevronDown, ChevronRight, MoreHorizontal, Pin, Plus } from 'lucide-react'
+import { AddApplicationDialog } from '#/components/applications/AddApplicationDialog'
 import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
 import { WhatsWorkingPanel } from '#/components/applications/WhatsWorkingPanel'
 import { StageMenu } from '#/components/applications/StageMenu'
@@ -45,7 +46,7 @@ import {
 } from '#/components/kit'
 import type { TableColumn, TableSort } from '#/components/kit'
 import { listApplications, updateApplication } from '#/lib/api/client'
-import type { ApplicationCard, ApplicationList, ApplicationStatus } from '#/lib/api/schemas'
+import type { ApplicationCard, ApplicationDetail, ApplicationList, ApplicationStatus } from '#/lib/api/schemas'
 import { APPLICATION_BOARD_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
 
 type View = 'board' | 'list'
@@ -73,6 +74,8 @@ export function ApplicationsPage() {
   const [moveError, setMoveError] = useState<string | null>(null)
   const [view, setView] = useState<View>('board')
   const [phoneStage, setPhoneStage] = useState<Stage | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [added, setAdded] = useState<ApplicationDetail | null>(null)
   const query = useQuery({ queryKey: APPLICATION_BOARD_QUERY_KEY, queryFn: listApplications })
   const move = useMutation({
     mutationFn: ({ card, status }: { card: ApplicationCard; status: ApplicationStatus }) =>
@@ -103,6 +106,19 @@ export function ApplicationsPage() {
   const shownStage = phoneStage ?? firstFilled
   const moving = (card: ApplicationCard) => move.isPending && move.variables?.card.id === card.id
   const onMove = (card: ApplicationCard, status: ApplicationStatus) => move.mutate({ card, status })
+  // A job added by hand lands in Saved: put it on the board at once and show that column.
+  const onAdded = (created: ApplicationDetail) => {
+    setAdding(false)
+    setAdded(created)
+    setView('board')
+    setPhoneStage('saved')
+    queryClient.setQueryData<ApplicationList>(APPLICATION_BOARD_QUERY_KEY, (current) =>
+      current && !current.items.some((item) => item.id === created.id)
+        ? { ...current, items: [created, ...current.items], total: current.total + 1 }
+        : current,
+    )
+    void invalidateApplications(queryClient)
+  }
 
   // Board | List is the view; on a phone the board shows one stage at a time, chosen by a second control.
   const viewSwitch = (
@@ -119,15 +135,17 @@ export function ApplicationsPage() {
   )
   const stageSwitch =
     compact && view === 'board' ? (
-      <Segmented
-        aria-label="Stage"
-        value={shownStage}
-        onValueChange={setPhoneStage}
-        options={STAGES.map((stage) => ({
-          value: stage.id as Stage,
-          label: <>{stage.label} <Count value={byStage(stage.id).length} /></>,
-        }))}
-      />
+      <StageSwitcher value={shownStage}>
+        <Segmented
+          aria-label="Stage"
+          value={shownStage}
+          onValueChange={setPhoneStage}
+          options={STAGES.map((stage) => ({
+            value: stage.id as Stage,
+            label: <>{stage.label} <Count value={byStage(stage.id).length} /></>,
+          }))}
+        />
+      </StageSwitcher>
     ) : null
 
   return (
@@ -136,11 +154,32 @@ export function ApplicationsPage() {
         title="Your applications"
         meta={query.isPending ? [<Skeleton key="meta" size="meta" width="7rem" />] : items.length ? summaryMeta(items) : undefined}
         actions={
-          <Button asChild size="sm" variant={query.isSuccess && items.length === 0 ? 'secondary' : 'primary'}>
-            <Link to="/discovery">Find jobs</Link>
-          </Button>
+          <Cluster gap={2} justify="end">
+            {items.length ? (
+              <Button size="sm" variant="secondary" aria-label="Add a job by hand" onClick={() => setAdding(true)}>
+                <Plus aria-hidden="true" /> Add a job
+              </Button>
+            ) : null}
+            <Button asChild size="sm" variant={query.isSuccess && items.length === 0 ? 'secondary' : 'primary'}>
+              <Link to="/discovery">Find jobs</Link>
+            </Button>
+          </Cluster>
         }
       />
+
+      {added ? (
+        <Notice
+          tone="success"
+          onDismiss={() => setAdded(null)}
+          action={
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/campaigns/$campaignId" params={{ campaignId: added.id }}>Open it</Link>
+            </Button>
+          }
+        >
+          Added {roleOnly(applicationTitle(added), added.company)}{added.company ? ` at ${added.company}` : ''} to Saved.
+        </Notice>
+      ) : null}
 
       {moveError ? (
         <Notice tone="danger" onDismiss={() => setMoveError(null)}>{moveError}</Notice>
@@ -167,7 +206,7 @@ export function ApplicationsPage() {
           retrying={query.isFetching}
         />
       ) : items.length === 0 ? (
-        <FirstJob />
+        <FirstJob onAdd={() => setAdding(true)} />
       ) : (
         <Stack gap={3}>
           <Stack gap={2}>
@@ -209,7 +248,62 @@ export function ApplicationsPage() {
       <WhatsWorkingPanel compact={compact} />
 
       <PrepareForMePanel />
+
+      <AddApplicationDialog open={adding} onOpenChange={setAdding} onCreated={onAdded} />
     </Page>
+  )
+}
+
+/**
+ * The phone's five stages are wider than the screen. While some are off to the right, a chevron after the
+ * group says so and scrolls them in (Offer and Closed would otherwise only be found by swiping); the chosen
+ * stage is always scrolled into view. Arrow keys inside the group already reach every stage.
+ */
+function StageSwitcher({ value, children }: { value: Stage; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState(false)
+  const group = () => ref.current?.querySelector<HTMLElement>('[role="radiogroup"]') ?? null
+  useEffect(() => {
+    const element = group()
+    if (!element) return
+    const update = () => setMore(element.scrollLeft + element.clientWidth < element.scrollWidth - 4)
+    update()
+    element.addEventListener('scroll', update, { passive: true })
+    // The group's own width changes too (counts after a move or an add, the font arriving), not just the window.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(element)
+    return () => {
+      element.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [])
+  useEffect(() => {
+    group()?.querySelector<HTMLElement>('[aria-checked="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [value])
+  return (
+    <Cluster nowrap gap={2} ref={ref}>
+      {children}
+      {/* Always laid out, only hidden, so the group keeps its width as the chevron comes and goes. */}
+      <Button
+        type="button"
+        iconOnly
+        size="sm"
+        variant="secondary"
+        // A pointer-only affordance (arrow keys in the group reach every stage); the kit's icon-only type still
+        // asks for a name.
+        aria-label="Show more stages"
+        aria-hidden="true"
+        tabIndex={-1}
+        style={more ? undefined : { visibility: 'hidden' }}
+        onClick={() => {
+          const element = group()
+          const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          element?.scrollBy({ left: element.clientWidth * 0.8, behavior: still ? 'auto' : 'smooth' })
+        }}
+      >
+        <ChevronRight aria-hidden="true" />
+      </Button>
+    </Cluster>
   )
 }
 
@@ -251,7 +345,7 @@ function Column({
 }
 
 /** The first-run board: one lemon card with the ways in. */
-function FirstJob() {
+function FirstJob({ onAdd }: { onAdd: () => void }) {
   return (
     <Sticker tone="lemon" className="camp-first">
       <div>
@@ -264,8 +358,8 @@ function FirstJob() {
         <Button asChild>
           <Link to="/discovery"><Briefcase aria-hidden="true" /> Find a job in Discover</Link>
         </Button>
-        <Button asChild variant="secondary">
-          <Link to="/job-match">Paste or import a posting</Link>
+        <Button variant="secondary" onClick={onAdd}>
+          <Plus aria-hidden="true" /> Add a job by hand
         </Button>
       </div>
     </Sticker>

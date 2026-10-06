@@ -214,18 +214,28 @@ describe('EvidenceProfilePage', () => {
     await waitFor(() => expect(api.exportCareerData).toHaveBeenCalledOnce())
   })
 
-  it('removes the copies an import made of facts the profile already holds', async () => {
+  it('reads Imported after importing the carried CV, and says so when a repeat finds nothing new', async () => {
     resumeCarry.resumeText = 'x'.repeat(80)
-    api.importEvidenceFromResume.mockResolvedValue({
-      items: [makeItem({ id: 'copy', kind: 'skill', content: { level: 'advanced', name: 'typescript' } }), makeItem({ id: 'new', kind: 'skill', content: { name: 'Rust' } })],
-    })
+    api.importEvidenceFromResume.mockResolvedValue({ items: [makeItem({ id: 'new', kind: 'skill', content: { name: 'Rust' } })] })
     renderPage()
 
     fireEvent.click(await screen.findByRole('button', { name: /Import from your CV/ }))
 
-    await waitFor(() => expect(api.deleteEvidenceItem).toHaveBeenCalledWith('copy'))
-    expect(api.deleteEvidenceItem).not.toHaveBeenCalledWith('new')
-    expect(await screen.findByText(/1 you already have was skipped/)).toBeTruthy()
+    const done = await screen.findByRole('button', { name: /Imported/ })
+    expect((done as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: /Import from your CV/ })).toBeNull()
+    expect(api.deleteEvidenceItem).not.toHaveBeenCalled()
+    expect(api.importEvidenceFromResume).toHaveBeenCalledTimes(1)
+  })
+
+  it('says everything is already there when the API finds nothing new in the CV', async () => {
+    resumeCarry.resumeText = 'x'.repeat(80)
+    api.importEvidenceFromResume.mockResolvedValue({ items: [] })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Import from your CV/ }))
+
+    expect(await screen.findByText('Everything in your CV is already on your profile.')).toBeTruthy()
   })
 
   it('edits a saved fact through one labelled field per value', async () => {

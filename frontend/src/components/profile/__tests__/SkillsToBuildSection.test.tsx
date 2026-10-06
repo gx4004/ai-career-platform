@@ -10,6 +10,11 @@ const updateItemMock = vi.hoisted(() => vi.fn())
 const deleteItemMock = vi.hoisted(() => vi.fn())
 const warmEvidenceFetchMock = vi.hoisted(() => vi.fn())
 
+// The section reads the same evidence query the page warms; both go through one mock.
+vi.mock('#/lib/api/client', () => ({
+  listEvidenceItems: async () => ({ items: await warmEvidenceFetchMock() }),
+}))
+
 vi.mock('#/lib/api/development', () => ({
   getDevelopmentPlan: getPlanMock,
   updateDevelopmentItem: updateItemMock,
@@ -17,7 +22,9 @@ vi.mock('#/lib/api/development', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to, params, ...rest }: { children: ReactNode; to: string; params?: { campaignId?: string } }) => (
+    <a href={params?.campaignId ? to.replace('$campaignId', params.campaignId) : to} {...rest}>{children}</a>
+  ),
 }))
 
 function makeItem(overrides: Partial<DevelopmentItem>): DevelopmentItem {
@@ -49,7 +56,7 @@ const items = [
 ]
 
 function WarmEvidenceConsumer() {
-  useQuery({ queryKey: ['evidence-profile', 'items'], queryFn: warmEvidenceFetchMock })
+  useQuery({ queryKey: ['evidence-profile', 'items'], queryFn: () => warmEvidenceFetchMock() })
   return null
 }
 
@@ -68,7 +75,10 @@ describe('SkillsToBuildSection', () => {
     getPlanMock.mockReset().mockResolvedValue({ schema_version: 'development-plan/v1', items })
     updateItemMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
     deleteItemMock.mockReset().mockResolvedValue(undefined)
-    warmEvidenceFetchMock.mockReset().mockResolvedValue({ items: [] })
+    // The profile's evidence query holds the item list itself (as EvidenceProfilePage stores it).
+    warmEvidenceFetchMock.mockReset().mockResolvedValue([
+      { id: 'e1', kind: 'skill', content: { name: 'Go' }, provenance: 'user-entered', confirmation_state: 'confirmed', created_at: '2026-07-20T00:00:00Z', updated_at: '2026-07-20T00:00:00Z' },
+    ])
   })
 
   it('renders each skill in its group with its status, notes and profile link', async () => {
@@ -78,7 +88,33 @@ describe('SkillsToBuildSection', () => {
     expect((within(reword).getByLabelText('Status') as HTMLSelectElement).value).toBe('planned')
     const learn = screen.getByRole('list', { name: 'Learn a new skill' })
     expect(within(learn).getByText('Take a course')).toBeTruthy()
-    expect(within(learn).getByText('Added to your profile')).toBeTruthy()
+    expect(await within(learn).findByText('Added to your profile')).toBeTruthy()
+  })
+
+  it('names what to build, links its application, and says whether the fact is saved or waiting for review', async () => {
+    getPlanMock.mockResolvedValue({
+      schema_version: 'development-plan/v1',
+      items: [
+        makeItem({ id: 'd1', response_kind: 'learn_skill', gap_kind: 'missing_skill', label: 'Kubernetes', application_id: 'app-7', evidence_item_id: 'e1', state: 'completed' }),
+        makeItem({ id: 'd2', response_kind: 'learn_skill', gap_kind: 'missing_skill', label: 'Leadership', evidence_item_id: 'e2', state: 'completed' }),
+      ],
+    })
+    warmEvidenceFetchMock.mockResolvedValue([
+      { id: 'e1', kind: 'skill', content: { name: 'Kubernetes' }, provenance: 'user-entered', confirmation_state: 'confirmed', created_at: '2026-07-20T00:00:00Z', updated_at: '2026-07-20T00:00:00Z' },
+      { id: 'e2', kind: 'skill', content: { name: 'Leadership' }, provenance: 'imported', confirmation_state: 'unconfirmed', created_at: '2026-07-20T00:00:00Z', updated_at: '2026-07-20T00:00:00Z' },
+    ])
+    renderSection()
+
+    const learn = await screen.findByRole('list', { name: 'Learn a new skill' })
+    const rows = [...learn.children] as HTMLElement[]
+    expect(within(rows[0]).getByText('Kubernetes')).toBeTruthy()
+    expect(within(rows[0]).getByRole('button', { name: 'Edit: Kubernetes' })).toBeTruthy()
+    expect(within(rows[0]).getByRole('link', { name: 'From an application: Kubernetes' }).getAttribute('href')).toBe('/campaigns/app-7')
+    expect(await within(rows[0]).findByText('Added to your profile')).toBeTruthy()
+    expect(within(rows[1]).getByText('Leadership')).toBeTruthy()
+    expect(await within(rows[1]).findByText('Waiting for your review')).toBeTruthy()
+    expect(within(rows[1]).queryByText('Added to your profile')).toBeNull()
+    expect(within(rows[1]).queryByRole('link', { name: /From an application/ })).toBeNull()
   })
 
   it('completing a skill asks what was done, saves it with those words and refreshes the profile', async () => {
@@ -104,7 +140,24 @@ describe('SkillsToBuildSection', () => {
     expect(onShow).toHaveBeenCalledWith('e9')
   })
 
-  it('completing with nothing written leaves the notes alone and says a suggestion was added', async () => {
+  it('completing with nothing written only marks it done, as the server reports (no fact, no seal)', async () => {
+    // With no notes the server stages nothing and returns no linked fact.
+    updateItemMock.mockImplementation((id: string) => Promise.resolve(makeItem({ id, state: 'completed', evidence_item_id: null })))
+    renderSection()
+
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark complete' }))
+
+    await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'completed' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Marked complete' })
+    expect(within(dialog).getByText(/Nothing was added to your profile/)).toBeTruthy()
+    expect(within(dialog).queryByText(/suggestion/i)).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: /Show me/ })).toBeNull()
+  })
+
+  it('an unchanged note already on the skill is saved as a fact, so the result follows the server', async () => {
+    getPlanMock.mockResolvedValue({ schema_version: 'development-plan/v1', items: [makeItem({ id: 'd1', notes: 'Rewrote the summary' })] })
     updateItemMock.mockImplementation((id: string) => Promise.resolve(makeItem({ id, state: 'completed', evidence_item_id: 'e9' })))
     renderSection()
 
@@ -113,7 +166,7 @@ describe('SkillsToBuildSection', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Mark complete' }))
 
     await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'completed' }))
-    expect(await screen.findByRole('dialog', { name: 'Suggestion added' })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: 'Added to your profile' })).toBeTruthy()
   })
 
   it('other status changes save at once', async () => {

@@ -5,6 +5,8 @@ import { Sprout, Trash2 } from 'lucide-react'
 import {
   Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, RowMeta, Section, Select, Skeleton, Stack,
 } from '#/components/kit'
+import { listEvidenceItems } from '#/lib/api/client'
+import type { EvidenceItem } from '#/lib/api/schemas'
 import {
   deleteDevelopmentItem,
   getDevelopmentPlan,
@@ -18,7 +20,7 @@ import {
   formatTargetDate,
   groupItemsByResponseKind,
 } from '#/lib/development/plan'
-import { DEVELOPMENT_PLAN_QUERY_KEY, invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
+import { DEVELOPMENT_PLAN_QUERY_KEY, EVIDENCE_QUERY_KEY, invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
 import { FactRow } from '#/components/profile/FactRow'
 import {
   EditDevelopmentItemDialog,
@@ -68,7 +70,7 @@ export function SkillsToBuildSection({
     onSettled: () => setPendingItemId(null),
   })
 
-  // Completing an item adds a fact or suggestion to the profile (R17 #201), so it goes through its own dialog.
+  // Completing an item can add a fact to the profile (R17 #201), so it goes through its own dialog.
   const completeMutation = useMutation({
     mutationFn: ({ item, notes }: { item: DevelopmentItem; notes: string }) =>
       // Words are sent only when they changed; an unchanged note stays the owner's own words on the server.
@@ -76,9 +78,10 @@ export function SkillsToBuildSection({
         state: 'completed',
         ...(notes !== (item.notes ?? '') ? { notes: notes || null } : {}),
       }),
-    onSuccess: async (updated, { notes }) => {
+    onSuccess: async (updated) => {
       setCompleteError(null)
-      setCompletion({ evidenceItemId: updated.evidence_item_id, saved: notes.length > 0 })
+      // The server decides: it saves a fact only from written words, so its answer says what happened.
+      setCompletion({ evidenceItemId: updated.evidence_item_id })
       await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
     },
     onError: (error) =>
@@ -112,6 +115,20 @@ export function SkillsToBuildSection({
 
   const items = itemsQuery.data ?? []
   const groups = useMemo(() => groupItemsByResponseKind(items), [items])
+  // A completed item can link a fact on the profile, saved or waiting for review. The badge says which,
+  // from the profile itself (the same query the page above uses), not from the link alone.
+  const linksEvidence = items.some((item) => item.evidence_item_id)
+  const evidenceQuery = useQuery({
+    queryKey: EVIDENCE_QUERY_KEY,
+    queryFn: async () => (await listEvidenceItems()).items,
+    enabled: linksEvidence,
+    // The profile page above already reads it; edits there invalidate it, so a fresh copy is not refetched here.
+    staleTime: 30_000,
+  })
+  const evidenceById = useMemo(
+    () => new Map((evidenceQuery.data ?? []).map((fact: EvidenceItem) => [fact.id, fact])),
+    [evidenceQuery.data],
+  )
 
   function handleStateChange(item: DevelopmentItem, state: DevelopmentState) {
     if (state === item.state) return
@@ -134,7 +151,7 @@ export function SkillsToBuildSection({
     <Section
       id="skills-to-build"
       title="Skills to build"
-      description={items.length > 0 ? 'Gaps you chose to work on. Completing one adds it to your profile.' : undefined}
+      description={items.length > 0 ? 'Gaps you chose to work on. Completing one with what you did adds it to your profile.' : undefined}
     >
       <Stack gap={6}>
         {actionError ? <Notice tone="danger" onDismiss={() => setActionError(null)}>{actionError}</Notice> : null}
@@ -161,15 +178,18 @@ export function SkillsToBuildSection({
                 {group.items.map((item) => {
                   const busy = pendingItemId === item.id || deleteTarget?.id === item.id
                   const kind = GAP_KIND_LABELS[item.gap_kind]
+                  // What to build (the requirement the gap named); older items only know their kind.
+                  const name = item.label?.trim() || kind
+                  const fact = item.evidence_item_id ? evidenceById.get(item.evidence_item_id) : undefined
                   return (
                     <FactRow
                       key={item.id}
-                      title={kind}
+                      title={name}
                       busy={busy}
-                      editLabel={`Edit: ${kind}`}
+                      editLabel={`Edit: ${name}`}
                       onEdit={() => openEditor(item)}
                       reveal={(
-                        <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={`Delete: ${kind}`} onClick={() => setDeleteTarget(item)}>
+                        <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={`Delete: ${name}`} onClick={() => setDeleteTarget(item)}>
                           <Trash2 aria-hidden="true" />
                         </Button>
                       )}
@@ -177,14 +197,26 @@ export function SkillsToBuildSection({
                         <>
                           <div className="profile-line">{item.notes || 'No notes yet'}</div>
                           <MetaRow>
+                            {name !== kind ? kind : null}
                             {formatTargetDate(item.target_date) ? `Target ${formatTargetDate(item.target_date)}` : 'No target date'}
-                            {item.evidence_item_id ? <Badge tone="success" size="sm" role="status">Added to your profile</Badge> : null}
-                            {item.evidence_item_id && onShowEvidence ? (
+                            {item.application_id ? (
+                              <Button asChild variant="link" size="sm">
+                                <Link to="/campaigns/$campaignId" params={{ campaignId: item.application_id }} aria-label={`From an application: ${name}`}>
+                                  From an application
+                                </Link>
+                              </Button>
+                            ) : null}
+                            {fact?.confirmation_state === 'confirmed' ? (
+                              <Badge tone="success" size="sm" role="status">Added to your profile</Badge>
+                            ) : fact ? (
+                              <Badge tone="warning" size="sm" role="status">Waiting for your review</Badge>
+                            ) : null}
+                            {fact && onShowEvidence ? (
                               <Button
                                 type="button"
                                 variant="link"
                                 size="sm"
-                                aria-label={`Show on your profile: ${kind}`}
+                                aria-label={`Show on your profile: ${name}`}
                                 onClick={() => onShowEvidence(item.evidence_item_id as string)}
                               >
                                 Show it

@@ -6,13 +6,13 @@ import {
 import type { DevelopmentItem } from '#/lib/api/developmentSchemas'
 import { GAP_KIND_LABELS } from '#/lib/development/plan'
 
-/** What completing produced: the fact that now sits on the profile, and whether it is already saved. */
-export type CompletionResult = { evidenceItemId: string | null; saved: boolean }
+/** What completing produced, as the server reports it: the fact now on the profile, or none. */
+export type CompletionResult = { evidenceItemId: string | null }
 
 /**
- * Finishing a skill adds something to the profile, so it asks first: "What did you do?". Words typed here are
- * the owner's own and land as a saved fact; left empty, the profile gets an honest generic suggestion to
- * review. The same dialog then shows the payoff (a mint seal) and offers to show the new fact.
+ * Finishing a skill can add to the profile, so it asks first: "What did you do?". Words typed here are the
+ * owner's own and the server saves them as a fact; left empty, the skill is only marked done and nothing is
+ * added. The same dialog then shows the payoff (a mint seal) when a fact was added, and offers to show it.
  */
 export function CompleteSkillDialog({
   item,
@@ -41,7 +41,7 @@ export function CompleteSkillDialog({
     if (item) setNotes(item.notes ?? '')
   }, [item])
 
-  const kind = current ? GAP_KIND_LABELS[current.gap_kind] : 'skill'
+  const kind = current ? current.label?.trim() || GAP_KIND_LABELS[current.gap_kind] : 'skill'
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -54,31 +54,24 @@ export function CompleteSkillDialog({
         {result ? (
           <>
             <DialogHeader>
-              <DialogTitle>{result.saved ? 'Added to your profile' : 'Suggestion added'}</DialogTitle>
+              <DialogTitle>{result.evidenceItemId ? 'Added to your profile' : 'Marked complete'}</DialogTitle>
               <DialogDescription>
-                {result.saved
+                {result.evidenceItemId
                   ? 'What you wrote is now a saved fact. CV Studio and the tools can use it.'
-                  : 'We added a suggestion to your profile. Nothing counts until you review and save it.'}
+                  : 'Nothing was added to your profile, since nothing was written. You can add what you did as a fact on your profile any time.'}
               </DialogDescription>
             </DialogHeader>
-            <DialogBody>
-              <div className="profile-payoff">
-                <ScoreSeal
-                  value="✓"
-                  unit={null}
-                  label={result.saved ? 'Saved to your profile' : 'Suggestion added to your profile'}
-                  tone="mint"
-                  size={132}
-                  reveal="stamp"
-                />
-              </div>
-            </DialogBody>
+            {result.evidenceItemId ? (
+              <DialogBody>
+                <div className="profile-payoff">
+                  <ScoreSeal value="✓" unit={null} label="Saved to your profile" tone="mint" size={132} reveal="stamp" />
+                </div>
+              </DialogBody>
+            ) : null}
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Done</Button></DialogClose>
               {result.evidenceItemId ? (
-                <Button type="button" onClick={() => onShow(result.evidenceItemId as string)}>
-                  {result.saved ? 'Show me the fact' : 'Show me the suggestion'}
-                </Button>
+                <Button type="button" onClick={() => onShow(result.evidenceItemId as string)}>Show me the fact</Button>
               ) : null}
             </DialogFooter>
           </>
@@ -87,8 +80,8 @@ export function CompleteSkillDialog({
             <DialogHeader>
               <DialogTitle>What did you do?</DialogTitle>
               <DialogDescription>
-                Finishing “{kind}” adds to your profile. Say what you did in your own words and it is saved as a fact.
-                Leave it empty and we add a suggestion for you to review.
+                Say what you did for “{kind}” in your own words and it is saved as a fact on your profile.
+                Leave it empty to just mark it done.
               </DialogDescription>
             </DialogHeader>
             <DialogBody>

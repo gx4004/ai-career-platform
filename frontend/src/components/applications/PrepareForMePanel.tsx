@@ -85,6 +85,17 @@ function PrepareResult({ result }: { result: BulkPrepareResult }) {
       </Notice>
     )
   }
+  if (result.reason === 'no_evidence') {
+    // Matching ranks jobs by what the owner has confirmed; with nothing confirmed nothing can match.
+    return (
+      <Notice
+        tone="warning"
+        action={<Button asChild size="sm" variant="secondary"><Link to="/profile">Open your profile</Link></Button>}
+      >
+        Confirm some evidence in your profile first. Jobs are matched on the skills and experience you saved there.
+      </Notice>
+    )
+  }
   const count = result.prepared.length
   if (count === 0) {
     return (

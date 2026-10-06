@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, FileUp, ListChecks, Plus, Trash2, X } from 'lucide-react'
+import { Check, Download, FileUp, ListChecks, Plus, Trash2, X } from 'lucide-react'
 import {
   Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, Page, PageHeader, Panel, PanelBody,
   PanelHeader, ScoreSeal, Section, Skeleton, Stack, Sticker, useToast,
@@ -40,16 +40,7 @@ const SAVE_ALL_UNDO_MS = 6000
 /** How long a fact that just landed (or was linked to) keeps its quiet highlight. */
 const MOMENT_MS = 3200
 
-/** Two facts say the same thing when their kind and their words match, whatever their order or case. */
-function factSignature(item: EvidenceItem): string {
-  const words = contentEntries(item.content)
-    .map((entry) => entry.value.trim().toLowerCase())
-    .filter(Boolean)
-    .sort()
-  return `${item.kind}|${words.join('|')}`
-}
-
-type ImportOutcome = { found: number; skipped: number; message?: string }
+type ImportOutcome = { found: number; message?: string }
 
 /** The first non-empty value: how a fact is named in buttons and menus. */
 function previewText(item: EvidenceItem): string {
@@ -93,6 +84,7 @@ export function EvidenceProfilePage() {
   const isAuthenticated = status === 'authenticated'
   const { hasResume, resumeText } = useResumeCarry()
   const [importOutcome, setImportOutcome] = useState<ImportOutcome | null>(null)
+  const [importedText, setImportedText] = useState<string | null>(null)
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<EvidenceItem | null>(null)
@@ -121,39 +113,22 @@ export function EvidenceProfilePage() {
     await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
   }
 
-  // Import stores every extracted fact as a suggestion; nothing is trusted
-  // until the owner saves it (D-062). A fact the profile already holds is not suggested twice: the
-  // API has no de-duplication yet, so the copies it just made are removed here.
+  // Import stores every extracted fact as a suggestion; nothing is trusted until the owner saves it (D-062).
+  // The API skips facts the profile already holds, so a repeat import of the same CV adds nothing; the button
+  // says so ("Imported") until a different CV is carried in.
   const importMutation = useMutation({
-    mutationFn: () => importEvidenceFromResume(resumeText),
-    onSuccess: async ({ items: imported }) => {
+    mutationFn: (text: string) => importEvidenceFromResume(text),
+    onSuccess: async ({ items: imported }, text) => {
+      setImportedText(text)
       const known = queryClient.getQueryData<EvidenceItem[]>(EVIDENCE_QUERY_KEY) ?? []
-      const knownIds = new Set(known.map((item) => item.id))
-      const seen = new Set(known.map(factSignature))
-      const fresh: EvidenceItem[] = []
-      const duplicates: EvidenceItem[] = []
-      for (const item of imported) {
-        const signature = factSignature(item)
-        if (knownIds.has(item.id) || !seen.has(signature)) {
-          seen.add(signature)
-          fresh.push(item)
-        } else {
-          duplicates.push(item)
-        }
-      }
-      if (duplicates.length > 0) {
-        await Promise.allSettled(duplicates.map((item) => deleteEvidenceItem(item.id)))
-      }
       setImportOutcome(
-        fresh.length > 0
-          ? { found: fresh.length, skipped: duplicates.length }
+        imported.length > 0
+          ? { found: imported.length }
           : {
               found: 0,
-              skipped: duplicates.length,
-              message:
-                imported.length === 0
-                  ? 'We could not find any facts in your CV to suggest.'
-                  : 'Everything in your CV is already on your profile.',
+              message: known.length > 0
+                ? 'Everything in your CV is already on your profile.'
+                : 'We could not find any facts in your CV to suggest.',
             },
       )
       await queryClient.invalidateQueries({ queryKey: EVIDENCE_QUERY_KEY })
@@ -288,6 +263,7 @@ export function EvidenceProfilePage() {
     [items],
   )
   const canImport = hasResume && resumeText.length >= 50
+  const alreadyImported = importedText !== null && importedText === resumeText
 
   // A fact that newly appears among the saved ones lands with a short flourish (saved, added, completed).
   const savedIds = useMemo(
@@ -371,9 +347,15 @@ export function EvidenceProfilePage() {
       : [<Skeleton key="count" size="meta" width="7rem" />]
 
   const importAction = canImport ? (
-    <Button size={isEmpty ? 'md' : 'sm'} loading={importMutation.isPending} onClick={() => importMutation.mutate()}>
-      <FileUp aria-hidden="true" /> Import from your CV
-    </Button>
+    alreadyImported ? (
+      <Button size={isEmpty ? 'md' : 'sm'} variant="secondary" disabled title="This CV is already imported">
+        <Check aria-hidden="true" /> Imported
+      </Button>
+    ) : (
+      <Button size={isEmpty ? 'md' : 'sm'} loading={importMutation.isPending} onClick={() => importMutation.mutate(resumeText)}>
+        <FileUp aria-hidden="true" /> Import from your CV
+      </Button>
+    )
   ) : (
     <Button asChild size={isEmpty ? 'md' : 'sm'}>
       <Link to="/resume"><FileUp aria-hidden="true" /> Upload a CV</Link>
@@ -417,9 +399,6 @@ export function EvidenceProfilePage() {
             </p>
             <p>
               Added {importOutcome.found} {importOutcome.found === 1 ? 'suggestion' : 'suggestions'} to review.
-              {importOutcome.skipped > 0
-                ? ` ${importOutcome.skipped} you already have ${importOutcome.skipped === 1 ? 'was' : 'were'} skipped.`
-                : ''}
             </p>
           </div>
           <Button iconOnly size="sm" variant="ghost" aria-label="Dismiss" onClick={() => setImportOutcome(null)}>
