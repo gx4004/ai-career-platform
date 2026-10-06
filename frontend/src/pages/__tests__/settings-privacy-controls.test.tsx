@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '#/components/kit'
 import { SettingsPage } from '#/pages/settings-page'
+import { ApiError } from '#/lib/api/errors'
 import { EVIDENCE_QUERY_KEY } from '#/lib/profile/evidence'
 
 const api = vi.hoisted(() => ({
@@ -112,6 +113,7 @@ describe('Settings privacy controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete evidence profile' }))
     await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledTimes(1))
     expect(client.getQueryData(EVIDENCE_QUERY_KEY)).toBeUndefined()
+    expect(await screen.findAllByText('Evidence profile deleted')).not.toHaveLength(0)
   }, 10_000)
 
   it('keeps an erasure failure visible inside the confirmation dialog', async () => {
@@ -161,6 +163,12 @@ describe('Settings page structure', () => {
     expect(await within(screen.getByRole('list', { name: 'General' })).findByText("Can't reach the server")).toBeTruthy()
   })
 
+  it('calls a 5xx answer a server error, not an unreachable server', async () => {
+    api.getHealth.mockRejectedValueOnce(new ApiError('The server ran into a problem.', 503))
+    renderPage()
+    expect(await within(screen.getByRole('list', { name: 'General' })).findByText('Server error')).toBeTruthy()
+  })
+
   it('groups the rows under two headings, each row a title with its explanation and one control', async () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy()
@@ -173,12 +181,12 @@ describe('Settings page structure', () => {
     expect(await general.findByText('Connected')).toBeTruthy()
   })
 
-  it('offers both deletions as quiet buttons; the loud destructive button is only the one that confirms', () => {
+  it('fills only the irreversible account deletion; the profile deletion stays quiet', () => {
     renderPage()
     const profile = screen.getByRole('button', { name: 'Delete profile' })
     const account = screen.getByRole('button', { name: 'Delete account' })
     expect(profile.className).toContain('kit-button--secondary')
-    expect(account.className).toContain('kit-button--secondary')
+    expect(account.className).toContain('kit-button--destructive')
     fireEvent.click(account)
     expect(screen.getByRole('button', { name: 'Delete account permanently' }).className).toContain('kit-button--destructive')
   })
@@ -205,6 +213,9 @@ describe('Settings page structure', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(api.deleteAccount).toHaveBeenCalledWith('OWNER@example.com'))
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/'))
+    // The landing page reads this once to say the deletion worked.
+    expect(sessionStorage.getItem('cw-account-deleted')).toBe('1')
+    sessionStorage.removeItem('cw-account-deleted')
   })
 
   it('shows an account deletion failure under the field it concerns', async () => {

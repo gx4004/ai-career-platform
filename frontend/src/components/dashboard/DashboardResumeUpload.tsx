@@ -4,6 +4,7 @@ import { Button, FileInput, Notice } from '#/components/kit'
 import { SAMPLE_RESUME_TEXT } from '#/components/tooling/sampleResume'
 import { parseCv } from '#/lib/api/client'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
+import { setResumeCarry } from '#/lib/tools/resumeCarryStore'
 
 /** Inline resume upload: parses the file (or takes the sample), then hands off to the Resume Analyzer for review. */
 export function DashboardResumeUpload() {
@@ -11,7 +12,9 @@ export function DashboardResumeUpload() {
 
   const mutation = useMutation({
     mutationFn: parseCv,
-    onSuccess: (data) => {
+    onSuccess: (data, file) => {
+      // The carry names the file, so the Resume Analyzer shows "resume.pdf" rather than a hand-off from a tool.
+      setResumeCarry(data.extracted_text, file.name)
       writeWorkflowContext({
         resumeText: data.extracted_text,
         resumePendingReview: true,
@@ -23,6 +26,7 @@ export function DashboardResumeUpload() {
 
   const handleFile = (file: File | null | undefined) => {
     if (!file) return
+    mutation.reset() // a new pick clears the last parse error
     mutation.mutate(file)
   }
 
@@ -47,6 +51,7 @@ export function DashboardResumeUpload() {
         accept=".pdf,.docx"
         hint="PDF or DOCX. You can also drop a file here."
         disabled={mutation.isPending}
+        invalid={Boolean(error)}
         onFilesChange={([file]) => handleFile(file)}
       />
       <div>

@@ -57,8 +57,16 @@
   font-size: var(--fs-meta);
   font-weight: var(--fw-semibold);
   line-height: var(--lh-meta);
-  font-variant-numeric: var(--numeric-tabular);
+  /* Running text ("19 open jobs"): Onest's tabular "1" would open a gap ("1 9"). */
+  font-variant-numeric: proportional-nums;
   white-space: nowrap;
+}
+
+/* countPlacement="below": the count's own line under the controls, so its changing width never reflows them. */
+.kit-toolbar[data-count='below'] > .kit-toolbar__count {
+  order: 10;
+  flex-basis: 100%;
+  margin-inline-start: 0;
 }
 
 .kit-toolbar__sheet-controls {
@@ -127,6 +135,7 @@
 .kit-pagination__status {
   font-size: 0.875rem;
   font-weight: var(--fw-semibold);
+  white-space: nowrap;
 }
 
 .kit-pagination__controls {
@@ -211,5 +220,12 @@
 
   .kit-pagination__summary {
     flex: 1 1 100%;
+  }
+}
+
+/* At 320 "Previous", "Page 1 of 2" and "Next" fit on one line only without the chevrons (the words carry the meaning). */
+@media (max-width: 359px) {
+  .kit-pagination__chevron {
+    display: none;
   }
 }

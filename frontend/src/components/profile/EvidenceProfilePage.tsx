@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Download, FileUp, ListChecks, Plus, Trash2, X } from 'lucide-react'
+import { Check, Download, FileUp, ListChecks, Plus, Trash2, TriangleAlert, X } from 'lucide-react'
 import {
-  Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, Page, PageHeader, Panel, PanelBody,
+  Badge, Button, Cluster, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, Page, PageHeader, Panel, PanelBody,
   PanelHeader, ScoreSeal, Section, Skeleton, Stack, Sticker, useToast,
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
@@ -267,6 +267,11 @@ export function EvidenceProfilePage() {
     () => groupItemsByKind(items.filter((item) => item.confirmation_state === 'confirmed')),
     [items],
   )
+  // "N facts found, added N suggestions to review" stops being true once every one of them is saved or dismissed.
+  const nothingToReview = itemsQuery.isSuccess && suggestions.length === 0
+  useEffect(() => {
+    if (nothingToReview && queuedIds.length === 0) setImportOutcome((outcome) => (outcome?.found ? null : outcome))
+  }, [nothingToReview, queuedIds.length])
   const canImport = hasResume && resumeText.length >= 50
   const alreadyImported = importedText !== null && importedText === resumeText
 
@@ -340,14 +345,16 @@ export function EvidenceProfilePage() {
   if (!isAuthenticated) {
     return (
       <Page>
-        <PageHeader
-          title="Your profile"
-          lead="Sign in to see the facts about your experience that CV Studio and the tools reuse. Save what you stand behind, and remove anything you do not."
-          actions={(
-            <>
-              <Button asChild size="sm" variant="secondary"><Link to="/resume">Explore tools</Link></Button>
-              <Button type="button" size="sm" onClick={() => openAuthDialog({ to: '/profile', reason: 'account' })}>Sign in</Button>
-            </>
+        <PageHeader title="Your profile" />
+        <EmptyState
+          icon={<ListChecks />}
+          title="Your facts, in one place"
+          description="Sign in to keep the facts about your experience that CV Studio and the tools reuse. Save what you stand behind, and remove anything you do not."
+          action={(
+            <Cluster gap={2}>
+              <Button type="button" onClick={() => openAuthDialog({ to: '/profile', reason: 'account' })}>Sign in</Button>
+              <Button asChild variant="secondary"><Link to="/resume">Explore tools</Link></Button>
+            </Cluster>
           )}
         />
       </Page>
@@ -378,7 +385,7 @@ export function EvidenceProfilePage() {
     )
   ) : (
     <Button asChild size={isEmpty ? 'md' : 'sm'}>
-      <Link to="/resume"><FileUp aria-hidden="true" /> Upload a CV</Link>
+      <Link to="/resume"><FileUp aria-hidden="true" /> Upload a CV in Resume Analyzer</Link>
     </Button>
   )
 
@@ -488,6 +495,7 @@ export function EvidenceProfilePage() {
 
         {itemsQuery.isError ? (
           <ErrorState
+            icon={<TriangleAlert />}
             title="Your profile couldn’t be loaded"
             description="Your facts are safe. Try again in a moment."
             onRetry={() => void itemsQuery.refetch()}
@@ -498,6 +506,11 @@ export function EvidenceProfilePage() {
             id="saved-facts"
             title="Saved facts"
             description={groups.length > 0 ? 'CV Studio and the tools only use saved facts. Edit one to correct it.' : undefined}
+            actions={groups.length > 0 ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/cv-studio" search={{ start: 'profile' }}>Start a CV from these facts</Link>
+              </Button>
+            ) : undefined}
           >
             {itemsQuery.isPending ? (
               <SavedFactsSkeleton />
@@ -510,6 +523,11 @@ export function EvidenceProfilePage() {
                     ? 'Facts you type in are saved straight away. Anything imported from a CV or a tool arrives as a suggestion until you save it.'
                     : 'Save a suggestion and it shows up here.'
                 }
+                action={items.length === 0 ? (
+                  <Button size="sm" variant="secondary" onClick={() => { setAddError(null); setAddOpen(true) }}>
+                    <Plus aria-hidden="true" /> Add a fact
+                  </Button>
+                ) : undefined}
               />
             ) : (
               <Stack gap={6}>

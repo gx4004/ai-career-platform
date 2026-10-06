@@ -20,7 +20,7 @@ export function CoverLetterToolPage() {
   return (
     <ToolPageShell toolId="cover-letter">
       {mutation.isPending ? (
-        <ToolPageLoading toolId="cover-letter" mutationDone={!mutation.isPending} />
+        <ToolPageLoading toolId="cover-letter" mutationDone={!mutation.isPending} onCancel={mutation.cancel} />
       ) : (
         <ToolForm
           toolId="cover-letter"
@@ -41,11 +41,14 @@ export function CoverLetterToolPage() {
             error={errors.resumeText}
           />
 
-          <JobImportCard onImported={(description) => setField('jobDescription', description)} />
+          <JobImportCard
+            current={String(draft.jobDescription ?? '')}
+            onImported={(description) => setField('jobDescription', description)}
+          />
           <Field
             label={jobField.label}
             id="cover-letter-jobDescription"
-            help={getSeededFieldNote('jobDescription', bridge) || undefined}
+            help={getSeededFieldNote('jobDescription', bridge, String(draft.jobDescription ?? '')) || undefined}
             error={errors.jobDescription}
           >
             <Textarea

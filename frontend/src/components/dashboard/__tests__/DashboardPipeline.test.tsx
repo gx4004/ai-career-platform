@@ -74,6 +74,15 @@ describe('DashboardPipeline', () => {
     expect(barWidth('Interviewing')).toBeNull()
   })
 
+  it('marks an empty stage stone even when other stages hold applications', async () => {
+    listApplications.mockResolvedValue({ items: [item('1', 'saved')], total: 1 })
+    renderPipeline()
+
+    await screen.findByText('Saved')
+    expect(stage('Interviewing').querySelector('.kit-stage-mark')?.getAttribute('data-tone')).toBe('stone')
+    expect(stage('Saved').querySelector('.kit-stage-mark')?.getAttribute('data-tone')).not.toBe('stone')
+  })
+
   it('marks every stage stone while there is nothing in the pipeline', async () => {
     listApplications.mockResolvedValue({ items: [], total: 0 })
     renderPipeline()

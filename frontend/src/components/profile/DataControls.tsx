@@ -23,7 +23,10 @@ import {
   RowLeading,
   RowSubtitle,
   RowTitle,
+  Stack,
+  useToast,
 } from '#/components/kit'
+import { markAccountDeleted } from '#/components/profile/AccountDeletedToast'
 import { useSession } from '#/hooks/useSession'
 import { deleteAccount, deleteEvidenceProfile, exportCareerData } from '#/lib/api/client'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
@@ -35,7 +38,7 @@ const ACCOUNT_ERASES = [
   'Your account and sign-in',
   'Every saved tool run and workspace',
   'Your CV documents and their versions',
-  'Every Evidence Profile fact, saved or suggested, and your skills to build',
+  'Every fact on your profile, saved or suggested, and your skills to build',
   'Your applications with their documents, notes and tasks, and your application details',
 ] as const
 
@@ -106,6 +109,7 @@ function DeleteAccountDialog({
       // still signed in, then leave for the landing page.
       clearSensitiveBrowserData()
       queryClient.clear()
+      markAccountDeleted()
       window.location.assign('/')
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Account deletion failed. Please try again or contact support.')
@@ -181,6 +185,7 @@ function DeleteAccountDialog({
 export function DataControls({ listLabel, detailed = false }: { listLabel: string; detailed?: boolean }) {
   const queryClient = useQueryClient()
   const { user } = useSession()
+  const { toast } = useToast()
   const exporter = useCareerDataExport()
   const [accountOpen, setAccountOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -195,6 +200,11 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
       queryClient.removeQueries({ queryKey: EVIDENCE_QUERY_KEY })
       await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
       setProfileOpen(false)
+      toast({
+        tone: 'success',
+        title: 'Evidence profile deleted',
+        description: 'Your runs, CVs and applications are untouched.',
+      })
     } catch (failure) {
       setProfileError(failure instanceof Error ? failure.message : 'Evidence profile deletion failed.')
     } finally {
@@ -203,7 +213,7 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
   }
 
   return (
-    <>
+    <Stack gap={3}>
       {exporter.error ? (
         <Notice tone="danger" onDismiss={exporter.clearError}>
           {exporter.error}
@@ -233,7 +243,7 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
           <RowBody>
             <RowTitle>Delete evidence profile</RowTitle>
             <RowSubtitle>
-              Erase saved Evidence Profile items without deleting your account
+              Erase the facts saved on your profile without deleting your account
               {detailed ? '. Your runs, CVs and applications stay.' : '.'}
             </RowSubtitle>
           </RowBody>
@@ -261,7 +271,7 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
             </RowSubtitle>
           </RowBody>
           <RowActions reveal={false}>
-            <Button variant="secondary" size="sm" onClick={() => setAccountOpen(true)}>
+            <Button variant="destructive" size="sm" onClick={() => setAccountOpen(true)}>
               Delete account
             </Button>
           </RowActions>
@@ -275,13 +285,13 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
         onOpenChange={setProfileOpen}
         pending={erasing}
         title="Delete your evidence profile?"
-        description="This immediately removes every Evidence Profile item. It does not delete your account, and it cannot be undone."
+        description="This immediately removes every fact on your profile, saved or suggested. It does not delete your account, and it cannot be undone."
         confirmLabel="Delete evidence profile"
         icon={<Trash2 aria-hidden />}
         onConfirm={() => void eraseProfile()}
       >
         {profileError ? <Notice tone="danger">{profileError}</Notice> : null}
       </ConfirmDialog>
-    </>
+    </Stack>
   )
 }

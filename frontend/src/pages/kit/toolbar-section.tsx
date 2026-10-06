@@ -59,6 +59,7 @@ function DiscoverToolbar() {
         </Select>
       }
       count={query ? '3 jobs' : '148 jobs'}
+      countPlacement="below"
       activeFilters={active}
       onClearFilters={clear}
     />
@@ -132,7 +133,7 @@ export function ToolbarSection() {
       title="Toolbar, Pagination"
       note="At 767px and below the filters and sort move into a bottom sheet behind one Filters button that shows how many are active. The controls are the same ones, controlled by the page."
     >
-      <Group title="Discover toolbar (try the filters, then clear them)">
+      <Group title="Discover toolbar, count below (try the filters, then clear them)">
         <DiscoverToolbar />
       </Group>
       <Group title="History toolbar (a Segmented and a toggle as filters)">

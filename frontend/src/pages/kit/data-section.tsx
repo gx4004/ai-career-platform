@@ -101,7 +101,7 @@ export function DataSection() {
         </div>
       </Group>
 
-      <Group title="KeyValue: 2px dividers, quiet labels, tabular values">
+      <Group title="KeyValue: 2px dividers, quiet labels, running figures (numeric: tabular)">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
           <Specimen label="inline, divided (default)">
             <KeyValue
@@ -109,6 +109,8 @@ export function DataSection() {
                 { label: 'Stage', value: 'Interview' },
                 { label: 'Applied', value: 'Sep 23, 2026' },
                 { label: 'Salary', value: '€95,000 to €115,000' },
+                { label: 'Email', value: 'ada.1791@example.com' },
+                { label: 'Runs', value: '1,144', numeric: true },
                 { label: 'Contact', value: null },
                 { label: 'Application id', value: 'app_01JBX7W2K3Q8R5T9', mono: true },
               ]}

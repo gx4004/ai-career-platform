@@ -52,8 +52,8 @@ export function PromoteClaimButton({ claim }: { claim: PromotableClaim }) {
       onClick={handlePromote}
       aria-label={
         state === 'done'
-          ? `Added "${claim.label}" to your Evidence Profile`
-          : `Add "${claim.label}" to your Evidence Profile`
+          ? `Added "${claim.label}" to your profile`
+          : `Add "${claim.label}" to your profile`
       }
     >
       {state === 'done' ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}

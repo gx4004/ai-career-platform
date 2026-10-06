@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { AlertTriangle } from 'lucide-react'
 import { STAGE_TONE, STAGES, stageOf } from '#/components/applications/stages'
 import {
   Button,
@@ -50,6 +51,7 @@ export function DashboardPipeline() {
     >
       {board.isError ? (
         <ErrorState
+          icon={<AlertTriangle aria-hidden />}
           title="Your pipeline couldn't be loaded"
           onRetry={() => void board.refetch()}
           retrying={board.isFetching}
@@ -69,7 +71,7 @@ export function DashboardPipeline() {
                   stage={stage.id}
                   variant="count"
                   count={counts[index]}
-                  {...(items.length === 0 ? { 'data-tone': 'stone' } : {})}
+                  {...(counts[index] === 0 ? { 'data-tone': 'stone' } : {})}
                 />
                 <RowBody>
                   <RowTitle>{stage.label}</RowTitle>

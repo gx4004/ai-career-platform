@@ -154,6 +154,22 @@ describe('ResetPasswordPage states', () => {
     expect(screen.getByRole('link', { name: 'Back to sign in' }).getAttribute('href')).toBe('/login')
   })
 
+  it('explains a short password under its field and takes a fresh link opened in the same tab', async () => {
+    confirmPasswordResetMock.mockClear()
+    render(<ResetPasswordPage />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Invalid reset link' })).toBeTruthy()
+
+    window.history.replaceState({}, '', '/reset-password#token=fresh-token')
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+    expect(await screen.findByRole('heading', { name: 'Set a new password' })).toBeTruthy()
+    expect(window.location.hash).toBe('')
+
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'short' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Use at least 8 characters.')
+    expect(confirmPasswordResetMock).not.toHaveBeenCalled()
+  })
+
   it('keeps the token it consumed when effects run twice (dev strict mode)', () => {
     window.history.replaceState({}, '', '/reset-password#token=fragment-token')
     render(

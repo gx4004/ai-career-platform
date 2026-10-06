@@ -18,12 +18,14 @@ export function deriveWorkflowUpdateFromResult(
   const topActionTitles = readTopActionTitles(result)
 
   if (toolId === 'resume') {
+    const roleFitLabel = toString(asObject(result.role_fit).target_role_label)
     return {
       resumePendingReview: false,
       resumeAnalysis: result as ResumeResult,
       topActionTitles,
       strongestMissingSkills: readStringArray(asObject(result.evidence).missing_keywords),
-      targetRole: toString(asObject(result.role_fit).target_role_label) || undefined,
+      // No role read from the resume: keep the target role an earlier tool carried.
+      ...(roleFitLabel ? { targetRole: roleFitLabel } : {}),
     }
   }
 

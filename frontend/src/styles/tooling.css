@@ -49,6 +49,20 @@
   border-inline-start: var(--bw) solid var(--line);
 }
 
+/* The import panel sits inside the form panel: on a phone its own padding shrinks so notices keep a usable text column. */
+@media (max-width: 479px) {
+  .kit-panel-surface__body.tool-import {
+    padding: var(--s3);
+  }
+}
+
+/* The resume row's Change / Upload pair: on the narrowest phones a tighter gap keeps both on one line (the 2px button shadow still clears). */
+@media (max-width: 359px) {
+  .kit-cluster.tool-source-actions[data-gap] {
+    --kit-gap: var(--s1);
+  }
+}
+
 /* What was read from an uploaded file: a few lines, clamped, so a wrong extraction is obvious at a glance. */
 .tool-extract__body {
   display: grid;
@@ -109,6 +123,12 @@
 .cinematic-loader {
   display: grid;
   gap: var(--s5);
+}
+
+/* The way out of a long run: a ghost button under the steps, its label aligned with the text above. */
+.tool-loading__cancel {
+  margin-block-start: var(--s4);
+  margin-inline-start: calc(var(--s3) * -1);
 }
 
 .cinematic-main {

@@ -7,6 +7,8 @@ type TourStep = {
   target: string
   title: string
   body: string
+  /** What a signed-in user reads instead (the guest copy talks about signing in). */
+  signedInBody?: string
 }
 
 const STEPS: TourStep[] = [
@@ -23,7 +25,8 @@ const STEPS: TourStep[] = [
   {
     target: '[data-tour="activity"]',
     title: 'Your activity',
-    body: 'Recent runs and favorites appear here. Sign in to persist your workspace.',
+    body: 'Recent runs and starred results appear here. Sign in to keep your workspace.',
+    signedInBody: 'Your recent runs and starred results land here; open one to pick up where you left off.',
   },
 ]
 
@@ -45,10 +48,12 @@ function getCardPosition(rect: DOMRect, cardHeight: number) {
  */
 export function OnboardingTour({
   open,
+  signedIn = false,
   onComplete,
   onSkip,
 }: {
   open: boolean
+  signedIn?: boolean
   onComplete: () => void
   onSkip: () => void
 }) {
@@ -66,8 +71,12 @@ export function OnboardingTour({
       setRect(null)
       return
     }
-    setSteps(STEPS.filter((candidate) => document.querySelector(candidate.target)))
-  }, [open])
+    setSteps(
+      STEPS.filter((candidate) => document.querySelector(candidate.target)).map((candidate) =>
+        signedIn && candidate.signedInBody ? { ...candidate, body: candidate.signedInBody } : candidate,
+      ),
+    )
+  }, [open, signedIn])
 
   const measure = useCallback(() => {
     if (!current) return

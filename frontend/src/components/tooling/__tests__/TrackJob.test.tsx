@@ -13,7 +13,7 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
-import { TrackJobRow } from '#/components/tooling/TrackJob'
+import { TrackJobRow, knownJob } from '#/components/tooling/TrackJob'
 
 const application = {
   id: 'app-9', label: 'Staff Engineer at Northwind', title: 'Staff Engineer', company: 'Northwind', role: 'Staff Engineer',
@@ -73,5 +73,39 @@ describe('TrackJobRow', () => {
     fireEvent.submit(screen.getByRole('dialog').querySelector('form')!)
     expect(await screen.findByText('Something went wrong on our side. Try again in a moment.')).toBeTruthy()
     expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+})
+
+describe('knownJob', () => {
+  it('reads the "Role at Company" header the app writes on a handed-over job description', () => {
+    expect(
+      knownJob('Senior Backend Engineer at Northwind Labs\n\nWe build...', { targetRole: 'Senior Backend Engineer' }),
+    ).toEqual({ role: 'Senior Backend Engineer', company: 'Northwind Labs' })
+  })
+
+  it('falls back to a re-generate job label, and never guesses from a pasted posting', () => {
+    expect(knownJob('We are hiring at Acme a backend engineer who...', { jobLabel: 'Staff Engineer at Northwind' })).toEqual({
+      role: 'Staff Engineer',
+      company: 'Northwind',
+    })
+    expect(knownJob('We are hiring at Acme a backend engineer who...')).toBeNull()
+    // A pasted posting with a short first line and a blank line is still the user's text, not an app header.
+    expect(knownJob('Join our team at Acme\n\nWe build...')).toBeNull()
+    expect(knownJob('Join our team at Acme\n\nWe build...', { targetRole: 'Backend Engineer' })).toBeNull()
+    expect(knownJob('')).toBeNull()
+  })
+})
+
+describe('TrackJobRow prefill', () => {
+  it('prefills Role and Company from what the Job Match run reports', async () => {
+    renderRow({
+      id: 'run-2',
+      workspace: null,
+      result_payload: { job_title: 'Senior Backend Engineer, Platform', company: 'Northwind Labs' },
+    } as unknown as ToolRunDetail)
+    fireEvent.click(screen.getByRole('button', { name: 'Track job' }))
+    await screen.findByRole('dialog', { name: 'Track this job' })
+    expect((screen.getByLabelText('Role') as HTMLInputElement).value).toBe('Senior Backend Engineer, Platform')
+    expect((screen.getByLabelText('Company') as HTMLInputElement).value).toBe('Northwind Labs')
   })
 })

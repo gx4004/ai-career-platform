@@ -61,10 +61,10 @@ describe('kit JumpNav', () => {
     expect(screen.getByRole('navigation').hasAttribute('data-sticky')).toBe(false)
   })
 
-  it('observes every target with the 20% / 70% band and follows the section that enters it', () => {
+  it('observes every target with the 15% / 70% band and follows the section that enters it', () => {
     render(<JumpNav aria-label="On this page" items={ITEMS} />)
     expect(observers).toHaveLength(1)
-    expect(observers[0].options?.rootMargin).toBe('-20% 0px -70% 0px')
+    expect(observers[0].options?.rootMargin).toBe('-15% 0px -70% 0px')
     expect(observers[0].observed.map((node) => node.id)).toEqual(['fix-first', 'breakdown', 'strengths'])
     act(() => {
       observers[0].callback([{ isIntersecting: true, target: document.getElementById('strengths')! }])
@@ -143,6 +143,23 @@ describe('kit JumpNav', () => {
     nav.scrollLeft = 280
     fireEvent.scroll(nav)
     expect(nav.dataset.more).toBe('false')
+  })
+
+  it('scrolls an overflowing strip (not the page) so the current link stays in view', () => {
+    render(<JumpNav aria-label="Report sections" items={ITEMS} />)
+    const nav = screen.getByRole('navigation', { name: 'Report sections' })
+    Object.defineProperty(nav, 'scrollWidth', { value: 600, configurable: true })
+    Object.defineProperty(nav, 'clientWidth', { value: 320, configurable: true })
+    const scrollTo = vi.fn()
+    nav.scrollTo = scrollTo as unknown as typeof nav.scrollTo
+    nav.getBoundingClientRect = () => ({ left: 0 }) as DOMRect
+    const strengths = screen.getByRole('link', { name: 'Major strengths' })
+    strengths.getBoundingClientRect = () => ({ left: 420 }) as DOMRect
+    act(() => {
+      observers[0].callback([{ isIntersecting: true, target: document.getElementById('strengths')! }])
+    })
+    expect(scrollTo).toHaveBeenCalledWith({ left: 404, behavior: 'auto' })
+    expect(document.getElementById('strengths')!.scrollIntoView).not.toHaveBeenCalled()
   })
 
   it('still hands the nav element to a forwarded ref', () => {

@@ -23,7 +23,13 @@ export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
   ref,
 ) {
   return (
-    <span ref={ref} className={cn('kit-chip', className)} data-removable={onRemove ? 'true' : undefined} {...rest}>
+    <span
+      ref={ref}
+      className={cn('kit-chip', className)}
+      data-removable={onRemove ? 'true' : undefined}
+      data-disabled={disabled ? 'true' : undefined}
+      {...rest}
+    >
       <span className="kit-chip__label">{children}</span>
       {onRemove ? (
         <button type="button" className="kit-chip__remove" aria-label={removeLabel} disabled={disabled} onClick={onRemove}>

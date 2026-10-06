@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { LoginForm } from '#/components/auth/LoginForm'
 import type { AuthView } from '#/components/auth/auth-copy'
 import { RegisterForm } from '#/components/auth/RegisterForm'
@@ -25,6 +25,9 @@ export function AuthSurface({
   onSuccess?: () => void
   onRegistering?: (registering: boolean) => void
 }) {
+  // "Sign in instead" / "Reset password" from a taken address: the sign-in form remounts (new key) with the email filled in.
+  const [handoff, setHandoff] = useState<{ email: string; reset: boolean; key: number } | null>(null)
+
   return (
     <Tabs value={view} onValueChange={(value) => onViewChange(value as AuthView)} data-auth-surface>
       {resetting ? null : (
@@ -35,11 +38,24 @@ export function AuthSurface({
       )}
       <TabsContent value="login">
         {notice}
-        <LoginForm onSuccess={onSuccess} onResetChange={onResettingChange} />
+        <LoginForm
+          key={handoff?.key ?? 0}
+          onSuccess={onSuccess}
+          onResetChange={onResettingChange}
+          initialEmail={handoff?.email}
+          startInReset={handoff?.reset}
+        />
       </TabsContent>
       <TabsContent value="register">
         {notice}
-        <RegisterForm onSuccess={onSuccess} onRegistering={onRegistering} />
+        <RegisterForm
+          onSuccess={onSuccess}
+          onRegistering={onRegistering}
+          onExistingAccount={(email, next) => {
+            setHandoff((prev) => ({ email, reset: next === 'reset', key: (prev?.key ?? 0) + 1 }))
+            onViewChange('login')
+          }}
+        />
       </TabsContent>
     </Tabs>
   )

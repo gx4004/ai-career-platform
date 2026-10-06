@@ -35,6 +35,7 @@ describe('kit Chip', () => {
     )
     const remove = screen.getByRole('button', { name: 'Remove' }) as HTMLButtonElement
     expect(remove.disabled).toBe(true)
+    expect(remove.closest('.kit-chip')?.getAttribute('data-disabled')).toBe('true')
     fireEvent.click(remove)
     expect(onRemove).not.toHaveBeenCalled()
     expect(onSubmit).not.toHaveBeenCalled()

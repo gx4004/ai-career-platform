@@ -51,7 +51,14 @@
 
 .kit-skill-pips[data-mode='bar'] {
   display: block;
-  min-inline-size: 7rem;
+  /* As wide as a full row of ten pips, so the column stays aligned down a list. */
+  inline-size: calc(10 * 8px + 9 * 3px);
+  max-inline-size: 100%;
+}
+
+/* The words beside the bar already give the count ("6 of 11 skills"). */
+.kit-skill-pips[data-mode='bar'] .kit-score__value {
+  display: none;
 }
 
 .kit-skill-pips__pip {

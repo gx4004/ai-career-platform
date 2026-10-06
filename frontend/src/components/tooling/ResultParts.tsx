@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Check } from 'lucide-react'
 import {
   Badge,
@@ -20,7 +20,7 @@ import type { BadgeTone, SectionProps, Tone } from '#/components/kit'
 import { request } from '#/lib/api/client'
 import { isDemoHistoryId } from '#/lib/tools/demoRuns'
 import { tools } from '#/lib/tools/registry'
-import type { ToolDefinition } from '#/lib/tools/registry'
+import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
 
 /** Shared building blocks for the result report layout (see results.css). */
 
@@ -87,8 +87,9 @@ export function SeverityBadge({ level, onSticker = false }: { level: string; onS
 }
 
 const GOOD_WORDS = /\b(strong|good|solid|excellent|great|ready|high|foundation|identified|clear)\b/i
-const FAIR_WORDS = /\b(borderline|fair|moderate|developing|partial|mixed|needs|gap-first|advisory)\b/i
-const WEAK_WORDS = /\b(weak|poor|stretch|low|unlikely|thin|risky)\b/i
+const FAIR_WORDS = /\b(borderline|fair|moderate|developing|partial|mixed|uneven|promising|needs|gap-first|advisory)\b/i
+// "Needs stronger evidence" is the resume's lowest band: tested before FAIR ("needs") so it is rose, not lemon.
+const WEAK_WORDS = /\b(weak|poor|stretch|low|unlikely|thin|risky|stronger evidence)\b/i
 
 /**
  * The colour of a verdict sticker, by meaning: mint good, lemon borderline, rose weak. The words win
@@ -218,7 +219,18 @@ export function ResultJumpNav({ containerRef }: { containerRef: RefObject<HTMLEl
  * Where to go from here: the registry's two next tools for this one, each opening with the resume
  * and job the workflow already carries. Not a list of suggestions made up per result.
  */
-export function WhatNext({ tool, lead }: { tool: ToolDefinition; lead?: ReactNode }) {
+export function WhatNext({
+  tool,
+  lead,
+  onOpen,
+}: {
+  tool: ToolDefinition
+  lead?: ReactNode
+  /** Runs before the next tool opens (a plain click only): fills in what a result opened cold cannot carry. */
+  onOpen?: (to: ToolId) => Promise<void>
+}) {
+  const navigate = useNavigate()
+  const [opening, setOpening] = useState<ToolId | null>(null)
   const actions = tool.nextActions.filter((action) => action.to !== tool.id)
   if (actions.length === 0 && !lead) return null
   return (
@@ -238,7 +250,27 @@ export function WhatNext({ tool, lead }: { tool: ToolDefinition; lead?: ReactNod
               </RowBody>
               <RowMeta>
                 <Button asChild variant="secondary" size="sm">
-                  <Link to={target.route}>Open {target.label}</Link>
+                  <Link
+                    to={target.route}
+                    aria-busy={opening === action.to || undefined}
+                    onClick={
+                      onOpen
+                        ? (event) => {
+                            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                            event.preventDefault()
+                            if (opening) return
+                            setOpening(action.to)
+                            void onOpen(action.to)
+                              .catch(() => {
+                                /* best effort: the form asks for anything missing */
+                              })
+                              .finally(() => void navigate({ to: target.route }))
+                          }
+                        : undefined
+                    }
+                  >
+                    Open {target.label}
+                  </Link>
                 </Button>
               </RowMeta>
             </Row>

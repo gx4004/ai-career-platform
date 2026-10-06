@@ -196,6 +196,15 @@ describe('kit RowActions and RowReveal', () => {
     expect(container.querySelector('.kit-row__actions')?.hasAttribute('data-reveal')).toBe(false)
   })
 
+  it('floats revealed actions over the row only when asked (placement="overlay"), never an always-visible group', () => {
+    const { container, rerender } = render(<RowActions>x</RowActions>)
+    expect(container.querySelector('.kit-row__actions')?.hasAttribute('data-placement')).toBe(false)
+    rerender(<RowActions placement="overlay">x</RowActions>)
+    expect(container.querySelector('.kit-row__actions')?.getAttribute('data-placement')).toBe('overlay')
+    rerender(<RowActions placement="overlay" reveal={false}>x</RowActions>)
+    expect(container.querySelector('.kit-row__actions')?.hasAttribute('data-placement')).toBe(false)
+  })
+
   it('RowReveal wraps secondary actions inside an always-visible group', () => {
     const { container } = render(
       <RowActions reveal={false}>

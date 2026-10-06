@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, Clock, Compass, Plus } from 'lucide-react'
+import { AlertTriangle, Check, Clock, Compass, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -24,14 +24,16 @@ import {
   Sticker,
   StretchedLink,
   type Tone,
+  useToast,
 } from '#/components/kit'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { DateStamp } from '#/components/dashboard/DateStamp'
 import { formatRunDate } from '#/components/dashboard/RunRow'
-import { useToday } from '#/hooks/useToday'
-import { adoptDiscoveryRecommendation } from '#/lib/api/client'
+import { TODAY_QUERY_KEY, useToday } from '#/hooks/useToday'
+import { adoptDiscoveryRecommendation, getApplication } from '#/lib/api/client'
 import type { DiscoveryListing, TodayActionItem, TodayPlan } from '#/lib/api/schemas'
 import { invalidateApplications } from '#/lib/query/applicationCaches'
+import { writeWorkflowContext } from '#/lib/tools/drafts'
 
 /**
  * "What should I do today?": applications that need a move, and jobs worth adding. Whichever has
@@ -62,6 +64,7 @@ export function DashboardToday() {
     return (
       <Section title="Needs action and best matches">
         <ErrorState
+          icon={<AlertTriangle aria-hidden />}
           headingLevel={3}
           title="Your matches and next steps couldn't be loaded"
           onRetry={() => void today.refetch()}
@@ -87,14 +90,33 @@ export function DashboardToday() {
 function BestMatches({ plan }: { plan: TodayPlan }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   // One request at a time: the mutation state lags a render behind a double click, so the guard is a ref.
   const adding = useRef(false)
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
     retry: false,
-    onSuccess: async (application) => {
-      await invalidateApplications(queryClient)
-      navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } })
+    // Stay here so several matches can be added in a row: the row leaves the list at once, a toast offers the application.
+    onSuccess: (application, listingId) => {
+      queryClient.setQueryData<TodayPlan>(TODAY_QUERY_KEY, (current) =>
+        current
+          ? {
+              ...current,
+              best_matches: current.best_matches.filter((listing) => listing.listing_id !== listingId),
+              closest_matches: current.closest_matches.filter((listing) => listing.listing_id !== listingId),
+            }
+          : current,
+      )
+      void invalidateApplications(queryClient)
+      toast({
+        tone: 'success',
+        title: 'Added to your applications',
+        description: application.title ?? undefined,
+        action: {
+          label: 'View application',
+          onClick: () => navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } }),
+        },
+      })
     },
   })
 
@@ -258,8 +280,38 @@ function reasonText(item: TodayActionItem): string {
   return `No reply yet? Applied ${days} ${days === 1 ? 'day' : 'days'} ago`
 }
 
+/**
+ * "Prep for the round" carries the application into Interview Q&A the way every tool hand-off does (the tab's
+ * workflow context): its role, the saved job description when it has one, and the application itself, so the
+ * run is filed under it. A plain link otherwise (new tab, or the fetch failing, still opens the tool).
+ */
+function usePrepForRound(item: TodayActionItem) {
+  const navigate = useNavigate()
+  return async (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    const application = await getApplication(item.application_id).catch(() => null)
+    const listing = application?.listing
+    try {
+      writeWorkflowContext({
+        targetRole: item.title,
+        ...(listing?.description.trim()
+          ? { jobDescription: `${listing.title} at ${listing.company}\n\n${listing.description.trim()}` }
+          : {}),
+        workspaceId: item.application_id,
+        workspaceLabel: application?.label ?? item.title,
+        updatedAt: Date.now(),
+      })
+    } catch {
+      /* storage unavailable: the form asks for what is missing */
+    }
+    void navigate({ to: '/interview' })
+  }
+}
+
 /** One thing that needs the user, as a sticker: what it is, which application, and the one move. */
 function ActionSticker({ item, now }: { item: TodayActionItem; now: Date }) {
+  const prepForRound = usePrepForRound(item)
   const deadline = item.reason === 'deadline' && item.deadline ? new Date(item.deadline) : null
   return (
     <Sticker as="li" tone={ACTION_TONE[item.reason]} className="dash-act">
@@ -284,7 +336,9 @@ function ActionSticker({ item, now }: { item: TodayActionItem; now: Date }) {
           <>
             <p className="dash-act__todo">Prepare for the next round</p>
             <Button asChild variant="secondary" size="sm">
-              <Link to="/interview">Prep for the round</Link>
+              <Link to="/interview" onClick={(event) => void prepForRound(event)}>
+                Prep for the round
+              </Link>
             </Button>
           </>
         ) : (

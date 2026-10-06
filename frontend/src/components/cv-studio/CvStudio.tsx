@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Download, FileUp, LayoutTemplate, Layers, MoreHorizontal, Sparkles, Trash2 } from 'lucide-react'
+import { Download, FileText, FileUp, LayoutTemplate, Layers, MoreHorizontal, Sparkles, Trash2 } from 'lucide-react'
 import {
-  Badge, Button, Cluster, ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+  Badge, Button, Cluster, ConfirmDialog, Count, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger, EmptyState, ErrorState, Input, List, Notice, Page, PageHeader, Select, Sheet, SheetBody,
   SheetContent, SheetHeader, SheetTitle, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger,
 } from '#/components/kit'
@@ -41,6 +41,7 @@ type Panel = Tool | 'header' | { sectionId: string }
 /** The ATS check renders the real PDF, so it waits until typing settles. */
 const QUALITY_SETTLE_MS = 1500
 const TOOL_TITLES: Record<Tool, string> = { sections: 'Sections', design: 'Design', checks: 'ATS check', versions: 'Versions' }
+const STUDIO_LEAD = 'Write it once, pick a look, and tailor it to every job. We check that application systems can read it.'
 
 function useSettledValue<T>(value: T, delay: number) {
   const [settled, setSettled] = useState(value)
@@ -68,8 +69,16 @@ function StudioSkeleton() {
     <Page width="full" className="cvs-page">
       <h1 className="kit-sr-only">CV Studio</h1>
       <div className="cvs-bar">
-        <Skeleton variant="block" width="16rem" height={48} label="Loading CV Studio" />
-        <Skeleton variant="block" width="16rem" height={44} />
+        <div className="cvs-bar__doc">
+          <Skeleton variant="block" width="16.25rem" height={48} label="Loading CV Studio" />
+          <Skeleton variant="block" width="5.5rem" height={24} />
+          <Skeleton variant="block" width="9rem" height={24} />
+        </div>
+        <div className="cvs-bar__actions" aria-hidden="true">
+          <Skeleton variant="block" width="10rem" height={44} />
+          <Skeleton variant="block" width="2.75rem" height={44} />
+          <Skeleton variant="block" width="9rem" height={44} />
+        </div>
       </div>
       <div className="cvs-studio" aria-hidden="true">
         <div className="cvs-side">
@@ -77,9 +86,10 @@ function StudioSkeleton() {
             <Skeleton variant="block" width="5.5rem" height={44} />
             <Skeleton variant="block" width="4.5rem" height={44} />
             <Skeleton variant="block" width="6rem" height={44} />
+            <Skeleton variant="block" width="5.5rem" height={44} />
           </div>
           <div className="cvs-side__frame">
-            <List framed={false}><Skeleton variant="row" as="li" count={4} /></List>
+            <List framed={false} className="cvs-outline"><Skeleton variant="row" as="li" count={4} /></List>
           </div>
         </div>
         <div className="cvs-desk">
@@ -91,7 +101,14 @@ function StudioSkeleton() {
   )
 }
 
-export function CvStudio() {
+export function CvStudio({
+  startFrom,
+  onStartHandled,
+}: {
+  /** `profile`: the profile's "Start a CV from these facts" sent the user here; open Start a new CV once. */
+  startFrom?: 'profile'
+  onStartHandled?: () => void
+} = {}) {
   const { status, openAuthDialog } = useSession()
   const authenticated = status === 'authenticated'
   const queryClient = useQueryClient()
@@ -109,6 +126,8 @@ export function CvStudio() {
   const [previewVariant, setPreviewVariant] = useState<CvVariant | null>(null)
   const [versionExport, setVersionExport] = useState<VersionExport>(null)
   const [dialog, setDialog] = useState<'create' | 'import' | 'tailor' | 'pdf' | null>(null)
+  /** Start a new CV opened by the profile hand-off ticks every saved fact (the URL flag is cleared at once, so keep it here). */
+  const [createFromProfile, setCreateFromProfile] = useState(false)
   const [tailorSeed, setTailorSeed] = useState<{ jobTitle: string; jobDescription: string } | null>(null)
   const autoOpenedTailorRef = useRef(false)
   const [exporting, setExporting] = useState<'pdf' | 'docx' | 'data' | null>(null)
@@ -140,6 +159,17 @@ export function CvStudio() {
     }
   }, [])
 
+  // From the profile: open Start a new CV (it lists the saved facts) as soon as the studio is ready, once.
+  const listReady = authenticated && listQuery.isSuccess
+  const startHandled = useRef(false)
+  useEffect(() => {
+    if (startFrom !== 'profile' || !listReady || startHandled.current) return
+    startHandled.current = true
+    setCreateFromProfile(true)
+    setDialog('create')
+    onStartHandled?.()
+  }, [startFrom, listReady, onStartHandled])
+
   // The tailor dialog needs `draft.id`: open it once a document has loaded.
   useEffect(() => {
     if (tailorSeed && draft && !autoOpenedTailorRef.current) {
@@ -147,6 +177,30 @@ export function CvStudio() {
       setDialog('tailor')
     }
   }, [tailorSeed, draft])
+
+  // The tool panel scrolls inside the viewport: `data-more` shows its bottom fade while there is more below.
+  // Written straight to the element, so scrolling never re-renders the studio.
+  const hasDraft = Boolean(draft)
+  useEffect(() => {
+    const panelElement = panelRef.current
+    if (!desktop || !panelElement) return
+    const measure = () => {
+      panelElement.dataset.more = panelElement.scrollHeight - panelElement.clientHeight - panelElement.scrollTop > 1 ? 'true' : 'false'
+    }
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    const observeChildren = () => { for (const child of panelElement.children) resize?.observe(child) }
+    resize?.observe(panelElement)
+    observeChildren()
+    const children = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { observeChildren(); measure() })
+    children?.observe(panelElement, { childList: true })
+    panelElement.addEventListener('scroll', measure, { passive: true })
+    measure()
+    return () => {
+      panelElement.removeEventListener('scroll', measure)
+      resize?.disconnect()
+      children?.disconnect()
+    }
+  }, [desktop, hasDraft])
 
   const settledRevision = useSettledValue(draft?.updated_at ?? '', QUALITY_SETTLE_MS)
   const qualityRevision = settledRevision || draft?.updated_at || ''
@@ -287,8 +341,9 @@ export function CvStudio() {
   if (!authenticated) {
     return (
       <Page>
+        <PageHeader title="CV Studio" lead={STUDIO_LEAD} />
         <EmptyState
-          size="page" headingLevel={1} title="CV Studio"
+          headingLevel={2} title="Sign in to use CV Studio" icon={<FileText />}
           description="Sign in to write, design and export your CV, and keep every version safe."
           action={<Button type="button" onClick={() => openAuthDialog({ to: '/cv-studio', reason: 'CV Studio is private to your account.' })}>Sign in</Button>}
         />
@@ -311,10 +366,10 @@ export function CvStudio() {
   if (listQuery.isPending || catalogQuery.isPending || (documentId && documentQuery.isPending)) return <StudioSkeleton />
 
   const catalog = catalogQuery.data
-  const closeDialog = (next: boolean) => { if (!next) setDialog(null) }
+  const closeDialog = (next: boolean) => { if (!next) { setDialog(null); setCreateFromProfile(false) } }
   const startDialogs = (
     <>
-      <CreateCvDocumentDialog open={dialog === 'create'} onOpenChange={closeDialog} onCreated={openDocument} onCloseAutoFocus={returnToMenu} />
+      <CreateCvDocumentDialog open={dialog === 'create'} preselectAll={createFromProfile} onOpenChange={closeDialog} onCreated={openDocument} onCloseAutoFocus={returnToMenu} />
       <CvImportDialog open={dialog === 'import'} onOpenChange={closeDialog} onImported={openDocument} onCloseAutoFocus={returnToMenu} />
     </>
   )
@@ -322,15 +377,15 @@ export function CvStudio() {
   if (!listQuery.data?.items.length) {
     return (
       <Page>
-        <PageHeader title="CV Studio" lead="Write it once, pick a look, and tailor it to every job. We check that application systems can read it." />
+        <PageHeader title="CV Studio" lead={STUDIO_LEAD} />
         <EmptyState
-          headingLevel={2}
+          headingLevel={2} icon={<FileText />} className="cvs-empty"
           title="Let’s start with your CV"
-          description="Import the CV you already have and we’ll turn it into editable sections. Or start from the facts you’ve saved in your Evidence."
+          description="Import the CV you already have and we’ll turn it into editable sections. Or start from the facts you’ve saved on your profile."
           action={(
             <Cluster gap={2}>
-              <Button type="button" onClick={() => setDialog('import')}><FileUp aria-hidden="true" /> Import your CV (PDF/DOCX)</Button>
-              <Button type="button" variant="secondary" onClick={() => setDialog('create')}><Layers aria-hidden="true" /> Start from your Evidence</Button>
+              <Button type="button" onClick={() => setDialog('import')}><FileUp aria-hidden="true" /> <span>Import your CV <span className="cvs-narrowest-sr">(PDF/DOCX)</span></span></Button>
+              <Button type="button" variant="secondary" onClick={() => setDialog('create')}><Layers aria-hidden="true" /> Start from your profile</Button>
             </Cluster>
           )}
         />
@@ -415,10 +470,11 @@ export function CvStudio() {
 
   const tab = (id: Tool, content?: ReactNode, count?: number) => (
     <TabsTrigger
-      value={id} count={count} onClick={() => chooseTool(id)}
+      value={id} count={count} onClick={() => chooseTool(id)} className={`cvs-tab--${id}`}
       {...(phone ? { 'aria-haspopup': 'dialog' as const, 'aria-controls': undefined } : {})}
     >
-      {TOOL_TITLES[id]}{content ? ' ' : null}{content}
+      {/* Phones show "ATS"; the tab's name stays "ATS check". */}
+      {id === 'checks' ? <span>ATS <span className="cvs-tab__long">check</span></span> : TOOL_TITLES[id]}{content ? ' ' : null}{content}
     </TabsTrigger>
   )
 
@@ -428,7 +484,7 @@ export function CvStudio() {
         {tab('sections')}
         {tab('design')}
         {tab('checks', checks && !checksPass ? (
-          <Badge size="sm" tone="rose">{failingChecks}{' '}<span className="kit-sr-only">to fix</span></Badge>
+          <><Count value={failingChecks} variant="pill" tone="rose" />{' '}<span className="kit-sr-only">to fix</span></>
         ) : null)}
         {tab('versions', null, draft.variants.length)}
       </TabsList>
@@ -480,7 +536,7 @@ export function CvStudio() {
         </div>
         <div className="cvs-bar__actions">
           {documents.length > 1 ? (
-            <Select size="sm" className="cvs-bar__select" aria-label="Your CVs" leading={`${documents.findIndex((item) => item.id === draft.id) + 1} of ${documents.length}`} value={draft.id} disabled={dirty} onChange={(event) => switchDocument(event.target.value)}>
+            <Select size="sm" className="cvs-bar__select" aria-label="Your CVs" leading={`CV ${documents.findIndex((item) => item.id === draft.id) + 1} of ${documents.length}`} value={draft.id} disabled={dirty} onChange={(event) => switchDocument(event.target.value)}>
               {documents.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </Select>
           ) : null}
@@ -492,7 +548,7 @@ export function CvStudio() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>New CV</DropdownMenuLabel>
               <DropdownMenuItem icon={<FileUp />} disabled={dirty} onSelect={() => setDialog('import')}>Import a PDF or DOCX</DropdownMenuItem>
-              <DropdownMenuItem icon={<Layers />} disabled={dirty} onSelect={() => setDialog('create')}>Start from your Evidence</DropdownMenuItem>
+              <DropdownMenuItem icon={<Layers />} disabled={dirty} onSelect={() => setDialog('create')}>Start from your profile</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem icon={<Download />} disabled={dirty || exporting === 'docx'} onSelect={() => void exportFile('docx')}>Export DOCX</DropdownMenuItem>
               <DropdownMenuItem icon={<Download />} disabled={exporting === 'data'} onSelect={() => void exportFile('data')}>Download my CV data</DropdownMenuItem>

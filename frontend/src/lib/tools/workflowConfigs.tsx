@@ -14,6 +14,8 @@ export type WorkflowFieldConfig = {
   placeholder: string
   description?: string
   required?: boolean
+  /** Said when a required field is left empty; defaults to "<label> is required." */
+  requiredMessage?: string
   rows?: number
   min?: number
   max?: number
@@ -26,6 +28,9 @@ export type WorkflowConfig = {
   fields: WorkflowFieldConfig[]
   buildPayload: (draft: ToolDraftState) => Record<string, unknown>
 }
+
+/** The resume control is a file dropzone first, so "Resume text is required" would point at the wrong thing. */
+const RESUME_REQUIRED = 'Add your resume: upload a PDF or DOCX, or paste the text.'
 
 const toneChoices: WorkflowChoice[] = [
   { label: 'Professional', value: 'Professional' },
@@ -41,6 +46,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
       {
         name: 'resumeText',
         kind: 'textarea',
+        requiredMessage: RESUME_REQUIRED,
         label: 'Resume text',
         placeholder: 'Paste the resume content here…',
         rows: 12,
@@ -66,6 +72,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
       {
         name: 'resumeText',
         kind: 'textarea',
+        requiredMessage: RESUME_REQUIRED,
         label: 'Resume text',
         placeholder: 'Paste the resume content here…',
         rows: 10,
@@ -94,6 +101,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
       {
         name: 'resumeText',
         kind: 'textarea',
+        requiredMessage: RESUME_REQUIRED,
         label: 'Resume text',
         placeholder: 'Paste the resume content here…',
         rows: 10,
@@ -130,6 +138,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
       {
         name: 'resumeText',
         kind: 'textarea',
+        requiredMessage: RESUME_REQUIRED,
         label: 'Resume text',
         placeholder: 'Paste the resume content here…',
         rows: 10,
@@ -166,6 +175,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
       {
         name: 'resumeText',
         kind: 'textarea',
+        requiredMessage: RESUME_REQUIRED,
         label: 'Resume text',
         placeholder: 'Paste the resume content here…',
         rows: 12,
@@ -190,6 +200,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
       {
         name: 'resumeText',
         kind: 'textarea',
+        requiredMessage: RESUME_REQUIRED,
         label: 'Resume text',
         placeholder: 'Paste the resume content here…',
         rows: 12,
@@ -226,7 +237,7 @@ export function validateWorkflowDraft(
 
     // Required field check
     if (field.required && !text) {
-      errors[field.name] = `${field.label} is required.`
+      errors[field.name] = field.requiredMessage ?? `${field.label} is required.`
       continue
     }
 

@@ -44,7 +44,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--s2) var(--s6);
+  gap: var(--s2) var(--s5);
   padding: var(--s5) var(--s6);
 }
 
@@ -73,10 +73,6 @@
   overflow-wrap: anywhere;
 }
 
-.kit-sticker.dash-act .kit-stretched::after {
-  border-radius: var(--r-lg); /* the focus ring follows the plate's corners */
-}
-
 .dash-act__company {
   margin: 0;
   font-weight: var(--fw-bold);
@@ -94,7 +90,7 @@
 
 .dash-act__todo {
   margin: 0;
-  font-size: var(--fs-body);
+  font-size: 0.875rem; /* 14/600, as in dashboard.html: a long title keeps one line at 1440 */
   font-weight: var(--fw-semibold);
 }
 

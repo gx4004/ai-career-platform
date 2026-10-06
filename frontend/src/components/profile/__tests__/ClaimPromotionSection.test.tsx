@@ -16,8 +16,8 @@ const INTERVIEW_PAYLOAD = {
 describe('ClaimPromotionSection', () => {
   it('renders a promote control per claim for an authenticated user', () => {
     render(<ClaimPromotionSection toolId="interview" payload={INTERVIEW_PAYLOAD} authenticated />)
-    expect(screen.getByText('Save to your Evidence Profile')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: /Add ".*" to your Evidence Profile/ })).toHaveLength(2)
+    expect(screen.getByText('Save to your profile')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /Add ".*" to your profile/ })).toHaveLength(2)
   })
 
   it('renders nothing for a guest (promotion is authenticated-only)', () => {

@@ -48,7 +48,7 @@ import {
 import type { LetterSaveState } from '#/components/tooling/ResultParts'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import type { ToolRunDetail } from '#/lib/api/schemas'
-import { safeFileName } from '#/lib/tools/exports'
+import { sanitizeDownloadTitle } from '#/lib/tools/exports'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
 
 type AnyObject = Record<string, unknown>
@@ -633,9 +633,10 @@ export function FixFirstList({ actions }: { actions: TopAction[] }) {
           ))}
         </ol>
         {rest.length > 0 ? (
-          <List aria-label="More to fix" numbered style={{ counterReset: `kit-row ${stickers.length}` }}>
+          <List aria-label="More to fix" numbered>
             {rest.map((a, i) => (
-              <Row key={`${a.title}-${i}`}>
+              // counter-set, not a counter-reset on the List: the List's size containment scopes the counter, so a reset there is ignored.
+              <Row key={`${a.title}-${i}`} style={{ counterSet: `kit-row ${stickers.length + i + 1}` }}>
                 <RowBody>
                   <RowTitle>{a.title}</RowTitle>
                   <RowSubtitle>{a.action}</RowSubtitle>
@@ -787,21 +788,29 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
 
       {hasKeywords && (
         <ReportSection title="Keyword optimization">
-          <KeywordFacts matched={evidence.matchedKeywords} missing={evidence.missingKeywords} />
+          <Panel>
+            <PanelBody>
+              <KeywordFacts matched={evidence.matchedKeywords} missing={evidence.missingKeywords} />
+            </PanelBody>
+          </Panel>
         </ReportSection>
       )}
 
       {result.roleFit && (
         <ReportSection title="Role fit" actions={<RoleFitLevel score={result.roleFit.fitScore} />}>
-          <Stack gap={3}>
-            <ScoreBar
-              layout="inline"
-              label={roleFitLabel(result.roleFit.targetRoleLabel)}
-              value={result.roleFit.fitScore}
-              valueLabel={`${result.roleFit.fitScore}%`}
-            />
-            {result.roleFit.rationale && <Prose>{result.roleFit.rationale}</Prose>}
-          </Stack>
+          <Panel>
+            <PanelBody>
+              <Stack gap={3}>
+                <ScoreBar
+                  layout="inline"
+                  label={roleFitLabel(result.roleFit.targetRoleLabel)}
+                  value={result.roleFit.fitScore}
+                  valueLabel={`${result.roleFit.fitScore}%`}
+                />
+                {result.roleFit.rationale && <Prose>{result.roleFit.rationale}</Prose>}
+              </Stack>
+            </PanelBody>
+          </Panel>
         </ReportSection>
       )}
     </>
@@ -887,37 +896,49 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
 
       {(result.matchedKeywords.length > 0 || result.missingKeywords.length > 0) && (
         <ReportSection title="Keyword breakdown">
-          <Stack gap={4}>
-            {result.matchedKeywords.length > 0 ? (
-              <KeyValue items={[{ label: `Matched (${result.matchedKeywords.length})`, value: result.matchedKeywords.join(', ') }]} />
-            ) : null}
-            {result.missingKeywords.length > 0 ? (
-              <Section headingLevel={3} size="sm" title={`Missing (${result.missingKeywords.length})`}>
-                <List aria-label="Missing keywords">
-                  {result.missingKeywords.map((k, i) => (
-                    <Row key={`${k.keyword}-${i}`}>
-                      <RowBody>
-                        {k.contextual_guidance || k.anti_stuffing_note ? (
-                          <Disclosure variant="inline" title={k.keyword}>
-                            <Stack gap={2}>
-                              {k.contextual_guidance ? <Prose>{k.contextual_guidance}</Prose> : null}
-                              {k.anti_stuffing_note ? (
-                                <p className="result-note">
-                                  <strong>Only if true.</strong> {k.anti_stuffing_note}
-                                </p>
-                              ) : null}
+          {/* One framed object in one language, as on the resume report: Matched and Missing are two rows of the
+              same key-value block; a missing keyword with guidance opens it in place. */}
+          <Panel>
+            <PanelBody>
+              <KeyValue
+                items={[
+                  ...(result.matchedKeywords.length > 0
+                    ? [{ key: 'matched', label: `Matched (${result.matchedKeywords.length})`, value: result.matchedKeywords.join(', ') }]
+                    : []),
+                  ...(result.missingKeywords.length > 0
+                    ? [
+                        {
+                          key: 'missing',
+                          label: `Missing (${result.missingKeywords.length})`,
+                          value: (
+                            <Stack gap={1} role="list" aria-label="Missing keywords">
+                              {result.missingKeywords.map((k, i) => (
+                                <div role="listitem" key={`${k.keyword}-${i}`}>
+                                  {k.contextual_guidance || k.anti_stuffing_note ? (
+                                    <Disclosure variant="inline" title={k.keyword}>
+                                      <Stack gap={2}>
+                                        {k.contextual_guidance ? <Prose>{k.contextual_guidance}</Prose> : null}
+                                        {k.anti_stuffing_note ? (
+                                          <p className="result-note">
+                                            <strong>Only if true.</strong> {k.anti_stuffing_note}
+                                          </p>
+                                        ) : null}
+                                      </Stack>
+                                    </Disclosure>
+                                  ) : (
+                                    k.keyword
+                                  )}
+                                </div>
+                              ))}
                             </Stack>
-                          </Disclosure>
-                        ) : (
-                          <RowTitle>{k.keyword}</RowTitle>
-                        )}
-                      </RowBody>
-                    </Row>
-                  ))}
-                </List>
-              </Section>
-            ) : null}
-          </Stack>
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            </PanelBody>
+          </Panel>
         </ReportSection>
       )}
 
@@ -1524,7 +1545,11 @@ function CareerView({ payload }: { payload: AnyObject }) {
       )}
 
       <ReportSection title="Note">
-        <Prose>{tip}</Prose>
+        <Panel>
+          <PanelBody>
+            <Prose>{tip}</Prose>
+          </PanelBody>
+        </Panel>
       </ReportSection>
     </>
   )
@@ -1567,10 +1592,14 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
   return (
     <>
       <ReportSection title="Strategy">
-        <Stack gap={3}>
-          <Prose strong>{result.strategy.headline}</Prose>
-          <Prose>{result.strategy.focus}</Prose>
-        </Stack>
+        <Panel>
+          <PanelBody>
+            <Stack gap={3}>
+              <Prose strong>{result.strategy.headline}</Prose>
+              <Prose>{result.strategy.focus}</Prose>
+            </Stack>
+          </PanelBody>
+        </Panel>
       </ReportSection>
 
       <ReportSection title="The build sequence" count={countOf(orderedSteps.length, 'project')}>
@@ -1662,8 +1691,9 @@ function resumeCopyText(payload: AnyObject) {
 function jobMatchCopyText(payload: AnyObject) {
   const result = normalizeJobMatchPayload(payload)
   const lines = [
-    `Match score: ${result.matchScore}%`,
-    `Verdict: ${result.verdict}`,
+    // As the page shows them: the seal's "/100" and the verdict sticker's capital.
+    `Match score: ${result.matchScore}/100`,
+    `Verdict: ${result.verdict.charAt(0).toUpperCase()}${result.verdict.slice(1)}`,
     result.summary.headline,
     '',
     'Top actions:',
@@ -1766,11 +1796,6 @@ export type ResultDefinition = {
   topActions: (payload: AnyObject) => TopAction[]
 }
 
-/** A file name from a run label: no path characters, no trailing dots. */
-function sanitizeBaseName(label: string) {
-  return safeFileName(label) || 'cover-letter'
-}
-
 function fact(label: string, value: string | number | null | undefined) {
   const text = value === null || value === undefined ? '' : String(value).trim()
   return text ? [{ label, value: text }] : []
@@ -1810,8 +1835,8 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
             : [],
         facts: [
           ...fact('Verdict', r.verdict.charAt(0).toUpperCase() + r.verdict.slice(1)),
-          ...fact('Keywords matched', r.matchedKeywords.length),
-          ...fact('Missing', r.missingKeywords.length),
+          ...fact('Keywords found', r.matchedKeywords.length),
+          ...fact('Keywords missing', r.missingKeywords.length),
         ],
         note: r.summary.confidence_note,
       }
@@ -1823,10 +1848,11 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
     copyText: (payload, item) => coverLetterTextFor(payload, item),
     download: (payload, item, format = 'txt') => {
       const text = coverLetterTextFor(payload, item)
-      const base = sanitizeBaseName(item.label || 'cover-letter')
+      // The same slug as every other export ("cover-letter-professional.txt"), not the run label's spaces and brackets.
+      const filename = sanitizeDownloadTitle(item.label || 'cover-letter', format)
       return format === 'md'
-        ? { filename: `${base}.md`, content: `# Cover letter\n\n${text}\n` }
-        : { filename: `${base}.txt`, content: text }
+        ? { filename, content: `# Cover letter\n\n${text}\n` }
+        : { filename, content: text }
     },
     summary: (payload) => {
       const r = normalizeCoverLetterPayload(payload)

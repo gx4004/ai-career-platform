@@ -11,7 +11,6 @@ import {
   PanelBody,
   Row,
   RowBody,
-  RowMeta,
   RowSubtitle,
   RowTitle,
   Stack,
@@ -33,6 +32,15 @@ const MAX_BYTES = 10 * 1024 * 1024
 const PREVIEW_CHARS = 280
 
 type Extract = { name: string; words: number; preview: string; empty: boolean }
+
+const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/** The uploaded file's name while the text still comes from it: "(edited)" after changes, null once it was replaced wholesale. */
+function fileLabel(source: { name: string; text: string } | null, value: string) {
+  if (!source) return null
+  if (value === source.text) return source.name
+  return flatten(value).startsWith(flatten(source.text).slice(0, 60)) ? `${source.name} (edited)` : null
+}
 
 /** The first lines of what was read, on one line, so a wrong extraction is obvious at a glance. */
 function previewOf(text: string) {
@@ -85,7 +93,8 @@ export function ResumeSource({
   const refocusPicker = useRef(false)
   const seedChecked = useRef(false)
   const [editing, setEditing] = useState(false)
-  const [fileName, setFileName] = useState<string | null>(null)
+  // The file the text was read from, with that text: an edit or a paste over it must not keep claiming the file.
+  const [fileSource, setFileSource] = useState<{ name: string; text: string } | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [extract, setExtract] = useState<Extract | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -112,7 +121,8 @@ export function ResumeSource({
         setExtract({ name: file.name, words: 0, preview: '', empty: true })
         return
       }
-      setFileName(file.name)
+      setFileSource({ name: file.name, text })
+      setCarried(false)
       setExtract({ name: file.name, words, preview: previewOf(text), empty: false })
       onChange(text)
       rememberResume(text, file.name)
@@ -178,6 +188,7 @@ export function ResumeSource({
     setLocalError(null)
     setWarnings([])
     setCarried(false)
+    setFileSource(null)
     onChange(SAMPLE_RESUME_TEXT)
   }
 
@@ -185,9 +196,13 @@ export function ResumeSource({
   const isSample = isSampleResume(value)
   const carry = useResumeCarry()
   const carriedName = carry.resumeText === value ? carry.filename : ''
+  const fromFile = fileLabel(fileSource, value)
   const sourceLabel = isSample
     ? 'Sample resume'
-    : (fileName ?? (carriedName || (seeded || carried ? 'Resume carried from previous tool' : 'Resume ready')))
+    : (fromFile ??
+      (carriedName ||
+        (fileSource ? 'Pasted resume' : seeded || carried ? 'Resume carried from previous tool' : 'Resume ready')))
+  const wordCount = words > 0 ? (words === 1 ? '1 word' : `${words.toLocaleString()} words`) : ''
   const parseError = mutation.error
     ? mutation.error instanceof Error
       ? mutation.error.message
@@ -265,14 +280,22 @@ export function ResumeSource({
       <Field error={shownError}>
         <Panel tone="stone" flush>
           <List framed={false} aria-label="Resume source">
-            <Row overflow="truncate">
+            {/* Wraps rather than truncates: "Made-up example text, not your resume" must stay whole on a phone. */}
+            <Row>
               <RowBody>
-                <RowTitle title={sourceLabel}>{sourceLabel}</RowTitle>
-                {isSample ? <RowSubtitle>Made-up example text, not your resume</RowSubtitle> : null}
+                <RowTitle>{sourceLabel}</RowTitle>
+                {/* The count rides on the subtitle line: as RowMeta it wrapped to an orphan line of its own on a phone. */}
+                {isSample || wordCount ? (
+                  <RowSubtitle>
+                    {isSample ? <span>Made-up example text, not your resume</span> : null}
+                    {/* No-break spaces: the dot never starts or ends a line on a phone. */}
+                    {isSample && wordCount ? '\u00a0·\u00a0' : null}
+                    {wordCount ? <span>{wordCount}</span> : null}
+                  </RowSubtitle>
+                ) : null}
               </RowBody>
-              {words > 0 ? <RowMeta>{words === 1 ? '1 word' : `${words.toLocaleString()} words`}</RowMeta> : null}
               {/* Not RowActions: in a phone-width list those pin to the first line and collide with the title; a plain cluster wraps under the text instead. */}
-                <Cluster>
+              <Cluster className="tool-source-actions">
                 <Button type="button" variant="secondary" size="sm" onClick={openEditor}>
                   Change
                 </Button>

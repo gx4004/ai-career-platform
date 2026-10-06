@@ -11,7 +11,7 @@ type Field = { name: keyof ApplicationDetailsUpdate; label: string; type?: strin
 const CONTACT_FIELDS: Field[] = [
   { name: 'full_name', label: 'Full name' },
   { name: 'email', label: 'Email', type: 'email' },
-  { name: 'phone', label: 'Phone', type: 'tel' },
+  { name: 'phone', label: 'Phone', type: 'tel', placeholder: 'e.g. +49 30 1234567' },
   { name: 'location', label: 'City / location', placeholder: 'e.g. Berlin, Germany' },
   { name: 'linkedin', label: 'LinkedIn', type: 'url', placeholder: 'https://www.linkedin.com/in/…' },
   { name: 'website', label: 'Website or portfolio', type: 'url', placeholder: 'https://…' },
@@ -48,20 +48,19 @@ const SECTIONS = [
 export function ApplicationDetailsCard() {
   const details = useQuery({ queryKey: APPLICATION_DETAILS_QUERY_KEY, queryFn: getApplicationDetails })
 
+  // The page that places this block owns its heading: the failure is the notice alone, not a second title.
   if (details.isError) {
     return (
-      <Section title="Application details">
-        <Notice
-          tone="danger"
-          action={
-            <Button size="sm" variant="secondary" onClick={() => void details.refetch()} loading={details.isFetching}>
-              Try again
-            </Button>
-          }
-        >
-          Your details couldn't be loaded.
-        </Notice>
-      </Section>
+      <Notice
+        tone="danger"
+        action={
+          <Button size="sm" variant="secondary" onClick={() => void details.refetch()} loading={details.isFetching}>
+            Try again
+          </Button>
+        }
+      >
+        Your details couldn't be loaded.
+      </Notice>
     )
   }
   if (!details.data) return <DetailsSkeleton />

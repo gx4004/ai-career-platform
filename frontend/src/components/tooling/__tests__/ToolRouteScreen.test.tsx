@@ -7,6 +7,7 @@ import { tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 
 const mutateMock = vi.hoisted(() => vi.fn())
+const cancelMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const setFieldMock = vi.hoisted(() => vi.fn())
 const setDraftMock = vi.hoisted(() => vi.fn())
@@ -58,6 +59,7 @@ vi.mock('#/hooks/useToolDraft', () => ({
 vi.mock('#/hooks/useToolMutation', () => ({
   useToolMutation: () => ({
     mutate: mutateMock,
+    cancel: cancelMock,
     isPending,
     error: null,
   }),
@@ -103,6 +105,7 @@ describe('ToolRouteScreen', () => {
     draftState.targetRole = 'Backend Engineer'
     isPending = false
     mutateMock.mockReset()
+    cancelMock.mockReset()
     openAuthDialogMock.mockReset()
     setFieldMock.mockReset()
     setDraftMock.mockReset()
@@ -190,6 +193,16 @@ describe('ToolRouteScreen', () => {
     expect(screen.getByTestId('cinematic-loader')).toBeTruthy()
     expect(screen.queryByText(/Drop a PDF or DOCX here/i)).toBeNull()
   })
+
+  it.each(['resume', 'job-match', 'career', 'cover-letter', 'interview', 'portfolio'] as const)(
+    'offers a way out of a running %s run',
+    (toolId) => {
+      isPending = true
+      renderScreen(toolId)
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(cancelMock).toHaveBeenCalledTimes(1)
+    },
+  )
 
   it('keeps job import and submit payload behavior intact for job match', () => {
     sessionStatus = 'authenticated'
@@ -296,7 +309,12 @@ describe('ToolRouteScreen', () => {
   })
 
   it('says what a re-generate is using when the page was opened from one', async () => {
-    window.history.pushState({}, '', '/resume?parent_run_id=run-1&feedback=Focus%20on%20impact')
+    // The feedback travels in the tab's session storage, keyed by the run it re-generates, never in the URL.
+    window.sessionStorage.setItem(
+      'career-workbench:workflow-context',
+      JSON.stringify({ regenFeedback: { parentRunId: 'run-1', text: 'Focus on impact' }, updatedAt: Date.now() }),
+    )
+    window.history.pushState({}, '', '/resume?parent_run_id=run-1')
     try {
       renderScreen('resume')
       expect(await screen.findByText('Focus on impact')).toBeTruthy()

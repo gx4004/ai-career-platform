@@ -7,6 +7,7 @@ import { AuthDialogMount } from '#/components/app/AuthDialogMount'
 import { CommandPalette } from '#/components/app/CommandPalette'
 import { MobileNav } from '#/components/app/MobileNav'
 import { ServiceBanner } from '#/components/app/ServiceBanner'
+import { AccountDeletedToast } from '#/components/profile/AccountDeletedToast'
 import { Topbar } from '#/components/app/Topbar'
 import { Button, ToastProvider, TooltipProvider } from '#/components/kit'
 import { SidebarInset, SidebarProvider } from '#/components/ui/sidebar'
@@ -101,6 +102,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             {children}
             {/* /login is the sign-in form already: a session-expiry dialog on top would be a second, identical one. */}
             {pathname === '/login' ? null : <AuthDialogMount />}
+            {/* Deleting an account leaves for the landing page with a full reload: say there that it worked. */}
+            <AccountDeletedToast />
           </ErrorBoundary>
         </ToastProvider>
       </TooltipProvider>

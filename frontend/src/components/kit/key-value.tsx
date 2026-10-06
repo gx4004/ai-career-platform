@@ -6,6 +6,8 @@ export type KeyValueEntry = {
   value: ReactNode
   /** Monospace value: ids, hashes, model names. */
   mono?: boolean
+  /** Tabular figures, for a number read against the rows above and below it. Prose values (emails, names) stay proportional. */
+  numeric?: boolean
   key?: string
 }
 
@@ -30,17 +32,19 @@ export type KeyValueRowProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'>
   /** The value. Blank values render a quiet dash with a screen-reader "Not provided". */
   children?: ReactNode
   mono?: boolean
+  /** Tabular figures (see KeyValueEntry.numeric). */
+  numeric?: boolean
 }
 
 /** One label/value pair. */
 export const KeyValueRow = forwardRef<HTMLDivElement, KeyValueRowProps>(function KeyValueRow(
-  { label, children, mono = false, className, ...rest },
+  { label, children, mono = false, numeric = false, className, ...rest },
   ref,
 ) {
   return (
     <div ref={ref} className={cn('kit-kv__row', className)} {...rest}>
       <dt className="kit-kv__label">{label}</dt>
-      <dd className="kit-kv__value" data-mono={mono ? 'true' : undefined}>
+      <dd className="kit-kv__value" data-mono={mono ? 'true' : undefined} data-numeric={numeric ? 'true' : undefined}>
         {isBlank(children) ? (
           <span className="kit-kv__empty">
             <span aria-hidden="true">—</span>
@@ -55,7 +59,7 @@ export const KeyValueRow = forwardRef<HTMLDivElement, KeyValueRowProps>(function
 })
 
 /**
- * Label/value rows, 32px tall, label quiet, values tabular. For details panels, rails and the
+ * Label/value rows, 32px tall, label quiet, values in running figures (`numeric` for tabular). For details panels, rails and the
  * "Why it matters / Fix" pairs of a report. Replaces .rfield(s), .result-facts, ApplicationDetailsCard rows.
  */
 export const KeyValue = forwardRef<HTMLDListElement, KeyValueProps>(function KeyValue(
@@ -72,7 +76,7 @@ export const KeyValue = forwardRef<HTMLDListElement, KeyValueProps>(function Key
       {...rest}
     >
       {items?.map((item, index) => (
-        <KeyValueRow key={item.key ?? index} label={item.label} mono={item.mono}>
+        <KeyValueRow key={item.key ?? index} label={item.label} mono={item.mono} numeric={item.numeric}>
           {item.value}
         </KeyValueRow>
       ))}

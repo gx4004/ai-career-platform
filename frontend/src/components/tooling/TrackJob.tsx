@@ -46,6 +46,35 @@ export function trackJobMatch(payload: ApplicationCreate) {
 
 type Tracked = { id: string; name: string }
 
+/**
+ * Role and company the app itself wrote down for this job: the "Role at Company" header that Discovery and
+ * the dashboard put on the first line of a job description they hand over (with that role as the target
+ * role), or a re-generate's job label. A posting the user pasted is never split on its first " at ".
+ */
+export function knownJob(
+  jobDescription: string,
+  { targetRole, jobLabel }: { targetRole?: string; jobLabel?: string } = {},
+): { role: string; company: string } | null {
+  const [first = '', second] = jobDescription.split('\n')
+  const role = targetRole?.trim() ?? ''
+  const header = first.trim()
+  if (role && second !== undefined && second.trim() === '' && header.startsWith(`${role} at `)) {
+    const company = header.slice(role.length + 4).trim()
+    if (company) return { role, company }
+  }
+  const label = jobLabel?.trim() ?? ''
+  const at = label.length <= 240 ? label.lastIndexOf(' at ') : -1
+  if (at > 0) return { role: label.slice(0, at).trim(), company: label.slice(at + 4).trim() }
+  return null
+}
+
+/** The role and company the Job Match run itself names, when the backend reports them. */
+function runJob(item: ToolRunDetail): { role: string; company: string } {
+  const payload = (item.result_payload ?? {}) as Record<string, unknown>
+  const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+  return { role: text(payload.job_title), company: text(payload.company) }
+}
+
 function trackedFrom(item: ToolRunDetail): Tracked | null {
   const workspace = item.workspace
   if (!workspace || !(workspace.status || workspace.listing)) return null
@@ -78,8 +107,10 @@ export function TrackJobRow({ item }: { item: ToolRunDetail }) {
     // What the run already knows; the posting itself is only here when this tab ran the match.
     const context = readWorkflowContext()
     const job = context?.jobDescription?.trim() ?? ''
-    setRole(item.workspace?.role ?? '')
-    setCompany(item.workspace?.company ?? '')
+    const known = knownJob(job, { targetRole: context?.targetRole, jobLabel: context?.jobLabel })
+    const fromRun = runJob(item)
+    setRole(item.workspace?.role || fromRun.role || known?.role || '')
+    setCompany(item.workspace?.company || fromRun.company || known?.company || '')
     const prefill = job.length >= 20 ? job.slice(0, 20_000) : ''
     setDescription(prefill)
     setPrefilled(Boolean(prefill))

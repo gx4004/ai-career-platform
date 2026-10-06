@@ -23,7 +23,8 @@ export const SkillPips = forwardRef<HTMLSpanElement, SkillPipsProps>(function Sk
   if (safeTotal > max) {
     return (
       <span ref={ref} className={cn('kit-skill-pips', className)} data-mode="bar" {...rest}>
-        <ScoreBar aria-label={name} value={safeMatched} max={safeTotal} valueLabel={`${safeMatched}/${safeTotal}`} size="sm" />
+        {/* No number at the end: the row already says "6 of 11 skills"; the bar only replaces the pips. */}
+        <ScoreBar aria-label={name} value={safeMatched} max={safeTotal} valueLabel={name} size="sm" />
       </span>
     )
   }

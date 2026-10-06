@@ -36,7 +36,7 @@ export function FactRow({
   children?: ReactNode
 }) {
   return (
-    <Row id={id} tabIndex={id ? -1 : undefined} aria-busy={busy || undefined} data-moment={moment}>
+    <Row id={id} className="profile-fact" tabIndex={id ? -1 : undefined} aria-busy={busy || undefined} data-moment={moment}>
       <RowBody>
         <RowTitle>{title}</RowTitle>
         {details ? <RowSubtitle>{details}</RowSubtitle> : null}

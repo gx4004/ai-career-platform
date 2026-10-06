@@ -18,7 +18,7 @@ export function CareerToolPage() {
   return (
     <ToolPageShell toolId="career">
       {mutation.isPending ? (
-        <ToolPageLoading toolId="career" mutationDone={!mutation.isPending} />
+        <ToolPageLoading toolId="career" mutationDone={!mutation.isPending} onCancel={mutation.cancel} />
       ) : (
         <ToolForm
           toolId="career"
@@ -44,7 +44,7 @@ export function CareerToolPage() {
             optional
             id="career-targetRole"
             help={
-              getSeededFieldNote('targetRole', bridge) ||
+              getSeededFieldNote('targetRole', bridge, String(draft.targetRole ?? '')) ||
               'Leave blank to get the strongest adjacent paths from your resume.'
             }
           >

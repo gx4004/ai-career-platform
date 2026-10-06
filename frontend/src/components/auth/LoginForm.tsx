@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Field, Input, Notice, Section, Stack } from '#/components/kit'
 import { RESET_COPY } from '#/components/auth/auth-copy'
 import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
@@ -6,24 +6,32 @@ import { GoogleButton } from '#/components/auth/GoogleButton'
 import { PasswordInput } from '#/components/auth/PasswordInput'
 import { devResetPath } from '#/components/auth/devResetLink'
 import { useGoogleEnabled } from '#/components/auth/useGoogleEnabled'
+import { emailError, focusFirstError, passwordError } from '#/components/auth/auth-validation'
 import { useSession } from '#/hooks/useSession'
 import { requestPasswordReset } from '#/lib/api/client'
 
 export function LoginForm({
   onSuccess,
   onResetChange,
+  initialEmail = '',
+  startInReset = false,
 }: {
   onSuccess?: () => void
   /** Reports the password-reset step opening and closing. A container that heads the form with it passes this and the form drops its own title. */
   onResetChange?: (resetting: boolean) => void
+  /** Prefills the email (sign in and reset), e.g. after "Sign in instead" on a taken address. Read on mount. */
+  initialEmail?: string
+  /** Opens on the password-reset step. Read on mount. */
+  startInReset?: boolean
 }) {
   const { login, googleLogin } = useSession()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [showReset, setShowReset] = useState(false)
-  const [resetEmail, setResetEmail] = useState('')
+  const [showReset, setShowReset] = useState(startInReset)
+  const [resetEmail, setResetEmail] = useState(initialEmail)
+  const [errors, setErrors] = useState<{ email?: string; password?: string; resetEmail?: string }>({})
   const [resetLoading, setResetLoading] = useState(false)
   const [resetMessage, setResetMessage] = useState('')
   const [devLink, setDevLink] = useState<string | null>(null)
@@ -33,8 +41,15 @@ export function LoginForm({
 
   function setReset(next: boolean) {
     setShowReset(next)
+    setErrors({})
     onResetChange?.(next)
   }
+
+  // A form that opens on the reset step tells its container once, so the container heads it correctly.
+  useEffect(() => {
+    if (startInReset) onResetChange?.(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
 
   if (showReset) {
     const body = resetMessage ? (
@@ -56,8 +71,12 @@ export function LoginForm({
     ) : (
       <form
         className="auth-form__fields"
+        noValidate
         onSubmit={async (event) => {
           event.preventDefault()
+          const resetEmailProblem = emailError(resetEmail)
+          setErrors({ resetEmail: resetEmailProblem })
+          if (focusFirstError([['reset-email', resetEmailProblem]])) return
           setResetLoading(true)
           reset.clear()
           try {
@@ -71,12 +90,15 @@ export function LoginForm({
           }
         }}
       >
-        <Field label="Email" id="reset-email" error={reset.failure?.fields.email}>
+        <Field label="Email" id="reset-email" error={errors.resetEmail || reset.failure?.fields.email}>
           <Input
             type="email"
             size="lg"
             value={resetEmail}
-            onChange={(event) => setResetEmail(event.target.value)}
+            onChange={(event) => {
+              setResetEmail(event.target.value)
+              setErrors({})
+            }}
             placeholder="you@example.com"
             autoComplete="email"
             required
@@ -127,8 +149,19 @@ export function LoginForm({
 
       <form
         className="auth-form__fields"
+        noValidate
         onSubmit={async (event) => {
           event.preventDefault()
+          const next = { email: emailError(email), password: passwordError(password) }
+          setErrors(next)
+          if (
+            focusFirstError([
+              ['login-email', next.email],
+              ['login-password', next.password],
+            ])
+          ) {
+            return
+          }
           setLoading(true)
           signIn.clear()
           try {
@@ -141,25 +174,31 @@ export function LoginForm({
           }
         }}
       >
-        <Field label="Email" id="login-email" error={signIn.failure?.fields.email}>
+        <Field label="Email" id="login-email" error={errors.email || signIn.failure?.fields.email}>
           <Input
             type="email"
             size="lg"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              setEmail(event.target.value)
+              setErrors((prev) => ({ ...prev, email: undefined }))
+            }}
             placeholder="you@example.com"
             autoComplete="email"
             required
           />
         </Field>
         <Stack gap={1}>
-          <Field label="Password" id="login-password" error={signIn.failure?.fields.password}>
+          <Field label="Password" id="login-password" error={errors.password || signIn.failure?.fields.password}>
             <PasswordInput
               size="lg"
               shown={showPassword}
               onShownChange={setShowPassword}
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value)
+                setErrors((prev) => ({ ...prev, password: undefined }))
+              }}
               placeholder="Your password"
               autoComplete="current-password"
               required

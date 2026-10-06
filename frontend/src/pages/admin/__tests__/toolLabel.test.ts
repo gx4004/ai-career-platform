@@ -9,6 +9,11 @@ describe('toolLabel', () => {
 
   it('humanises backend-only ids', () => {
     expect(toolLabel('application-drafts')).toBe('Application drafts')
+    expect(toolLabel('some_new-kind')).toBe('Some new kind')
+  })
+
+  it('spells acronyms in backend-only names', () => {
+    expect(toolLabel('cv-tailoring')).toBe('CV tailoring')
   })
 })
 

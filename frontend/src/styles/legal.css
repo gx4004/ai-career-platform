@@ -252,6 +252,13 @@ html:has(.cookie-banner) .legal-page {
   margin-inline-start: auto;
 }
 
+/* Touch phones have no ⌘K to press. */
+@media (pointer: coarse) {
+  .not-found-search .not-found-search__kbd {
+    display: none;
+  }
+}
+
 .not-found-tools {
   max-inline-size: 40rem;
 }

@@ -4,7 +4,8 @@
   display: grid;
   grid-template-columns: 13rem minmax(0, 1fr);
   gap: var(--space-10);
-  max-width: 76rem;
+  /* Wide enough that the main column clears Split's 56rem threshold at 1440, so the wide specimen is side by side. */
+  max-width: 80rem;
   margin: 0 auto;
   padding: var(--space-8) var(--space-page-x) var(--space-16);
   background: var(--background);
@@ -24,7 +25,7 @@
   color: var(--text-strong);
   font-family: var(--font-display);
   font-size: var(--fs-title);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-black);
   letter-spacing: var(--ls-title);
 }
 
@@ -71,14 +72,14 @@
   flex-direction: column;
   gap: var(--space-2);
   padding-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: var(--bw) solid var(--line);
 }
 
 .kit-gallery__title {
   margin: 0;
   font-family: var(--font-display);
   font-size: var(--fs-display);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-black);
   line-height: var(--lh-display);
   letter-spacing: var(--ls-display);
 }
@@ -102,16 +103,17 @@
   flex-direction: column;
   gap: var(--space-1);
   padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: var(--bw) solid var(--line);
 }
 
+/* Page title 44, section 32, group 24: each level one step below the one that holds it. */
 .kit-gallery__section-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--fs-title);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-title);
-  letter-spacing: var(--ls-title);
+  font-size: var(--fs-lead-xl);
+  font-weight: var(--fw-black);
+  line-height: 1.05;
+  letter-spacing: var(--ls-display);
 }
 
 .kit-gallery__section-note {
@@ -132,10 +134,11 @@
 .kit-gallery__group-title {
   margin: 0;
   color: var(--text-strong);
+  font-family: var(--font-display);
   font-size: var(--fs-section);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-black);
   line-height: var(--lh-section);
-  letter-spacing: 0;
+  letter-spacing: var(--ls-section);
 }
 
 .kit-gallery__row {
@@ -299,10 +302,21 @@
   width: auto;
 }
 
-.kit-gallery__toolbar > .kit-input.kit-gallery__narrow,
-.kit-gallery__toolbar > .kit-select.kit-gallery__narrow {
+.kit-gallery__toolbar > .kit-input.kit-gallery__narrow {
   flex: none;
   width: 7rem;
+}
+
+/* Selects take the width of their chosen option, never truncating "All companies" or "Sort Best skills fit". */
+.kit-gallery__toolbar > .kit-select.kit-gallery__narrow {
+  flex: none;
+  min-inline-size: 9rem;
+  max-inline-size: 100%;
+  inline-size: auto;
+}
+
+.kit-gallery__toolbar > .kit-select.kit-gallery__narrow > .kit-select__control {
+  field-sizing: content;
 }
 
 .kit-gallery__form {
@@ -553,7 +567,7 @@
 
 .kit-gallery__split-wide {
   padding: var(--space-4) 0;
-  border-block: 1px solid var(--border-soft);
+  border-block: var(--bw) solid var(--line);
 }
 
 .kit-gallery__w-14 {

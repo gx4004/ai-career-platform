@@ -19,7 +19,7 @@ export function JobMatchToolPage() {
   return (
     <ToolPageShell toolId="job-match">
       {mutation.isPending ? (
-        <ToolPageLoading toolId="job-match" mutationDone={!mutation.isPending} />
+        <ToolPageLoading toolId="job-match" mutationDone={!mutation.isPending} onCancel={mutation.cancel} />
       ) : (
         <ToolForm
           toolId="job-match"
@@ -40,11 +40,14 @@ export function JobMatchToolPage() {
             error={errors.resumeText}
           />
 
-          <JobImportCard onImported={(description) => setField('jobDescription', description)} />
+          <JobImportCard
+            current={String(draft.jobDescription ?? '')}
+            onImported={(description) => setField('jobDescription', description)}
+          />
           <Field
             label={jobField.label}
             id="job-match-jobDescription"
-            help={getSeededFieldNote('jobDescription', bridge) || undefined}
+            help={getSeededFieldNote('jobDescription', bridge, String(draft.jobDescription ?? '')) || undefined}
             error={errors.jobDescription}
           >
             <Textarea

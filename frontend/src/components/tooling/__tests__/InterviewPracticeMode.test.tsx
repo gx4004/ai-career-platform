@@ -105,7 +105,7 @@ describe('InterviewPracticeMode', () => {
     expect(screen.getByLabelText('Your answer')).toBeTruthy()
   })
 
-  it('ends with a summary of which questions improved and practises the weakest again', async () => {
+  it('ends with a summary of which questions improved and practices the weakest again', async () => {
     window.sessionStorage.setItem(
       'cw:practice:run-a',
       JSON.stringify({
@@ -123,7 +123,7 @@ describe('InterviewPracticeMode', () => {
     const list = screen.getByRole('list', { name: 'Practice summary' })
     expect(list.textContent).toContain('Improved')
     expect(list.textContent).toContain('One try')
-    fireEvent.click(screen.getByRole('button', { name: /Practise the weakest again/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Practice the weakest again/ }))
     // Question 2 had the most left to improve: it is back at attempt 1.
     expect(screen.getByText('How do you lead?')).toBeTruthy()
     expect(screen.getByText('Attempt 1 / 3')).toBeTruthy()

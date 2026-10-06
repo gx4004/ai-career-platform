@@ -168,15 +168,23 @@ function TermsField({
   onChange: (next: string[]) => void
 }) {
   const [draft, setDraft] = useState('')
+  // A repeat is not added twice; say so instead of leaving the text sitting in the field as if Add were broken.
+  const [repeated, setRepeated] = useState<string | null>(null)
   return (
     <div className="camp-terms">
       <form
         onSubmit={(event) => {
           event.preventDefault()
           const next = draft.trim()
-          if (!next || value.some((item) => item.toLowerCase() === next.toLowerCase())) return
-          onChange([...value, next])
+          if (!next) return
+          const existing = value.find((item) => item.toLowerCase() === next.toLowerCase())
           setDraft('')
+          if (existing) {
+            setRepeated(existing)
+            return
+          }
+          setRepeated(null)
+          onChange([...value, next])
         }}
       >
         <Field label={label}>
@@ -186,7 +194,10 @@ function TermsField({
               placeholder={placeholder}
               aria-label={`Add ${label.toLowerCase()}`}
               maxLength={100}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value)
+                setRepeated(null)
+              }}
             />
             <Button type="submit" variant="secondary" disabled={saving} aria-label={`Add ${noun}`}>
               Add
@@ -194,6 +205,10 @@ function TermsField({
           </Cluster>
         </Field>
       </form>
+      {/* Always in the DOM so the message is announced; out of the layout while it is empty. */}
+      <p className={repeated ? 'camp-note' : 'kit-sr-only'} role="status">
+        {repeated ? `“${repeated}” is already in the list.` : null}
+      </p>
       {value.length ? (
         <ul className="camp-terms__list" aria-label={label}>
           {value.map((term) => (

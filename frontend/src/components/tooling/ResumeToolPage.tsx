@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Field, Textarea } from '#/components/kit'
 import { JobImportCard } from '#/components/tooling/JobImportCard'
 import { ResumeSource } from '#/components/tooling/ResumeSource'
@@ -6,6 +6,7 @@ import {
   ToolForm,
   ToolPageLoading,
   ToolPageShell,
+  getSeededFieldNote,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
@@ -16,9 +17,12 @@ export function ResumeToolPage() {
 
   const resumeField = config.fields.find((field) => field.name === 'resumeText')!
   const jobField = config.fields.find((field) => field.name === 'jobDescription')
-  const [showOptionalJob, setShowOptionalJob] = useState(
-    Boolean(bridge.seededJob || draft.jobDescription.trim()),
-  )
+  const [showOptionalJob, setShowOptionalJob] = useState(false)
+  const hasJob = Boolean(bridge.seededJob || draft.jobDescription.trim())
+  // The draft and the carried job load after mount (hydration): open the job field once one arrives.
+  useEffect(() => {
+    if (hasJob) setShowOptionalJob(true)
+  }, [hasJob])
 
   const clearPendingResumeReview = () => {
     writeWorkflowContext({
@@ -30,7 +34,7 @@ export function ResumeToolPage() {
   return (
     <ToolPageShell toolId="resume">
       {mutation.isPending ? (
-        <ToolPageLoading toolId="resume" mutationDone={!mutation.isPending} />
+        <ToolPageLoading toolId="resume" mutationDone={!mutation.isPending} onCancel={mutation.cancel} />
       ) : (
         <ToolForm
           toolId="resume"
@@ -57,6 +61,7 @@ export function ResumeToolPage() {
               <>
                 {tool.supportsJobImport ? (
                   <JobImportCard
+                    current={String(draft.jobDescription ?? '')}
                     onImported={(description) => setField('jobDescription', description)}
                   />
                 ) : null}
@@ -65,7 +70,7 @@ export function ResumeToolPage() {
                   optional
                   id="resume-jobDescription"
                   help={
-                    bridge.seededJob
+                    getSeededFieldNote('jobDescription', bridge, draft.jobDescription)
                       ? 'A recent job description was loaded. Replace or edit it if needed.'
                       : 'Add one role for more specific keyword and fit feedback.'
                   }

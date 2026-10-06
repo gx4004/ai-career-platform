@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, Check, Copy, Download, RefreshCw, Star, Undo2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Copy, Download, FileX2, LockKeyhole, RefreshCw, Star, Undo2 } from 'lucide-react'
 import {
   Button,
   Cluster,
@@ -13,6 +13,7 @@ import {
   ErrorState,
   KeyValue,
   Lead,
+  List,
   Notice,
   Page,
   PageHeader,
@@ -20,7 +21,6 @@ import {
   PanelBody,
   ScoreBar,
   ScoreSeal,
-  Section,
   Skeleton,
   Stack,
   Sticker,
@@ -122,7 +122,8 @@ export function ToolResultScreen({
   const query = useQuery({
     queryKey: ['tool-run', historyId],
     queryFn: () => getHistoryItem(historyId),
-    enabled: !hasLocalData,
+    // A guest demo id (`<tool>-demo-N`) only ever lives in this tab: the server never has it, so never ask.
+    enabled: !hasLocalData && !isDemoHistoryId(historyId),
   })
 
   const item = localItem || query.data
@@ -206,7 +207,8 @@ export function ToolResultScreen({
   }, [item])
 
 
-  if (!item && query.isPending) {
+  // A disabled query (a demo id that is gone from this tab) stays pending forever: fall through to its error state.
+  if (!item && query.isPending && !isDemoHistoryId(historyId)) {
     return <ResultLoading toolId={toolId} />
   }
 
@@ -216,6 +218,7 @@ export function ToolResultScreen({
         <ErrorState
           size="page"
           headingLevel={1}
+          icon={<LockKeyhole />}
           title="Sign in to open this result"
           description="Saved results belong to an account. Sign in and you'll go straight back to it."
           backAction={
@@ -228,7 +231,9 @@ export function ToolResultScreen({
                 Sign in
               </Button>
               <Button asChild variant="secondary">
-                <Link to={tools[toolId].route}>Run the tool yourself</Link>
+                <Link to={tools[toolId].route} activeOptions={{ exact: true }}>
+                  Run the tool yourself
+                </Link>
               </Button>
             </>
           }
@@ -246,6 +251,7 @@ export function ToolResultScreen({
         <ErrorState
           size="page"
           headingLevel={1}
+          icon={<FileX2 />}
           title={
             isDemoResult
               ? 'This guest demo is no longer available'
@@ -257,8 +263,8 @@ export function ToolResultScreen({
             isDemoResult
               ? 'Run the tool again to regenerate the demo, or create a free account to keep future runs in your workspace.'
               : isMissingSavedResult
-                ? 'The saved run may have been deleted or no longer matches the current workspace state.'
-                : 'The saved run is missing, inaccessible, or the backend is offline.'
+                ? 'It may have been deleted, or it belongs to another account.'
+                : describeFailure(query.error, "We couldn't reach the server. Check your connection and try again.").message
           }
           onRetry={isDemoResult || isMissingSavedResult ? undefined : () => void query.refetch()}
           retrying={query.isFetching}
@@ -270,7 +276,9 @@ export function ToolResultScreen({
                 </Button>
               )}
               <Button asChild variant="secondary">
-                <Link to={tools[toolId].route}>Run the tool again</Link>
+                <Link to={tools[toolId].route} activeOptions={{ exact: true }}>
+                  Run the tool again
+                </Link>
               </Button>
               {isDemoResult && status !== 'authenticated' ? (
                 <Button
@@ -308,8 +316,14 @@ export function ToolResultScreen({
     if (regenSeeding) return
     const params = new URLSearchParams()
     params.set('parent_run_id', historyId)
-    if (regenFeedback.trim()) {
-      params.set('feedback', regenFeedback.trim())
+    // The feedback is free text: it travels in this tab, never in the URL (see WorkflowContextState.regenFeedback).
+    try {
+      writeWorkflowContext({
+        regenFeedback: regenFeedback.trim() ? { parentRunId: historyId, text: regenFeedback.trim() } : undefined,
+        updatedAt: Date.now(),
+      })
+    } catch {
+      /* storage unavailable: the run goes ahead without the feedback */
     }
     // A result opened cold has nothing in this tab to carry: fill in what the account still has first.
     if (item && !guestResult) {
@@ -492,12 +506,15 @@ export function ToolResultScreen({
           Undo
         </Button>
       ) : null}
-      <Button asChild variant="ghost" size="sm" className="tool-link">
-        <Link to={resolvedTool.route}>New input</Link>
+      <Button asChild variant="ghost" size="sm" className="tool-link result-actions__new">
+        <Link to={resolvedTool.route} activeOptions={{ exact: true }}>
+          New input
+        </Link>
       </Button>
       <Button
         type="button"
         variant={practicing ? 'secondary' : 'primary'}
+        className="result-actions__primary"
         aria-expanded={regenOpen}
         onClick={() => setRegenOpen((v) => !v)}
       >
@@ -530,6 +547,32 @@ export function ToolResultScreen({
       </Link>
     ) : null
 
+  // The guest notice is static (never part of the reveal), so it never holds an empty band open while the seal stamps in.
+  // Phones show it under the hero, so the seal and the verdict are the first thing a guest sees.
+  const phone = breakpoint === 'mobile'
+  // STICKER 4.R.2: a lemon-soft Notice, not a saturated sticker (on a phone it sits right under the Fix-first stickers).
+  const unsavedNotice =
+    guestResult && !bannerDismissed ? (
+      <Notice
+        title="This result is not saved"
+        onDismiss={() => setBannerDismissed(true)}
+        action={
+          status !== 'authenticated' ? (
+            <Cluster gap={2}>
+              <Button type="button" size="sm" variant="secondary" onClick={() => openAuthDialog(createAccountIntent)}>
+                Create free account
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => openAuthDialog(signInIntent)}>
+                Sign in
+              </Button>
+            </Cluster>
+          ) : undefined
+        }
+      >
+        Guest result: it disappears when you close this tab. Create a free account and your next runs are saved; your resume text stays with this browser until then.
+      </Notice>
+    ) : null
+
   return (
     <ResultChromeContext.Provider value={{ setPracticing, reveal }}>
       <Page>
@@ -554,39 +597,7 @@ export function ToolResultScreen({
           </Notice>
         ) : null}
 
-        {guestResult && !bannerDismissed ? (
-          <Sticker as="aside" role="status" tone="lemon" size="sm" reveal={reveal ? 'slap' : 'none'} revealOrder={3}>
-            <div className="result-unsaved">
-              <Section
-                size="sm"
-                title="This result is not saved"
-                description="Guest demo: it disappears when you close this tab. Create a free account to keep it. Your resume text stays with this browser until then."
-                className="result-unsaved__text"
-              />
-              {status !== 'authenticated' ? (
-                <Cluster gap={2} className="result-unsaved__actions">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => openAuthDialog(createAccountIntent)}>
-                    Create free account
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => openAuthDialog(signInIntent)}>
-                    Sign in
-                  </Button>
-                </Cluster>
-              ) : null}
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                iconOnly
-                aria-label="Dismiss"
-                className="result-unsaved__dismiss"
-                onClick={() => setBannerDismissed(true)}
-              >
-                <X aria-hidden="true" />
-              </Button>
-            </div>
-          </Sticker>
-        ) : null}
+        {phone ? null : unsavedNotice}
 
         {regenOpen ? (
           <Panel>
@@ -635,11 +646,12 @@ export function ToolResultScreen({
             tool={resolvedTool}
             scoreDelta={scoreDelta}
             reveal={reveal}
-            phone={breakpoint === 'mobile'}
+            phone={phone}
           >
             {hasHeadline ? <Lead size="xl">{headline}</Lead> : null}
             <FixFirstList actions={topActions} />
           </ResultHero>
+          {phone ? unsavedNotice : null}
           {definition.render(payload, item, resolvedTool)}
           <ClaimPromotionSection
             toolId={resolvedTool.id}
@@ -648,6 +660,8 @@ export function ToolResultScreen({
           />
           <WhatNext
             tool={resolvedTool}
+            // A saved result opened cold carries no resume: fill in the account's newest CV first, as Re-generate does.
+            onOpen={savedResult ? (to) => seedRegenerate(item, to) : undefined}
             lead={
               resolvedTool.id === 'job-match' && savedResult && status === 'authenticated' ? (
                 <TrackJobRow item={item} />
@@ -696,7 +710,7 @@ function ResultHero({
   const slap = reveal ? 'slap' : 'none'
 
   return (
-    <div className="result-hero">
+    <div className="result-hero" data-scored={summary.score ? 'true' : undefined}>
       <div className="result-hero__side">
         {summary.score ? (
           <>
@@ -727,10 +741,14 @@ function ResultHero({
                   </span>
                 </Sticker>
               ) : null}
-              <ScoreHelp toolId={toolId} />
             </div>
+            {/* In the side's top corner, beside the seal: inside the tags row it wrapped onto a line of its own. */}
+            <span className="result-hero__help">
+              <ScoreHelp toolId={toolId} />
+            </span>
           </>
-        ) : (
+        ) : phone ? null : (
+          // The header already carries this tile; on a phone the big one would push the work itself off the first screen.
           <ToolTile tone={tool.tone} icon={tool.icon} size="xl" />
         )}
         {hasBars || facts.length > 0 ? (
@@ -753,27 +771,45 @@ function ResultHero({
   )
 }
 
-/** The report's frame while the saved run is fetched: same header, hero and rows as the loaded page. */
+/**
+ * The report's frame while the saved run is fetched: the same header (actions included), jump-nav strip,
+ * hero and framed panels as the loaded page, so nothing moves when the data lands.
+ */
 function ResultLoading({ toolId }: { toolId: ToolId }) {
   const tool = tools[toolId]
+  const scored = toolId === 'resume' || toolId === 'job-match' || toolId === 'career'
   return (
     <Page>
       <PageHeader
         mark={<ToolTile tone={tool.tone} icon={tool.icon} size="lg" />}
         title={tool.label}
         meta={[<Skeleton key="date" size="meta" width="4rem" />]}
+        actions={<Skeleton variant="block" width="28rem" className="result-loading__actions" />}
       />
+      <div className="kit-jump-nav result-loading__jump" aria-hidden="true">
+        <Skeleton variant="block" width="min(26rem, 100%)" height={40} />
+      </div>
       <div className="result-report">
-        <div className="result-hero">
+        <div className="result-hero" data-scored={scored ? 'true' : undefined}>
           <div className="result-hero__side">
-            <Skeleton variant="block" width="min(300px, 100%)" className="result-seal-skeleton" />
-            <Skeleton lines={3} width="100%" />
+            {scored ? (
+              <Skeleton variant="block" className="result-seal-skeleton" />
+            ) : (
+              <Skeleton variant="block" width={120} height={120} className="result-tile-skeleton" />
+            )}
+            <Panel className="result-hero__facts">
+              <PanelBody>
+                <Skeleton lines={3} width="100%" />
+              </PanelBody>
+            </Panel>
           </div>
           <div className="result-hero__lead">
             <Skeleton label="Fetching saved output" lines={2} size="title" />
             <Stack gap={3}>
-              <Skeleton width="8rem" />
-              <Skeleton variant="row" count={3} />
+              <Skeleton width="8rem" size="title" />
+              <List aria-busy="true">
+                <Skeleton variant="row" as="li" count={3} />
+              </List>
             </Stack>
           </div>
         </div>

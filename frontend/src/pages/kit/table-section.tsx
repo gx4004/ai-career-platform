@@ -231,6 +231,9 @@ export function TableSection() {
             <SelectableUsers />
           </div>
         </Specimen>
+        <Specimen label="cellAlign=&quot;top&quot;: multi-line rows start every cell at the row's top rule">
+          <Table caption="Users (top-aligned)" columns={USER_COLUMNS} rows={USERS.slice(0, 3)} getRowId={(user) => user.id} cellAlign="top" />
+        </Specimen>
         <Specimen label="stack={false}: keeps the table, scrolls sideways if it must">
           <div className="kit-gallery__frame kit-gallery__frame--phone">
             <Table caption="Users (no stacking)" columns={WIDE_COLUMNS} rows={USERS.slice(0, 3)} getRowId={(user) => user.id} stack={false} density="compact" />

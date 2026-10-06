@@ -249,6 +249,27 @@ export function ListSection() {
         <HistoryList rows={INLINE_RUNS} collapse={false} label="Saved runs, inline actions" />
       </Group>
 
+      <Group title="Overlay actions (RowActions placement=&quot;overlay&quot;): in a narrow rail the hidden Delete keeps only one icon's room at the row end and floats there on hover, never over the text; on touch it stays inline">
+        <div className="kit-gallery__bounded">
+          <Specimen label="unframed list in a 236px column">
+            <div style={{ maxWidth: 236 }}>
+              <List aria-label="Tasks (overlay specimen)" framed={false}>
+                {['Prepare system design examples', 'Send the portfolio link'].map((title) => (
+                  <Row key={title} density="compact">
+                    <RowBody>{title}</RowBody>
+                    <RowActions placement="overlay">
+                      <Button type="button" iconOnly size="sm" variant="ghost" aria-label={`Delete task ${title}`}>
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </RowActions>
+                  </Row>
+                ))}
+              </List>
+            </div>
+          </Specimen>
+        </div>
+      </Group>
+
       <Group title="Parity with dashboard.png: the matches panel (FitStamp, 17px titles, SkillPips, secondary Add)">
         <div className="kit-gallery__bounded kit-gallery__bounded--wide">
         <Specimen label="comfortable match rows">
@@ -297,7 +318,12 @@ export function ListSection() {
                   <RowSubtitle>{fix.detail}</RowSubtitle>
                 </RowBody>
                 <RowMeta>
-                  <Badge tone={fix.level === 'High' ? 'danger' : fix.level === 'Medium' ? 'warning' : 'neutral'}>{fix.level}</Badge>
+                  <Badge
+                    tone={fix.level === 'High' ? 'danger' : fix.level === 'Medium' ? 'warning' : 'neutral'}
+                    data-severity={fix.level.toLowerCase()}
+                  >
+                    {fix.level}
+                  </Badge>
                 </RowMeta>
               </Row>
             ))}

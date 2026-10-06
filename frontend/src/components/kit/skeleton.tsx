@@ -22,8 +22,8 @@ export type SkeletonProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & 
   lines?: number
   /** row: compact 36 or comfortable 44. */
   density?: RowDensity
-  /** row: a leading square, like an avatar or icon. */
-  leading?: boolean
+  /** row: a leading square, like an avatar or icon (28px); `tile` is the 40px rounded square of a ToolTile md. */
+  leading?: boolean | 'tile'
   /** row/card/stat: repeat this many times. */
   count?: number
   /** row: li, to sit inside a List (the rows are then hidden from assistive tech; mark the List aria-busy). Default div. */
@@ -49,10 +49,10 @@ function Line({ size, width }: { size: SkeletonLineSize; width?: string }) {
   )
 }
 
-function RowShape({ density, leading, as: Tag }: { density: RowDensity; leading: boolean; as: 'div' | 'li' }) {
+function RowShape({ density, leading, as: Tag }: { density: RowDensity; leading: boolean | 'tile'; as: 'div' | 'li' }) {
   return (
     <Tag className="kit-skeleton__row" data-density={density} aria-hidden="true">
-      {leading ? <Bar className="kit-skeleton__leading" /> : null}
+      {leading ? <Bar className={cn('kit-skeleton__leading', leading === 'tile' && 'kit-skeleton__leading--tile')} /> : null}
       <span className="kit-skeleton__text">
         <Line size="body" width="46%" />
         {density === 'comfortable' ? <Line size="meta" width="30%" /> : null}

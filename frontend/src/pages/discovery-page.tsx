@@ -108,6 +108,8 @@ export function DiscoveryPage() {
   const navigate = useNavigate()
   const { toast, dismiss } = useToast()
   const resultsRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const pendingScroll = useRef(false)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [openListing, setOpenListing] = useState<DiscoveryListing | null>(null)
   // The drawer keeps showing the job it was showing while it fades out.
@@ -150,8 +152,18 @@ export function DiscoveryPage() {
 
   const goToPage = (next: number) => {
     setPaging({ key: paramsKey, page: next })
-    resultsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    pendingScroll.current = true
   }
+  // Back to the top of the results once the new page has rendered (scrolling from the click handler is
+  // undone when the list changes height), and focus moves to the list so Next/Previous turning disabled
+  // does not drop it on <body>.
+  useEffect(() => {
+    if (!pendingScroll.current || listings.isPlaceholderData) return
+    pendingScroll.current = false
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    resultsRef.current?.scrollIntoView?.({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    listRef.current?.focus({ preventScroll: true })
+  }, [page, listings.isPlaceholderData])
 
   // The list, its detail drawers and the hidden-jobs list all sit under the recommendations prefix.
   const refresh = () => {
@@ -303,7 +315,7 @@ export function DiscoveryPage() {
     <Page>
       <PageHeader title="Discover jobs" actions={headerAction} />
 
-      <Stack gap={3} ref={resultsRef}>
+      <Stack gap={3} ref={resultsRef} className="disc-results">
         <Toolbar
           role="search"
           aria-label="Filter jobs"
@@ -353,6 +365,7 @@ export function DiscoveryPage() {
             ) : undefined
           }
           count={count}
+          countPlacement="below"
           activeFilters={activeFilterCount}
           onClearFilters={() => setFilters({ ...EMPTY_FILTERS, q: filters.q })}
         />
@@ -425,7 +438,7 @@ export function DiscoveryPage() {
           )
         ) : (
           <>
-            <List aria-label="Jobs" boxed aria-busy={listings.isPlaceholderData}>
+            <List ref={listRef} tabIndex={-1} aria-label="Jobs" boxed aria-busy={listings.isPlaceholderData}>
               {items.map((listing) => (
                 <JobRow key={listing.listing_id} listing={listing} actions={actions} scored={hasEvidence} selected={openListing?.listing_id === listing.listing_id} />
               ))}
@@ -445,7 +458,11 @@ export function DiscoveryPage() {
         restoringId={undoHide.isPending ? undoHide.variables : undefined}
         onRestore={(job) =>
           undoHide.mutate(job.listing_id, {
-            onSuccess: () => toast({ tone: 'success', title: `Restored “${job.title}”.` }),
+            onSuccess: () => {
+              // The "Hid … Undo" toast would now contradict this one.
+              dismiss('discovery-hidden')
+              toast({ tone: 'success', title: `Restored “${job.title}”.` })
+            },
           })
         }
       />

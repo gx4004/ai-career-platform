@@ -24,7 +24,7 @@ const FREEFORM_HINTS: Partial<Record<CvSection['kind'], string>> = {
   achievements: 'One result per entry. Numbers help: “Cut onboarding time by 30%”.',
 }
 
-const LinkedToEvidence = () => <Badge tone="success" size="sm">Linked to your Evidence</Badge>
+const LinkedToEvidence = () => <Badge tone="success" size="sm">Linked to your profile</Badge>
 
 /** Move up, move down and delete: the same three controls on every entry. */
 function EntryTools({ name, index, count, onMove, onDelete }: {
@@ -263,8 +263,9 @@ export function CvHeaderEditor({ header, documentName, onChange, inline = false 
         {text('name', 'Name', { maxLength: 120, span: 'cvs-field--full', placeholder: documentName.trim() || 'Your full name', help: 'Shown at the top of the page. Left empty, the page opens with the name of this CV.' })}
         {text('headline', 'Headline', { maxLength: 200, span: 'cvs-field--full', placeholder: 'e.g. Senior Product Designer' })}
         {text('email', 'Email', { maxLength: 200, type: 'email', span: 'cvs-field--full', placeholder: 'you@example.com' })}
-        {text('phone', 'Phone', { maxLength: 40, type: 'tel', placeholder: '+44 20 7946 0958' })}
-        {text('location', 'Location', { maxLength: 200, placeholder: 'City, Country' })}
+        {/* Full rows: a phone number cut to "+44 20 7946 0…" in the 400px panel hides what was typed. */}
+        {text('phone', 'Phone', { maxLength: 40, type: 'tel', span: 'cvs-field--full', placeholder: '+44 20 7946 0958' })}
+        {text('location', 'Location', { maxLength: 200, span: 'cvs-field--full', placeholder: 'City, Country' })}
         <Field label="Links" optional help={`One per line, up to ${MAX_HEADER_LINKS}: portfolio, LinkedIn, GitHub.`} className="cvs-field--full">
           <Textarea
             autosize maxRows={8} rows={2} value={(header.links ?? []).join('\n')} placeholder="https://linkedin.com/in/you"

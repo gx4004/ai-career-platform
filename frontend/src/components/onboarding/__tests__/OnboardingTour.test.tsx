@@ -50,6 +50,21 @@ describe('OnboardingTour', () => {
     expect(onComplete).toHaveBeenCalledTimes(1)
   })
 
+  it('tells a guest to sign in but a signed-in user where their runs are', () => {
+    const { unmount } = renderTour(['activity'])
+    expect(screen.getByText(/Sign in to keep your workspace/)).toBeTruthy()
+    unmount()
+
+    render(
+      <>
+        <Page targets={['activity']} />
+        <OnboardingTour open signedIn onComplete={vi.fn()} onSkip={vi.fn()} />
+      </>,
+    )
+    expect(screen.getByText(/Your recent runs and starred results land here/)).toBeTruthy()
+    expect(screen.queryByText(/Sign in/)).toBeNull()
+  })
+
   it('leaves out a step whose target is missing, so a user with a CV still gets the tour', () => {
     renderTour(['quick-start', 'activity'])
 

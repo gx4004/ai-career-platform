@@ -83,7 +83,12 @@ export function HistoryRow({
   const nextTool = registryTool
     ? toolList.find((candidate) => candidate.id === getNextStepToolId(registryTool.id, item.metadata))
     : null
-  const workspaceLabel = item.workspace?.label
+  // Every run has a workspace behind it; only one that targets a job (an application) is worth naming.
+  const workspace = item.workspace
+  const applicationLabel =
+    workspace && (workspace.status || workspace.listing)
+      ? workspace.label || [workspace.role, workspace.company].filter(Boolean).join(' at ') || null
+      : null
   // "Job Match (75%)" already says which tool made it; saying "Match" under it again is noise.
   const namesTool = label.toLowerCase().includes(display.label.toLowerCase())
   const toolText = display.kind === 'cv-studio' ? 'Older CV Studio run' : namesTool ? null : display.label
@@ -161,8 +166,8 @@ export function HistoryRow({
                   </Badge>
                 ) : null}
                 {toolText}
-                {workspaceLabel && workspaceLabel !== label ? (
-                  <span className="history-row__clamp">{`Workspace: ${workspaceLabel}`}</span>
+                {applicationLabel && applicationLabel !== label ? (
+                  <span className="history-row__clamp">{`Application: ${applicationLabel}`}</span>
                 ) : null}
                 {item.metadata.summary_headline ? (
                   <span className="history-row__clamp">{item.metadata.summary_headline}</span>

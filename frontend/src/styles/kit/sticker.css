@@ -43,6 +43,24 @@
   border-radius: var(--r-xl);
 }
 
+/*
+ * A whole-sticker link (StretchedLink): the ring sits inside the tone fill, clear of the ink outline it would
+ * otherwise land on, and follows the plate's corners. Ink on every tone fill is 6.7:1 or better.
+ */
+.kit-sticker .kit-stretched:focus-visible::after {
+  outline-offset: -10px;
+  border-radius: calc(var(--r-lg) - 10px);
+}
+
+.kit-sticker--sm .kit-stretched:focus-visible::after {
+  outline-offset: -5px;
+  border-radius: calc(var(--r-md) - 5px);
+}
+
+.kit-sticker--xl .kit-stretched:focus-visible::after {
+  border-radius: calc(var(--r-xl) - 10px);
+}
+
 /* The honest note: a rose pin centred on the top edge. */
 .kit-sticker[data-pin='true']::after {
   content: '';

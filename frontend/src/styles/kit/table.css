@@ -40,7 +40,8 @@
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-variant-numeric: var(--numeric-tabular);
+  /* Cells are mostly prose ("due Oct 11, 2026"); columns that must align opt in with data-numeric. */
+  font-variant-numeric: proportional-nums;
 }
 
 .kit-table__th {
@@ -141,6 +142,12 @@
 
 .kit-table[data-density='compact'] .kit-table__cell {
   height: var(--kit-row-h-md);
+}
+
+/* Multi-line rows: every cell starts at the row's top rule, so badges and text line up instead of floating. */
+.kit-table[data-cell-align='top'] .kit-table__cell {
+  padding-block: var(--s3);
+  vertical-align: top;
 }
 
 .kit-table__body > .kit-table__row:first-child > .kit-table__cell {

@@ -20,6 +20,20 @@ const HEADER_FIELDS: { key: HeaderField; label: string }[] = [
   { key: 'phone', label: 'Phone' }, { key: 'location', label: 'Location' },
 ]
 
+/**
+ * The reader repeats a qualification or role as its description when it found none ("BA Interaction Design"
+ * twice). Shown as an empty, optional description instead; accepting fills the body back in from the heading.
+ */
+const withoutEchoedBodies = (proposal: CvImportProposal): CvImportProposal => ({
+  ...proposal,
+  sections: proposal.sections.map((section) => isStructuredKind(section.kind) ? {
+    ...section,
+    entries: section.entries.map((entry) => !entry.bullets?.length && entry.heading?.trim() && entry.body.trim() === entry.heading.trim()
+      ? { ...entry, body: '' }
+      : entry),
+  } : section),
+})
+
 const sectionNoun = (kind: ImportSection['kind']) => kind === 'education' ? 'qualification' : kind === 'projects' ? 'project' : 'role'
 
 /** One thing the reader found, as a card you can correct before it becomes your CV. */
@@ -43,7 +57,7 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
     <Card className="cvs-review__card" padding="sm" aria-label={title}>
       <CardHeader>
         <CardTitle headingLevel={4}>{title}</CardTitle>
-        {entry.claim ? <Badge size="sm" tone="lilac">Fact for your Evidence</Badge> : null}
+        {entry.claim ? <Badge size="sm" tone="lilac">Fact for your profile</Badge> : null}
       </CardHeader>
       {structured ? (
         <div className="cvs-review__grid">
@@ -63,7 +77,7 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
       ) : (
         <Field label={structured ? 'Description' : 'Text'}>
           <Textarea
-            autosize rows={2} maxRows={8} value={entry.body} maxLength={5_000}
+            autosize rows={2} maxRows={8} value={entry.body} maxLength={5_000} placeholder={structured ? 'Optional' : undefined}
             onChange={(event) => onChange({ body: event.target.value })}
           />
         </Field>
@@ -109,13 +123,15 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
     setProposal(null); setName(''); setError(''); setState('idle'); setPasted(''); setSource('file')
   }, [open])
 
-  async function read(file: File | undefined) {
+  async function read(file: File | undefined, from: 'file' | 'text' = 'file') {
     if (!file) return
     setState('reading'); setError(''); setFileName(file.name)
     try {
       const next = await proposeCvImport(file)
-      setProposal(next)
-      setName(next.name)
+      setProposal(withoutEchoedBodies(next))
+      // The CV's name becomes the file name of every export: the person's name beats a file stem, and pasted text has none.
+      const person = next.header?.name?.trim()
+      setName(person ? `${person} CV` : from === 'text' ? 'My CV' : next.name)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'We couldn’t read that file.')
     } finally {
@@ -124,7 +140,7 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
     }
   }
 
-  const readPasted = () => void read(new File([pasted], 'pasted-cv.txt', { type: 'text/plain' }))
+  const readPasted = () => void read(new File([pasted], 'pasted-cv.txt', { type: 'text/plain' }), 'text')
 
   async function create() {
     if (!proposal || !name.trim()) return
@@ -152,7 +168,7 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
           <DialogTitle>Import your CV</DialogTitle>
           <DialogDescription>
             {proposal
-              ? `We found ${proposal.sections.length} ${proposal.sections.length === 1 ? 'section' : 'sections'} and ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'} in ${proposal.filename}. Fix anything that looks off, then create your CV.`
+              ? `We found ${proposal.sections.length} ${proposal.sections.length === 1 ? 'section' : 'sections'} and ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'} ${source === 'text' ? 'in the text you pasted' : `in ${proposal.filename}`}. Fix anything that looks off, then create your CV.`
               : 'Upload a PDF or Word file, or paste your CV as text. We’ll split it into sections you can edit, and nothing is saved until you say so.'}
           </DialogDescription>
         </DialogHeader>
@@ -162,7 +178,7 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
             {!proposal ? (
               state === 'reading' ? (
                 <Stack gap={3}>
-                  <p className="cvs-hint" role="status">Reading {fileName}…</p>
+                  <p className="cvs-hint" role="status">Reading {source === 'text' ? 'the text you pasted' : fileName}…</p>
                   <List aria-label="Reading your CV" aria-busy="true"><Skeleton variant="row" as="li" density="compact" count={4} /></List>
                 </Stack>
               ) : (
@@ -227,7 +243,7 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
                     )}
                   </Section>
                 ))}
-                <p className="cvs-hint">Facts we spot, like achievements and skills, are also added to your Evidence for you to confirm later.</p>
+                <p className="cvs-hint">Facts we spot, like achievements and skills, are also added to your profile as suggestions to review.</p>
               </>
             )}
 
@@ -237,7 +253,7 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
 
         <DialogFooter>
           {proposal ? (
-            <Button type="button" variant="secondary" disabled={busy} onClick={() => setProposal(null)}>Choose another file</Button>
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => setProposal(null)}>{source === 'text' ? 'Start over' : 'Choose another file'}</Button>
           ) : (
             <DialogClose asChild><Button type="button" variant="secondary" disabled={busy}>Cancel</Button></DialogClose>
           )}
@@ -246,7 +262,7 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
               Create my CV
             </Button>
           ) : source === 'text' ? (
-            <Button type="button" loading={state === 'reading'} disabled={pasted.trim().length < 20 || busy} onClick={readPasted}>Read my CV</Button>
+            <Button type="button" loading={state === 'reading'} disabled={pasted.trim().length < 20 && state !== 'reading'} onClick={readPasted}>Read my CV</Button>
           ) : null}
         </DialogFooter>
       </DialogContent>

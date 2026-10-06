@@ -6,10 +6,10 @@ import { toolList, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 
 /** Tool ids the backend records that the registry does not list (application drafts, the reviewer, CV tailoring). */
-const EXTRA_TOOL_VISUALS: Record<string, { icon: LucideIcon }> = {
-  'application-drafts': { icon: Briefcase },
-  'application-reviewer': { icon: ClipboardCheck },
-  'cv-tailoring': { icon: FileText },
+const EXTRA_TOOL_VISUALS: Record<string, { icon: LucideIcon; label: string }> = {
+  'application-drafts': { icon: Briefcase, label: 'Application drafts' },
+  'application-reviewer': { icon: ClipboardCheck, label: 'Application reviewer' },
+  'cv-tailoring': { icon: FileText, label: 'CV tailoring' },
 }
 
 /** Every tool id the run filter offers: the six tools, then the backend-only kinds, so no run is unreachable. */
@@ -22,10 +22,12 @@ export function toolVisual(id: string): { tone: Tone; icon: LucideIcon } {
   return { tone: 'stone', icon: EXTRA_TOOL_VISUALS[id]?.icon ?? FileText }
 }
 
-/** Registry name for a tool id; backend-only ids fall back to "Application drafts". */
+/** Registry name for a tool id, the written name of a backend-only kind, or the humanised slug of an unknown one. */
 export function toolLabel(id: string): string {
   const known = tools[id as ToolId]
   if (known) return known.label
+  const extra = EXTRA_TOOL_VISUALS[id]?.label
+  if (extra) return extra
   const spaced = id.replace(/[-_]+/g, ' ').trim()
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : id
 }

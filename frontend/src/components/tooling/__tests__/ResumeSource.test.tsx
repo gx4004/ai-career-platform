@@ -102,6 +102,37 @@ describe('ResumeSource', () => {
       expect(sessionStorage.getItem('cw:resume-carry-filename')).toBe('cv.pdf')
     })
 
+    it('stops naming the uploaded file once its text is edited or replaced', async () => {
+      parseCvMock.mockResolvedValue(parsed)
+      function Harness() {
+        const [value, setValue] = useState('')
+        return <ResumeSource id="r" label="Resume text" value={value} onChange={setValue} />
+      }
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <Harness />
+        </QueryClientProvider>,
+      )
+      upload('cv.pdf')
+      const row = await screen.findByRole('list', { name: 'Resume source' })
+      await waitFor(() => expect(row.textContent).toContain('cv.pdf'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+      const editor = screen.getByLabelText('Resume text')
+      fireEvent.change(editor, { target: { value: `${parsed.extracted_text} Led the payments redesign.` } })
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+      expect(screen.getByRole('list', { name: 'Resume source' }).textContent).toContain('cv.pdf (edited)')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+      fireEvent.change(screen.getByLabelText('Resume text'), { target: { value: 'Jordan Lee. Data analyst, SQL and dbt.' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+      const replaced = screen.getByRole('list', { name: 'Resume source' }).textContent
+      expect(replaced).toContain('Pasted resume')
+      expect(replaced).not.toContain('cv.pdf')
+      // Other tools and a reload read the carry store: it must not claim the file either.
+      expect(sessionStorage.getItem('cw:resume-carry-filename')).toBeNull()
+    })
+
     it('shows what was read, and lets the user confirm it', async () => {
       parseCvMock.mockResolvedValue(parsed)
       renderSource({ value: parsed.extracted_text })

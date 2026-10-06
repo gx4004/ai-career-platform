@@ -153,6 +153,16 @@ export function fieldLabel(key: string): string {
   return words ? words[0].toUpperCase() + words.slice(1) : key
 }
 
+/** The API's limit on one value of a fact (backend MAX_CONTENT_VALUE_CHARS). */
+export const MAX_FACT_VALUE_CHARS = 2000
+
+/** "Up to 2,000 characters", then a live count once the text gets near the limit. */
+export function factLengthHint(length: number, max = MAX_FACT_VALUE_CHARS): string {
+  return length > max * 0.8
+    ? `${length.toLocaleString('en-US')} of ${max.toLocaleString('en-US')} characters`
+    : `Up to ${max.toLocaleString('en-US')} characters`
+}
+
 export type FieldEdit =
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; error: string }
@@ -170,6 +180,9 @@ export function applyFieldEdits(
   for (const { key, value: original } of contentEntries(content)) {
     const edited = (values[key] ?? original).trim()
     if (!edited) continue
+    if (edited.length > MAX_FACT_VALUE_CHARS) {
+      return { ok: false, error: `Shorten ${fieldLabel(key).toLowerCase()} to ${MAX_FACT_VALUE_CHARS.toLocaleString('en-US')} characters.` }
+    }
     const raw = content[key]
     next[key] = typeof raw !== 'string' && edited === original ? raw : edited
   }

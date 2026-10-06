@@ -136,7 +136,30 @@ describe('RegisterForm — auth_signup_source telemetry (D-040)', () => {
   it('marks the name optional and explains the password rule until it is broken', () => {
     render(<RegisterForm />)
     expect(screen.getByText('Optional')).toBeTruthy()
-    expect(screen.getByText('8+ characters, at most 72 UTF-8 bytes.')).toBeTruthy()
+    expect(screen.getByText('At least 8 characters.')).toBeTruthy()
+  })
+
+  it('explains an empty email and a short password under their fields instead of the browser bubble', async () => {
+    render(<RegisterForm />)
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Create free account' }))
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.map((alert) => alert.textContent)).toEqual(['Enter your email.', 'Use at least 8 characters.'])
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'))
+    expect(registerMock).not.toHaveBeenCalled()
+  })
+
+  it('offers sign in or a reset when the email already has an account', async () => {
+    registerMock.mockRejectedValue(Object.assign(new Error('Email already registered'), { status: 409 }))
+    const onExistingAccount = vi.fn()
+    render(<RegisterForm onExistingAccount={onExistingAccount} />)
+    fillAndSubmit()
+    expect(await screen.findByText('An account already exists for this email.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in instead' }))
+    expect(onExistingAccount).toHaveBeenCalledWith('new.user@example.com', 'login')
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect(onExistingAccount).toHaveBeenCalledWith('new.user@example.com', 'reset')
   })
 
   it('does not offer to create the account before the terms are accepted', () => {

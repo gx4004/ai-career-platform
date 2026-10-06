@@ -130,6 +130,12 @@ export type RowActionsProps = ComponentPropsWithoutRef<'div'> & {
    */
   reveal?: boolean
   /**
+   * inline (default): the actions keep their slot at the end of the row. overlay: on a fine pointer the
+   * revealed actions float over the row's end edge instead, so a narrow list (a 280px rail) gives the
+   * title the full width at rest. Touch devices keep them inline and visible. Only with reveal.
+   */
+  placement?: 'inline' | 'overlay'
+  /**
    * An overflow menu (a DropdownMenu whose trigger is a ghost icon Button) shown INSTEAD of the children
    * when the List is narrower than 32rem (phones). Use it when a row has three or more secondary actions
    * (History: star, rename, delete): it keeps the row at 44px and the title at full width. Both copies
@@ -143,7 +149,7 @@ export type RowActionsProps = ComponentPropsWithoutRef<'div'> & {
  * at the end of the row's first line (the row's meta moves under its text), whatever the row holds.
  */
 export const RowActions = forwardRef<HTMLDivElement, RowActionsProps>(function RowActions(
-  { reveal = true, collapse, className, children, ...rest },
+  { reveal = true, placement = 'inline', collapse, className, children, ...rest },
   ref,
 ) {
   return (
@@ -151,6 +157,7 @@ export const RowActions = forwardRef<HTMLDivElement, RowActionsProps>(function R
       ref={ref}
       className={cn('kit-row__actions', className)}
       data-reveal={reveal ? 'true' : undefined}
+      data-placement={placement === 'overlay' && reveal ? 'overlay' : undefined}
       data-collapsible={collapse ? 'true' : undefined}
       {...rest}
     >

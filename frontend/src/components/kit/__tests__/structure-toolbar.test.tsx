@@ -47,6 +47,13 @@ describe('kit Toolbar', () => {
     expect(count.textContent).toBe('148 jobs')
   })
 
+  it('puts the count on its own line only when asked (countPlacement="below")', () => {
+    const { container, rerender } = render(<Toolbar search={<Input aria-label="Search" />} count="3 jobs" />)
+    expect(container.querySelector('.kit-toolbar')?.hasAttribute('data-count')).toBe(false)
+    rerender(<Toolbar search={<Input aria-label="Search" />} count="3 jobs" countPlacement="below" />)
+    expect(container.querySelector('.kit-toolbar')?.getAttribute('data-count')).toBe('below')
+  })
+
   it('has a Filters button (for phones) named with the number of active filters', () => {
     render(<Demo />)
     expect(screen.getByRole('button', { name: 'Filters' })).toBeTruthy()

@@ -15,6 +15,7 @@ import {
   updateApplication,
 } from '#/lib/api/client'
 import type { ApplicationDetail, ApplicationDetails, AutofillRunStatus } from '#/lib/api/schemas'
+import { ApiError } from '#/lib/api/errors'
 import { isAutopilotExperimentEnabled } from '#/lib/flags/featureFlags'
 import { APPLICATION_DETAILS_QUERY_KEY, applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { ApplicationPanel } from './ApplicationPanel'
@@ -105,8 +106,12 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
       ? "We don't guess things like salary or visa status. Answer these before you apply."
       : "Open the employer's form, paste in what you need, and submit it there yourself. Then mark it applied here."
 
-  // One primary action: prepare, then answer, then apply on the employer's site.
-  const primary = !prepared ? 'prepare' : unanswered.length ? 'answer' : link ? 'apply' : 'applied'
+  // Drafts are written from a CV: without one, the way forward is CV Studio, not a Prepare that can only fail.
+  const needsCv = !prepared && application.available_materials.cv_variants.length === 0
+  // One primary action: make a CV, prepare, then answer, then apply on the employer's site.
+  const primary = needsCv ? 'cv' : !prepared ? 'prepare' : unanswered.length ? 'answer' : link ? 'apply' : 'applied'
+  const failedNeedsCv =
+    failed === prepare && prepare.error instanceof ApiError && prepare.error.status === 409 && /CV Studio/.test(prepare.error.message)
 
   // Lemon while it waits on the owner's answers, mint once it is ready: colour by meaning.
   const tone = prepared ? (unanswered.length ? 'lemon' : 'mint') : undefined
@@ -122,6 +127,20 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
             saving={answers.isPending}
             onSave={(map) => answers.mutate(map)}
           />
+        ) : null}
+
+        {needsCv ? (
+          <Notice
+            tone="warning"
+            title="You need a CV first"
+            action={
+              <Button asChild size="sm">
+                <Link to="/cv-studio">Open CV Studio</Link>
+              </Button>
+            }
+          >
+            The cover letter and answers are drafted from a CV. Make one in CV Studio, then come back.
+          </Notice>
         ) : null}
 
         <Stack gap={2}>
@@ -158,7 +177,20 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
           {!link ? <p className="camp-note">No link to the employer's form was saved with this job. Apply wherever you found it.</p> : null}
         </Stack>
 
-        {failed ? <Notice tone="danger">{errorMessage(failed.error, 'That didn’t go through. Try again.')}</Notice> : null}
+        {failed ? (
+          <Notice
+            tone="danger"
+            action={
+              failedNeedsCv ? (
+                <Button asChild size="sm" variant="secondary">
+                  <Link to="/cv-studio">Open CV Studio</Link>
+                </Button>
+              ) : undefined
+            }
+          >
+            {errorMessage(failed.error, 'That didn’t go through. Try again.')}
+          </Notice>
+        ) : null}
 
         {isAutopilotExperimentEnabled() && application.autofill_supported ? (
           <AutofillBlock applicationId={application.id} blocked={unanswered.length > 0} />

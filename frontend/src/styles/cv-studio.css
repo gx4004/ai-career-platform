@@ -52,13 +52,19 @@
   background: var(--surface);
 }
 
+/* The bar keeps the actions on the name's line while the name fits at the mockup's 260px: the line's basis is
+   0 and its minimum is its own content (the name at 260px, the save state, the template), so the actions take
+   the next line only when that minimum does not fit beside them. The name then grows into the room that is
+   left, up to its own length (where the browser can size a field to its text) and 26rem. */
 .cvs-bar__doc {
   display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
+  flex: 1 1 0;
   align-items: center;
   gap: var(--s2) var(--s4);
-  min-width: 0;
+}
+
+.cvs-bar__doc > :not(.cvs-bar__name) {
+  flex: none;
 }
 
 /* The name is a headline you can type in: display type on the ground, an ink outline on hover and focus. */
@@ -66,13 +72,16 @@
   --kit-control-h: 3rem;
   --kit-control-bg: var(--ground);
 
-  flex: 0 1 16.25rem;
+  flex: 1 1 16.25rem;
   width: 16.25rem;
-  max-width: 100%;
+  min-width: 16.25rem;
+  max-width: max-content;
   border-color: transparent;
 }
 
 .cvs-bar .kit-input.cvs-bar__name .kit-input__control {
+  field-sizing: content;
+  max-width: 26rem;
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: var(--fw-black);
@@ -111,6 +120,43 @@
   animation: kit-spin 900ms linear infinite;
 }
 
+/* Saved: a 22px mint disc with a check, "Saved" in 14/700 and when, muted. */
+.cvs-save--saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 1.625rem;
+  border-radius: var(--r-xs);
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.cvs-save__disc {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--mint);
+}
+
+.cvs-save__disc > svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  stroke-width: 3;
+}
+
+.cvs-save__ago {
+  color: var(--ink-2);
+  font-weight: var(--fw-medium);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cvs-save .cvs-save__spin {
     animation-duration: 2400ms;
@@ -146,6 +192,26 @@
 .cvs-bar .kit-select.cvs-bar__select {
   width: auto;
   max-width: 14rem;
+}
+
+/* Beside the name the switcher reads "CV 1 of 2" and its chevron: the open CV's name is already in the bar, and
+   the native select still covers the whole frame (its list names every CV). Phones show the name on its own line. */
+@media (min-width: 768px) {
+  .cvs-bar .kit-select.cvs-bar__select {
+    padding-inline-end: calc(var(--kit-control-px) + var(--kit-control-icon) + var(--s2));
+  }
+
+  .cvs-bar .kit-select.cvs-bar__select > .kit-select__leading {
+    color: var(--ink);
+    font-weight: var(--fw-bold);
+  }
+
+  .cvs-bar .kit-select.cvs-bar__select > .kit-select__control {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    opacity: 0;
+  }
 }
 
 .cvs-notices {
@@ -200,14 +266,47 @@
   padding-inline: var(--s2);
 }
 
-/* Four tabs, a count and the failing-checks badge have to fit the column: a little tighter than the kit's tabs, and tighter again when the column is narrow. */
+/* Four tabs and their two counts share the column instead of scrolling out of it: each tab keeps its label
+   and grows by the same amount into the room that is left. */
 .cvs-tabs > .kit-tabs__list .kit-tabs__trigger {
-  padding-inline: var(--s3);
+  flex: 1 0 auto;
+  justify-content: center;
+  padding-inline: var(--s1);
 }
 
-@media (max-width: 1279px) {
-  .cvs-tabs > .kit-tabs__list .kit-tabs__trigger {
-    padding-inline: var(--s2);
+/* Phones: "ATS check" reads "ATS" (the full name stays for screen readers). */
+@media (max-width: 639px) {
+  .cvs-tab__long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* The narrowest phones keep a few words for screen readers only: the versions count (the Versions sheet lists
+   them) and the import button's "(PDF/DOCX)", so every label stays on one line. */
+@media (max-width: 359px) {
+  .cvs-narrowest-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .cvs-tabs .kit-tabs__trigger.cvs-tab--versions .kit-count {
+    position: absolute;
+    width: 1px;
+    min-width: 0;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    clip-path: inset(50%);
   }
 }
 
@@ -217,6 +316,26 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+}
+
+/* A functional cue, not decoration: while the panel has more below, the content fades into white over the
+   last 24px and the bottom padding, so a control cut at the edge reads as "scroll for more" (`data-more` is
+   set by CvStudio). It overlaps the content instead of adding height. */
+.kit-tabs__panel.cvs-panel:not(.cvs-panel--sheet)::after {
+  content: '';
+  position: sticky;
+  bottom: calc(var(--s4) * -1);
+  flex: none;
+  height: calc(var(--s6) + var(--s4));
+  margin: calc((var(--s3) + var(--s6) + var(--s4)) * -1) calc(var(--s4) * -1) 0;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.kit-tabs__panel.cvs-panel[data-more='true']::after {
+  opacity: 1;
 }
 
 /* Inside the panel nothing lifts and nothing casts a shadow: the paper is the loudest object on the screen. */
@@ -257,16 +376,71 @@
 
 /* ── Section rows (Sections tab): kit List and Row; this adds the grip, the drag states and the unfolded editor ── */
 
-/* Kit CSS loads after this file, so the row hooks double their class. */
-.kit-row.cvs-sec[data-hidden] .kit-row__title {
+/* Every section is its own outlined row, 12px apart (cv.png). Kit CSS loads after this file, so the row
+   rules here carry the list's class too, to win over the kit's divider and selection bar. */
+.kit-list.cvs-outline {
+  display: grid;
+  gap: var(--s3);
+}
+
+.kit-list.cvs-outline > :is(.kit-row.cvs-sec, .kit-skeleton__row) {
+  min-height: 3.5rem;
+  padding: var(--s2) var(--s3) var(--s2) var(--s4);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+}
+
+/* The name and its count share a line: "Experience 2 entries". */
+/* No meta line here, so the body spans both rows of the kit's narrow-list grid and sits on the row's middle;
+   the mockup's 12px gaps leave the name and its count room to share a line. */
+.kit-list.cvs-outline > .kit-row.cvs-sec > .kit-row__body {
+  grid-row: 1 / span 2;
+  flex-flow: row wrap;
+  align-content: center;
+  align-items: baseline;
+  justify-content: flex-start;
+  column-gap: 6px;
+}
+
+.kit-list.cvs-outline > .kit-row.cvs-sec > .kit-row__leading {
+  margin-inline-end: var(--s3);
+}
+
+.kit-list.cvs-outline > .kit-row.cvs-sec > .kit-row__actions {
+  margin-inline-start: var(--s2);
+}
+
+/* The title button opens the section (its ::after covers the row): as wide as its words, so the count follows it. */
+.kit-list.cvs-outline > .kit-row.cvs-sec .kit-row__title {
+  width: auto;
+}
+
+.kit-list.cvs-outline > .kit-row.cvs-sec .kit-stretched::after {
+  border-radius: calc(var(--r-md) - var(--bw));
+}
+
+/* The open section is one outlined unit: a lemon-soft header strip, a 2px ink rule, then its editor. */
+.kit-list.cvs-outline > .kit-row.cvs-sec[data-selected] {
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background-color: var(--lemon-soft);
+}
+
+.kit-list.cvs-outline > .kit-row.cvs-sec__editor {
+  margin-top: calc(var(--s3) * -1);
+  border: var(--bw) solid var(--ink);
+  border-top: 0;
+  border-radius: 0 0 var(--r-md) var(--r-md);
+}
+
+.kit-list.cvs-outline > .kit-row.cvs-sec[data-hidden] .kit-row__title {
   color: var(--ink-3);
 }
 
-.kit-row.cvs-sec[data-dragging] {
+.kit-list.cvs-outline > .kit-row.cvs-sec[data-dragging] {
   opacity: 0.5;
 }
 
-.kit-row.cvs-sec[data-over] {
+.kit-list.cvs-outline > .kit-row.cvs-sec[data-over] {
   background-color: var(--lemon-soft);
 }
 
@@ -296,6 +470,31 @@
 @media (pointer: coarse) {
   .cvs-sec__chevron {
     display: none;
+  }
+}
+
+/* With a mouse, move and hide float over the end of the name line, left of the chevron, so they take no width at
+   rest and every name keeps its count beside it. Touch keeps them inline and always shown (kit row.css). */
+@media (hover: hover) and (pointer: fine) {
+  .kit-list.cvs-outline > .kit-row.cvs-sec .kit-row__reveal {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-end: 100%;
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    transform: translateY(-50%);
+  }
+
+  .kit-list.cvs-outline > .kit-row.cvs-sec:is(:hover, [data-over]) .kit-row__reveal {
+    background: var(--lemon-soft);
+  }
+}
+
+@media (any-pointer: coarse) {
+  .kit-list.cvs-outline > .kit-row.cvs-sec .kit-row__reveal {
+    position: static;
+    background: none;
+    transform: none;
   }
 }
 
@@ -396,15 +595,21 @@
 
 /* ── Versions ── */
 
+/* The name keeps room for its placeholder: below 12rem the button takes its own full-width line. */
 .cvs-versions__form {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--s2);
 }
 
 .kit-field.cvs-versions__name {
-  flex: 1 1 auto;
+  flex: 999 1 12rem;
   min-width: 0;
+}
+
+.cvs-versions__form > .kit-button {
+  flex: 1 0 auto;
 }
 
 .cvs-versions {
@@ -692,15 +897,22 @@
 }
 
 @media (max-width: 767px) {
+  /* The name gets the whole line; the save state (and the template, where shown) drop under it. */
   .cvs-bar .kit-input.cvs-bar__name {
-    flex: 1 1 10rem;
-    width: auto;
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .cvs-bar .kit-input.cvs-bar__name .kit-input__control {
+    font-size: 1.25rem;
   }
 
   .cvs-bar__doc {
     flex-basis: 100%;
-    flex-wrap: nowrap;
-    gap: var(--s3);
+    flex-wrap: wrap;
+    gap: var(--s2) var(--s3);
+    min-width: 0;
   }
 
   .cvs-bar__actions {
@@ -713,8 +925,19 @@
     max-width: none;
   }
 
+  /* The first-run choices stack full width, so each label stays on one line. */
+  .cvs-empty .kit-empty__action .kit-button {
+    flex: 1 1 100%;
+  }
+
   .cvs-review__grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 359px) {
+  .cvs-bar .kit-input.cvs-bar__name .kit-input__control {
+    font-size: 1.125rem;
   }
 }
 
@@ -927,53 +1150,72 @@
 
 .cvp-section--editable {
   position: relative;
-  border-radius: 2pt;
-  outline: 2px dashed transparent;
-  outline-offset: 2.5mm;
+  outline: none;
   cursor: pointer;
-  transition: outline-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+
+/* The frame and its wash: 1mm above and below the section, so it stays clear of the neighbouring sections'
+   text, and wider to the sides, so it also clears the entry rows that overhang the text (6pt on a single
+   column, 3pt in two columns). It is painted under the text (the paper is its stacking context). */
+.cvp-paper { --cvp-frame-x: 4mm; }
+.cvp-paper--two-column { --cvp-frame-x: 3mm; }
+
+.cvp-section--editable::before {
+  content: '';
+  position: absolute;
+  inset: -1mm calc(var(--cvp-frame-x) * -1);
+  z-index: -1;
+  border: 2px dashed transparent;
+  border-radius: 4pt;
+  pointer-events: none;
+  transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
 }
 
 @media (hover: hover) {
-  .cvp-section--editable:hover {
-    outline-color: var(--tangerine);
+  .cvp-section--editable:hover::before {
+    border-color: var(--tangerine);
     background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
   }
 
   .cvp-section--editable:hover::after { opacity: 1; }
 }
 
-.cvp-section--editable[aria-pressed='true'] {
-  outline-color: var(--tangerine);
+.cvp-section--editable[aria-pressed='true']::before {
+  border-color: var(--tangerine);
   background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
 }
 
-.cvp-section--editable:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+.cvp-section--editable:focus-visible::before {
+  border: var(--focus-ring-width) solid var(--focus-ring-color);
   background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
 }
 
-/* The header's gap to the first section is fixed by the export, so its frame hugs it to stay clear of that section's title. */
-.cvp-header.cvp-section--editable { outline-offset: 0; }
-
-/* The tag sits on the dashed edge, clear of the title rule above. */
+/* The tag hangs from the frame's top-right corner, inside it: the right end of a section's first line is its
+   short title's empty space, so the tag never covers the paper's text or its neighbours. */
 .cvp-section--editable::after {
   content: 'Edit';
   position: absolute;
-  top: -14px;
-  right: 16px;
-  padding: 1pt 7pt;
+  top: calc(-1mm + 3px);
+  right: calc(var(--cvp-frame-x) * -1 + 6px);
+  padding: 0.5pt 6pt;
   border: 2px solid var(--ink);
   border-radius: var(--r-pill);
   background: var(--surface);
   box-shadow: var(--sh-1);
   color: var(--ink);
-  font: 700 9pt/1.4 var(--font-ui);
+  font: 700 8.5pt/1.3 var(--font-ui);
   opacity: 0;
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .cvp-section--editable:focus-visible::after { opacity: 1; }
+
+/* The header's first line is the name, which can run to the edge of a narrow column: its tag sits just above
+   the frame instead, in the page's empty top margin. */
+.cvp-header.cvp-section--editable::after {
+  top: auto;
+  bottom: calc(100% + 1mm + 3px);
+}
 
 .cvp-section--editable[aria-pressed='true']::after {
   content: 'Editing';
@@ -982,7 +1224,7 @@
 }
 
 @media print {
-  .cvp-section--editable { outline: none; background: none; }
+  .cvp-section--editable::before,
   .cvp-section--editable::after { content: none; }
 
   .cvs-bar,

@@ -16,7 +16,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => navigateMock,
-    Link: ({ to, children, ...props }: { to: string; children: React.ReactNode }) => (
+    Link: ({ to, children, activeOptions: _active, ...props }: { to: string; children: React.ReactNode; activeOptions?: unknown }) => (
       <a href={to} {...props}>{children}</a>
     ),
   }
@@ -94,6 +94,7 @@ describe('ToolResultScreen states', () => {
     getHistoryItemMock.mockRejectedValue(new ApiError('Not found', 404))
     renderScreen('run-1')
     expect(await screen.findByRole('heading', { level: 1, name: 'This saved result is no longer available' })).toBeTruthy()
+    expect(screen.getByText('It may have been deleted, or it belongs to another account.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Back to history' }).getAttribute('href')).toBe('/history')
     expect(screen.getByRole('link', { name: 'Run the tool again' }).getAttribute('href')).toBe('/resume')
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
@@ -113,6 +114,8 @@ describe('ToolResultScreen states', () => {
     getHistoryItemMock.mockRejectedValue(new ApiError('Not found', 404))
     renderScreen('resume-demo-9')
     expect(await screen.findByRole('heading', { name: 'This guest demo is no longer available' })).toBeTruthy()
+    // A demo id only ever lives in its tab: the server is never asked for it (no 401/404 in the console).
+    expect(getHistoryItemMock).not.toHaveBeenCalled()
     expect(screen.queryByText('Demo expired')).toBeNull()
     expect(screen.queryByText('Not found')).toBeNull()
     expect(screen.getByRole('link', { name: 'Run the tool again' })).toBeTruthy()
@@ -128,8 +131,23 @@ describe('ToolResultScreen states', () => {
     expect(regenerate.getAttribute('aria-expanded')).toBe('true')
     fireEvent.change(screen.getByLabelText('Re-generate feedback'), { target: { value: 'More numbers' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/resume?parent_run_id=run-1&feedback=More+numbers' }))
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/resume?parent_run_id=run-1' }))
+    // Free text stays out of the URL: it waits in this tab for the run it re-generates.
+    expect(JSON.parse(window.sessionStorage.getItem('career-workbench:workflow-context') ?? '{}').regenFeedback).toEqual({
+      parentRunId: 'run-1',
+      text: 'More numbers',
+    })
     expect(seedRegenerateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('fills in what the account has before a What next link opens the next tool', async () => {
+    getHistoryItemMock.mockResolvedValue(savedRun)
+    navigateMock.mockClear()
+    seedRegenerateMock.mockClear()
+    renderScreen('run-1')
+    fireEvent.click(await screen.findByRole('link', { name: 'Open Job Match' }))
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/job-match' }))
+    expect(seedRegenerateMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'run-1' }), 'job-match')
   })
 
   it('names the run in the header only when the label says more than the page already does', async () => {

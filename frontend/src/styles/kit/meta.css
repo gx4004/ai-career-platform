@@ -17,7 +17,9 @@
   color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
-  font-variant-numeric: var(--numeric-tabular);
+  /* Running text, not a column: Onest's tabular "1" leaves a gap that reads "1 2 runs". Tables, stats and score
+     bars keep tabular figures where they must align. */
+  font-variant-numeric: proportional-nums;
   list-style: none;
 }
 
@@ -128,8 +130,13 @@
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
   line-height: var(--lh-body);
-  font-variant-numeric: var(--numeric-tabular);
+  /* Values are mostly prose (emails, names, dates): Onest's tabular "1" would open a gap inside them. */
+  font-variant-numeric: proportional-nums;
   overflow-wrap: anywhere;
+}
+
+.kit-kv__value[data-numeric] {
+  font-variant-numeric: var(--numeric-tabular);
 }
 
 .kit-kv__value[data-mono] {

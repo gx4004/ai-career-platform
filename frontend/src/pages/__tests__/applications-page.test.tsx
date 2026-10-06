@@ -124,6 +124,14 @@ describe('ApplicationsPage', () => {
     expect(hint.closest('.kit-empty')?.getAttribute('data-variant')).toBe('slot')
   })
 
+  it('holds the Board/List switch in place, disabled, while the board loads, so nothing moves when it arrives', async () => {
+    api.listApplications.mockReturnValue(new Promise(() => undefined))
+    renderBoard()
+    expect(screen.getByText('Loading applications')).toBeTruthy()
+    const view = screen.getByRole('radiogroup', { name: 'View' })
+    expect(within(view).getAllByRole('radio').every((radio) => (radio as HTMLButtonElement).disabled)).toBe(true)
+  })
+
   it('waits like loading, without an error, while a signed-in browser cannot reach the server', async () => {
     session.status = 'unreachable'
     api.listApplications.mockRejectedValue(new ApiError('Network error', 0))
@@ -451,7 +459,7 @@ describe('Prepare applications for me', () => {
     expect(group.getByText('Remote')).toBeTruthy()
     expect(group.getByText('60%')).toBeTruthy()
     expect(group.getByLabelText('60%, 3 of 5 applications')).toBeTruthy()
-    expect(group.getByText('n=5')).toBeTruthy()
+    expect(group.getByText('of 5')).toBeTruthy()
     expect(group.getByText('Not enough data yet: On-site (2)')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Company' })).toBeNull()
   })

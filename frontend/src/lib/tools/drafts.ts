@@ -50,6 +50,12 @@ export type WorkflowContextState = {
   jobSource?: string
   /** "Staff Engineer at Northwind", from the re-generated run's application, for the "still needed" line. */
   jobLabel?: string
+  /**
+   * What a Re-generate asked to change, for the run it re-generates (`?parent_run_id=`). Free text that can
+   * hold personal details, so it stays in this tab instead of the URL (history, shared links, request logs).
+   * Cleared when the new run completes.
+   */
+  regenFeedback?: { parentRunId: string; text: string }
   resumeAnalysis?: ResumeResult
   jobMatch?: JobMatchResult
   careerResult?: CareerResult
@@ -121,6 +127,17 @@ export function writeWorkflowContext(
     ...current,
     ...update,
   })
+}
+
+/** The feedback a Re-generate of `parentRunId` carries in this tab, if any. Never throws. */
+export function readRegenFeedback(parentRunId: string | null | undefined): string | undefined {
+  if (!parentRunId) return undefined
+  try {
+    const stored = readWorkflowContext()?.regenFeedback
+    return stored?.parentRunId === parentRunId && stored.text.trim() ? stored.text.trim() : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function clearWorkflowContext(): void {

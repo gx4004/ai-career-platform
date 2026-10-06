@@ -9,8 +9,14 @@ body {
   box-sizing: border-box;
 }
 
-html {
-  overflow-x: clip; /* prevents horizontal scroll without creating a scroll container (safe for position:sticky) */
+/*
+ * No horizontal scroll, without creating a scroll container (safe for position: sticky). It sits on body, not
+ * html: with html left `visible`, body's overflow is handed to the viewport, so when a dialog's scroll lock sets
+ * `body { overflow: hidden }` the viewport stops scrolling and the sticky sidebar stays put. On html it made body
+ * its own (unscrolled) scroll container and the sidebar slid away behind every dialog opened while scrolled.
+ */
+body {
+  overflow-x: clip;
 }
 
 @media (prefers-reduced-motion: no-preference) {

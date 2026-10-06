@@ -2,7 +2,7 @@ import { Link, useCanGoBack, useRouter } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { StatePage } from '#/components/app/AppStatePanel'
 import { openCommandPalette } from '#/components/app/CommandPalette'
-import { Button, Kbd, List, Page, Row, RowBody, RowSubtitle, RowTitle, Section } from '#/components/kit'
+import { Button, Kbd, List, Page, Row, RowBody, RowLeading, RowSubtitle, RowTitle, Section, ToolTile } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { toolList } from '#/lib/tools/registry'
 
@@ -50,6 +50,9 @@ export function AppNotFound() {
         <List aria-label="Tools">
           {toolList.map((tool) => (
             <Row key={tool.id}>
+              <RowLeading>
+                <ToolTile tone={tool.tone} icon={tool.icon} size="md" />
+              </RowLeading>
               <RowBody>
                 <RowTitle asChild>
                   <Link to={tool.route}>{tool.label}</Link>

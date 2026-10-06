@@ -63,8 +63,8 @@ export function CvOutline({ sections, activeId, editor, header, documentName, he
         <RowLeading className="cvs-sec__grip cvs-sec__grip--static" aria-hidden="true"><UserRound /></RowLeading>
         <RowBody>
           {headerOpen
-            ? <RowTitle>Header</RowTitle>
-            : <RowTitle asChild><button type="button" onClick={onOpenHeader}>Header</button></RowTitle>}
+            ? <RowTitle size="lg">Header</RowTitle>
+            : <RowTitle size="lg" asChild><button type="button" onClick={onOpenHeader}>Header</button></RowTitle>}
           <RowSubtitle>{describeHeader(header, documentName ?? '')}</RowSubtitle>
         </RowBody>
         <RowActions reveal={false}>
@@ -84,7 +84,7 @@ export function CvOutline({ sections, activeId, editor, header, documentName, he
       {sections.length === 0 && !headerRow ? (
         <EmptyState size="inline" title="No sections yet. Add your first one below." />
       ) : (
-        <List framed={false} aria-label="Sections in your CV">
+        <List framed={false} className="cvs-outline" aria-label="Sections in your CV">
           {headerRow}
           {sections.map((section, index) => {
             const name = nameOf(section)
@@ -116,8 +116,8 @@ export function CvOutline({ sections, activeId, editor, header, documentName, he
                   <RowLeading className="cvs-sec__grip" aria-hidden="true"><GripVertical /></RowLeading>
                   <RowBody>
                     {open
-                      ? <RowTitle>{name}</RowTitle>
-                      : <RowTitle asChild><button type="button" onClick={() => onOpen(section.id)}>{name}</button></RowTitle>}
+                      ? <RowTitle size="lg">{name}</RowTitle>
+                      : <RowTitle size="lg" asChild><button type="button" onClick={() => onOpen(section.id)}>{name}</button></RowTitle>}
                     <RowSubtitle>{count}</RowSubtitle>
                   </RowBody>
                   <RowActions reveal={false}>

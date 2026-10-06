@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import { ApiError } from '#/lib/api/errors'
 import { ApplicationPage } from '../ApplicationPage'
 
@@ -56,7 +57,13 @@ const applied = {
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(<QueryClientProvider client={client}><ApplicationPage applicationId="app-1" /></QueryClientProvider>)
+  return render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>
+        <ApplicationPage applicationId="app-1" />
+      </ToastProvider>
+    </QueryClientProvider>,
+  )
 }
 const applyPanel = async () => {
   await screen.findByRole('heading', { name: /Get this application ready|question|Ready to apply|You applied/ })
@@ -186,7 +193,42 @@ describe('ApplicationPage', () => {
     api.prepareApplication.mockRejectedValue(new ApiError('Create a CV in CV Studio before preparing applications.', 409))
     renderPage()
     fireEvent.click(within(await applyPanel()).getByRole('button', { name: /Prepare application/ }))
-    expect((await screen.findByRole('alert')).textContent).toBe('Create a CV in CV Studio before preparing applications.')
+    // The apply panel's own alert (the toast region is an empty alert too).
+    const alert = await within(await applyPanel()).findByRole('alert')
+    expect(alert.textContent).toContain('Create a CV in CV Studio before preparing applications.')
+    expect(within(alert).getByRole('link', { name: 'Open CV Studio' }).getAttribute('href')).toBe('/cv-studio')
+  })
+
+  it('sends someone without a CV to CV Studio instead of offering a Prepare that can only fail', async () => {
+    api.getApplication.mockResolvedValue({ ...saved, available_materials: { ...saved.available_materials, cv_variants: [] } })
+    renderPage()
+    const panel = await applyPanel()
+    expect(within(panel).queryByRole('button', { name: /Prepare application/ })).toBeNull()
+    expect(within(panel).getByText('You need a CV first')).toBeTruthy()
+    expect(within(panel).getByRole('link', { name: 'Open CV Studio' }).getAttribute('href')).toBe('/cv-studio')
+  })
+
+  it('does not run the document checks until a CV version or cover letter is picked', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    const { unmount } = renderPage()
+    expect(((await screen.findByRole('button', { name: 'Run the checks' })) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByTestId('checks-idle').textContent).toBe('Pick a CV version or cover letter above to check them.')
+    unmount()
+    api.getApplication.mockResolvedValue({ ...saved, selected_materials: { ...saved.selected_materials, cv_variant: saved.available_materials.cv_variants[0] } })
+    renderPage()
+    expect(((await screen.findByRole('button', { name: 'Run the checks' })) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('says a missing application may be deleted, but offers a retry for any other failure', async () => {
+    api.getApplication.mockRejectedValue(new ApiError('Not found', 404))
+    const { unmount } = renderPage()
+    expect((await screen.findByText('It may have been deleted.'))).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    unmount()
+    api.getApplication.mockRejectedValue(new ApiError('Internal Server Error', 500))
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(screen.queryByText('It may have been deleted.')).toBeNull()
   })
 
   it('offers the Autopilot fill only when the experiment is on, and never before questions are answered', async () => {
@@ -243,7 +285,8 @@ describe('ApplicationPage', () => {
       message: 'The employer’s page says this job is no longer there.', next_step: 'Open the apply page yourself.',
     })
     renderPage()
-    const alert = await screen.findByRole('alert')
+    // The apply panel's own alert (the toast region is an empty alert too).
+    const alert = await within(await applyPanel()).findByRole('alert')
     expect(alert.textContent).toContain('no longer there')
     expect(alert.textContent).toContain('Open the apply page yourself.')
   })
