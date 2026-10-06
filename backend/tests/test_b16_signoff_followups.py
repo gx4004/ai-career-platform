@@ -589,3 +589,35 @@ def test_fix_demo_data_repairs_an_already_seeded_account(db, test_user):
         assert all(workspace.applied_at < moved for moved in later), workspace.label
     assert db.get(type(test_user), test_user.id).full_name == "Alex Morgan"
     assert fix_demo_data.repair(db, test_user.email, apply=True) == []
+
+
+# --- HANDOFF-2 §6: a quote in the cover-letter headline never stops mid-word ---------------
+
+# 132 characters: longer than the headline's 110-character quote budget, and a plain cut at that budget lands inside "the".
+LONG_FACT = (
+    "Cut p95 latency on the ingestion API from 900 ms to 210 ms by redesigning the retry queue "
+    "and partitioning the hot PostgreSQL tables"
+)
+LONG_FACT_RESUME = f"""Alex Morgan
+Backend Engineer
+Experience
+- {LONG_FACT}.
+- Mentored two engineers through their first on-call rotation.
+Skills
+Python, PostgreSQL, Kubernetes
+"""
+
+
+def test_cover_letter_headline_quotes_whole_words(client, auth_headers):
+    data = _post(
+        client,
+        auth_headers,
+        "/cover-letter/generate",
+        {"resume_text": LONG_FACT_RESUME, "job_description": "Backend Engineer at Northwind Labs\nPython and PostgreSQL."},
+    )
+    quote = _quotes(data["summary"]["headline"])[0]
+    assert quote.endswith("…"), quote
+    kept = quote[:-1]
+    assert LONG_FACT.startswith(kept)
+    assert LONG_FACT[len(kept)] == " ", f"cut mid-word: {quote!r}"
+    assert len(kept) > 70  # a normal bullet is quoted nearly whole, not cut at the old 70 characters

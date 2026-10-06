@@ -164,8 +164,14 @@ def _feedback(user_prompt: str) -> str:
 
 
 def _trim(text: str, limit: int = 140) -> str:
+    """Shorten to `limit` characters with an ellipsis, cutting at the last space so a quote does not stop mid-word."""
     text = " ".join(text.split())
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 1]
+    if text[limit - 1] != " " and " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:") + "…"
 
 
 def _join(items: list[str], limit: int = 3) -> str:
@@ -1162,7 +1168,7 @@ def _cover_letter(system_prompt: str, user_prompt: str) -> dict:
             note = f'Revised with your feedback in mind: "{_trim(feedback, 100)}".'
         notes.insert(0, {"category": "tone", "note": note, "requirements_used": [], "source": "resume"})
 
-    lead_fact = _trim(_top_resume_fact(resume), 70)
+    lead_fact = _trim(_top_resume_fact(resume), 110)
     return {
         "schema_version": "quality_v2",
         "summary": {

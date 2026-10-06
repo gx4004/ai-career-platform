@@ -9,7 +9,7 @@ let sessionStatus: 'guest' | 'authenticated' = 'guest'
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
-  Link: ({ to, children, ...props }: { to: string; children: React.ReactNode }) => (
+  Link: ({ to, search: _search, children, ...props }: { to: string; search?: unknown; children: React.ReactNode }) => (
     <a href={to} {...props}>
       {children}
     </a>

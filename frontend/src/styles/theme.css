@@ -185,6 +185,7 @@
   --touch-target: 44px;
   --mobile-tab-height: 70px; /* floating tab tray: 56px item + 2 x 5px padding + 2 x 2px border */
   --mobile-tab-offset: 10px; /* tray floats this far above the bottom edge */
+  --phone-header-h: calc(var(--touch-target) + 2 * var(--s3) + var(--bw)); /* sticky phone app bar: 44px control + 12px padding each side + 2px rule; what scroll targets clear */
 
   /* ── Layout ───────────────────────────────────────────────────────── */
   --sidebar-w: 264px;

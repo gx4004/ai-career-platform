@@ -510,16 +510,31 @@ def test_sanitiser_unicode_whitespace_runs_stay_linear():
     assert time.perf_counter() - started < 1.5
 
 
-async def test_application_review_without_a_cv_still_returns_findings(
+async def test_application_review_without_a_cv_or_letter_is_refused_plainly(
     aclient, db, test_user, auth_headers, fake_provider
 ):
+    # Was: scored two empty documents ("almost empty" findings). Nothing chosen to send is now a plain 409
+    # that says what to do (the page disables the check in that case too); never the pipeline's 422 or a 500.
     from tests.test_applications import make_application
 
     workspace = make_application(db, test_user.id, cv=False)
     response = await aclient.post(
         f"{PREFIX}/applications/{workspace.id}/review", headers=auth_headers
     )
-    assert response.status_code == 200
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Pick a CV version or cover letter before checking"
+
+
+async def test_application_review_with_only_a_letter_still_flags_the_missing_cv(
+    aclient, db, test_user, auth_headers, fake_provider
+):
+    from tests.test_applications import make_application
+
+    workspace = make_application(db, test_user.id, cv=False, drafts=True)
+    response = await aclient.post(
+        f"{PREFIX}/applications/{workspace.id}/review", headers=auth_headers
+    )
+    assert response.status_code == 200, response.text
     findings = " ".join(str(f) for f in response.json()["findings"]).lower()
     assert "almost empty" in findings
 

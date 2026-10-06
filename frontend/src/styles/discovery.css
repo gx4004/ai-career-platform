@@ -210,6 +210,6 @@
 
 @media (max-width: 639px) {
   .disc-results {
-    scroll-margin-top: calc(var(--touch-target) + 2 * var(--s3) + var(--bw) + var(--s4));
+    scroll-margin-top: calc(var(--phone-header-h) + var(--s4));
   }
 }
