@@ -281,7 +281,9 @@ export function CvStudio() {
     if (!(await reloadNewer())) setActionError('We couldn’t load the newer version just now. Your CV hasn’t changed.')
   }
 
-  if (status === 'loading') return <StudioSkeleton />
+  // 'unreachable' is a signed-in browser that cannot reach the server, not a guest: keep the skeleton (the
+  // shell's service banner explains the outage) instead of offering sign-in.
+  if (status === 'loading' || status === 'unreachable') return <StudioSkeleton />
   if (!authenticated) {
     return (
       <Page>

@@ -238,6 +238,24 @@
   }
 }
 
+/* Narrow phones (320): the stamp, the tally and Add no longer fit on one line and the nowrap tally would run under
+   the button; the tally takes its own line under the title and Add the line under it (as on Discover). */
+@container kit-list (max-width: 22.4375rem) {
+  .kit-row.dash-match:has(> .kit-row__actions) > .kit-row__leading {
+    grid-row: 1 / span 3;
+  }
+
+  .kit-row.dash-match:has(> .kit-row__actions) > .kit-row__meta {
+    grid-column: 2 / -1;
+  }
+
+  .kit-row.dash-match > .kit-row__actions {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+}
+
 /* ── Pipeline: a bar per stage, proportional to the busiest stage ────────────────────────── */
 
 /* Mark, name and bar always share one line: the rail is narrow, the name is short. */
@@ -245,14 +263,23 @@
   flex-wrap: nowrap;
 }
 
+/* A stage name is one word and never breaks ("Interviewing" at 320). */
 .dash-pipeline .kit-row__body {
   flex-basis: 0;
+  min-inline-size: max-content;
 }
 
 .kit-row__meta.dash-bar-col {
   flex: none;
   inline-size: 112px;
   text-align: start;
+}
+
+/* Narrow phones (320): every bar column narrows by the same amount, so equal counts still draw equal bars. */
+@container kit-list (max-width: 19.9375rem) {
+  .kit-row__meta.dash-bar-col {
+    inline-size: 72px;
+  }
 }
 
 .dash-bar {

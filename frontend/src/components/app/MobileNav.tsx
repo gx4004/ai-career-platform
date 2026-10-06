@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { LayoutGrid, LogIn } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 import { toolList } from '#/lib/tools/registry'
@@ -49,8 +48,7 @@ function TabLink({
 
 export function MobileNav() {
   const [moreOpen, setMoreOpen] = useState(false)
-  const { user, openAuthDialog } = useSession()
-  const bp = useBreakpoint()
+  const { status, user, openAuthDialog } = useSession()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
@@ -60,8 +58,12 @@ export function MobileNav() {
     setMoreOpen(false)
   }, [pathname])
 
-  // Only on phones, and not on public routes (landing, standalone login).
-  if (bp !== 'mobile' || isPublicRoute(pathname)) return null
+  // Not on public routes (landing, standalone login). Which widths get the tray is the shell's choice
+  // (AppShell, and styles/shell.css before the page knows its width).
+  if (isPublicRoute(pathname)) return null
+  // Until the session answers (or while a signed-in browser cannot reach the server) the two account-
+  // dependent tabs hold their place, so a signed-in person never sees the guest tabs flash first.
+  const resolving = status === 'loading' || status === 'unreachable'
 
   const isActive = (path: string) => pathname.startsWith(path)
   const isMoreActive =
@@ -75,7 +77,12 @@ export function MobileNav() {
       <nav className="app-tabbar" aria-label="Main navigation">
         <TabLink to="/dashboard" icon={dashboardDestination.icon} label="Home" active={isActive('/dashboard')} />
 
-        {user ? (
+        {resolving ? (
+          <>
+            <span className="app-tabbar__item app-tabbar__placeholder" aria-hidden="true" />
+            <span className="app-tabbar__item app-tabbar__placeholder" aria-hidden="true" />
+          </>
+        ) : user ? (
           <>
             <TabLink to="/discovery" icon={discover.icon} label={discover.label} active={isActive('/discovery')} />
             <TabLink

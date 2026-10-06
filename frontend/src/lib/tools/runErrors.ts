@@ -2,9 +2,9 @@ import { ApiError } from '#/lib/api/errors'
 import type { ToolDefinition } from '#/lib/tools/registry'
 
 export function getToolRunError(tool: ToolDefinition, error: unknown): Error {
-  const isProviderFailure =
-    (error instanceof ApiError && error.status >= 500) ||
-    (error instanceof TypeError && error.message === 'Failed to fetch')
+  // The API client turns a dropped connection or a timeout into ApiError status 0 (it never surfaces the
+  // browser's raw "Failed to fetch" TypeError), so status 0 is the network case.
+  const isProviderFailure = error instanceof ApiError && (error.status >= 500 || error.status === 0)
 
   if (
     tool.providerFailureMode === 'explicit_error' &&

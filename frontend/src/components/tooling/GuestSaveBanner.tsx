@@ -20,7 +20,9 @@ export function GuestSaveBanner() {
     }
   }, [])
 
-  if (status === 'authenticated' || dismissed) return null
+  // Only a known guest is told their runs are not saved: not while the session resolves (a signed-in
+  // person would see it flash), and not when a signed-in browser cannot reach the server.
+  if (status !== 'guest' || dismissed) return null
 
   const dismiss = () => {
     try {

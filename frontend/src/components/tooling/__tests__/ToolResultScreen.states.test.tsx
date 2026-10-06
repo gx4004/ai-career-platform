@@ -9,7 +9,7 @@ const getHistoryItemMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const setFavoriteMock = vi.hoisted(() => vi.fn())
-let sessionStatus: 'guest' | 'authenticated' = 'authenticated'
+let sessionStatus: 'guest' | 'authenticated' | 'loading' = 'authenticated'
 
 vi.mock('@tanstack/react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-router')>()
@@ -28,6 +28,11 @@ vi.mock('#/lib/telemetry/client', () => ({ trackTelemetry: vi.fn() }))
 // Re-generate first fills in what the account has (a network lookup); here it has nothing to add.
 const seedRegenerateMock = vi.hoisted(() => vi.fn(async () => undefined))
 vi.mock('#/lib/tools/regenerateSeed', () => ({ seedRegenerate: seedRegenerateMock }))
+const exportPdfMock = vi.hoisted(() => vi.fn())
+vi.mock('#/lib/tools/exports', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/tools/exports')>()),
+  exportPdf: exportPdfMock,
+}))
 
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
@@ -35,7 +40,7 @@ vi.mock('#/lib/api/client', async (importOriginal) => ({
   setHistoryFavorite: setFavoriteMock,
 }))
 
-function renderScreen(historyId: string, toolId: 'resume' | 'job-match' = 'resume') {
+function renderScreen(historyId: string, toolId: 'resume' | 'job-match' | 'cover-letter' = 'resume') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -215,6 +220,71 @@ describe('ToolResultScreen states', () => {
     const next = screen.getByRole('list', { name: 'What next' })
     expect(next.textContent).toContain('Compare it to a role')
     expect(screen.getByText('Directional.')).toBeTruthy()
+  })
+
+  it('sends a guest who opens a saved result link to sign in, coming back to the same result', async () => {
+    sessionStatus = 'guest'
+    getHistoryItemMock.mockRejectedValue(new ApiError('Not authenticated', 401))
+    renderScreen('run-1')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sign in to open this result' })).toBeTruthy()
+    expect(openAuthDialogMock).toHaveBeenCalledTimes(1)
+    expect(openAuthDialogMock).toHaveBeenCalledWith({ to: window.location.pathname, reason: 'open-result' })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(openAuthDialogMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not send a signed-in person to sign in for a deleted run', async () => {
+    getHistoryItemMock.mockRejectedValue(new ApiError('Not found', 404))
+    renderScreen('run-1')
+    expect(await screen.findByRole('heading', { name: 'This saved result is no longer available' })).toBeTruthy()
+    expect(openAuthDialogMock).not.toHaveBeenCalled()
+  })
+
+  it('says so on the page when copying fails, and tries again', async () => {
+    const writeText = vi.fn().mockRejectedValueOnce(new DOMException('Document is not focused.', 'NotAllowedError')).mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    getHistoryItemMock.mockResolvedValue(savedRun)
+    renderScreen('run-1')
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy result to clipboard' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('did not let us copy')
+    expect(alert.textContent).not.toContain('Document is not focused')
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('button', { name: 'Copied to clipboard' })).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(writeText).toHaveBeenCalledTimes(2)
+  })
+
+  it('says so on the page when the PDF cannot be made, and tries again', async () => {
+    exportPdfMock.mockRejectedValueOnce(new ApiError('Render failed', 503)).mockResolvedValue(undefined)
+    const paragraph = { text: 'Paragraph.', why_this_paragraph: 'Why.', requirements_used: [], evidence_used: [] }
+    getHistoryItemMock.mockResolvedValue({
+      ...savedRun,
+      tool_name: 'cover-letter',
+      result_payload: {
+        schema_version: '1',
+        summary: savedRun.result_payload.summary,
+        top_actions: [],
+        generated_at: '2026-10-03T10:00:00Z',
+        download_title: 'Letter',
+        exportable_sections: [],
+        opening: paragraph,
+        body_points: [paragraph],
+        closing: paragraph,
+        full_text: 'Paragraph.',
+        sign_off: '',
+      },
+    })
+    renderScreen('run-1', 'cover-letter')
+    const trigger = await screen.findByRole('button', { name: 'Export result' })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'PDF' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('The PDF could not be made.')
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(exportPdfMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   })
 
   it('steps Re-generate back to secondary while interview practice mode is open', async () => {

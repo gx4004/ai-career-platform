@@ -1,5 +1,6 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
+import { ResetPasswordPage } from '#/pages/reset-password-page'
 
 const searchSchema = z.object({
   token: z.string().optional(),
@@ -10,5 +11,5 @@ export const Route = createFileRoute('/reset-password')({
   head: () => ({
     meta: [{ title: 'Reset Password | Career Workbench' }],
   }),
-  component: lazyRouteComponent(() => import('#/pages/reset-password-page'), 'ResetPasswordPage'),
+  component: ResetPasswordPage,
 })

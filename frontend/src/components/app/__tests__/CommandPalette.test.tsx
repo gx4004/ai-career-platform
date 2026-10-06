@@ -55,12 +55,13 @@ describe('CommandPalette', () => {
     sessionUser.current = { id: 'u1', email: 'a@example.com', is_admin: false }
   })
 
-  it('opens with ⌘K and jumps to the highlighted page on Enter', () => {
+  it('opens with ⌘K and jumps to the highlighted page on Enter', async () => {
     renderPalette()
     expect(screen.queryByRole('combobox')).toBeNull()
 
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
-    const input = screen.getByRole('combobox', { name: 'Search' })
+    // The dialog is its own chunk, loaded on first open.
+    const input = await screen.findByRole('combobox', { name: 'Search' })
     fireEvent.change(input, { target: { value: 'disc' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -102,11 +103,11 @@ describe('CommandPalette', () => {
     expect(within(screen.getByRole('group', { name: 'Applications' })).getByRole('option', { name: /Harbor Health/ })).toBeTruthy()
   })
 
-  it('moves the active option with the arrow keys and announces it through aria-activedescendant', () => {
+  it('moves the active option with the arrow keys and announces it through aria-activedescendant', async () => {
     renderPalette()
     act(() => openCommandPalette())
 
-    const input = screen.getByRole('combobox', { name: 'Search' })
+    const input = await screen.findByRole('combobox', { name: 'Search' })
     const first = screen.getAllByRole('option')[0]
     expect(first.getAttribute('aria-selected')).toBe('true')
     expect(input.getAttribute('aria-activedescendant')).toBe(first.id)
@@ -118,20 +119,20 @@ describe('CommandPalette', () => {
     expect(first.getAttribute('aria-selected')).toBe('false')
   })
 
-  it('opens an option on click and closes', () => {
+  it('opens an option on click and closes', async () => {
     renderPalette()
     act(() => openCommandPalette())
 
-    fireEvent.click(screen.getByRole('option', { name: /Profile/ }))
+    fireEvent.click(await screen.findByRole('option', { name: /Profile/ }))
     expect(navigate).toHaveBeenCalledWith({ to: '/profile' })
     expect(screen.queryByRole('combobox')).toBeNull()
   })
 
-  it('says so when nothing matches, without an empty listbox', () => {
+  it('says so when nothing matches, without an empty listbox', async () => {
     renderPalette()
     act(() => openCommandPalette())
 
-    const input = screen.getByRole('combobox', { name: 'Search' })
+    const input = await screen.findByRole('combobox', { name: 'Search' })
     fireEvent.change(input, { target: { value: 'zzzqqq' } })
 
     expect(screen.getByRole('status').textContent).toContain('No results for “zzzqqq”')
@@ -139,10 +140,10 @@ describe('CommandPalette', () => {
     expect(input.getAttribute('aria-controls')).toBeNull()
   })
 
-  it('closes on Escape and clears the query for next time', () => {
+  it('closes on Escape and clears the query for next time', async () => {
     renderPalette()
     act(() => openCommandPalette())
-    fireEvent.change(screen.getByRole('combobox', { name: 'Search' }), { target: { value: 'hist' } })
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Search' }), { target: { value: 'hist' } })
 
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search' }), { key: 'Escape' })
     expect(screen.queryByRole('combobox')).toBeNull()
@@ -178,12 +179,12 @@ describe('CommandPalette', () => {
     expect(navigate).toHaveBeenCalledWith({ to: '/resume/result/run-1' })
   })
 
-  it('offers Sign in instead of Sign out to guests', () => {
+  it('offers Sign in instead of Sign out to guests', async () => {
     sessionUser.current = null
     renderPalette()
     act(() => openCommandPalette())
 
-    const actions = screen.getByRole('group', { name: 'Actions' })
+    const actions = await screen.findByRole('group', { name: 'Actions' })
     expect(within(actions).getByRole('option', { name: /Sign in/ })).toBeTruthy()
     expect(within(actions).queryByRole('option', { name: /Sign out/ })).toBeNull()
   })

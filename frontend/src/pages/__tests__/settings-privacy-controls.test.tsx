@@ -7,6 +7,7 @@ import { SettingsPage } from '#/pages/settings-page'
 import { EVIDENCE_QUERY_KEY } from '#/lib/profile/evidence'
 
 const api = vi.hoisted(() => ({
+  getHealth: vi.fn(),
   deleteAccount: vi.fn(),
   deleteEvidenceProfile: vi.fn(),
   exportCareerData: vi.fn(),
@@ -22,7 +23,6 @@ vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({
     status: 'authenticated',
     user: { email: 'owner@example.com' },
-    health: { status: 'ok', service: 'API', environment: 'test' },
   }),
 }))
 vi.mock('#/hooks/useOnboarding', () => ({
@@ -76,6 +76,7 @@ function renderPage({ warmEvidenceConsumers = false } = {}) {
 
 describe('Settings privacy controls', () => {
   beforeEach(() => {
+    api.getHealth.mockReset().mockResolvedValue({ status: 'ok' })
     api.exportCareerData.mockReset().mockResolvedValue({
       schema_version: 'career-data-export/v1',
     })
@@ -141,9 +142,26 @@ describe('Settings privacy controls', () => {
 describe('Settings page structure', () => {
   beforeEach(() => {
     api.deleteAccount.mockReset().mockResolvedValue(undefined)
+    api.getHealth.mockReset().mockResolvedValue({ status: 'ok', service: 'API', environment: 'test' })
   })
 
-  it('groups the rows under two headings, each row a title with its explanation and one control', () => {
+  it('checks the connection itself: checking, then connected or not', async () => {
+    let answer: (value: unknown) => void = () => {}
+    api.getHealth.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+    renderPage()
+    const general = within(screen.getByRole('list', { name: 'General' }))
+    expect(general.getByText('Checking…')).toBeTruthy()
+    answer({ status: 'ok' })
+    expect(await general.findByText('Connected')).toBeTruthy()
+  })
+
+  it("says it can't reach the server when the health check fails", async () => {
+    api.getHealth.mockRejectedValueOnce(new Error('offline'))
+    renderPage()
+    expect(await within(screen.getByRole('list', { name: 'General' })).findByText("Can't reach the server")).toBeTruthy()
+  })
+
+  it('groups the rows under two headings, each row a title with its explanation and one control', async () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy()
     for (const name of ['General', 'Data and privacy']) {
@@ -152,7 +170,7 @@ describe('Settings page structure', () => {
     const general = within(screen.getByRole('list', { name: 'General' }))
     expect(general.getByRole('button', { name: 'Replay tour' })).toBeTruthy()
     expect(general.getByRole('link', { name: 'Open timeline' })).toBeTruthy()
-    expect(general.getByText('Connected')).toBeTruthy()
+    expect(await general.findByText('Connected')).toBeTruthy()
   })
 
   it('offers both deletions as quiet buttons; the loud destructive button is only the one that confirms', () => {

@@ -49,7 +49,9 @@ async function register(page: import('@playwright/test').Page, prefix: string) {
   await page.locator('#register-password').fill('correct-horse-battery-staple')
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
-  await expect(page.getByRole('heading', { name: "You're already signed in" })).toBeVisible()
+  // A new account is welcomed, then the page moves on by itself to the dashboard (no pending destination here).
+  await expect(page.getByRole('heading', { name: 'Your account is ready' })).toBeVisible()
+  await expect(page).toHaveURL(/\/dashboard$/)
 }
 
 test('guest resume result stays transient after account creation', async ({ page }) => {

@@ -1,11 +1,9 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { AdminRunsPage } from '#/pages/admin/admin-runs-page'
 
 export const Route = createFileRoute('/admin/runs')({
   head: () => ({
     meta: [{ title: 'Runs | Admin | Career Workbench' }],
   }),
-  component: lazyRouteComponent(
-    () => import('#/pages/admin/admin-runs-page'),
-    'AdminRunsPage',
-  ),
+  component: AdminRunsPage,
 })

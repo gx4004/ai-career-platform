@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from '#/components/app/AppShell'
 
 const mockPathname = vi.hoisted(() => ({ current: '/' }))
-const mockBreakpoint = vi.hoisted(() => ({ current: 'desktop' }))
+const mockBreakpoint = vi.hoisted(() => ({ current: 'desktop' as string | null }))
 
 vi.mock('@tanstack/react-router', () => ({
   useRouterState: ({
@@ -22,7 +22,7 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
-vi.mock('#/hooks/use-breakpoint', () => ({ useBreakpoint: () => mockBreakpoint.current }))
+vi.mock('#/hooks/use-breakpoint', () => ({ useKnownBreakpoint: () => mockBreakpoint.current }))
 
 vi.mock('#/components/app/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -48,8 +48,8 @@ vi.mock('#/components/app/CommandPalette', () => ({
   CommandPalette: () => <div data-testid="command-palette" />,
 }))
 
-vi.mock('#/components/auth/AuthDialog', () => ({
-  AuthDialog: () => <div data-testid="auth-dialog" />,
+vi.mock('#/components/app/AuthDialogMount', () => ({
+  AuthDialogMount: () => <div data-testid="auth-dialog" />,
 }))
 
 vi.mock('#/components/ui/sidebar', () => ({
@@ -239,6 +239,46 @@ describe('AppShell', () => {
       </AppShell>,
     )
 
+    expect(screen.queryByTestId('app-sidebar')).toBeNull()
+    expect(screen.getByTestId('topbar')).toBeTruthy()
+    expect(screen.getByTestId('mobile-nav')).toBeTruthy()
+  })
+
+  it('renders every layout part while the width is unknown (server render, hydration), for CSS to pick', () => {
+    mockPathname.current = '/dashboard'
+    mockBreakpoint.current = null
+
+    render(
+      <AppShell>
+        <div data-testid="page-child" />
+      </AppShell>,
+    )
+
+    expect(screen.getByTestId('app-sidebar')).toBeTruthy()
+    expect(screen.getByTestId('topbar')).toBeTruthy()
+    expect(screen.getByTestId('mobile-nav')).toBeTruthy()
+    // Desktop is the default until a width is known (tablets start as a rail only once measured).
+    expect(screen.getByTestId('sidebar-provider').getAttribute('data-default-open')).toBe('true')
+  })
+
+  it('keeps the page mounted when the width becomes known (no remount on a phone after hydration)', () => {
+    mockPathname.current = '/dashboard'
+    mockBreakpoint.current = null
+    const { rerender } = render(
+      <AppShell>
+        <div data-testid="page-child" />
+      </AppShell>,
+    )
+    const before = screen.getByTestId('page-child')
+
+    mockBreakpoint.current = 'mobile'
+    rerender(
+      <AppShell>
+        <div data-testid="page-child" />
+      </AppShell>,
+    )
+
+    expect(screen.getByTestId('page-child')).toBe(before)
     expect(screen.queryByTestId('app-sidebar')).toBeNull()
     expect(screen.getByTestId('topbar')).toBeTruthy()
     expect(screen.getByTestId('mobile-nav')).toBeTruthy()

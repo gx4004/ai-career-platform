@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   items: [] as unknown[],
   total: 0,
   isError: false,
+  status: 'authenticated' as string,
 }))
 
 const baseRun = {
@@ -39,12 +40,13 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 vi.mock('#/hooks/useSession', () => ({
-  useSession: () => ({ status: 'authenticated', openAuthDialog: vi.fn() }),
+  useSession: () => ({ status: state.status, openAuthDialog: vi.fn() }),
 }))
 vi.mock('#/hooks/useFavoriteToggle', () => ({
   useFavoriteToggle: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 vi.mock('#/hooks/useHistory', () => ({
+  HISTORY_PAGE_SIZE: 10,
   useHistory: () => ({
     data: { items: state.items, total: state.total, page: 1, page_size: 10, has_more: false },
     isPending: false,
@@ -73,9 +75,24 @@ describe('HistoryPage', () => {
     state.items = [baseRun]
     state.total = 1
     state.isError = false
+    state.status = 'authenticated'
     updateHistoryItemMock.mockReset().mockResolvedValue({ ...baseRun, label: 'Renamed' })
     deleteHistoryItemMock.mockReset().mockResolvedValue(undefined)
     refetchMock.mockReset()
+  })
+
+  it('asks a known guest to sign in', () => {
+    state.status = 'guest'
+    renderPage()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+  })
+
+  it.each(['loading', 'unreachable'])('never shows the guest prompt while the session is %s', (status) => {
+    state.status = status
+    renderPage()
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    expect(screen.queryByText('Pick up where you left off')).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: 'History' })).toBeTruthy()
   })
 
   it('shows the page title with the run count', () => {

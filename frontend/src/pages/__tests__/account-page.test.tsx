@@ -75,6 +75,13 @@ describe('Account page', () => {
     expect(screen.queryByText('details card')).toBeNull()
   })
 
+  it.each(['loading', 'unreachable'])('holds a placeholder, not the sign-in prompt, while the session is %s', (status) => {
+    renderPage({ status, user: null })
+    expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeTruthy()
+    expect(screen.getByRole('status', { name: 'Loading your account' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+  })
+
   it('shows the member-since date with its year', () => {
     renderPage({})
     expect(screen.getByText(/^Member since .*2026$/)).toBeTruthy()

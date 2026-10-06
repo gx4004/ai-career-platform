@@ -33,8 +33,9 @@ export function AppSidebar() {
   const { state } = useSidebar()
   const collapsed = state === 'collapsed'
   // While the session resolves we do not know yet whether Discover and Applications belong here: a guest
-  // set that swaps a moment later reads as being signed out, so those two rows are placeholders.
-  const resolving = status === 'loading'
+  // set that swaps a moment later reads as being signed out, so those two rows are placeholders. The same
+  // while a signed-in browser cannot reach the server ('unreachable'): it is not a guest.
+  const resolving = status === 'loading' || status === 'unreachable'
   const group = (id: string) => navGroups.find((candidate) => candidate.id === id)?.destinations ?? []
   // Job search stays owner-only. The rest renders for guests too.
   const you = group('you')

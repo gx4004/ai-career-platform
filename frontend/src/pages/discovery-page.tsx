@@ -48,8 +48,6 @@ import {
 import {
   adoptDiscoveryRecommendation,
   dismissDiscoveryRecommendation,
-  getDiscoveryListing,
-  searchDiscoveryListings,
   startDiscoveryDeepMatch,
   undismissDiscoveryRecommendation,
 } from '#/lib/api/client'
@@ -60,25 +58,15 @@ import { hiddenJobsQuery } from '#/components/discovery/hiddenJobs'
 import { FitReasons, JobMeta, SkillTally } from '#/components/discovery/JobParts'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { invalidateApplications } from '#/lib/query/applicationCaches'
+import {
+  DISCOVERY_LISTINGS_KEY as LISTINGS_KEY,
+  DISCOVERY_PAGE_SIZE as PAGE_SIZE,
+  discoveryDetailQuery as detailQuery,
+  discoveryListingsQuery as listingsQuery,
+  type DiscoverySearchParams as SearchParams,
+} from '#/lib/query/discoveryQueries'
 import { DISCOVERY_RECOMMENDATIONS_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
-
-const PAGE_SIZE = 10
-// Under the recommendations prefix so Evidence Profile edits (which change the
-// match scores) invalidate the search too.
-const LISTINGS_KEY = [...DISCOVERY_RECOMMENDATIONS_QUERY_KEY, 'listings']
-type SearchParams = Omit<Parameters<typeof searchDiscoveryListings>[0], 'page' | 'limit'>
-const listingsQuery = (params: SearchParams, page: number) => ({
-  queryKey: [...LISTINGS_KEY, params, page],
-  queryFn: () => searchDiscoveryListings({ ...params, page, limit: PAGE_SIZE }),
-  staleTime: 60_000,
-})
-// List responses carry a short preview; the full description is fetched on demand.
-const detailQuery = (listingId: string) => ({
-  queryKey: [...LISTINGS_KEY, 'detail', listingId],
-  queryFn: () => getDiscoveryListing(listingId),
-  staleTime: 5 * 60_000,
-})
 
 const POSTED_WITHIN = [
   { value: '', label: 'Any time' },

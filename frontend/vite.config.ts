@@ -32,7 +32,6 @@ export default defineConfig({
           output: {
             manualChunks(id) {
               if (!id.includes('node_modules')) return
-              if (id.includes('framer-motion')) return 'vendor-framer'
               if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
                 return 'vendor-react'
               }

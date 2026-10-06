@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { Clock, Eraser, PlayCircle, Wifi } from 'lucide-react'
 import {
   Badge,
@@ -20,13 +21,17 @@ import { DataControls } from '#/components/profile/DataControls'
 import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
+import { getHealth } from '#/lib/api/client'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 
 export function SettingsPage() {
   const onboarding = useOnboarding()
   const { toast } = useToast()
-  const { health, status, user } = useSession()
-  const isOnline = health?.status === 'ok'
+  const { status, user } = useSession()
+  // A real check on this page (the session's health only says the server answered /auth/me). Same key as
+  // the service banner's, so a fresh result is shared; a visit always asks again.
+  const health = useQuery({ queryKey: ['health'], queryFn: getHealth, retry: false, staleTime: 0 })
+  const connection = health.data ? (health.data.status === 'ok' ? 'ok' : 'down') : health.isError ? 'down' : 'checking'
   const isAuthenticated = status === 'authenticated' && user !== null
 
   return (
@@ -99,8 +104,8 @@ export function SettingsPage() {
               <RowTitle>Connection</RowTitle>
             </RowBody>
             <RowMeta>
-              <Badge tone={isOnline ? 'success' : 'danger'} dot>
-                {isOnline ? 'Connected' : "Can't reach the server"}
+              <Badge tone={connection === 'ok' ? 'success' : connection === 'down' ? 'danger' : 'neutral'} dot>
+                {connection === 'ok' ? 'Connected' : connection === 'down' ? "Can't reach the server" : 'Checking…'}
               </Badge>
             </RowMeta>
           </Row>

@@ -3,15 +3,15 @@ import type { ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { ErrorBoundary } from '#/components/app/ErrorBoundary'
 import { AppSidebar } from '#/components/app/AppSidebar'
+import { AuthDialogMount } from '#/components/app/AuthDialogMount'
 import { CommandPalette } from '#/components/app/CommandPalette'
 import { MobileNav } from '#/components/app/MobileNav'
 import { ServiceBanner } from '#/components/app/ServiceBanner'
 import { Topbar } from '#/components/app/Topbar'
-import { AuthDialog } from '#/components/auth/AuthDialog'
 import { Button, ToastProvider, TooltipProvider } from '#/components/kit'
 import { SidebarInset, SidebarProvider } from '#/components/ui/sidebar'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
-import { useBreakpoint } from '#/hooks/use-breakpoint'
+import { useKnownBreakpoint } from '#/hooks/use-breakpoint'
 import { cn } from '#/lib/utils'
 
 const MAIN_ID = 'main-content'
@@ -85,9 +85,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
-  const bp = useBreakpoint()
+  // null while the server renders and the page hydrates: every layout part is rendered then and CSS picks
+  // (styles/shell.css hides the sidebar below 640px and the top bar and tab tray above), so a phone never
+  // paints the desktop shell first. Once the width is known, only the parts that layout uses stay mounted.
+  const bp = useKnownBreakpoint()
   const isShellless = isPublicRoute(pathname)
-  const isMobile = bp === 'mobile'
   const wantsRail = RAIL_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
   if (isShellless) {
@@ -98,49 +100,36 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ServiceBanner />
             {children}
             {/* /login is the sign-in form already: a session-expiry dialog on top would be a second, identical one. */}
-            {pathname === '/login' ? null : <AuthDialog />}
+            {pathname === '/login' ? null : <AuthDialogMount />}
           </ErrorBoundary>
         </ToastProvider>
       </TooltipProvider>
     )
   }
 
-  // Phones: top bar, content and the bottom tab bar. No sidebar.
-  if (isMobile) {
-    return (
-      <TooltipProvider delayDuration={120}>
-        <ToastProvider>
-          <SkipLink />
-          <div className="app-main app-main--mobile">
-            <Topbar />
-            <ServiceBanner />
-            <AppContent>{children}</AppContent>
-          </div>
-          <MobileNav />
-          <CommandPalette />
-          <AuthDialog />
-        </ToastProvider>
-      </TooltipProvider>
-    )
-  }
+  const phone = bp === null || bp === 'mobile'
+  const wide = bp !== 'mobile'
 
-  // Tablets start with the icon rail so the page keeps its width; desktops start expanded.
+  // One tree for every width, so crossing the breakpoint (or hydrating on a phone) never remounts the page.
+  // Phones: top bar, content and the bottom tab tray, no sidebar. Tablets start with the icon rail so the
+  // page keeps its width; desktops start expanded. Desktop has no top bar: each page header is the top of
+  // the page, and the account menu lives in the sidebar footer.
   return (
     <TooltipProvider delayDuration={120}>
       <ToastProvider>
-        <SidebarProvider defaultOpen={bp === 'desktop'} railRoute={wantsRail}>
+        <SidebarProvider defaultOpen={bp !== 'tablet'} railRoute={wantsRail}>
           <SkipLink />
-          <AppSidebar />
+          {wide ? <AppSidebar /> : null}
           <SidebarInset>
-            {/* Desktop has no top bar: each page header is the top of the page,
-                and the account menu lives in the sidebar footer. */}
-            <div className="app-main">
+            <div className={cn('app-main', bp === 'mobile' && 'app-main--mobile')}>
+              {phone ? <Topbar /> : null}
               <ServiceBanner />
               <AppContent>{children}</AppContent>
             </div>
           </SidebarInset>
+          {phone ? <MobileNav /> : null}
           <CommandPalette />
-          <AuthDialog />
+          <AuthDialogMount />
         </SidebarProvider>
       </ToastProvider>
     </TooltipProvider>

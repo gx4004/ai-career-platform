@@ -1,4 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { LandingExperimentPage } from '#/pages/landing-experiment-page'
 
 const TITLE = 'Career Workbench: find your resume’s blind spots'
 const DESCRIPTION =
@@ -36,8 +37,5 @@ export const Route = createFileRoute('/')({
     ],
     links: [{ rel: 'canonical', href: siteUrl('/') }],
   }),
-  component: lazyRouteComponent(
-    () => import('#/pages/landing-experiment-page'),
-    'LandingExperimentPage',
-  ),
+  component: LandingExperimentPage,
 })

@@ -23,6 +23,7 @@ import {
   RowSubtitle,
   RowTitle,
   Section,
+  Skeleton,
   Sticker,
 } from '#/components/kit'
 import { DataControls } from '#/components/profile/DataControls'
@@ -33,6 +34,17 @@ export function AccountPage() {
   const { status, user, openAuthDialog, providers, logout } = useSession()
   const resetLink = useMutation({ mutationFn: (email: string) => requestPasswordReset({ email }) })
   const [resetSentTo, setResetSentTo] = useState<string | null>(null)
+
+  // Until the session answers (or while a signed-in browser cannot reach the server; the service banner
+  // says so) the page holds its shape instead of flashing the guest sign-in prompt.
+  if (status === 'loading' || status === 'unreachable') {
+    return (
+      <Page width="narrow">
+        <PageHeader title="Account" />
+        <Skeleton variant="card" count={2} label="Loading your account" />
+      </Page>
+    )
+  }
 
   if (status !== 'authenticated' || !user) {
     return (

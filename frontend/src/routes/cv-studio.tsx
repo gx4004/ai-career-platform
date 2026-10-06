@@ -1,4 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { CvStudioPage } from '#/pages/cv-studio-page'
 
 // The live paper preview uses the exact bundled OFL faces the PDF/DOCX
 // renderer uses, served by the API itself (@font-face rules in
@@ -9,5 +10,5 @@ export const Route = createFileRoute('/cv-studio')({
   head: () => ({
     meta: [{ title: 'CV Studio | Career Workbench' }],
   }),
-  component: lazyRouteComponent(() => import('#/pages/cv-studio-page'), 'CvStudioPage'),
+  component: CvStudioPage,
 })

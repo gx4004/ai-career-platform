@@ -23,6 +23,9 @@ export function createRouter() {
     defaultPreloadStaleTime: 0,
     defaultPendingComponent: RoutePending,
     defaultPendingMs: 200,
+    // The router's default keeps a pending screen up for at least 500ms once it shows; a load that finishes
+    // at 210ms would then flash the spinner for half a second. Show it only while something is really pending.
+    defaultPendingMinMs: 0,
   })
 }
 
