@@ -3,6 +3,9 @@ dockerfilePath = "frontend/Dockerfile"
 watchPatterns = ["frontend/**"]
 
 [build.args]
+# The browser calls the backend's own origin. Alternative (owner decision): build
+# without VITE_API_URL and set API_PROXY_TARGET to the backend's private URL on
+# this service, so serve.mjs answers /api/* same-origin.
 VITE_API_URL = "${{BACKEND_URL}}/api/v1"
 
 [deploy]

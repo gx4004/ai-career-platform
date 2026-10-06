@@ -556,8 +556,9 @@ def test_unhandled_error_returns_generic_500_and_logs_only_type_and_request_id(
             response = http.get(exploding_route)
 
     assert response.status_code == 500
-    assert response.json() == {"detail": "Internal server error"}
     request_id = response.headers["x-request-id"]
+    # B12 (REL-2): the generic body also names the request id, nothing else.
+    assert response.json() == {"detail": "Internal server error", "request_id": request_id}
     text = " ".join(r.getMessage() for r in caplog.records)
     assert "RuntimeError" in text
     assert request_id in text

@@ -26,6 +26,11 @@ Browser
 The product currently runs locally only (Sept 2026 reset). A Railway topology (frontend,
 backend, PostgreSQL) remains the eventual target; hosted-launch hardening and
 deployment evidence are deferred and must be redone before any public launch.
+Two API topologies are built and the choice between them is an open owner decision:
+the default build points the browser at the backend's own origin (`VITE_API_URL`,
+`frontend/railway.toml`), and setting `API_PROXY_TARGET` on the frontend server
+(built without `VITE_API_URL`) serves `/api/*` same-origin by forwarding it to the
+backend with `X-Forwarded-For`/`-Proto`/`-Host` (`frontend/serve.mjs`).
 
 ## Frontend Boundaries
 
@@ -207,6 +212,13 @@ current UI emit inline content.
 COOP is `same-origin` and CORP is `same-origin`. COEP is intentionally omitted:
 the product does not require cross-origin isolation, and enabling it would require
 separate compatibility evidence for downloads and OAuth.
+The frontend server reads `dist/client` once at start-up and serves every static
+file from memory with a per-encoding `ETag`, brotli/gzip variants chosen by
+`Accept-Encoding` (`Vary: Accept-Encoding`) and immutable caching for hashed
+`/assets/`; server-rendered HTML is gzipped per request. The page is not hidden
+until JavaScript runs. The API compresses responses of 1,000 bytes or more with
+gzip (`GZipMiddleware`).
+
 HSTS is emitted only when `SECURITY_HSTS_ENABLED=true` and Railway reports an
 HTTPS-forwarded request. The switch remains off until production domain ownership
 and end-to-end TLS are verified. It does not claim `includeSubDomains` or preload
@@ -229,6 +241,10 @@ parsing: JSON bodies may not exceed 1 MiB, multipart transport may not exceed
 11,010,048 bytes, and no body may exceed 4,096 receive chunks. Upload parsing then
 applies the stricter 10 MB document and archive/content checks.
 
+Every API response carries `X-Request-ID`, the id on the request's log line; a
+well-formed id sent by a proxy or client (8-64 of `A-Za-z0-9._-`) is kept, anything
+else is replaced, and the generic 500 body repeats it as `request_id`.
+
 Operational questions should be answerable from logs without reconstructing
 sensitive content. The R8 eval harness and the R10 scaling scorecard were removed
 (D-125) and there is no `analytics_events` table.
@@ -237,8 +253,9 @@ sensitive content. The R8 eval harness and the R10 scaling scorecard were remove
 
 Local-only for now. There is a single process and an in-process result cache; no
 scaling response is authorized. The R10 trigger scorecard was removed (D-125); if the
-product is ever hosted for many users, shared limiter storage, proxy-aware limiter
-keys and cache coordination must be designed then, with evidence. Job-import
+product is ever hosted for many users, shared limiter storage and cache
+coordination must be designed then, with evidence (limiter keys already follow
+the trusted proxy chain, see Abuse Controls). Job-import
 adapters require terms review, a source-specific kill switch, and the existing paste
 fallback (D-059).
 
@@ -398,9 +415,14 @@ fallback (D-059).
 Availability probing and abuse enforcement are separate: `/health` is unlimited,
 while abuse-sensitive auth, model, upload, import, telemetry, export and admin routes
 carry per-route SlowAPI limits (`backend/app/limiter.py`). Because the product is
-local-only, the limiter uses in-process memory keyed by the immediate client
-address. Proxy-aware keys, per-account pseudonymized counters and shared storage
-were removed (#355) and must be redesigned before any hosted launch. There is no
+local-only, the limiter uses in-process memory keyed by `request.client`. uvicorn
+runs with `--proxy-headers` and `--forwarded-allow-ips "$FORWARDED_ALLOW_IPS"`
+(default `127.0.0.1`, `backend/start.sh`), so behind a proxy the key is the client
+the trusted hop reports in `X-Forwarded-For`, and a forged header from an untrusted
+peer is ignored. Which ranges to trust depends on the hosting topology and is set
+per deployment. 429 responses carry `Retry-After`. Per-account pseudonymized
+counters and shared storage were removed (#355) and must be redesigned before any
+hosted launch. There is no
 CAPTCHA (D-129). Mutating requests are also bounded by the ASGI body-size limits
 described under Observability.
 

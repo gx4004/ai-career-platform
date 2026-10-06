@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# bust cache v3 — added google-genai
 RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium \
     && useradd --create-home --uid 10001 appuser \
@@ -19,4 +18,6 @@ COPY --chown=appuser:appuser . .
 
 EXPOSE 8000
 USER appuser
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--timeout-graceful-shutdown", "90", "--limit-concurrency", "200", "--timeout-keep-alive", "5"]
+# Same flags as start.sh (which Railway runs); uvicorn reads FORWARDED_ALLOW_IPS
+# from the environment, defaulting to loopback only.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--proxy-headers", "--timeout-graceful-shutdown", "90", "--limit-concurrency", "200", "--timeout-keep-alive", "5"]

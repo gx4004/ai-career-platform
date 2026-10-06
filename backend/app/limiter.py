@@ -1,8 +1,12 @@
 """Per-route request limits.
 
-Local-only product: slowapi's in-memory per-route limits keyed by the immediate
-client address. Revisit shared storage and proxy-aware keys before any hosted
-multi-user launch.
+slowapi's in-memory per-route limits, keyed by ``request.client``. Behind a
+proxy that is the proxy's address unless uvicorn is told to trust it: start.sh
+runs uvicorn with ``--proxy-headers --forwarded-allow-ips $FORWARDED_ALLOW_IPS``
+(default loopback only), so the key becomes the client the trusted hop reported
+in X-Forwarded-For and a forged header from an untrusted peer is ignored.
+Storage is per process; shared storage is an open owner decision before a
+multi-instance launch.
 """
 
 import math
