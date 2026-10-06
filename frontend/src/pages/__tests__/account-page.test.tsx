@@ -105,6 +105,15 @@ describe('Account page', () => {
     expect(screen.queryByRole('link', { name: 'open the reset link' })).toBeNull()
   })
 
+  it('offers a Google-only account the emailed link up front instead of a change it cannot make', async () => {
+    resetMock.mockResolvedValue({ message: 'ok' })
+    renderPage({ user: { email: 'ada@example.com', full_name: 'Ada Lovelace', created_at: null, has_password: false } })
+    expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull()
+    expect(screen.getByText(/You sign in with Google/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a link' }))
+    await waitFor(() => expect(resetMock).toHaveBeenCalledWith({ email: 'ada@example.com' }))
+  })
+
   it('offers the emailed link itself only when local development hands it back', async () => {
     resetMock.mockResolvedValue({ message: 'ok', dev_reset_url: 'http://localhost:3000/reset-password#token=t' })
     renderPage({})

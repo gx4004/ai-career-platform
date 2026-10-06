@@ -152,6 +152,22 @@ def test_me(client, auth_headers):
     resp = client.get(f"{PREFIX}/me", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["email"] == "test@example.com"
+    assert resp.json()["has_password"] is True
+
+
+def test_me_says_when_a_google_only_account_has_no_password(client, db):
+    from app.auth.security import create_access_token
+    from app.models.user import User
+
+    user = User(email="google-only@example.com", hashed_password=None, google_id="g-42")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token = create_access_token(user.id)
+
+    resp = client.get(f"{PREFIX}/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["has_password"] is False
 
 
 def test_me_no_token(client):

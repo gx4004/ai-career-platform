@@ -146,6 +146,8 @@ class UserResponse(BaseModel):
     is_active: bool
     is_admin: bool = False
     created_at: str | None = None
+    # False for an account that signs in only with Google: it sets a password through the emailed link.
+    has_password: bool = True
 
     model_config = {"from_attributes": True}
 

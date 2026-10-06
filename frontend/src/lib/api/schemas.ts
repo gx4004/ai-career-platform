@@ -705,6 +705,7 @@ export const userSchema = z.object({
   is_active: z.boolean(),
   is_admin: z.boolean().optional(),
   created_at: z.string().optional(),
+  has_password: z.boolean().optional(),
 })
 
 export const authSessionResponseSchema = z.strictObject({
@@ -934,7 +935,7 @@ function utf8Size(value: string): number | null {
   return new TextEncoder().encode(value).length
 }
 
-function codePointBoundedString({ min, max }: { min?: number; max?: number }) {
+function codePointBoundedString({ min, max, minMessage }: { min?: number; max?: number; minMessage?: string }) {
   return z.string().superRefine((value, ctx) => {
     const length = Array.from(value).length
     if (min !== undefined && length < min) {
@@ -943,7 +944,7 @@ function codePointBoundedString({ min, max }: { min?: number; max?: number }) {
         origin: 'string',
         minimum: min,
         inclusive: true,
-        message: `Too small: expected string to have >=${min} characters`,
+        message: minMessage ?? `Too small: expected string to have >=${min} characters`,
       })
     }
     if (max !== undefined && length > max) {
@@ -965,7 +966,7 @@ function validateUtf8(value: string, ctx: z.RefinementCtx): void {
 }
 
 export const loginPasswordSchema = z.string().superRefine(validateUtf8)
-export const newPasswordSchema = codePointBoundedString({ min: 8 }).superRefine(
+export const newPasswordSchema = codePointBoundedString({ min: 8, minMessage: 'Password must be at least 8 characters.' }).superRefine(
   (value, ctx) => {
     const size = utf8Size(value)
     if (size === null) {
