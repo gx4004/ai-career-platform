@@ -150,4 +150,23 @@ describe('kit Segmented', () => {
     expect(group.hasAttribute('data-full-width')).toBe(true)
     expect(group.classList.contains('extra')).toBe(true)
   })
+
+  it('marks the ends that still have options scrolled off, so the edge fade shows only then', () => {
+    const forwarded = { current: null as HTMLDivElement | null }
+    render(<Segmented ref={forwarded} aria-label="Letters" options={OPTIONS} defaultValue="a" />)
+    const group = screen.getByRole('radiogroup')
+    expect(forwarded.current).toBe(group)
+    // jsdom lays nothing out: everything fits, so no edge is marked.
+    expect(group.hasAttribute('data-overflow')).toBe(false)
+    Object.defineProperty(group, 'clientWidth', { configurable: true, value: 200 })
+    Object.defineProperty(group, 'scrollWidth', { configurable: true, value: 500 })
+    fireEvent.scroll(group)
+    expect(group.getAttribute('data-overflow')).toBe('end')
+    group.scrollLeft = 120
+    fireEvent.scroll(group)
+    expect(group.getAttribute('data-overflow')).toBe('start end')
+    group.scrollLeft = 300
+    fireEvent.scroll(group)
+    expect(group.getAttribute('data-overflow')).toBe('start')
+  })
 })

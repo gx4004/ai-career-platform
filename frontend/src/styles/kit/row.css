@@ -311,3 +311,12 @@
     opacity: 1;
   }
 }
+
+/* Only a device with no touch input at all hides them: on a touchscreen laptop or a tablet with a trackpad a
+   finger cannot hover, so Delete and the other revealed actions stay in view. Must follow the block above. */
+@media (any-pointer: coarse) {
+  .kit-row__actions[data-reveal],
+  .kit-row__reveal {
+    opacity: 1;
+  }
+}

@@ -1,7 +1,8 @@
 /*
  * EmptyState and ErrorState (Sticker): the die-cut panel. White, 2px dashed ink, radius 24, left-aligned:
  * an optional lemon disc (rose for an error) tilted -8deg, a display line, one sentence, at most one action.
- * size="inline" drops the frame for a one-line placeholder in a narrow slot.
+ * size="inline" drops the frame for a one-line placeholder in a narrow slot; variant="slot" puts it in a 72px dashed
+ * box the shape of the card that would sit there (an empty board column).
  */
 
 .kit-empty {
@@ -36,6 +37,14 @@
   border: 0;
   border-radius: 0;
   background: none;
+}
+
+.kit-empty[data-variant='slot'] {
+  justify-content: center;
+  min-height: 4.5rem;
+  padding: var(--s3) var(--s4);
+  border: var(--bw) dashed var(--ink);
+  border-radius: var(--r-md);
 }
 
 /* A plate-tilt of the disc only: nothing readable rotates. */
@@ -99,6 +108,11 @@
   font-weight: var(--fw-regular);
   line-height: var(--lh-body);
   letter-spacing: 0;
+}
+
+.kit-empty[data-variant='slot'] .kit-empty__title {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
 }
 
 .kit-empty__text {

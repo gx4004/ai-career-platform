@@ -9,6 +9,7 @@
   --kit-segmented-px: var(--s4);
   --kit-segmented-fs: 0.875rem;
   --kit-segmented-bg: var(--surface);
+  --kit-segmented-fade: 2.25rem;
 
   display: inline-flex;
   align-self: flex-start;
@@ -18,13 +19,7 @@
   overflow-x: auto;
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-md);
-  /* The gradients are a functional overflow cue, not decoration (allow-listed in kit-css.test): a soft edge appears on whichever side still has options to scroll to, and the "local" layers hide it at the ends. */
-  background:
-    linear-gradient(to right, var(--kit-segmented-bg), var(--kit-segmented-bg)) left center / 1rem 100% no-repeat local,
-    linear-gradient(to left, var(--kit-segmented-bg), var(--kit-segmented-bg)) right center / 1rem 100% no-repeat local,
-    linear-gradient(to right, var(--ink-hairline), transparent) left center / 0.75rem 100% no-repeat scroll,
-    linear-gradient(to left, var(--ink-hairline), transparent) right center / 0.75rem 100% no-repeat scroll;
-  background-color: var(--kit-segmented-bg);
+  background: var(--kit-segmented-bg);
   font-family: var(--font-ui);
   scrollbar-width: none;
 }
@@ -98,6 +93,9 @@
 }
 
 .kit-segmented__option:focus-visible {
+  /* Above the edge fades, so a focused option at the edge keeps its whole ring. */
+  position: relative;
+  z-index: 1;
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
@@ -123,8 +121,70 @@
   border-color: var(--ink-3);
 }
 
+/* The outline stays ink: an error is the rose fill plus the Field's message (STICKER-SYSTEM 1.16). */
 .kit-segmented[data-invalid] {
-  border-color: var(--danger-ink);
+  --kit-segmented-bg: var(--rose-soft);
+}
+
+/*
+ * Overflow edges. The gradients are a functional overflow cue, not decoration (allow-listed in kit-css.test).
+ * Two sticky flex items (their negative margin makes them take no room) pinned to the scrollport's edges paint
+ * ABOVE the options (they are positioned, the options are not): a fade plus a chevron pointing at what is
+ * scrolled off. Segmented sets data-overflow ("start", "end" or both) only while there is more on that side.
+ */
+.kit-segmented::before,
+.kit-segmented::after {
+  position: sticky;
+  z-index: 0;
+  display: flex;
+  box-sizing: border-box;
+  flex: 0 0 var(--kit-segmented-fade);
+  align-items: center;
+  align-self: stretch;
+  padding-inline: var(--s1);
+  color: var(--ink);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+/* The chevron says which way the rest is; "/ ''" keeps it out of what a screen reader announces. */
+.kit-segmented::before {
+  content: '‹';
+  content: '‹' / '';
+  justify-content: flex-start;
+  inset-inline-start: 0;
+  margin-inline-end: calc(var(--kit-segmented-fade) * -1);
+  background: linear-gradient(to right, var(--kit-segmented-bg) 45%, transparent);
+}
+
+.kit-segmented::after {
+  content: '›';
+  content: '›' / '';
+  justify-content: flex-end;
+  inset-inline-end: 0;
+  margin-inline-start: calc(var(--kit-segmented-fade) * -1);
+  background: linear-gradient(to left, var(--kit-segmented-bg) 45%, transparent);
+}
+
+.kit-segmented:dir(rtl)::before {
+  content: '›';
+  content: '›' / '';
+  background: linear-gradient(to left, var(--kit-segmented-bg) 45%, transparent);
+}
+
+.kit-segmented:dir(rtl)::after {
+  content: '‹';
+  content: '‹' / '';
+  background: linear-gradient(to right, var(--kit-segmented-bg) 45%, transparent);
+}
+
+.kit-segmented[data-overflow~='start']::before,
+.kit-segmented[data-overflow~='end']::after {
+  opacity: 1;
 }
 
 /* Touch: the options are the tap targets, so they get the full 44px. The border is drawn inside as an
@@ -140,8 +200,23 @@
     outline-color: var(--ink-3);
   }
 
-  .kit-segmented[data-invalid] {
-    outline-color: var(--danger-ink);
+  /* The edge cues paint above the inset outline, so they stop inside it (rounded like its inner edge) and
+     the frame stays whole while a cue shows. */
+  .kit-segmented::before,
+  .kit-segmented::after {
+    margin-block: var(--bw);
+  }
+
+  .kit-segmented::before {
+    inset-inline-start: var(--bw);
+    border-start-start-radius: calc(var(--r-md) - var(--bw));
+    border-end-start-radius: calc(var(--r-md) - var(--bw));
+  }
+
+  .kit-segmented::after {
+    inset-inline-end: var(--bw);
+    border-start-end-radius: calc(var(--r-md) - var(--bw));
+    border-end-end-radius: calc(var(--r-md) - var(--bw));
   }
 
   .kit-segmented__option {

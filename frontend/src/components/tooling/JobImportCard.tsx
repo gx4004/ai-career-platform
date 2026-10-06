@@ -35,6 +35,11 @@ function applicationName(item: ApplicationCard) {
   return company ? `${title} at ${company}` : title
 }
 
+/** Marked applied: its job posting can no longer be swapped. */
+function isApplied(item: ApplicationCard) {
+  return Boolean(item.applied_at)
+}
+
 function errorText(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback
 }
@@ -157,11 +162,23 @@ export function JobImportCard({
               <Field label="Application" id="campaign-listing-picker">
                 <Select value={campaignId} onChange={(event) => setCampaignId(event.target.value)}>
                   <option value="">
-                    {applications.isPending ? 'Loading your applications…' : applications.data?.items.length === 0 ? 'No applications yet' : 'Select an application'}
+                    {applications.isPending
+                      ? 'Loading your applications…'
+                      : applications.data?.items.length === 0
+                        ? 'No applications yet'
+                        : applications.data?.items.every(isApplied)
+                          ? 'All your applications are already applied'
+                          : 'Select an application'}
                   </option>
-                  {applications.data?.items.map((item) => (
-                    <option key={item.id} value={item.id}>{applicationName(item)}</option>
-                  ))}
+                  {/* What was sent is frozen: an applied application keeps its posting (the API refuses with a 409),
+                      so it is listed after the others, greyed out and marked Applied. */}
+                  {[...(applications.data?.items ?? [])]
+                    .sort((a, b) => Number(isApplied(a)) - Number(isApplied(b)))
+                    .map((item) => (
+                      <option key={item.id} value={item.id} disabled={isApplied(item)}>
+                        {isApplied(item) ? `${applicationName(item)} (Applied)` : applicationName(item)}
+                      </option>
+                    ))}
                 </Select>
               </Field>
               <Section headingLevel={3} size="sm" title="Or attach a pasted listing" rule={false}>

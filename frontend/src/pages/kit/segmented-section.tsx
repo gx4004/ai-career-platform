@@ -136,7 +136,7 @@ export function SegmentedSection() {
               />
             </Field>
           </Specimen>
-          <Specimen label="in a Field with help and an error (aria-describedby and aria-invalid are wired)">
+          <Specimen label="in a Field with help and an error (aria-describedby and aria-invalid are wired; the outline stays ink, the fill turns rose)">
             <Field label="Tone" help="Pick one." error="Choose a tone to continue." required>
               <Segmented options={TONES} data-testid="segmented-in-field" />
             </Field>
@@ -149,7 +149,7 @@ export function SegmentedSection() {
 
       <Group title="Deselectable filter plus a toggle button (History)">
         <HistoryFilterDemo />
-        <Specimen label="inside a 20rem container: scrolls instead of wrapping">
+        <Specimen label="inside a 20rem container: scrolls instead of wrapping; a fade and a chevron sit over the edge only while more options are scrolled off that side">
           <div className="kit-gallery__row kit-gallery__bounded">
             <Segmented aria-label="Narrow filter" deselectable options={TOOLS} defaultValue="career" />
           </div>

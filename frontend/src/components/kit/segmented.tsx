@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentPropsWithoutRef, type KeyboardEvent, type ReactNode, type Ref } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentPropsWithoutRef, type KeyboardEvent, type ReactNode, type Ref } from 'react'
 import { cn } from '#/lib/utils'
 import { useFieldControl } from './field'
 
@@ -82,6 +82,18 @@ export function Segmented<T extends string | number, Deselectable extends boolea
     ;(props.onValueChange as ((value: T | null) => void) | undefined)?.(next)
   }
 
+  const root = useRef<HTMLDivElement | null>(null)
+  const setRoot = useCallback(
+    (node: HTMLDivElement | null) => {
+      root.current = node
+      if (typeof ref === 'function') ref(node)
+      else if (ref) (ref as { current: HTMLDivElement | null }).current = node
+    },
+    [ref],
+  )
+  const optionCount = options.length
+  useEffect(() => trackOverflow(root.current), [optionCount])
+
   const groupDisabled = field.disabled
   const enabled = options.filter((option) => !option.disabled && !groupDisabled)
   const selectedEnabled = enabled.find((option) => option.value === value)
@@ -117,7 +129,7 @@ export function Segmented<T extends string | number, Deselectable extends boolea
   return (
     <div
       {...rest}
-      ref={ref}
+      ref={setRoot}
       id={field.id}
       role="radiogroup"
       className={cn('kit-segmented', className)}
@@ -160,4 +172,31 @@ export function Segmented<T extends string | number, Deselectable extends boolea
       })}
     </div>
   )
+}
+
+/**
+ * Marks which ends of a group that is wider than its container still have options scrolled off
+ * (data-overflow="start end"), so the CSS edge fade shows only while there is more to reach. Written to the
+ * DOM directly: it changes on every scroll and is presentation only.
+ */
+function trackOverflow(element: HTMLElement | null) {
+  if (!element) return
+  const update = () => {
+    const max = element.scrollWidth - element.clientWidth
+    // scrollLeft runs negative in a right-to-left group, so the distance from the start is its magnitude.
+    const offset = Math.abs(element.scrollLeft)
+    const edges = [offset > 1 ? 'start' : '', max > 1 && offset < max - 1 ? 'end' : ''].filter(Boolean).join(' ')
+    if (edges) element.dataset.overflow = edges
+    else delete element.dataset.overflow
+  }
+  update()
+  element.addEventListener('scroll', update, { passive: true })
+  // The group's width and its options' widths both move it: the window, a count changing, the font arriving.
+  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+  observer?.observe(element)
+  for (const child of Array.from(element.children)) observer?.observe(child)
+  return () => {
+    element.removeEventListener('scroll', update)
+    observer?.disconnect()
+  }
 }

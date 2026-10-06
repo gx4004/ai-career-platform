@@ -105,6 +105,11 @@
   outline-offset: 2px;
 }
 
+.kit-radio[data-invalid] .kit-radio__input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .kit-radio__input:disabled {
   border-color: var(--ink-3);
   background: var(--stone);

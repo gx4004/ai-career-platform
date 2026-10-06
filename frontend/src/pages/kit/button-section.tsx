@@ -181,6 +181,16 @@ export function ButtonSection() {
             ))}
           </Row>
         </div>
+        <div className="kit-gallery__variant">
+          <span className="kit-gallery__label">decorative (aria-hidden, tabIndex -1, no name)</span>
+          <Row>
+            <Specimen label="a pointer-only shortcut the keyboard reaches another way">
+              <Button iconOnly variant="secondary" size="sm" aria-hidden="true" tabIndex={-1}>
+                <ArrowRight aria-hidden="true" />
+              </Button>
+            </Specimen>
+          </Row>
+        </div>
       </Group>
 
       <Group title="Disabled">

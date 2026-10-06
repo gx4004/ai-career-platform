@@ -12,8 +12,9 @@ type StateBaseProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & {
   /** A 20px icon in the tilted disc above the title (lemon; rose for an ErrorState). Decorative. Not shown at size inline. */
   icon?: ReactNode
   /** framed (default): the die-cut panel. open: no frame, a display title and a lead-size sentence, for a full page that
-   *  carries its own art beside the copy (the 404 and error pages). */
-  variant?: 'framed' | 'open'
+   *  carries its own art beside the copy (the 404 and error pages). slot: with size inline, the empty place a card
+   *  would take (a board column with nothing in it): a 72px dashed die-cut box holding the quiet line. */
+  variant?: 'framed' | 'open' | 'slot'
 }
 
 export type EmptyStateProps = StateBaseProps & {
@@ -52,7 +53,7 @@ export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(function E
       ref={ref}
       className={cn('kit-empty', className)}
       data-size={size}
-      data-variant={variant === 'open' ? 'open' : undefined}
+      data-variant={variant === 'framed' ? undefined : variant}
       {...rest}
     >
       <Icon icon={icon} />
@@ -116,7 +117,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(function E
       role={role === 'none' ? undefined : role}
       className={cn('kit-empty kit-error', className)}
       data-size={size}
-      data-variant={variant === 'open' ? 'open' : undefined}
+      data-variant={variant === 'framed' ? undefined : variant}
       {...rest}
     >
       <Icon icon={icon} />

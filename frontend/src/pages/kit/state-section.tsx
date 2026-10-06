@@ -109,6 +109,11 @@ export function StateSection() {
               <EmptyState size="inline" title="Offers on the table" />
             </div>
           </Specimen>
+          <Specimen label="inline slot: the dashed 72px place a card would take (an empty board column)">
+            <div className="kit-gallery__narrow">
+              <EmptyState size="inline" variant="slot" title="Offers on the table" />
+            </div>
+          </Specimen>
           <Specimen label="compact, long text">
             <EmptyState
               title="Connect employer boards to see their openings here, or paste a job description yourself"

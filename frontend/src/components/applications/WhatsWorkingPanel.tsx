@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Disclosure, EmptyState, List, Panel, Row, RowBody, RowMeta, RowTitle, RoundStamp, ScoreBar, Section, Skeleton, Stack } from '#/components/kit'
+import { Disclosure, EmptyState, List, Panel, Row, RowBody, RowMeta, RowTitle, RoundStamp, ScoreBar, Section, Stack } from '#/components/kit'
 import { getApplicationInsights } from '#/lib/api/client'
 import type { InsightSegment, InsightsDimension } from '#/lib/api/schemas'
 import { APPLICATION_INSIGHTS_QUERY_KEY } from '#/lib/query/applicationCaches'
-import { ApplicationPanel } from './ApplicationPanel'
 
 const applications = (n: number) => `${n} application${n === 1 ? '' : 's'}`
 
@@ -15,14 +14,9 @@ const applications = (n: number) => `${n} application${n === 1 ? '' : 's'}`
 export function WhatsWorkingPanel({ compact = false }: { compact?: boolean }) {
   const query = useQuery({ queryKey: APPLICATION_INSIGHTS_QUERY_KEY, queryFn: getApplicationInsights })
   const data = query.data
-  if (query.isError) return null
-  if (!data) {
-    return (
-      <ApplicationPanel title="What's working">
-        <Skeleton lines={2} label="Counting your outcomes…" />
-      </ApplicationPanel>
-    )
-  }
+  // The applications page mounts this once the insights are in (a short placeholder that then grew into the
+  // full panel pushed everything under it down), so there is no loading state; a failure just leaves it out.
+  if (!data) return null
   const { overall } = data
   return (
     // Open on a desk once there is something to read; folded on a phone, where the page is already long.

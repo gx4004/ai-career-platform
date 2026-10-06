@@ -16,10 +16,15 @@ type ButtonOwnProps = {
 
 type TextButtonProps = ButtonOwnProps & { iconOnly?: false }
 
-/** Icon-only buttons are square and must carry an accessible name. */
+/**
+ * Icon-only buttons are square and must carry an accessible name, unless the whole button is a decorative,
+ * pointer-only shortcut for something the keyboard already reaches another way: then it is hidden from
+ * assistive tech and the tab order (aria-hidden plus tabIndex -1) and has no name to give.
+ */
 type IconButtonProps = ButtonOwnProps & { iconOnly: true } & (
     | { 'aria-label': string }
     | { 'aria-labelledby': string }
+    | { 'aria-hidden': true | 'true'; tabIndex: -1 }
   )
 
 export type ButtonProps = ComponentPropsWithoutRef<'button'> & (TextButtonProps | IconButtonProps)
