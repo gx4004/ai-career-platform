@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
-import { KeyRound, LogOut } from 'lucide-react'
+import { KeyRound, LogOut, UserRound } from 'lucide-react'
 import { ChangePasswordDialog } from '#/components/account/ChangePasswordDialog'
 import { EditNameDialog } from '#/components/account/EditNameDialog'
 import { ApplicationDetailsCard } from '#/components/applications/ApplicationDetailsCard'
@@ -68,6 +68,7 @@ export function AccountPage() {
         <PageHeader title="Account" />
         <EmptyState
           headingLevel={2}
+          icon={<UserRound />}
           title="Your workspace, your way"
           description="Sign in to manage your details and session."
           action={

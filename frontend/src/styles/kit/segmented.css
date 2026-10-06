@@ -34,6 +34,14 @@
   --kit-segmented-fs: 0.8125rem;
 }
 
+/* The narrowest phones (320): tighter options, so a three-choice group (Professional, Confident, Warm) fits whole instead of hiding its last choice behind the scroll cue. */
+@media (max-width: 359px) {
+  .kit-segmented {
+    --kit-segmented-px: var(--s2);
+    --kit-segmented-fs: 0.8125rem;
+  }
+}
+
 .kit-segmented[data-full-width] {
   display: flex;
   align-self: stretch;

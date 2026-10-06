@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react'
+import { Database } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -261,6 +262,7 @@ export function AdminDiscoverySourcesPage() {
             loading={isLoading}
             empty={
               <EmptyState
+                icon={<Database />}
                 title="No discovery sources are registered."
                 description="Ingestion remains disabled."
               />

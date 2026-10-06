@@ -36,10 +36,13 @@
   gap: var(--s6);
 }
 
-/* A text-only action at the start of a column: the link variant has no padding, so it lines up with the fields above. On touch it gets the full tap height the variant leaves out. */
+/*
+ * Text-only actions (Paste text instead, Try with a sample resume): the kit link already takes the 44px tap
+ * height on touch, so when the pair wraps on a phone the rows stack without an extra gap between them.
+ */
 @media (pointer: coarse) {
-  .kit-button.tool-link {
-    min-block-size: var(--kit-h-lg);
+  .kit-cluster.tool-links {
+    row-gap: 0;
   }
 }
 

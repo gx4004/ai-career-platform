@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
+import { Search, Users } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -216,9 +216,10 @@ export function AdminUsersPage() {
             loading={isLoading}
             empty={
               adminsOnly && !search ? (
-                <EmptyState title="No admins" />
+                <EmptyState icon={<Users />} title="No admins" />
               ) : search ? (
                 <EmptyState
+                  icon={<Search />}
                   title={`No ${noun}s match that email`}
                   description={`No email contains "${search}".`}
                   action={
@@ -236,7 +237,7 @@ export function AdminUsersPage() {
                   }
                 />
               ) : (
-                <EmptyState title="No users yet" description="People appear here as soon as they create an account." />
+                <EmptyState icon={<Users />} title="No users yet" description="People appear here as soon as they create an account." />
               )
             }
           />

@@ -32,10 +32,12 @@ const STEPS: TourStep[] = [
 
 const CARD_WIDTH = 320
 const GAP = 12
+/** Clear space between the target and the ring, so a heading at the target's edge never touches the ink. */
+const RING_PAD = 12
 
 function getCardPosition(rect: DOMRect, cardHeight: number) {
-  const fitsBelow = rect.bottom + GAP + cardHeight < window.innerHeight
-  const top = fitsBelow ? rect.bottom + GAP : Math.max(GAP, rect.top - GAP - cardHeight)
+  const fitsBelow = rect.bottom + RING_PAD + GAP + cardHeight < window.innerHeight
+  const top = fitsBelow ? rect.bottom + RING_PAD + GAP : Math.max(GAP, rect.top - RING_PAD - GAP - cardHeight)
   const left = Math.min(Math.max(16, rect.left), window.innerWidth - CARD_WIDTH - 16)
   return { top, left }
 }
@@ -136,7 +138,7 @@ export function OnboardingTour({
       <div
         className="app-tour__ring"
         aria-hidden="true"
-        style={{ top: rect.top - 6, left: rect.left - 6, width: rect.width + 12, height: rect.height + 12 }}
+        style={{ top: rect.top - RING_PAD, left: rect.left - RING_PAD, width: rect.width + RING_PAD * 2, height: rect.height + RING_PAD * 2 }}
       />
       <div
         ref={cardRef}

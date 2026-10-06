@@ -110,10 +110,10 @@ describe('Settings privacy controls', () => {
     await waitFor(() => expect(api.exportCareerData).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete evidence profile' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete all facts' }))
     await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledTimes(1))
     expect(client.getQueryData(EVIDENCE_QUERY_KEY)).toBeUndefined()
-    expect(await screen.findAllByText('Evidence profile deleted')).not.toHaveLength(0)
+    expect(await screen.findAllByText('Profile deleted')).not.toHaveLength(0)
   }, 10_000)
 
   it('keeps an erasure failure visible inside the confirmation dialog', async () => {
@@ -121,8 +121,8 @@ describe('Settings privacy controls', () => {
     renderPage()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
-    const dialog = screen.getByRole('alertdialog', { name: 'Delete your evidence profile?' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete evidence profile' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete your profile?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete all facts' }))
 
     expect((await within(dialog).findByRole('alert')).textContent).toContain('Erase failed safely.')
   })
@@ -133,7 +133,7 @@ describe('Settings privacy controls', () => {
     await waitFor(() => expect(warmRecommendationsFetch).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete evidence profile' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete all facts' }))
 
     await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(warmDevelopmentFetch).toHaveBeenCalledTimes(2))

@@ -59,8 +59,15 @@
   gap: var(--s4);
 }
 
+/* Held at the loaded panel's height (chart, axis, facts: 240px wide, 200px on a phone), so Runs by tool does not jump. */
 .admin-activity--loading {
-  min-block-size: 11.5rem;
+  min-block-size: 15rem;
+}
+
+@media (max-width: 639px) {
+  .admin-activity--loading {
+    min-block-size: 12.5rem;
+  }
 }
 
 .admin-activity__chart {
