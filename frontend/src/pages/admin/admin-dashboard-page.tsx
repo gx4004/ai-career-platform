@@ -23,8 +23,8 @@ import {
 import { getAdminStats, getAdminHealth } from '#/lib/api/admin'
 import type { AdminStats, AdminHealth } from '#/lib/api/admin'
 import { RunSparkline, dayLabel } from './run-sparkline'
-import { RUN_DAYS, fetchRunsByDay } from './runs-by-day'
-import type { RecentRuns } from './runs-by-day'
+import { RUN_DAYS, toDayCounts } from './runs-by-day'
+import type { DayCount } from './runs-by-day'
 import { toolLabel, toolVisual } from './toolLabel'
 
 /** The bar of a tool: proportional to the busiest one, never a sliver for a tool that has runs. */
@@ -44,12 +44,6 @@ export function AdminDashboardPage() {
     queryFn: getAdminHealth,
     staleTime: 60_000,
   })
-  const recent = useQuery<RecentRuns>({
-    queryKey: ['admin-runs-by-day'],
-    queryFn: () => fetchRunsByDay(),
-    staleTime: 60_000,
-  })
-
   const byTool = stats.data
     ? Object.entries(stats.data.runs_by_tool)
         .sort(([, a], [, b]) => b - a)
@@ -86,14 +80,18 @@ export function AdminDashboardPage() {
 
       <div className="admin-columns">
         <div className="admin-column">
-          <Section title={`Runs, last ${RUN_DAYS} days`}>
-            <ActivityPanel recent={recent} onRetry={() => void recent.refetch()} />
-          </Section>
+          {stats.isError ? null : (
+            <Section title={`Runs, last ${RUN_DAYS} days`}>
+              <ActivityPanel days={stats.data ? toDayCounts(stats.data.runs_by_day) : undefined} />
+            </Section>
+          )}
 
           {stats.isError ? null : (
             <Section title="Runs by tool">
               {stats.isLoading ? (
-                <Skeleton lines={4} label="Loading runs by tool" />
+                <Panel flush>
+                  <Skeleton variant="row" density="compact" leading count={6} label="Loading runs by tool" />
+                </Panel>
               ) : stats.data && byTool.length === 0 ? (
                 <EmptyState title="No runs yet" />
               ) : stats.data ? (
@@ -127,7 +125,13 @@ export function AdminDashboardPage() {
         </div>
 
         <Section title="System health">
-          {health.isLoading ? <Skeleton lines={4} label="Loading system health" /> : null}
+          {health.isLoading ? (
+            <Panel>
+              <PanelBody className="admin-health">
+                <Skeleton lines={5} label="Loading system health" />
+              </PanelBody>
+            </Panel>
+          ) : null}
           {health.isError ? <Retry what="health" onRetry={() => void health.refetch()} /> : null}
           {health.data ? <HealthPanel health={health.data} /> : null}
         </Section>
@@ -146,15 +150,9 @@ function StatPanel({ label, value }: { label: string; value: number }) {
   )
 }
 
-function ActivityPanel({
-  recent,
-  onRetry,
-}: {
-  recent: { data?: RecentRuns; isLoading: boolean; isError: boolean }
-  onRetry: () => void
-}) {
-  if (recent.isError) return <Retry what="the run history" onRetry={onRetry} />
-  if (recent.isLoading || !recent.data) {
+/** The server's per-day counts (UTC days, every day present): the whole window, never a floor. */
+function ActivityPanel({ days }: { days: DayCount[] | undefined }) {
+  if (!days) {
     return (
       <Panel aria-hidden>
         <PanelBody className="admin-activity admin-activity--loading">
@@ -163,7 +161,7 @@ function ActivityPanel({
       </Panel>
     )
   }
-  const { days, truncated } = recent.data
+  if (days.length === 0) return <EmptyState title="No run history" />
   const total = days.reduce((sum, day) => sum + day.count, 0)
   const busiest = days.reduce((best, day) => (day.count > best.count ? day : best), days[0])
   return (
@@ -186,7 +184,6 @@ function ActivityPanel({
             <dd>{busiest.count > 0 ? `${dayLabel(busiest.date)} (${busiest.count})` : 'None yet'}</dd>
           </div>
         </dl>
-        {truncated ? <p className="admin-subline admin-activity__note">Counted from the latest 500 runs.</p> : null}
       </PanelBody>
     </Panel>
   )

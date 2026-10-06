@@ -44,12 +44,18 @@ class AdminRunDetailResponse(AdminRunItem):
     feedback_text: str | None = None
     workspace_id: str | None = None
 
+class AdminRunsOnDay(BaseModel):
+    date: str  # YYYY-MM-DD, a UTC day
+    count: int = 0
+
 class AdminStatsResponse(BaseModel):
     total_users: int = 0
     total_runs: int = 0
     runs_today: int = 0
     active_users_7d: int = 0
     runs_by_tool: dict[str, int] = {}
+    # The last 14 UTC days, oldest first, today last, days without runs as 0.
+    runs_by_day: list[AdminRunsOnDay] = []
 
 class AdminSetAdminRequest(BaseModel):
     is_admin: bool

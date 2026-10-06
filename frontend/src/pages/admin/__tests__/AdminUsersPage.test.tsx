@@ -116,13 +116,31 @@ describe('AdminUsersPage', () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 
-  it('narrows the loaded page to admins, and says it only looks at this page', async () => {
-    renderPage([user('u-1'), user('u-2', { is_admin: true })])
+  it('asks the server for admins only, across every page, from page 1', async () => {
+    renderPage([user('u-1'), user('u-2', { is_admin: true })], 45)
     await screen.findByText('u-1@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(getAdminUsersMock).toHaveBeenLastCalledWith({ page: 2, page_size: 20 }))
+
+    getAdminUsersMock.mockResolvedValue({ items: [user('u-2', { is_admin: true })], total: 3, page: 1, page_size: 20 })
     fireEvent.click(screen.getByRole('button', { name: 'Admins only' }))
-    expect(screen.queryByText('u-1@example.com')).toBeNull()
-    expect(screen.getByText('u-2@example.com')).toBeTruthy()
-    expect(screen.getByText('1 admin among the 2 users on this page')).toBeTruthy()
+
+    await waitFor(() =>
+      expect(getAdminUsersMock).toHaveBeenLastCalledWith({ page: 1, page_size: 20, is_admin: true }),
+    )
+    expect(screen.getByRole('button', { name: 'Admins only' }).getAttribute('aria-pressed')).toBe('true')
+    expect(await screen.findByText('3 admins')).toBeTruthy()
+    // Three admins fit on one page: the pager over the 45 users is gone.
+    expect(screen.queryByRole('navigation', { name: 'Users pages' })).toBeNull()
+    expect(screen.queryByText(/on this page/)).toBeNull()
+  })
+
+  it('says there are no admins when the server finds none', async () => {
+    renderPage([user('u-1')])
+    await screen.findByText('u-1@example.com')
+    getAdminUsersMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+    fireEvent.click(screen.getByRole('button', { name: 'Admins only' }))
+    expect(await screen.findByText('No admins')).toBeTruthy()
   })
 
   it('searches by email on submit', async () => {
