@@ -15,7 +15,7 @@ export function formatRunDate(value: string | Date, now: Date = new Date()) {
 }
 
 /** "Job Match (75%)" is the name and the score: the score is drawn as a pill, the name stays the link. */
-function splitScore(label: string): { name: string; score: string | null } {
+export function splitScore(label: string): { name: string; score: string | null } {
   const match = /^(.*\S)\s*\((\d{1,3}(?:\.\d+)?%|\d{1,3}\/\d{1,3})\)$/.exec(label)
   return match ? { name: match[1], score: match[2] } : { name: label, score: null }
 }
@@ -62,7 +62,7 @@ export function RunRow({
       </RowBody>
       {score ? (
         <RowMeta>
-          <Badge tone={scoreTone ?? 'white'} className="dash-score">
+          <Badge tone={scoreTone ?? 'white'} score>
             {score}
           </Badge>
         </RowMeta>

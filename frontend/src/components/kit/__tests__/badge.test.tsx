@@ -61,6 +61,21 @@ describe('kit Badge', () => {
   })
 })
 
+describe('kit Badge score', () => {
+  it('marks a run score so it is drawn as a number, not a status word', () => {
+    render(
+      <>
+        <Badge tone="tangerine" score>
+          89/100
+        </Badge>
+        <Badge tone="mint">Matched</Badge>
+      </>,
+    )
+    expect(screen.getByText('89/100').closest('.kit-badge')?.getAttribute('data-score')).toBe('true')
+    expect(screen.getByText('Matched').closest('.kit-badge')?.getAttribute('data-score')).toBeNull()
+  })
+})
+
 describe('kit Badge palette tones', () => {
   it('accepts the palette tones next to the semantic ones and passes data-severity through', () => {
     render(

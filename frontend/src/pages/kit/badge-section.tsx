@@ -87,6 +87,16 @@ export function BadgeSection() {
               </Badge>
             </Row>
           </Specimen>
+          <Specimen label="score (a run's score beside its row)">
+            <Row>
+              <Badge tone="tangerine" score>
+                89/100
+              </Badge>
+              <Badge tone="mint" score>
+                75%
+              </Badge>
+            </Row>
+          </Specimen>
           <Specimen label="quiet (info)">
             <Badge tone="info">Remote-friendly</Badge>
           </Specimen>

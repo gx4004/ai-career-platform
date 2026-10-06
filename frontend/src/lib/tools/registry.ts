@@ -41,6 +41,8 @@ export type ToolDefinition = {
   group: WorkflowGroup
   priority: number
   summary: string
+  /** What the result page gives you, in three plain lines (the input page's "What you get" rail). Keep it true to the result page. */
+  delivers: [string, string, string]
   entryPointLabel: string
   resultTitle: string
   emptyStateTitle: string
@@ -72,6 +74,11 @@ export const tools: Record<ToolId, ToolDefinition> = {
     group: 'primary',
     priority: 1,
     summary: 'Score the resume you have and fix the issues recruiters notice first.',
+    delivers: [
+      'A score out of 100 with a one-line verdict.',
+      'The fixes to make first, in order.',
+      'A breakdown of where the points are.',
+    ],
     entryPointLabel: 'Review resume',
     resultTitle: 'Resume Analyzer',
     emptyStateTitle: 'Review the resume you have now.',
@@ -100,6 +107,11 @@ export const tools: Record<ToolId, ToolDefinition> = {
     group: 'primary',
     priority: 2,
     summary: 'Compare your resume to a real role and surface the gaps that matter.',
+    delivers: [
+      'A match score for this role.',
+      'Each requirement marked matched, partial or missing.',
+      'Tailoring actions for this job.',
+    ],
     entryPointLabel: 'Compare to role',
     resultTitle: 'Job Match',
     emptyStateTitle: 'Compare yourself to a real role.',
@@ -128,6 +140,11 @@ export const tools: Record<ToolId, ToolDefinition> = {
     group: 'application',
     priority: 4,
     summary: 'Draft a tailored letter using your resume and the target job.',
+    delivers: [
+      'A tailored letter you can edit in place.',
+      'What to fix first before you send it.',
+      'Notes on how it was tailored to the job.',
+    ],
     entryPointLabel: 'Draft cover letter',
     resultTitle: 'Cover Letter',
     emptyStateTitle: 'Draft a tailored cover letter.',
@@ -156,6 +173,11 @@ export const tools: Record<ToolId, ToolDefinition> = {
     group: 'application',
     priority: 5,
     summary: 'Generate likely questions and stronger answer angles for the role.',
+    delivers: [
+      'Likely questions, each with a sample answer.',
+      'The focus areas and weak signals to prepare.',
+      'A practice mode that gives feedback on your answers.',
+    ],
     entryPointLabel: 'Build interview prep',
     resultTitle: 'Interview Prep',
     emptyStateTitle: 'Build role-specific interview prep.',
@@ -184,6 +206,11 @@ export const tools: Record<ToolId, ToolDefinition> = {
     group: 'planning',
     priority: 3,
     summary: 'Compare next-step directions, timelines, and missing skills.',
+    delivers: [
+      'A recommended next role with its fit score.',
+      'The skill gaps to close, and how to build each one.',
+      'Next steps on a timeline, and alternative paths.',
+    ],
     entryPointLabel: 'Compare career paths',
     resultTitle: 'Career Path',
     emptyStateTitle: 'Explore realistic next moves.',
@@ -212,6 +239,11 @@ export const tools: Record<ToolId, ToolDefinition> = {
     group: 'planning',
     priority: 6,
     summary: 'Turn career gaps into project ideas that prove your fit.',
+    delivers: [
+      'A build sequence of projects for your target role.',
+      'Why each project fits, and the skills it shows.',
+      'Tips for presenting the work, and what to deliver.',
+    ],
     entryPointLabel: 'Plan proof projects',
     resultTitle: 'Portfolio Planner',
     emptyStateTitle: 'Plan proof-building projects.',

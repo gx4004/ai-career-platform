@@ -134,4 +134,17 @@ describe('Tool registry', () => {
       }
     })
   })
+
+  // The input page's "What you get" rail promises what the result page shows: three short, finished sentences.
+  it('says in three plain sentences what each tool gives back', () => {
+    for (const tool of Object.values(tools)) {
+      expect(tool.delivers, tool.id).toHaveLength(3)
+      for (const line of tool.delivers) {
+        expect(line, tool.id).toMatch(/^[A-Z].{8,70}\.$/)
+      }
+      expect(new Set(tool.delivers).size, tool.id).toBe(3)
+    }
+    expect(tools.resume.delivers[0]).toBe('A score out of 100 with a one-line verdict.')
+    expect(tools['job-match'].delivers[1]).toBe('Each requirement marked matched, partial or missing.')
+  })
 })

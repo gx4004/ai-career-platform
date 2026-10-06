@@ -117,3 +117,58 @@
   border-color: var(--ink-3);
   background: var(--stone);
 }
+
+/*
+ * Dropzone with an icon: a compact target. Lemon disc, then the hint (body type, the instruction), then the
+ * trigger, grouped at the start; the trigger wraps under the text when the area is narrow. The DOM order
+ * stays input, trigger (the focus ring rule needs them adjacent), so the order is set here.
+ */
+.kit-file[data-icon] {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--s3) var(--s4);
+}
+
+.kit-file__icon {
+  display: grid;
+  flex: none;
+  order: -2;
+  place-items: center;
+  box-sizing: border-box;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--lemon);
+  color: var(--ink);
+}
+
+.kit-file__icon > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* An 8rem basis keeps the hint on the disc's line on a phone (the trigger wraps under them); it grows only to its own width, so on a wide area the trigger sits right after the words. */
+.kit-file[data-icon] .kit-file__info {
+  flex: 1 1 8rem;
+  order: -1;
+  max-width: max-content;
+}
+
+.kit-file[data-icon] .kit-file__hint {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-body);
+}
+
+.kit-file[data-icon][data-has-file] .kit-file__icon {
+  background: var(--mint);
+}
+
+/* Phones: a tighter die-cut so the disc and the hint keep one line down to 320px. */
+@media (max-width: 479px) {
+  .kit-file[data-variant='dropzone'][data-icon] {
+    padding: var(--s4);
+  }
+}

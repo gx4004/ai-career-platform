@@ -10,8 +10,8 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-router')>()
   return {
     ...actual,
-    Link: ({ to, children, ...props }: { to: string; children: React.ReactNode }) => (
-      <a href={to} {...props}>{children}</a>
+    Link: ({ to, search, children, ...props }: { to: string; search?: Record<string, string>; children: React.ReactNode }) => (
+      <a href={search ? `${to}?${new URLSearchParams(search)}` : to} {...props}>{children}</a>
     ),
   }
 })
@@ -53,7 +53,7 @@ describe('RecentToolRuns', () => {
     getHistoryMock.mockReset()
   })
 
-  it('lists the last runs as links to their results, with a date', async () => {
+  it('lists the last runs as links to their results, the score as a pill, and a link to all of them in History', async () => {
     getHistoryMock.mockResolvedValue({
       items: [run('r1', 'Resume Analysis (77/100)'), run('r2', null)],
       total: 2,
@@ -63,8 +63,10 @@ describe('RecentToolRuns', () => {
     })
     renderRuns()
     expect(await screen.findByRole('heading', { name: 'Recent runs' })).toBeTruthy()
-    const link = await screen.findByRole('link', { name: 'Resume Analysis (77/100)' })
+    const link = await screen.findByRole('link', { name: 'Resume Analysis' })
     expect(link.getAttribute('href')).toBe('/resume/result/r1')
+    expect(link.closest('li')?.querySelector('.kit-badge[data-score]')?.textContent).toBe('77/100')
+    expect(screen.getByRole('link', { name: 'View all' }).getAttribute('href')).toBe('/history?tool=resume')
     expect(screen.getByRole('link', { name: 'Untitled run' }).getAttribute('href')).toBe('/resume/result/r2')
     expect(screen.getByRole('list', { name: 'Recent runs' }).querySelectorAll('li')).toHaveLength(2)
     expect(getHistoryMock).toHaveBeenCalledWith({ tool: 'resume', page: 1, page_size: 3 })
@@ -83,8 +85,8 @@ describe('RecentToolRuns', () => {
       total: 2, page: 1, page_size: 3, has_more: false,
     })
     renderRuns()
-    expect(await screen.findByText('Platform Engineer at Northwind Labs')).toBeTruthy()
-    expect(screen.getByText('Data Analyst at Harbor Health')).toBeTruthy()
+    expect(await screen.findByText(/Platform Engineer at Northwind Labs$/)).toBeTruthy()
+    expect(screen.getByText(/Data Analyst at Harbor Health$/)).toBeTruthy()
   })
 
   it('adds the time when two rows would otherwise read the same', async () => {
@@ -95,8 +97,9 @@ describe('RecentToolRuns', () => {
     })
     renderRuns()
     await screen.findByRole('link', { name: 'Other run' })
+    // The date (and, when needed, the time) leads the line under the title.
     const metas = [...screen.getByRole('list', { name: 'Recent runs' }).querySelectorAll('li')].map(
-      (row) => row.querySelector('.kit-row__meta')?.textContent ?? '',
+      (row) => row.querySelector('.kit-row__subtitle')?.textContent ?? '',
     )
     const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
     expect(metas[0]).toContain(time('2026-10-03T14:02:00Z'))

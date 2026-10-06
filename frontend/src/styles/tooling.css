@@ -46,6 +46,66 @@
   }
 }
 
+/* The dot between "Paste text instead" and "Try with a sample resume": a separator on one line, gone where the pair wraps. */
+.tool-links__dot {
+  color: var(--ink-3);
+  font-weight: var(--fw-bold);
+}
+
+@media (max-width: 479px) {
+  .tool-links__dot {
+    display: none;
+  }
+}
+
+/* An optional part of the form (Resume's target job): behind a 2px rule, so the required input reads first. */
+.tool-optional {
+  display: grid;
+  gap: var(--s6);
+  padding-block-start: var(--s6);
+  border-block-start: var(--bw) solid var(--line);
+}
+
+.tool-optional__ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s3);
+}
+
+.tool-optional__hint {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* ── The rail: recent runs of this tool, then "What you get" ── */
+
+/* What the result gives back: a numbered disc and one plain sentence per line. */
+.tool-delivers {
+  display: grid;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-delivers__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* The 28px disc centred on the sentence's first line. */
+.tool-delivers__item > .kit-number-disc {
+  margin-block-start: calc((var(--lh-body) - 1.75rem) / 2);
+}
+
 /* The "attach to an application" sub-form: indented under its checkbox behind a rule, so it reads as part of that choice. */
 .tool-attach {
   padding-inline-start: var(--s4);
@@ -117,6 +177,14 @@
 .tool-loading {
   display: grid;
   align-content: center;
+  scroll-margin-top: var(--s4);
+}
+
+/* Phones: the sticky app header covers the top of the page; the panel scrolls in below it. */
+@media (max-width: 639px) {
+  .tool-loading {
+    scroll-margin-top: calc(var(--touch-target) + 2 * var(--s3) + var(--bw) + var(--s4));
+  }
 }
 
 .tool-loading__body {

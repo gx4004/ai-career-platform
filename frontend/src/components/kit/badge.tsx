@@ -13,11 +13,13 @@ export type BadgeProps = ComponentPropsWithoutRef<'span'> & {
   dot?: boolean
   /** Leading icon (a 14px lucide icon: the Deadline clock). Decorative; replaces the dot when both are given. */
   icon?: ReactNode
+  /** A score beside a run ("89/100", "75%"): the number in the display face, black weight, tabular figures. */
+  score?: boolean
 }
 
 /** The one status chip: replaces every per-page badge, pill and tag. */
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
-  { tone = 'neutral', size = 'md', dot = false, icon, className, children, ...rest },
+  { tone = 'neutral', size = 'md', dot = false, icon, score = false, className, children, ...rest },
   ref,
 ) {
   return (
@@ -25,6 +27,7 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
       ref={ref}
       className={cn('kit-badge', `kit-badge--${size}`, className)}
       data-tone={tone}
+      data-score={score ? 'true' : undefined}
       {...rest}
     >
       {icon ? (

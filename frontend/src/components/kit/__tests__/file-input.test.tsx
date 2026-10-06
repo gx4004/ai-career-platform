@@ -104,3 +104,28 @@ describe('kit Avatar', () => {
     expect(document.querySelector('.kit-avatar')?.getAttribute('data-size')).toBe('lg')
   })
 })
+
+describe('kit FileInput dropzone with an icon', () => {
+  it('leads with a decorative icon disc, reads the hint as the instruction, and drops the duplicate icon from the trigger', () => {
+    const { container } = render(
+      <FileInput variant="dropzone" icon={<svg data-testid="disc-icon" />} aria-label="Resume" hint="Drop a PDF or DOCX here (up to 10 MB)" />,
+    )
+    const zone = container.querySelector('.kit-file') as HTMLElement
+    expect(zone.dataset.icon).toBe('true')
+    const disc = container.querySelector('.kit-file__icon') as HTMLElement
+    expect(disc.getAttribute('aria-hidden')).toBe('true')
+    expect(disc.contains(screen.getByTestId('disc-icon'))).toBe(true)
+    const trigger = screen.getByText('Choose file').closest('label') as HTMLLabelElement
+    expect(trigger.querySelector('svg')).toBeNull()
+    expect(screen.getByLabelText('Resume').getAttribute('aria-describedby')).toBe(
+      screen.getByText('Drop a PDF or DOCX here (up to 10 MB)').id,
+    )
+  })
+
+  it('ignores the icon outside the dropzone (an inline picker keeps its upload icon)', () => {
+    const { container } = render(<FileInput icon={<svg />} aria-label="Resume" />)
+    expect(container.querySelector('.kit-file__icon')).toBeNull()
+    expect(container.querySelector('.kit-file')?.getAttribute('data-icon')).toBeNull()
+    expect(screen.getByText('Choose file').closest('label')?.querySelector('svg')).not.toBeNull()
+  })
+})

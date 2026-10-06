@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AtSign, Eye, EyeOff, Search } from 'lucide-react'
+import { AtSign, Eye, EyeOff, Search, Upload } from 'lucide-react'
 import { Button, DateField, Field, FileInput, Input, Select, Textarea } from '#/components/kit'
 import { GallerySection, Group, Grid, Specimen } from './gallery-parts'
 
@@ -286,6 +286,15 @@ export function FieldSection() {
           </Specimen>
           <Specimen label="dropzone (drag a file onto it)">
             <FileInput variant="dropzone" aria-label="Drop a resume" accept=".pdf,.docx" label="Choose a file" hint="Drop a PDF or DOCX here, or choose one." />
+          </Specimen>
+          <Specimen label="dropzone with an icon (compact target: disc, hint, trigger)">
+            <FileInput
+              variant="dropzone"
+              icon={<Upload />}
+              aria-label="Drop a resume (compact)"
+              accept=".pdf,.docx"
+              hint="Drop a PDF or DOCX here (up to 10 MB)"
+            />
           </Specimen>
           <Specimen label="primary, lg, multiple">
             <FileInput aria-label="Attachments" multiple buttonVariant="primary" size="lg" />
