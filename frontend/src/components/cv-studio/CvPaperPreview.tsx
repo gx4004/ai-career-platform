@@ -155,6 +155,7 @@ export function CvPaper({ name, header, sections, style, catalog, activeId, onEd
           ref={paperRef}
           className={`cvp-paper cvp-paper--${effective.layout}${twoColumn ? ' cvp-paper--two-column' : ''}`}
           style={paperStyle}
+          data-ats={effective.atsMode ? 'true' : undefined}
           data-testid="cv-paper"
           aria-label="Live preview of your CV"
           role="document"

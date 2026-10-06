@@ -802,9 +802,14 @@
   overflow-wrap: anywhere;
 }
 
+/* ReportLab's single-column Frame pads every side by 6pt inside the page margin; the preview models it so it matches "Exact PDF". The two-column frames set their own paddings and are unchanged. */
+.cvp-paper:not(.cvp-paper--two-column) { padding: calc(var(--cvp-margin) + 6pt); }
+
 :where(.cvp-paper) :where(p, h2, h3, ul) { margin: 0; }
 
 .cvp-title {
+  letter-spacing: normal; /* the global heading tracking would narrow the title ~5% against the PDF */
+  text-wrap: wrap;
   margin-bottom: 10pt;
   font-size: calc(var(--cvp-heading) + 6pt);
   line-height: calc(var(--cvp-heading) + 9pt);
@@ -831,9 +836,12 @@
 
 .cvp-link { color: #0000ff; }
 
-.cvp-section { margin-bottom: var(--cvp-gap); }
+/* A BFC so the last entry's margin adds to the section gap (the PDF's spaceAfter + Spacer) instead of collapsing into it. */
+.cvp-section { display: flow-root; margin-bottom: var(--cvp-gap); }
 
 .cvp-section__title {
+  letter-spacing: normal;
+  text-wrap: wrap;
   margin-bottom: 3pt;
   font-size: var(--cvp-heading);
   line-height: calc(var(--cvp-heading) + 3pt);
@@ -847,12 +855,31 @@
   align-items: start;
 }
 
+/* The PDF lays the heading/date table at the full text width, so it overhangs the padded frame by 6pt each side. */
+.cvp-paper:not(.cvp-paper--two-column) .cvp-entry__row { margin-inline: -6pt; }
+
+/* Two-column frames pad 6pt on the right only (the table inside overhangs by half of that on each side). */
+.cvp-paper--two-column .cvp-side,
+.cvp-paper--two-column .cvp-main { padding-right: 6pt; }
+.cvp-paper--two-column .cvp-entry__row { margin-inline: -3pt; }
+
 .cvp-entry__heading,
 .cvp-entry__dates {
   margin-bottom: 1pt;
   font-size: calc(var(--cvp-body) + 1pt);
   line-height: calc(var(--cvp-body) + 4pt);
 }
+
+/* The export sets the whole heading line (heading and subheading) in the bold face. */
+.cvp-entry__heading { font-weight: 700; }
+
+/* ATS mode exports in plain Helvetica, whose "bold" is the regular face. */
+.cvp-paper[data-ats] .cvp-entry__heading,
+.cvp-paper[data-ats] .cvp-entry__heading b,
+.cvp-paper[data-ats] .cvp-entry__dates { font-weight: 400; }
+
+/* In the PDF a heading with dates is a table row, and ReportLab ignores a paragraph's spaceAfter inside a cell. */
+.cvp-entry__row:has(.cvp-entry__dates) > p { margin-bottom: 0; }
 
 .cvp-entry__heading b { font-weight: 700; }
 .cvp-entry__dates { font-weight: 700; text-align: right; }
@@ -866,17 +893,13 @@
 
 .cvp-entry__bullets { padding: 0; list-style: none; }
 
+/* The PDF sets the bullet inline at a 10pt indent (no hanging indent): wrapped lines return to the indent, not under the text. */
 .cvp-entry__bullets li {
-  position: relative;
   margin-bottom: 2pt;
   padding-left: 10pt;
 }
 
-.cvp-entry__bullets li::before {
-  content: '•';
-  position: absolute;
-  left: 0;
-}
+.cvp-entry__bullets li::before { content: '•\00a0'; }
 
 .cvp-entry__text { margin-bottom: 4pt; white-space: pre-line; }
 

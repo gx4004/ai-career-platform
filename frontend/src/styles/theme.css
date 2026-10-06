@@ -56,8 +56,6 @@
 
   /* meaning aliases */
   --good: var(--mint);
-  --attention: var(--lemon);
-  --urgent: var(--rose);
 
   /* ── Outline, hard shadows, tilt ──────────────────────────────────── */
   --bw: 2px;
@@ -69,9 +67,6 @@
   --sh-4: 10px 10px 0 var(--ink); /* landing closer only */
   --sh-ink: 4px 4px 0 var(--surface), 4px 4px 0 2px var(--ink); /* ink button */
   --shadow-paper: 0 1px 2px rgb(var(--shadow-ink) / 0.14), 0 14px 34px rgb(var(--shadow-ink) / 0.16); /* CV paper and its desk only */
-  --tilt-a: -2deg;
-  --tilt-b: 1.6deg;
-  --tilt-note: 1.2deg;
 
   /* ── Radius ladder (canonical) ────────────────────────────────────── */
   --r-xs: 8px;
@@ -89,14 +84,8 @@
   /* ── Surfaces (legacy names) ──────────────────────────────────────── */
   --background: var(--ground);
   --surface-raised: var(--surface);
-  --surface-subtle: var(--stone-soft);
-  --surface-focus: var(--stone-soft);
-  --surface-sunken: var(--stone);
-  --surface-overlay: var(--surface);
   --surface-hover: var(--lemon-soft);
-  --surface-active: var(--lemon-soft);
   --surface-scrim: rgb(27 23 48 / 0.5);
-  --surface-tint: rgb(27 23 48 / 0.04);
   --ink-hairline: rgb(var(--shadow-ink) / 0.15); /* page-break guide, swatch rings */
 
   /* ── Ink (legacy names) ───────────────────────────────────────────── */
@@ -105,12 +94,9 @@
   --text-muted: var(--ink-2);
   --text-soft: var(--ink-3);
   --text-placeholder: var(--ink-3);
-  --text-faint: var(--ink-4); /* icons and separators only, never running text */
-  --text-disabled: var(--ink-3); /* 5.0:1 on stone, above the disabled exemption */
 
   /* ── Borders (legacy names) ───────────────────────────────────────── */
   --border-soft: var(--line);
-  --border-strong: var(--ink-3);
   --border-control: var(--ink);
   --divider: var(--line);
 
@@ -118,37 +104,16 @@
         text, underline, selected border and focus ring is correct ink); the filled
         primary is --primary (tangerine); selection is lemon. ───────────────────── */
   --accent: var(--ink);
-  --accent-hover: var(--ink);
-  --accent-active: var(--ink);
-  --accent-on: var(--surface); /* text on an ink fill; on tangerine use --primary-on */
-  --accent-subtle: var(--lemon-soft);
-  --accent-selected: var(--lemon);
 
   /* ── Status roles (fg, bg, border, solid) ─────────────────────────── */
   --success-fg: var(--success-ink);
-  --success-bg: var(--mint-soft);
-  --success-border: var(--ink);
-  --success-solid: var(--mint);
   --warning-fg: var(--warn-ink);
-  --warning-bg: var(--lemon-soft);
-  --warning-border: var(--ink);
   --warning-solid: var(--lemon);
-  --danger-fg: var(--danger-ink);
-  --danger-bg: var(--rose-soft);
-  --danger-border: var(--ink);
-  --danger-solid: var(--danger);
-  --danger-hover: var(--danger);
-  --info-fg: var(--ink-2);
-  --info-border: var(--line);
-  --neutral-fg: var(--ink);
-  --neutral-bg: var(--stone);
-  --neutral-border: var(--ink);
 
   /* ── Focus, selection, caret ──────────────────────────────────────── */
   --focus-ring-color: var(--ink); /* 15.8:1 on ground, 6.7:1 on tangerine, 12.6:1 on lemon */
   --focus-ring-width: 3px;
   --focus-ring-offset: 3px;
-  --focus-ring: 0 0 0 var(--focus-ring-offset) var(--ground), 0 0 0 calc(var(--focus-ring-offset) + var(--focus-ring-width)) var(--ink);
   --selection-bg: color-mix(in srgb, var(--lemon) 65%, transparent);
   --caret: var(--ink);
 
@@ -158,7 +123,6 @@
   --font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque Fallback', 'Avenir Next Condensed', 'Helvetica Neue', Arial, sans-serif;
   --font-ui: 'Onest Variable', 'Onest Fallback', 'Avenir Next', 'Helvetica Neue', Arial, sans-serif;
   --font-sans: var(--font-ui);
-  --font-serif: var(--font-display); /* alias only keeps older rules valid; Sticker has no serif */
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; /* <code> in admin / error detail only */
 
   /* ── Type: scale (size / line-height; weights below) ──────────────── */
@@ -178,7 +142,6 @@
   --fs-lead-xl: 2rem; /* 32 */
   --fs-hero: 4.5rem; /* 72 */
   --fs-display-l: 4.25rem; /* 68 */
-  --fs-stamp: 8.25rem; /* 132 = the seal numeral at 300px (0.44 x 300) */
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
@@ -231,14 +194,11 @@
   --radius-sm: var(--r-xs);
   --radius-md: var(--r-sm);
   --radius-lg: var(--r-md);
-  --radius-xl: var(--r-lg);
-  --radius-2xl: var(--r-xl);
   --radius-pill: 9999px;
 
   /* ── Elevation: one hard shadow style, never blurred ──────────────── */
   --shadow-ink: 27 23 48;
   --shadow-soft: var(--sh-1);
-  --shadow-overlay: var(--sh-3);
 
   /* ── Layers: one scale for everything that stacks ─────────────────── */
   --z-sticky: 10; /* sticky headers and table heads */
@@ -313,11 +273,8 @@
 
 @theme inline {
   --font-sans: var(--font-sans);
-  --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
-  --radius-2xl: var(--radius-2xl);
 }

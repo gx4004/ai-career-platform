@@ -8,6 +8,7 @@ import {
   EmptyState,
   ErrorState,
   FitStamp,
+  fitLevel,
   List,
   MetaRow,
   Notice,
@@ -95,20 +96,27 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
     },
   })
 
+  // "Best" only holds for listings the fit stamp itself rates fair or better; when nothing reaches
+  // that, the closest ones are still worth seeing, but they are not called best.
+  const strong = plan.best_matches.filter((listing) => listing.skills_fit !== null && fitLevel(listing.skills_fit).level !== 'low')
+  const closest = strong.length === 0 && plan.best_matches.length > 0
+  const shown = closest ? plan.best_matches : strong
+  const title = closest ? 'Closest matches to add' : 'Best matches to add'
+
   return (
     <Section
-      title="Best matches to add"
-      count={plan.best_matches.length > 0 ? plan.best_matches.length : undefined}
+      title={title}
+      count={shown.length > 0 ? shown.length : undefined}
       actions={
         <Button asChild variant="secondary" size="sm">
           <Link to="/discovery">Discover jobs</Link>
         </Button>
       }
     >
-      {plan.best_matches.length > 0 ? (
+      {shown.length > 0 ? (
         <>
-          <List aria-label="Best matches to add">
-            {plan.best_matches.map((listing) => (
+          <List aria-label={title}>
+            {shown.map((listing) => (
               <MatchRow
                 key={listing.listing_id}
                 listing={listing}

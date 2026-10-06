@@ -200,13 +200,13 @@ and requests are never hedged across providers (D-055).
 
 The production frontend server, not the API, owns browser document and static-asset
 security headers. It emits a CSP derived from the configured API origin, denies framing and object embedding, and restricts fonts to the
-bundled files plus the Google Fonts hosts currently referenced by the root route.
+self-hosted files bundled with the app (Bricolage Grotesque and Onest via fontsource; no third-party font host is referenced).
 The policy retains inline script/style compatibility because the SSR wrapper and
 current UI emit inline content.
 
 COOP is `same-origin` and CORP is `same-origin`. COEP is intentionally omitted:
 the product does not require cross-origin isolation, and enabling it would require
-separate compatibility evidence for Google Fonts, downloads, and OAuth.
+separate compatibility evidence for downloads and OAuth.
 HSTS is emitted only when `SECURITY_HSTS_ENABLED=true` and Railway reports an
 HTTPS-forwarded request. The switch remains off until production domain ownership
 and end-to-end TLS are verified. It does not claim `includeSubDomains` or preload
