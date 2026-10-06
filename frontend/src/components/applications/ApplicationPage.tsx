@@ -50,7 +50,9 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
     },
   })
 
-  if (status === 'loading') return <ApplicationSkeleton />
+  // 'unreachable' is a signed-in browser that cannot reach the server, not a guest: it waits like 'loading'
+  // while the service banner explains the outage.
+  if (status === 'loading' || status === 'unreachable') return <ApplicationSkeleton />
   if (!authenticated) {
     return (
       <Page>

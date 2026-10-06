@@ -60,7 +60,7 @@ export function FieldSection() {
     <GallerySection
       id="field"
       title="Field, Input, Select, Textarea, DateField"
-      note="Field wires id, aria-describedby, aria-invalid, required and disabled into the control it wraps. Every frame shares one height scale (36, 44, 56), a 2px ink outline, radius 12 and no shadow; state is a fill (hover stone, focus warm white, invalid rose, disabled stone)."
+      note="Field wires id, aria-describedby, aria-invalid, required and disabled into the control it wraps. Every frame shares one height scale (36, 44, 56), a 2px ink outline, radius 12 and no shadow; state is a fill (hover stone, focus warm white, invalid rose, disabled stone). The outline and the focus ring are always ink: an error is the rose fill plus its message."
     >
       <Group title="Field">
         <Grid>
@@ -130,7 +130,7 @@ export function FieldSection() {
           <Specimen label="invalid">
             <Input aria-label="Invalid" invalid defaultValue="not-an-email" />
           </Specimen>
-          <Specimen label="invalid and focused: the ring turns danger ink">
+          <Specimen label="invalid and focused: the ring stays 3px ink, the rose fill stays">
             <Input aria-label="Invalid focus" invalid className="kit-demo-focus" defaultValue="not-an-email" />
           </Specimen>
           <Specimen label="read-only">

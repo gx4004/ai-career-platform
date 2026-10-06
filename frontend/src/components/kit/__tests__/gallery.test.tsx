@@ -30,6 +30,8 @@ describe('/_kit gallery', () => {
     const unnamed = [...document.querySelectorAll('button, input, select, textarea')].filter((control) => {
       const el = control as HTMLElement
       if (el.getAttribute('type') === 'hidden') return false
+      // A decorative control hidden from assistive tech (and the tab order) has no name to give.
+      if (el.closest('[aria-hidden="true"]')) return false
       const labelled = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')
       const hasLabel = (el as HTMLInputElement).labels && (el as HTMLInputElement).labels!.length > 0
       const text = el.textContent?.trim()

@@ -13,6 +13,8 @@ const api = vi.hoisted(() => ({
   prepareApplicationsForMe: vi.fn(),
 }))
 vi.mock('#/lib/api/client', () => api)
+const session = vi.hoisted(() => ({ status: 'authenticated' as string }))
+vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status }) }))
 const createApi = vi.hoisted(() => ({ createApplication: vi.fn(), listApplicationEvents: vi.fn() }))
 vi.mock('#/components/applications/applicationsApi', () => createApi)
 vi.mock('@tanstack/react-router', () => ({
@@ -48,6 +50,7 @@ async function moveTo(title: string, target: string) {
 describe('ApplicationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    session.status = 'authenticated'
     api.listApplications.mockResolvedValue({ items, total: items.length })
     api.getApplicationPreferences.mockResolvedValue(prefs)
     api.getApplicationInsights.mockResolvedValue(noInsights)
@@ -114,10 +117,35 @@ describe('ApplicationsPage', () => {
     }
   })
 
-  it('says what a column is for when it is empty', async () => {
+  it('says what a column is for when it is empty, in the dashed slot a card would take', async () => {
     renderBoard()
     await screen.findByText('Backend Engineer')
-    expect(within(column('Offer')).getByText('Offers on the table')).toBeTruthy()
+    const hint = within(column('Offer')).getByText('Offers on the table')
+    expect(hint.closest('.kit-empty')?.getAttribute('data-variant')).toBe('slot')
+  })
+
+  it('waits like loading, without an error, while a signed-in browser cannot reach the server', async () => {
+    session.status = 'unreachable'
+    api.listApplications.mockRejectedValue(new ApiError('Network error', 0))
+    renderBoard()
+    await waitFor(() => expect(api.listApplications).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.getByText('Loading applications')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/couldn't be loaded/)).toBeNull()
+    expect(screen.queryByRole('button', { name: "What's working" })).toBeNull()
+  })
+
+  it('adds What\'s working and Prepare under the board only once their data is in, so nothing is pushed down', async () => {
+    let answer: (value: unknown) => void = () => undefined
+    api.getApplicationInsights.mockReturnValue(new Promise((resolve) => { answer = resolve }))
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    expect(screen.queryByRole('button', { name: "What's working" })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /Prepare applications/ })).toBeNull()
+    answer(noInsights)
+    expect(await screen.findByRole('button', { name: "What's working" })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: /Prepare applications/ })).toBeTruthy()
   })
 
   it('keeps the header to in-progress and ready counts; stage counts live in the board columns', async () => {

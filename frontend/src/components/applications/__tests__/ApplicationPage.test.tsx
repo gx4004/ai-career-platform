@@ -15,7 +15,8 @@ vi.mock('#/lib/api/client', () => api)
 const eventsApi = vi.hoisted(() => ({ createApplication: vi.fn(), listApplicationEvents: vi.fn() }))
 vi.mock('#/components/applications/applicationsApi', () => eventsApi)
 vi.mock('#/lib/flags/featureFlags', () => ({ isAutopilotExperimentEnabled: () => flags.autopilot }))
-vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated', openAuthDialog: vi.fn() }) }))
+const session = vi.hoisted(() => ({ status: 'authenticated' as string }))
+vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status, openAuthDialog: vi.fn() }) }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children, className }: { to: string; children: React.ReactNode; className?: string }) => <a href={to} className={className}>{children}</a>,
   useNavigate: () => vi.fn(),
@@ -65,9 +66,18 @@ const applyPanel = async () => {
 describe('ApplicationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    session.status = 'authenticated'
     flags.autopilot = false
     api.getAutofillStatus.mockResolvedValue({ state: 'idle' })
     api.getApplicationDetails.mockResolvedValue({ ...NO_DETAILS })
+  })
+
+  it.each(['loading', 'unreachable'])('waits with the page placeholder, not a sign-in prompt, while the session is %s', (status) => {
+    session.status = status
+    renderPage()
+    expect(screen.getByRole('status', { name: 'Loading this application…' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    expect(api.getApplication).not.toHaveBeenCalled()
   })
 
   it('shows every section on one page under the shared header', async () => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Briefcase, ChevronDown, ChevronRight, MoreHorizontal, Pin, Plus } from 'lucide-react'
+import { Briefcase, ChevronDown, MoreHorizontal, Pin, Plus } from 'lucide-react'
 import { AddApplicationDialog } from '#/components/applications/AddApplicationDialog'
 import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
 import { WhatsWorkingPanel } from '#/components/applications/WhatsWorkingPanel'
@@ -45,9 +45,15 @@ import {
   Table,
 } from '#/components/kit'
 import type { TableColumn, TableSort } from '#/components/kit'
-import { listApplications, updateApplication } from '#/lib/api/client'
+import { useSession } from '#/hooks/useSession'
+import { getApplicationInsights, getApplicationPreferences, listApplications, updateApplication } from '#/lib/api/client'
 import type { ApplicationCard, ApplicationDetail, ApplicationList, ApplicationStatus } from '#/lib/api/schemas'
-import { APPLICATION_BOARD_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
+import {
+  APPLICATION_BOARD_QUERY_KEY,
+  APPLICATION_INSIGHTS_QUERY_KEY,
+  APPLICATION_PREFERENCES_QUERY_KEY,
+  invalidateApplications,
+} from '#/lib/query/applicationCaches'
 
 type View = 'board' | 'list'
 
@@ -77,6 +83,16 @@ export function ApplicationsPage() {
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState<ApplicationDetail | null>(null)
   const query = useQuery({ queryKey: APPLICATION_BOARD_QUERY_KEY, queryFn: listApplications })
+  // 'unreachable' is a signed-in browser that cannot reach the server, not a failure of this page: until the
+  // board has loaded it waits like 'loading' (the service banner explains the outage) instead of showing errors.
+  const { status: session } = useSession()
+  const waiting = query.isPending || (session === 'unreachable' && !query.isSuccess) || (session === 'loading' && query.isError)
+  // What's working and Prepare load alongside the board but only appear once the board has settled and their own
+  // data is in: they then arrive whole at the end of the page, instead of growing from a short placeholder and
+  // pushing down what sits under them.
+  const insights = useQuery({ queryKey: APPLICATION_INSIGHTS_QUERY_KEY, queryFn: getApplicationInsights })
+  const preferences = useQuery({ queryKey: APPLICATION_PREFERENCES_QUERY_KEY, queryFn: getApplicationPreferences })
+  const panelsReady = !waiting && !insights.isPending && !preferences.isPending
   const move = useMutation({
     mutationFn: ({ card, status }: { card: ApplicationCard; status: ApplicationStatus }) =>
       updateApplication(card.id, { status }),
@@ -152,7 +168,7 @@ export function ApplicationsPage() {
     <Page width="wide">
       <PageHeader
         title="Your applications"
-        meta={query.isPending ? [<Skeleton key="meta" size="meta" width="7rem" />] : items.length ? summaryMeta(items) : undefined}
+        meta={waiting ? [<Skeleton key="meta" size="meta" width="7rem" />] : items.length ? summaryMeta(items) : undefined}
         actions={
           <Cluster gap={2} justify="end">
             {items.length ? (
@@ -185,7 +201,7 @@ export function ApplicationsPage() {
         <Notice tone="danger" onDismiss={() => setMoveError(null)}>{moveError}</Notice>
       ) : null}
 
-      {query.isPending ? (
+      {waiting ? (
         <>
           <p className="kit-sr-only" role="status">Loading applications</p>
           <div className="camp-board" aria-busy="true">
@@ -235,7 +251,7 @@ export function ApplicationsPage() {
                         ))}
                       </ol>
                     ) : (
-                      <EmptyState size="inline" title={stage.hint} />
+                      <EmptyState size="inline" variant="slot" title={stage.hint} />
                     )}
                   </Column>
                 )
@@ -245,9 +261,12 @@ export function ApplicationsPage() {
         </Stack>
       )}
 
-      <WhatsWorkingPanel compact={compact} />
-
-      <PrepareForMePanel />
+      {panelsReady ? (
+        <>
+          <WhatsWorkingPanel compact={compact} />
+          <PrepareForMePanel />
+        </>
+      ) : null}
 
       <AddApplicationDialog open={adding} onOpenChange={setAdding} onCreated={onAdded} />
     </Page>
@@ -255,56 +274,18 @@ export function ApplicationsPage() {
 }
 
 /**
- * The phone's five stages are wider than the screen. While some are off to the right, a chevron after the
- * group says so and scrolls them in (Offer and Closed would otherwise only be found by swiping); the chosen
- * stage is always scrolled into view. Arrow keys inside the group already reach every stage.
+ * The phone's five stages are wider than the screen: the kit's edge fade says more are scrolled off, arrow
+ * keys inside the group reach every stage, and the chosen stage is always scrolled into the middle of view.
  */
 function StageSwitcher({ value, children }: { value: Stage; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
-  const [more, setMore] = useState(false)
-  const group = () => ref.current?.querySelector<HTMLElement>('[role="radiogroup"]') ?? null
   useEffect(() => {
-    const element = group()
-    if (!element) return
-    const update = () => setMore(element.scrollLeft + element.clientWidth < element.scrollWidth - 4)
-    update()
-    element.addEventListener('scroll', update, { passive: true })
-    // The group's own width changes too (counts after a move or an add, the font arriving), not just the window.
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
-    observer?.observe(element)
-    return () => {
-      element.removeEventListener('scroll', update)
-      observer?.disconnect()
-    }
-  }, [])
-  useEffect(() => {
-    group()?.querySelector<HTMLElement>('[aria-checked="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    ref.current
+      ?.querySelector<HTMLElement>('[role="radiogroup"] [aria-checked="true"]')
+      // Centred, so neither edge fade sits over the chosen stage's name and count.
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
   }, [value])
-  return (
-    <Cluster nowrap gap={2} ref={ref}>
-      {children}
-      {/* Always laid out, only hidden, so the group keeps its width as the chevron comes and goes. */}
-      <Button
-        type="button"
-        iconOnly
-        size="sm"
-        variant="secondary"
-        // A pointer-only affordance (arrow keys in the group reach every stage); the kit's icon-only type still
-        // asks for a name.
-        aria-label="Show more stages"
-        aria-hidden="true"
-        tabIndex={-1}
-        style={more ? undefined : { visibility: 'hidden' }}
-        onClick={() => {
-          const element = group()
-          const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-          element?.scrollBy({ left: element.clientWidth * 0.8, behavior: still ? 'auto' : 'smooth' })
-        }}
-      >
-        <ChevronRight aria-hidden="true" />
-      </Button>
-    </Cluster>
-  )
+  return <div ref={ref}>{children}</div>
 }
 
 /**

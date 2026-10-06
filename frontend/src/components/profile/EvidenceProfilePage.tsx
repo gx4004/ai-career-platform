@@ -67,13 +67,18 @@ function evidenceRow(item: EvidenceItem) {
       </span>
     ) : null,
   ]
-  const details = (
+  // A fact typed by hand with one value has nothing under its title: no empty line to pad the row.
+  const details = rest.length > 0 || meta.some(Boolean) ? (
     <>
       {rest.map((field) => <div key={field.key} className="profile-line">{field.value}</div>)}
       <MetaRow>{meta}</MetaRow>
     </>
-  )
+  ) : undefined
   return { lead, details }
+}
+
+function SavedFactsSkeleton() {
+  return <List aria-label="Saved facts" aria-busy="true" className="profile-skeleton"><Skeleton variant="row" as="li" count={4} /></List>
 }
 
 export function EvidenceProfilePage() {
@@ -317,6 +322,21 @@ export function EvidenceProfilePage() {
     run(item.id)
   }
 
+  // 'unreachable' is a signed-in browser that cannot reach the server, not a guest: it waits like 'loading' (the
+  // service banner explains the outage) instead of asking someone who is signed in to sign in.
+  if (status === 'loading' || status === 'unreachable') {
+    return (
+      <Page>
+        <PageHeader title="Your profile" meta={[<Skeleton key="count" size="meta" width="7rem" />]} />
+        <div className="profile-layout">
+          <Section title="Saved facts">
+            <SavedFactsSkeleton />
+          </Section>
+        </div>
+      </Page>
+    )
+  }
+
   if (!isAuthenticated) {
     return (
       <Page>
@@ -480,7 +500,7 @@ export function EvidenceProfilePage() {
             description={groups.length > 0 ? 'CV Studio and the tools only use saved facts. Edit one to correct it.' : undefined}
           >
             {itemsQuery.isPending ? (
-              <List aria-label="Saved facts" aria-busy="true" className="profile-skeleton"><Skeleton variant="row" as="li" count={4} /></List>
+              <SavedFactsSkeleton />
             ) : groups.length === 0 ? (
               <EmptyState
                 icon={<ListChecks />}

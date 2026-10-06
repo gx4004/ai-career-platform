@@ -14,8 +14,8 @@
   --kit-control-fs: var(--fs-body);
   --kit-control-lh: 1.4;
   --kit-control-icon: 1rem;
-  --kit-control-ring: var(--focus-ring-color);
   --kit-control-bg: var(--surface);
+  --kit-control-focus-bg: var(--focus-fill);
 
   position: relative;
   display: flex;
@@ -60,6 +60,8 @@
 }
 
 /* ── States ────────────────────────────────────────────────────────── */
+/* The outline never changes colour or weight: an error is the rose fill plus the Field's message, and the
+   focus ring stays 3px ink on an invalid control too (it only keeps the rose fill instead of --focus-fill). */
 
 @media (hover: hover) {
   .kit-input:hover,
@@ -74,8 +76,8 @@
 .kit-select[data-invalid],
 .kit-textarea[data-invalid],
 .kit-check[data-framed][data-invalid] {
-  --kit-control-ring: var(--danger-ink);
   --kit-control-bg: var(--rose-soft);
+  --kit-control-focus-bg: var(--rose-soft);
 }
 
 .kit-input[data-readonly],
@@ -96,7 +98,7 @@
   cursor: not-allowed;
 }
 
-/* Focus: --focus-fill on the frame plus the 3px ink ring (danger ink when invalid). Declared last so it beats hover and the status fills (.kit-demo-focus forces it for the /_kit gallery). */
+/* Focus: --focus-fill on the frame (rose-soft stays on an invalid one) plus the 3px ink ring. Declared last so it beats hover and the status fills (.kit-demo-focus forces it for the /_kit gallery). */
 .kit-input:has(.kit-input__control:focus-visible),
 .kit-select:has(.kit-select__control:focus-visible),
 .kit-textarea:focus-visible,
@@ -104,9 +106,9 @@
 .kit-input.kit-demo-focus,
 .kit-select.kit-demo-focus,
 .kit-textarea.kit-demo-focus {
-  --kit-control-bg: var(--focus-fill);
+  --kit-control-bg: var(--kit-control-focus-bg);
 
-  outline: var(--focus-ring-width) solid var(--kit-control-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;
 }
 

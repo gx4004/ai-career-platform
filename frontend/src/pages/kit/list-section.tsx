@@ -235,7 +235,7 @@ export function ListSection() {
     <GallerySection
       id="list"
       title="List, Row"
-      note="One row for every list: lead, text, meta, actions. Titles wrap by default (truncating is a choice you make per list). Hover over a row to reveal its secondary actions; on touch they are always visible, and they appear while focus is inside the row. The primary action (Add) never hides. Narrow the window under 32rem of list width (or open this on a phone) to see the phone rule: every row with actions keeps them on its first line and its meta drops under the text."
+      note="One row for every list: lead, text, meta, actions. Titles wrap by default (truncating is a choice you make per list). Hover over a row to reveal its secondary actions; on any device with a touchscreen (a phone, a tablet, a touchscreen laptop) they are always visible, and they appear while focus is inside the row. The primary action (Add) never hides. Narrow the window under 32rem of list width (or open this on a phone) to see the phone rule: every row with actions keeps them on its first line and its meta drops under the text."
     >
       <Group title="Jobs (Discover style): a 200-character title, missing fields, an Arabic title, a selected row">
         <JobList />

@@ -302,4 +302,24 @@ describe('EvidenceProfilePage', () => {
     expect(openAuthDialogMock).toHaveBeenCalledWith({ to: '/profile', reason: 'account' })
     expect(api.listEvidenceItems).not.toHaveBeenCalled()
   })
+
+  it.each(['loading', 'unreachable'])('waits with a placeholder, not a sign-in prompt, while the session is %s', (status) => {
+    sessionState.status = status
+    renderPage()
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Your profile' })).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Saved facts' }).getAttribute('aria-busy')).toBe('true')
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    expect(api.listEvidenceItems).not.toHaveBeenCalled()
+  })
+
+  it('leaves no empty line under a fact typed by hand with a single value', async () => {
+    api.listEvidenceItems.mockResolvedValue({
+      items: [makeItem({ id: 'k1', kind: 'skill', content: { name: 'Python' }, provenance: 'user-entered', confirmation_state: 'confirmed' })],
+    })
+    renderPage()
+
+    const row = (await screen.findByText('Python')).closest('.kit-row') as HTMLElement
+    expect(row.querySelector('.kit-row__subtitle')).toBeNull()
+  })
 })

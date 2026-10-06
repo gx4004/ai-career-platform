@@ -126,6 +126,29 @@ describe('JobImportCard', () => {
       expect(onImported).toHaveBeenCalled()
     })
 
+    it('keeps applied applications out of reach: listed last, disabled and marked Applied', async () => {
+      const applied = { ...application, id: 'app-2', title: 'Data Engineer', company: 'Quarry', status: 'interviewing', applied_at: '2026-09-01T10:00:00Z' }
+      listApplicationsMock.mockResolvedValue({ items: [applied, application], total: 2 })
+      renderCard()
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      const sent = (await screen.findByRole('option', { name: 'Data Engineer at Quarry (Applied)' })) as HTMLOptionElement
+      expect(sent.disabled).toBe(true)
+      const open = screen.getByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' }) as HTMLOptionElement
+      expect(open.disabled).toBe(false)
+      const names = screen.getAllByRole('option').map((option) => option.textContent)
+      expect(names.indexOf(open.textContent)).toBeLessThan(names.indexOf(sent.textContent))
+      expect(screen.getByRole('option', { name: 'Select an application' })).toBeTruthy()
+    })
+
+    it('says so when every application is already applied, instead of asking for a pick', async () => {
+      const applied = { ...application, applied_at: '2026-09-01T10:00:00Z' }
+      listApplicationsMock.mockResolvedValue({ items: [applied], total: 1 })
+      renderCard()
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      expect(await screen.findByRole('option', { name: 'All your applications are already applied' })).toBeTruthy()
+      expect(screen.queryByRole('option', { name: 'Select an application' })).toBeNull()
+    })
+
     it('shows the reason an attach failed, not a generic line', async () => {
       listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
       importJobTextMock.mockRejectedValue(new Error('Application not found'))

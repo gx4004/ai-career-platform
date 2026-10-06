@@ -136,6 +136,11 @@
   outline: none;
 }
 
+.kit-check:not([data-framed])[data-invalid] :is(.kit-check__box, .kit-check__switch):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .kit-check__box:disabled {
   border-color: var(--ink-3);
   background: var(--stone);
