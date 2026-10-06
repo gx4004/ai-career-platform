@@ -148,11 +148,12 @@
   min-width: 0;
 }
 
-/* The score's "?" sits in the side's top corner, clear of the round seal. */
+/* The score's "?" sits in the side's top corner, clear of the round seal: it reaches into the column gap
+   (or the page gutter on phones) so 16px of clear space stay between it and the seal (STICKER 1.9). */
 .result-hero__help {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-end: 0;
+  inset-inline-end: calc(-1 * var(--s3));
 }
 
 .result-hero__tags {
