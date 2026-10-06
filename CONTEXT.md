@@ -155,7 +155,9 @@ point (read from its status-change events), so one later rejected or withdrawn
 still counts; a rejection with no interview does not. An application withdrawn
 before any reply leaves the count entirely. *Reply rate* is replies divided by
 applied applications, still-waiting ones included, and is always shown with its
-n ("3 of 8").
+n ("3 of 8"). A card moved straight from Saved to a stage only a sent application
+reaches (No reply, Interviewing, Offer, Rejected, Withdrawn) counts as applied, so
+n always reconciles with the board.
 
 **What's working**
 The Applications page card that splits reply rate by source, company, kind of role
@@ -177,8 +179,10 @@ counts, no ML.
 **Today plan**
 The dashboard's answer to "what should I do today?", from `GET /api/v1/today`. Two
 lists, never blended: *best matches* (the top five visible Discovery listings by
-skills fit that are not dismissed and not yet an application, each with one action,
-Add to applications) and *needs action* (applications that are interviewing, still
+skills fit at or above the borderline fit (55%) that are not dismissed and not yet
+an application, each with one action, Add to applications; when none clears that
+floor, a separate *closest matches* list is shown under its own title, never called
+best) and *needs action* (applications that are interviewing, still
 saved with a deadline in the next seven days, or showing the No-reply suggestion,
 listed once under their most urgent reason). Nothing here changes a status.
 

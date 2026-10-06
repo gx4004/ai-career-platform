@@ -1,14 +1,13 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, Check, Clock, Compass, Plus } from 'lucide-react'
+import { Check, Clock, Compass, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
   EmptyState,
   ErrorState,
   FitStamp,
-  fitLevel,
   List,
   MetaRow,
   Notice,
@@ -99,13 +98,10 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
     },
   })
 
-  // "Best" only holds for listings the fit stamp itself rates fair or better; when nothing reaches
-  // that, the closest ones are still worth seeing, but they are not called best. Weaker ones are not
-  // dropped silently: a last row says how many more Discover has.
-  const strong = plan.best_matches.filter((listing) => listing.skills_fit !== null && fitLevel(listing.skills_fit).level !== 'low')
-  const closest = strong.length === 0 && plan.best_matches.length > 0
-  const shown = closest ? plan.best_matches : strong
-  const weaker = plan.best_matches.length - shown.length
+  // The server only calls a listing "best" at or above its fit floor; when none clears it, it sends the
+  // closest ones separately, and they are shown under an honest title rather than as best.
+  const closest = plan.best_matches.length === 0 && plan.closest_matches.length > 0
+  const shown = closest ? plan.closest_matches : plan.best_matches
   const title = closest ? 'Closest matches to add' : 'Best matches to add'
 
   return (
@@ -133,18 +129,6 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
                 }}
               />
             ))}
-            {weaker > 0 ? (
-              <Row>
-                <RowBody>
-                  <Button asChild variant="link" size="sm">
-                    <Link to="/discovery">
-                      {weaker} weaker {weaker === 1 ? 'match' : 'matches'} in Discover
-                      <ArrowRight aria-hidden="true" />
-                    </Link>
-                  </Button>
-                </RowBody>
-              </Row>
-            ) : null}
           </List>
           {adopt.isError ? (
             <Notice tone="danger" className="dash-notice">

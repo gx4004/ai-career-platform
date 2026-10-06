@@ -490,6 +490,27 @@ describe('cover letter helpers', () => {
     expect(screen.getByLabelText('Opening paragraph')).toBeTruthy()
     expect(screen.getByLabelText('Closing paragraph')).toBeTruthy()
   })
+
+  it('keeps the sign-off on screen and in the copied, edited and downloaded letter', () => {
+    const payload = {
+      opening: { text: 'Dear team,' },
+      body_points: [{ text: 'Original body.' }],
+      closing: { text: 'Thanks.' },
+      sign_off: 'Sincerely,\nJordan Rivera',
+      generated_at: '2026-03-13T10:00:00Z',
+    }
+    const definition = resultDefinitions['cover-letter']
+    const fresh = makeItem('cover-letter', payload)
+    expect(definition.copyText(payload, fresh)).toMatch(/Thanks\.\n\nSincerely,\nJordan Rivera$/)
+
+    const item = makeItem('cover-letter', payload)
+    render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
+    expect(screen.getByText(/Jordan Rivera/)).toBeTruthy()
+    expect(screen.queryByText(/\[Your name\]/)).toBeNull()
+    fireEvent.change(screen.getByLabelText('Body paragraph 1'), { target: { value: 'Edited body.' } })
+    expect(definition.copyText(payload, item)).toMatch(/Edited body\.\n\nThanks\.\n\nSincerely,\nJordan Rivera$/)
+    expect(definition.download?.(payload, item)?.content).toContain('Jordan Rivera')
+  })
 })
 
 describe('FixFirstList', () => {
