@@ -1,6 +1,10 @@
-import { createServer } from 'node:http'
-import { readFileSync, existsSync, readdirSync, realpathSync } from 'node:fs'
-import { join, extname, resolve, normalize } from 'node:path'
+import { createServer, request as httpRequest, Agent as HttpAgent } from 'node:http'
+import { request as httpsRequest, Agent as HttpsAgent } from 'node:https'
+import { readFile, readdir } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { promisify } from 'node:util'
+import { brotliCompress, gzip, constants as zlibConstants } from 'node:zlib'
+import { join, extname, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -11,6 +15,8 @@ const mimeTypes = {
   '.js': 'application/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
+  '.txt': 'text/plain',
+  '.xml': 'application/xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.webp': 'image/webp',
@@ -18,6 +24,210 @@ const mimeTypes = {
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
+}
+
+const brotliAsync = promisify(brotliCompress)
+const gzipAsync = promisify(gzip)
+
+// Text formats worth compressing; fonts and images are already compressed.
+const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.txt', '.xml', '.svg', '.ico'])
+const COMPRESSIBLE_TYPE = /^(text\/|application\/(javascript|json|xml)|image\/svg\+xml)/
+const MIN_COMPRESS_BYTES = 1024
+
+async function listFiles(dir) {
+  const files = []
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) files.push(...(await listFiles(path)))
+    else if (entry.isFile()) files.push(path)
+  }
+  return files
+}
+
+function etagFor(data, suffix = '') {
+  return `"${createHash('sha1').update(data).digest('base64url')}${suffix}"`
+}
+
+// dist/client is immutable after a build, so every file is read once at start-up
+// and kept in memory with its compressed variants: requests never touch the disk
+// and never pay brotli's maximum quality, which costs about a second of CPU for
+// the main chunk. Only files that exist here can be served, which also rules out
+// path traversal.
+async function loadStaticFiles() {
+  const files = new Map()
+  let paths = []
+  try {
+    paths = await listFiles(clientDir)
+  } catch {
+    return files
+  }
+  await Promise.all(
+    paths.map(async (path) => {
+      const data = await readFile(path)
+      const ext = extname(path)
+      const urlPath = '/' + relative(clientDir, path).split(sep).join('/')
+      const tag = etagFor(data)
+      const entry = {
+        type: mimeTypes[ext] || 'application/octet-stream',
+        cacheControl: urlPath.startsWith('/assets/')
+          ? 'public, max-age=31536000, immutable'
+          : 'public, max-age=3600',
+        compressible: COMPRESSIBLE_EXTENSIONS.has(ext),
+        variants: { identity: { data, etag: tag } },
+      }
+      if (entry.compressible && data.length >= MIN_COMPRESS_BYTES) {
+        const [br, gz] = await Promise.all([
+          brotliAsync(data, {
+            params: {
+              [zlibConstants.BROTLI_PARAM_QUALITY]: zlibConstants.BROTLI_MAX_QUALITY,
+              [zlibConstants.BROTLI_PARAM_SIZE_HINT]: data.length,
+            },
+          }),
+          gzipAsync(data, { level: 9 }),
+        ])
+        if (br.length < data.length) entry.variants.br = { data: br, etag: tag.replace(/"$/, '-br"') }
+        if (gz.length < data.length) entry.variants.gzip = { data: gz, etag: tag.replace(/"$/, '-gz"') }
+      }
+      files.set(urlPath, entry)
+    }),
+  )
+  return files
+}
+
+// Accept-Encoding with q-values: "br;q=0, gzip" refuses brotli.
+function acceptsEncoding(header, encoding) {
+  let wildcard = 0
+  for (const part of (header ?? '').split(',')) {
+    const [name, ...params] = part.trim().toLowerCase().split(';')
+    let q = 1
+    for (const param of params) {
+      const [key, value] = param.trim().split('=')
+      if (key === 'q') q = Number(value)
+    }
+    if (!Number.isFinite(q)) q = 0
+    if (name === encoding) return q > 0
+    if (name === '*') wildcard = q
+  }
+  return wildcard > 0
+}
+
+function matchesEtag(header, etag) {
+  if (!header) return false
+  return header.split(',').some((candidate) => {
+    const value = candidate.trim()
+    return value === '*' || value === etag || value === `W/${etag}`
+  })
+}
+
+function sendStatic(req, res, entry, cacheControl = entry.cacheControl) {
+  const encoding = ['br', 'gzip'].find(
+    (name) => entry.variants[name] && acceptsEncoding(req.headers['accept-encoding'], name),
+  )
+  const variant = entry.variants[encoding ?? 'identity']
+  const headers = {
+    'Content-Type': entry.type,
+    'Cache-Control': cacheControl,
+    ETag: variant.etag,
+  }
+  if (entry.compressible) headers.Vary = 'Accept-Encoding'
+  if (matchesEtag(req.headers['if-none-match'], variant.etag)) {
+    writeResponseHead(res, req, 304, headers)
+    res.end()
+    return
+  }
+  if (encoding) headers['Content-Encoding'] = encoding
+  headers['Content-Length'] = variant.data.length
+  writeResponseHead(res, req, 200, headers)
+  res.end(variant.data)
+}
+
+// Optional same-origin API: with API_PROXY_TARGET set (for example the backend's
+// private-network URL), /api/* is forwarded there, so the browser talks to one
+// origin and the SameSite=Lax, Path=/api cookies just work. Build the frontend
+// without VITE_API_URL in that topology so the client calls the relative /api/v1.
+const apiProxyTarget = configuredOrigin(process.env.API_PROXY_TARGET)
+if (process.env.API_PROXY_TARGET && !apiProxyTarget) {
+  throw new Error('API_PROXY_TARGET must be an http(s) URL')
+}
+// No keep-alive: uvicorn closes idle connections after a few seconds, and
+// reusing a socket it is closing would fail a non-idempotent POST.
+const proxyAgent = apiProxyTarget?.startsWith('https:')
+  ? new HttpsAgent({ keepAlive: false })
+  : new HttpAgent({ keepAlive: false })
+
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+])
+
+function isApiPath(pathname) {
+  return pathname === '/api' || pathname.startsWith('/api/')
+}
+
+function proxyToApi(req, res, url) {
+  const connectionTokens = new Set(
+    (req.headers.connection ?? '').split(',').map((token) => token.trim().toLowerCase()),
+  )
+  const headers = {}
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (HOP_BY_HOP_HEADERS.has(name) || connectionTokens.has(name) || name === 'host') continue
+    headers[name] = value
+  }
+  // Append the peer this server saw; the backend trusts the chain only as far
+  // as FORWARDED_ALLOW_IPS says (see backend/start.sh).
+  const peer = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
+  const forwardedFor = req.headers['x-forwarded-for']
+  headers['x-forwarded-for'] = forwardedFor ? `${forwardedFor}, ${peer}` : peer
+  headers['x-forwarded-proto'] = req.headers['x-forwarded-proto'] ?? 'http'
+  headers['x-forwarded-host'] = req.headers['x-forwarded-host'] ?? req.headers.host ?? ''
+
+  // The target path comes from the parsed URL, never the raw request target, so
+  // an absolute-form request line cannot redirect the proxy elsewhere.
+  const target = new URL(url.pathname + url.search, apiProxyTarget)
+  const send = target.protocol === 'https:' ? httpsRequest : httpRequest
+  const upstream = send(target, { method: req.method, headers, agent: proxyAgent }, (upstreamRes) => {
+    const responseHeaders = []
+    for (let i = 0; i < upstreamRes.rawHeaders.length; i += 2) {
+      const name = upstreamRes.rawHeaders[i]
+      if (HOP_BY_HOP_HEADERS.has(name.toLowerCase())) continue
+      responseHeaders.push(name, upstreamRes.rawHeaders[i + 1])
+    }
+    res.writeHead(upstreamRes.statusCode ?? 502, responseHeaders)
+    // pipe() only ends the browser response on 'end'; a backend that dies mid-body must not leave it hanging.
+    upstreamRes.on('aborted', () => res.destroy())
+    upstreamRes.on('error', () => res.destroy())
+    upstreamRes.pipe(res)
+  })
+  let clientGone = false
+  upstream.on('error', (err) => {
+    if (clientGone) return
+    console.error(`API proxy error: code=${err.code ?? err.name} method=${req.method} path=${url.pathname}`)
+    if (res.headersSent) {
+      res.destroy()
+      return
+    }
+    const body = '{"detail":"Bad gateway"}'
+    writeResponseHead(res, req, 502, {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+    })
+    res.end(body)
+  })
+  // A browser that goes away (navigation, closed tab) must not keep the
+  // backend request alive on its behalf.
+  res.on('close', () => {
+    if (res.writableFinished) return
+    clientGone = true
+    upstream.destroy()
+  })
+  req.pipe(upstream)
 }
 
 function configuredOrigin(value) {
@@ -142,6 +352,7 @@ function writeResponseHead(res, req, status, headers = {}) {
 
 // Import the SSR server
 const { default: server } = await import('./dist/server/server.js')
+const staticFiles = await loadStaticFiles()
 
 const httpServer = createServer(async (req, res) => {
   // Redirect HTTP → HTTPS (Railway sets x-forwarded-proto when TLS is terminated)
@@ -171,34 +382,24 @@ const httpServer = createServer(async (req, res) => {
     return
   }
 
-  // Try to serve static files from dist/client
-  const filePath = normalize(resolve(clientDir, '.' + url.pathname))
-  // Prevent path traversal — filePath must stay within clientDir
-  if (url.pathname !== '/' && filePath.startsWith(clientDir) && existsSync(filePath)) {
-    try {
-      const data = readFileSync(filePath)
-      const ext = extname(filePath)
-      writeResponseHead(res, req, 200, {
-        'Content-Type': mimeTypes[ext] || 'application/octet-stream',
-        'Cache-Control': url.pathname.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'public, max-age=3600',
-      })
-      res.end(data)
-      return
-    } catch {}
+  if (apiProxyTarget && isApiPath(url.pathname)) {
+    proxyToApi(req, res, url)
+    return
+  }
+
+  const staticFile = staticFiles.get(url.pathname)
+  if (staticFile) {
+    sendStatic(req, res, staticFile)
+    return
   }
 
   // Fallback for mismatched CSS hashes (SSR vs client build)
-  if (url.pathname.match(/\/assets\/styles-[^.]+\.css$/) && !existsSync(filePath)) {
-    try {
-      const assetsDir = join(clientDir, 'assets')
-      const cssFile = readdirSync(assetsDir).find(f => f.startsWith('styles-') && f.endsWith('.css'))
-      if (cssFile) {
-        const data = readFileSync(join(assetsDir, cssFile))
-        writeResponseHead(res, req, 200, { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=3600' })
-        res.end(data)
-        return
-      }
-    } catch {}
+  if (/^\/assets\/styles-[^/.]+\.css$/.test(url.pathname)) {
+    const cssPath = [...staticFiles.keys()].find((path) => /^\/assets\/styles-[^/]+\.css$/.test(path))
+    if (cssPath) {
+      sendStatic(req, res, staticFiles.get(cssPath), 'public, max-age=3600')
+      return
+    }
   }
 
   // SSR handler
@@ -215,18 +416,33 @@ const httpServer = createServer(async (req, res) => {
 
     const response = await server.fetch(request)
 
-    writeResponseHead(res, req, response.status, Object.fromEntries(response.headers.entries()))
+    const responseHeaders = Object.fromEntries(response.headers.entries())
     let body = await response.text()
 
     // Strip TanStack dev-only stylesheet links
     body = body.replace(/<link[^>]*@tanstack-start\/styles\.css[^>]*>/g, '')
 
-    // Prevent FOUC: hide body until CSS + JS are ready
-    body = body
-      .replace('<body>', '<body style="opacity:0">')
-      .replace('</body>', '<script>requestAnimationFrame(()=>requestAnimationFrame(()=>{document.body.style.opacity="1";document.body.style.transition="opacity .2s"}))</script></body>')
+    // gzip at level 6 on the fly: cheap for a page of HTML (brotli at a useful
+    // quality is not), and most of the first paint's bytes.
+    let payload = body
+    const compressible =
+      COMPRESSIBLE_TYPE.test(responseHeaders['content-type'] ?? '') &&
+      !responseHeaders['content-encoding']
+    if (compressible) {
+      responseHeaders.vary = responseHeaders.vary ? `${responseHeaders.vary}, Accept-Encoding` : 'Accept-Encoding'
+      if (
+        Buffer.byteLength(body) >= MIN_COMPRESS_BYTES &&
+        acceptsEncoding(req.headers['accept-encoding'], 'gzip')
+      ) {
+        payload = await gzipAsync(body, { level: 6 })
+        responseHeaders['content-encoding'] = 'gzip'
+        responseHeaders['content-length'] = String(payload.length)
+      }
+    }
+    if (payload === body) delete responseHeaders['content-length']
 
-    res.end(body)
+    writeResponseHead(res, req, response.status, responseHeaders)
+    res.end(payload)
   } catch (err) {
     // Render errors routinely embed user-supplied content in their message and
     // stack, and process stdout/stderr is not scrubbed. Log only the stable

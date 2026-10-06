@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
@@ -10,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
@@ -238,14 +240,30 @@ class RequestSizeLimitMiddleware:
 
 request_logger = logging.getLogger("app.request")
 
+# An id a proxy or client already assigned is kept so one id follows the request
+# across hops; anything else (or nothing) gets a fresh one. The shape check keeps
+# arbitrary header text out of the logs.
+_INCOMING_REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{8,64}")
+
+
+def _request_id(scope) -> str:
+    for name, value in scope.get("headers", []):
+        if name == b"x-request-id":
+            candidate = value.decode("latin-1")
+            if _INCOMING_REQUEST_ID.fullmatch(candidate):
+                return candidate
+            break
+    return uuid.uuid4().hex[:16]
+
 
 class RequestLogMiddleware:
     """One structured line per request, and a catch-all for unhandled errors.
 
-    The line holds method, path, status, duration and a generated request id: no
-    query string (job-search terms) and no client address, matching the logging
-    policy. An unhandled exception is logged by type and request id only, never
-    its message or traceback, and answered with a generic 500.
+    The line holds method, path, status, duration and the request id (echoed as
+    X-Request-ID): no query string (job-search terms) and no client address,
+    matching the logging policy. An unhandled exception is logged by type and
+    request id only, never its message or traceback, and answered with a generic
+    500 whose body carries the request id so a report can be matched to the log.
     """
 
     _QUIET_PREFIX = "/api/v1/health"
@@ -258,7 +276,7 @@ class RequestLogMiddleware:
             await self.app(scope, receive, send)
             return
 
-        request_id = uuid.uuid4().hex[:16]
+        request_id = _request_id(scope)
         started = time.perf_counter()
         status_code = 500
         response_started = False
@@ -291,7 +309,9 @@ class RequestLogMiddleware:
                 )
             )
             if not response_started:
-                body = b'{"detail":"Internal server error"}'
+                body = json.dumps(
+                    {"detail": "Internal server error", "request_id": request_id}
+                ).encode()
                 await logging_send({
                     "type": "http.response.start",
                     "status": 500,
@@ -331,6 +351,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class _GZipUnlessRanged(GZipMiddleware):
+    """Gzip, except for Range requests: a 206 body must stay the identity bytes its Content-Range names."""
+
+    async def __call__(self, scope, receive, send):  # type: ignore[override]
+        if scope["type"] == "http" and any(name == b"range" for name, _ in scope["headers"]):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
+# Innermost, so the security and request-id headers are added to the compressed
+# response. JSON bodies (history, listings, CV documents) shrink several-fold.
+# Level 6: level 9 costs 2-3x the CPU on the event loop for a few percent smaller JSON.
+app.add_middleware(_GZipUnlessRanged, minimum_size=1000, compresslevel=6)
 app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(RequestLogMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -348,6 +382,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
+    # Cross-origin deployments: the client reads Retry-After for rate-limit copy and logs the request id.
+    expose_headers=["Retry-After", "X-Request-ID"],
 )
 
 # --- Startup checks ---

@@ -23,10 +23,12 @@ they disagree. Code always wins (`docs/README.md` precedence).
   to stdout only, never persisted. Read every Sentry/`SENTRY_DSN`/reCAPTCHA/
   `_scrub_sentry_event` reference below as historical.
 - **Rate limiting is simple.** SlowAPI per-route limits, in-process memory, keyed by
-  the immediate client address (`backend/app/limiter.py`). HMAC-pseudonymized keys,
-  `RATE_LIMIT_STORAGE_URI`, `TRUST_PROXY_HEADERS`/`TRUSTED_PROXY_CIDRS`, account
-  counters and abuse-evidence rows were removed (#355) and must be redesigned before
-  any hosted launch; D-UNK-1 and §6.6 describe the removed design.
+  `request.client` (`backend/app/limiter.py`), which uvicorn takes from
+  `X-Forwarded-For` only for peers in `FORWARDED_ALLOW_IPS` (default loopback;
+  `backend/start.sh`). HMAC-pseudonymized keys, `RATE_LIMIT_STORAGE_URI`,
+  `TRUST_PROXY_HEADERS`/`TRUSTED_PROXY_CIDRS`, account counters and abuse-evidence
+  rows were removed (#355) and must be redesigned before any hosted launch; D-UNK-1
+  and §6.6 describe the current state.
 - **R13 contacts, reminders, R15 approval queue and R16 trusted submission are
   gone** (D-127, D-128, D-130; ADR 0009 amended, ADR 0010 superseded). The
   authoritative description of application data is the section "Applications,
@@ -59,9 +61,14 @@ Railway Platform
 └── PostgreSQL (Railway-provided)
 ```
 
-- Railway handles TLS termination and path-based routing.
+- Railway handles TLS termination. It does not route paths between the two
+  services: by default the browser calls the backend's own origin
+  (`VITE_API_URL="${{BACKEND_URL}}/api/v1"`, `frontend/railway.toml`).
   — `railway.toml`, `frontend/railway.toml`
-- No nginx or custom reverse proxy exists in the repository.
+- No nginx or Caddy exists. The frontend server has an optional same-origin
+  `/api/*` reverse proxy, off unless `API_PROXY_TARGET` is set, that appends the
+  peer to `X-Forwarded-For` and passes `X-Forwarded-Proto`/`-Host`
+  (`frontend/serve.mjs`). Which topology to deploy is an open owner decision.
 - The frontend SSR server checks `x-forwarded-proto` and redirects HTTP to HTTPS.
   — `frontend/serve.mjs`
 
@@ -585,11 +592,18 @@ review. OAuth navigation, providers, logout, and health are also unrate-limited.
 
 ### 6.6 Rate-Limit Identity
 
-The limiter keys on the immediate client address (`get_remote_address`) with
-in-process SlowAPI storage (`backend/app/limiter.py`). It is intentionally simple for
-the local-only product: behind a proxy every request would share one key, and state
-is per process. A hosted launch needs shared storage and proxy-aware keys, redesigned
-then (see the reset notice at the top).
+The limiter keys on `request.client` (`get_remote_address`) with in-process SlowAPI
+storage (`backend/app/limiter.py`). uvicorn runs with `--proxy-headers
+--forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}"` (`backend/start.sh`; the
+Dockerfile CMD reads the same variable): it replaces the client with the right-most
+`X-Forwarded-For` entry that is not itself a trusted hop, and only when the
+connecting peer is trusted. Unset, only loopback is trusted, so behind an untrusted
+proxy every request still shares the proxy's key. The deployment must list every
+proxy hop (edge and, with `API_PROXY_TARGET`, the frontend server) in
+`FORWARDED_ALLOW_IPS`. Never set it to `*`: with every peer trusted, uvicorn takes
+the left-most `X-Forwarded-For` entry, which the client controls, so anyone can pick
+their own rate-limit key. State is per process; a hosted launch still needs shared
+storage (`backend/tests/test_b12_ops_hardening.py`).
 
 ---
 
@@ -1264,7 +1278,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 
 | # | Gap | Current | Intended | Risk | Owned By |
 |---|-----|---------|----------|------|----------|
-| 1 | Limiter is per-process and address-keyed | SlowAPI in-memory storage keyed by immediate client address | Shared storage and proxy-aware keys before any hosted launch | Per-process counters; one key behind a proxy | Deferred (roadmap) |
+| 1 | Limiter is per-process and address-keyed | SlowAPI in-memory storage keyed by the client uvicorn resolves through the proxies in `FORWARDED_ALLOW_IPS` (default loopback only) | Shared storage before any hosted launch; `FORWARDED_ALLOW_IPS` set to the deployed proxy hops | Per-process counters; one key behind a proxy until the hops are trusted | Deferred (roadmap) |
 | 2 | In-memory result cache | Python dict, process-local | Redis or similar shared cache if scaling requires it | Fragmented caches in multi-instance; lost on restart | R10 |
 | 3 | Docker runtime users | Frontend runs as the base image's `node` user; backend runs as dedicated UID 10001 with owned application and Playwright files | Non-root user with minimal capabilities | Image-build verification remains required where Docker is available | #81 |
 | 4 | No dormant-account TTL cleanup | Data persists indefinitely while an account exists; deletion is user-initiated only | Accepted as final posture (D-031) — no automated cleanup planned | None; user-initiated erasure satisfies GDPR right-to-erasure | #74 (resolved) |
@@ -1290,7 +1304,7 @@ pending human decision: both halves of D-UNK-5 were decided the same day
 
 | ID | Question | Impact | Required For |
 |----|----------|--------|--------------|
-| D-UNK-1 | Superseded by the local-only reset: proxy-aware limiter keys were removed (#355). Revisit before any hosted launch. | Rate limiter IP resolution behind a proxy | Hosted launch |
+| D-UNK-1 | Which addresses do the deployed proxy hops (Railway edge, and the frontend server when `API_PROXY_TARGET` is used) connect from? They go into `FORWARDED_ALLOW_IPS`. | Rate limiter IP resolution behind a proxy | Hosted launch |
 | D-UNK-2 | What is the Railway PostgreSQL connection pool ceiling? | Current `pool_size=20, max_overflow=10` may need adjustment | #76 |
 | D-UNK-3 | Is the production deployment 1 replica or more? | Affects cache and rate limiter correctness | #76, #81 |
 | D-UNK-8 | What is the scope of the Google Cloud service account / API key permissions? | Limits blast radius of credential compromise | #79 |
