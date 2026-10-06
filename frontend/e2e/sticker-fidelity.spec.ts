@@ -282,8 +282,11 @@ test.describe('gallery invariants', () => {
           const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent?.trim())
           if (!hasText) continue
           count += 1
-          const family = getComputedStyle(el).fontFamily.split(',')[0]!.replaceAll('"', '').trim()
+          const stack = getComputedStyle(el).fontFamily
+          const family = stack.split(',')[0]!.replaceAll('"', '').trim()
           if (family === display || family === ui) continue
+          // Keyboard keys draw only the key symbols (unicode-range) from a system face; their letters stay in Onest.
+          if (el.matches('.kit-kbd') && family.startsWith('Kit Key Symbols') && stack.includes(ui)) continue
           if (family === 'ui-monospace' && (el.closest('code, pre, [data-mono], .kit-error__detail, .kit-kv__value') || el.matches('p, span, dd'))) continue
           bad.add(`${family} on ${el.tagName.toLowerCase()}.${[...el.classList][0] ?? ''}`)
         }

@@ -56,7 +56,12 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
 
   for (const template of ['ATS Essential', 'Professional Editorial', 'Modern Two-Column']) {
     await toolbar.getByRole('tab', { name: /^Design/ }).click()
-    await page.getByRole('dialog', { name: 'Design' }).getByRole('radio', { name: new RegExp(template) }).check({ force: true })
+    const design = page.getByRole('dialog', { name: 'Design' })
+    // The sheet slides in: let it settle before reaching into its scrolling body (lower templates sit below the fold).
+    await design.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
+    const option = design.getByRole('radio', { name: new RegExp(template) })
+    await option.scrollIntoViewIfNeeded()
+    await option.check({ force: true })
     await page.getByRole('dialog', { name: 'Design' }).getByRole('button', { name: 'Close panel' }).click()
     await expect(page.getByTestId('cv-paper')).toBeVisible()
     for (const width of [320, 375]) {
