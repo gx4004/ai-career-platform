@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -27,9 +28,52 @@ IMPORT_USER_AGENT = "CareerWorkbenchImport/1.0"
 # fallback tier gets a chance before the paste path.
 _SUBSTANTIVE_DESCRIPTION_CHARS = 100
 
-# Returned as the description when no tier produced a posting: the user is asked
-# to paste the listing instead.
-PASTE_FALLBACK_DESCRIPTION = "Could not extract the job description. Please copy and paste it."
+# A page long enough to pass the length check can still be no posting at all (a
+# domain parking page, a blog post, a login wall). A posting either sits in a
+# job-description container or names at least two of these job-ad markers; such a
+# page does neither.
+_JOB_SIGNALS = tuple(
+    re.compile(pattern)
+    for pattern in (
+        r"\bresponsibilit",
+        r"\brequirements?\b",
+        r"\bqualifications?\b",
+        r"\bexperience\b",
+        r"\bskills?\b",
+        r"\b(?:the|this) (?:role|position)\b",
+        r"\bcandidates?\b",
+        r"\b(?:apply|applicants?|application)\b",
+        r"\b(?:salary|compensation|benefits)\b",
+        r"\b(?:full|part)[- ]time\b",
+        r"\b(?:remote|hybrid|on-?site)\b",
+        r"\b(?:hiring|join (?:our|the) team)\b",
+        r"\byou(?: will|'ll)\b",
+        r"\b(?:we are|we're) looking\b|\blooking for\b",
+        r"\byears? of\b",
+    )
+)
+_MIN_JOB_SIGNALS = 2
+
+
+def _is_job_posting(description: str | None, *, in_job_container: bool) -> bool:
+    text = (description or "").lower()
+    if len(text) <= _SUBSTANTIVE_DESCRIPTION_CHARS:
+        return False
+    if in_job_container:
+        return True
+    return sum(1 for signal in _JOB_SIGNALS if signal.search(text)) >= _MIN_JOB_SIGNALS
+
+
+def _paste_fallback(url: str) -> ImportedJobResponse:
+    """No tier produced a posting: say so explicitly, with nothing to paste over the user's text."""
+    return ImportedJobResponse(
+        job_title=None,
+        company_name=None,
+        job_description="",
+        source_url=url,
+        readable=False,
+    )
+
 
 _BS4_TIMEOUT = 5.0
 _PLAYWRIGHT_TIMEOUT_MS = 10_000
@@ -215,7 +259,8 @@ async def _fetch_with_playwright(
     return content
 
 
-def _parse_job_data(html: str, url: str) -> ImportedJobResponse:
+def _parse_job_data(html: str, url: str) -> tuple[ImportedJobResponse, bool]:
+    """The posting, and whether its text came from a job-description container."""
     soup = BeautifulSoup(html, "html.parser")
 
     for tag in soup(["script", "style"]):
@@ -227,13 +272,16 @@ def _parse_job_data(html: str, url: str) -> ImportedJobResponse:
     company = _extract_company(soup)
     for tag in soup(["nav", "footer", "header"]):
         tag.decompose()
-    description = _extract_description(soup)
+    description, in_job_container = _extract_description(soup)
 
-    return ImportedJobResponse(
-        job_title=title,
-        company_name=company,
-        job_description=description,
-        source_url=url,
+    return (
+        ImportedJobResponse(
+            job_title=title,
+            company_name=company,
+            job_description=description,
+            source_url=url,
+        ),
+        in_job_container,
     )
 
 
@@ -260,7 +308,7 @@ async def scrape_job_posting(
         )
     else:
         try:
-            result = await asyncio.to_thread(_parse_job_data, html, url)
+            result, in_job_container = await asyncio.to_thread(_parse_job_data, html, url)
         except Exception as exc:
             logger.info(
                 "BS4 parse failed; trying Playwright fallback error_type=%s",
@@ -268,10 +316,9 @@ async def scrape_job_posting(
             )
             html = None
         else:
-            description = result.job_description or ""
-            if len(description) > _SUBSTANTIVE_DESCRIPTION_CHARS:
+            if _is_job_posting(result.job_description, in_job_container=in_job_container):
                 return result
-            # A thin page: try the bounded fallback tier, then the paste path.
+            # A thin or non-job page: try the bounded fallback tier, then the paste path.
             html = None
 
     # Tier 2: Playwright fallback (10s timeout). It fetches under the same page cap
@@ -282,10 +329,11 @@ async def scrape_job_posting(
             html = await _fetch_with_playwright(
                 url, max_response_bytes=max_response_bytes
             )
-            rendered = await asyncio.to_thread(_parse_job_data, html, url)
-            if len(rendered.job_description or "") > _SUBSTANTIVE_DESCRIPTION_CHARS:
+            rendered, in_job_container = await asyncio.to_thread(_parse_job_data, html, url)
+            if _is_job_posting(rendered.job_description, in_job_container=in_job_container):
                 return rendered
-            # Still thin after rendering (a login wall, an error page): not a posting.
+            # Still thin or not a job ad after rendering (a login wall, an error
+            # page, a non-job site): not a posting.
         except Exception as exc:
             logger.info(
                 "Playwright scrape also failed error_type=%s",
@@ -293,12 +341,7 @@ async def scrape_job_posting(
             )
 
     # Tier 3: Graceful paste fallback — no tier yielded a usable posting.
-    return ImportedJobResponse(
-        job_title=None,
-        company_name=None,
-        job_description=PASTE_FALLBACK_DESCRIPTION,
-        source_url=url,
-    )
+    return _paste_fallback(url)
 
 
 def _extract_title(soup: BeautifulSoup) -> str | None:
@@ -330,11 +373,17 @@ def _extract_company(soup: BeautifulSoup) -> str | None:
     return None
 
 
-def _extract_description(soup: BeautifulSoup) -> str:
+_JOB_CONTAINER_SELECTORS = (
+    '[class*="job-description"]',
+    '[class*="jobDescription"]',
+    '[id*="job-description"]',
+)
+
+
+def _extract_description(soup: BeautifulSoup) -> tuple[str, bool]:
+    """The description text, and whether it came from a job-description container."""
     for selector in [
-        '[class*="job-description"]',
-        '[class*="jobDescription"]',
-        '[id*="job-description"]',
+        *_JOB_CONTAINER_SELECTORS,
         '[class*="description"]',
         ".posting-page",
         "article",
@@ -342,10 +391,10 @@ def _extract_description(soup: BeautifulSoup) -> str:
     ]:
         el = soup.select_one(selector)
         if el and len(el.get_text(strip=True)) > 100:
-            return el.get_text(separator="\n", strip=True)
+            return el.get_text(separator="\n", strip=True), selector in _JOB_CONTAINER_SELECTORS
 
     body = soup.find("body")
     if body:
-        return body.get_text(separator="\n", strip=True)[:5000]
+        return body.get_text(separator="\n", strip=True)[:5000], False
 
-    return soup.get_text(separator="\n", strip=True)[:5000]
+    return soup.get_text(separator="\n", strip=True)[:5000], False

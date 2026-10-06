@@ -1,6 +1,14 @@
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.validation import utf8_size
 
@@ -77,6 +85,56 @@ class PasswordResetConfirm(BaseModel):
         return _validate_bcrypt_password(v)
 
 
+class ProfileUpdateRequest(BaseModel):
+    """`PATCH /auth/me`: the account's own name and address."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str | None = Field(default=None, max_length=200)
+    email: NormalizedEmail | None = None
+
+    @field_validator("full_name", mode="before")
+    @classmethod
+    def full_name_is_trimmed(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        return v.strip() or None
+
+    @model_validator(mode="after")
+    def require_a_change(self):
+        if not self.model_fields_set:
+            raise ValueError("Send a name or an email address to change")
+        if "email" in self.model_fields_set and self.email is None:
+            raise ValueError("Email address cannot be empty")
+        return self
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("current_password")
+    @classmethod
+    def current_is_valid_utf8(cls, v: str) -> str:
+        utf8_size(v)
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        utf8_size(v)
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return _validate_bcrypt_password(v)
+
+
+class PasswordResetRequestResponse(BaseModel):
+    message: str
+    # Development only (a local frontend): the link that was just emailed, so the
+    # reset can be finished without a mail provider. Never set anywhere else.
+    dev_reset_url: str | None = None
+
+
 class AuthSessionResponse(BaseModel):
     ok: bool = True
 
@@ -90,6 +148,12 @@ class UserResponse(BaseModel):
     created_at: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class SessionStateResponse(BaseModel):
+    """`GET /auth/session`: the signed-in user, or null for a guest (never a 401)."""
+
+    user: UserResponse | None = None
 
 
 class AuthProvidersResponse(BaseModel):

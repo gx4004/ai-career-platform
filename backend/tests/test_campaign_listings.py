@@ -122,10 +122,8 @@ def test_failed_url_import_preserves_current_listing(
     db.commit()
 
     async def failed_scrape(url: str) -> ImportedJobResponse:
-        return ImportedJobResponse(
-            job_description="Could not extract the job description. Please copy and paste it.",
-            source_url=url,
-        )
+        # The scraper's explicit paste fallback (B13: readable=False, no sentence).
+        return ImportedJobResponse(job_description="", source_url=url, readable=False)
 
     monkeypatch.setattr("app.routers.job_posts.scrape_job_posting", failed_scrape)
     response = client.post(

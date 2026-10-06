@@ -3,6 +3,7 @@ import {
   loginPasswordSchema,
   loginRequestSchema,
   passwordResetConfirmRequestSchema,
+  profileUpdateRequestSchema,
   registerRequestSchema,
 } from '#/lib/api/schemas'
 
@@ -47,5 +48,14 @@ describe('auth request schemas', () => {
       password: malformedPassword,
       tos_accepted: true,
     }).success).toBe(false)
+  })
+
+  it('mirrors the profile update rules: at least one field, and a padded address is trimmed (B13)', () => {
+    expect(profileUpdateRequestSchema.safeParse({}).success).toBe(false)
+    expect(profileUpdateRequestSchema.safeParse({ full_name: null }).success).toBe(true)
+    expect(profileUpdateRequestSchema.parse({ email: '  Person@Example.com ' })).toEqual({
+      email: 'Person@Example.com',
+    })
+    expect(profileUpdateRequestSchema.safeParse({ email: 'not-an-address' }).success).toBe(false)
   })
 })

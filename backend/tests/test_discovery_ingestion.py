@@ -250,13 +250,13 @@ def test_one_failing_board_does_not_stop_the_others_and_each_run_is_stamped(
     db.refresh(good)
     db.refresh(bad)
     assert (good.last_outcome, good.listing_count) == ("ok", 1)
-    assert (bad.last_outcome, bad.listing_count) == ("failed: HTTPStatusError", None)
+    assert (bad.last_outcome, bad.listing_count) == ("failed: HTTPStatusError 503", None)
 
     # A later failed run keeps the last good count.
     _serve(monkeypatch, lambda _request: httpx.Response(503))
     run_ats_ingestion(db)
     db.refresh(good)
-    assert (good.last_outcome, good.listing_count) == ("failed: HTTPStatusError", 1)
+    assert (good.last_outcome, good.listing_count) == ("failed: HTTPStatusError 503", 1)
 
 
 def test_killed_unreviewed_and_non_ats_sources_are_never_fetched(

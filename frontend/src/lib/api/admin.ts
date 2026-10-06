@@ -33,6 +33,9 @@ export type AdminUserItem = {
   is_admin: boolean
   created_at: string | null
   run_count: number
+  // Last admin-role change; role_changed_by is the acting admin's email (null once deleted).
+  role_changed_at: string | null
+  role_changed_by: string | null
 }
 
 export type AdminUserListResponse = {

@@ -482,7 +482,7 @@ async def test_scraper_keeps_title_and_company_that_sit_inside_a_header():
 async def test_a_thin_browser_rendered_page_falls_back_to_the_paste_prompt():
     from unittest.mock import AsyncMock, patch
 
-    from app.services.job_scraper import PASTE_FALLBACK_DESCRIPTION, scrape_job_posting
+    from app.services.job_scraper import scrape_job_posting
 
     thin = "<html><body><h1>Sign in</h1><p>Please log in to continue.</p></body></html>"
     with (
@@ -491,7 +491,7 @@ async def test_a_thin_browser_rendered_page_falls_back_to_the_paste_prompt():
     ):
         result = await scrape_job_posting("https://example.com/login")
 
-    assert result.job_description == PASTE_FALLBACK_DESCRIPTION
+    assert result.readable is False and result.job_description == ""
     assert result.job_title is None
 
 

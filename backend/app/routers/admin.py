@@ -32,6 +32,8 @@ from app.schemas.discovery_sources import (
     DiscoverySourceListResponse,
     DiscoverySourceResponse,
 )
+from app.services.ats_ingestion import retry_ats_source
+from app.services.ats_providers import provider_for_endpoint
 from app.services.discovery_sources import operate_source_kill_switch
 
 router = APIRouter()
@@ -94,6 +96,48 @@ def operate_kill_switch(
     return source
 
 
+# ── Retry one source fetch ──
+
+
+@router.post(
+    "/discovery-sources/{source_id}/fetch",
+    response_model=DiscoverySourceResponse,
+)
+# Each retry is an outbound fetch of up to 10 MB, so it is capped well below the
+# panel's read rate.
+@limiter.limit("6/minute")
+def retry_source_fetch(
+    request: Request,
+    source_id: str,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Fetch one source now, the same way a scheduled run would.
+
+    Refused (409, no request made) unless the terms review is accepted and the
+    kill switch is off, and only for an employer-ATS board. A failed fetch is a
+    200: its outcome and a readable ``failure_reason`` are on the source.
+    """
+    source = db.query(DiscoverySource).filter(DiscoverySource.id == source_id).first()
+    if source is None:
+        raise HTTPException(status_code=404, detail="Discovery source not found")
+    if source.terms_status != "accepted":
+        raise HTTPException(
+            status_code=409, detail="Only a source whose terms review is accepted can be fetched"
+        )
+    if source.kill_switch:
+        raise HTTPException(
+            status_code=409, detail="This source's kill switch is on; clear it before fetching"
+        )
+    if source.source_family != "employer_ats" or provider_for_endpoint(source.endpoint_url) is None:
+        raise HTTPException(
+            status_code=409, detail="Only an employer job-board source can be fetched from here"
+        )
+    retry_ats_source(db, source)
+    db.refresh(source)
+    return source
+
+
 # ── Users ──
 
 
@@ -126,6 +170,7 @@ def list_users(
             .all()
         )
 
+    actor_emails = _role_actor_emails(db, users)
     items = []
     for user in users:
         items.append(
@@ -137,6 +182,7 @@ def list_users(
                 is_admin=getattr(user, "is_admin", False),
                 created_at=user.created_at.isoformat() if user.created_at else None,
                 run_count=run_counts.get(user.id, 0),
+                **_role_audit(user, actor_emails),
             )
         )
 
@@ -172,6 +218,7 @@ def get_user(
         is_admin=getattr(user, "is_admin", False),
         created_at=user.created_at.isoformat() if user.created_at else None,
         run_count=run_count,
+        **_role_audit(user, _role_actor_emails(db, [user])),
         recent_runs=[
             AdminRunItem(
                 id=r.id,
@@ -202,9 +249,29 @@ def set_admin(
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="Cannot modify your own admin status")
 
-    user.is_admin = body.is_admin
+    if bool(user.is_admin) != body.is_admin:
+        user.is_admin = body.is_admin
+        user.role_changed_at = datetime.now(UTC)
+        user.role_changed_by_id = admin.id
     db.commit()
     return {"ok": True, "is_admin": user.is_admin}
+
+
+def _role_audit(user: User, actor_emails: dict[str, str]) -> dict:
+    changed_at = user.role_changed_at
+    if changed_at is not None and changed_at.tzinfo is None:
+        changed_at = changed_at.replace(tzinfo=UTC)
+    return {
+        "role_changed_at": changed_at.isoformat() if changed_at else None,
+        "role_changed_by": actor_emails.get(user.role_changed_by_id or ""),
+    }
+
+
+def _role_actor_emails(db: Session, users: list[User]) -> dict[str, str]:
+    actor_ids = {u.role_changed_by_id for u in users if u.role_changed_by_id}
+    if not actor_ids:
+        return {}
+    return dict(db.query(User.id, User.email).filter(User.id.in_(actor_ids)).all())
 
 
 # ── Runs ──

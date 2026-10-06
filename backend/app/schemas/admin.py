@@ -11,6 +11,9 @@ class AdminUserItem(BaseModel):
     is_admin: bool = False
     created_at: str | None = None
     run_count: int = 0
+    # Audit line for the last admin-role change: when, and by which admin (email).
+    role_changed_at: str | None = None
+    role_changed_by: str | None = None
 
 class AdminUserListResponse(BaseModel):
     items: list[AdminUserItem]

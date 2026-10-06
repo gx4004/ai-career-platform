@@ -196,7 +196,8 @@ def test_import_job_url_invalid(client, monkeypatch, caplog):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert "paste" in data.get("job_description", "").lower() or data.get("source") == "fallback"
+    # The explicit paste fallback (B13): flagged unreadable, no sentence in the description.
+    assert data["readable"] is False and data["job_description"] == ""
     assert "private-token" not in caplog.text
 
 

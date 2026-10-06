@@ -8,7 +8,6 @@ import httpx
 import pytest
 
 from app.services.job_scraper import (
-    PASTE_FALLBACK_DESCRIPTION,
     _fetch_resource_with_httpx,
     _fetch_with_httpx,
     _fetch_with_playwright,
@@ -49,8 +48,10 @@ async def test_scrape_extracts_fields():
 @pytest.mark.asyncio
 async def test_scrape_minimal_html():
     """Page with no structured selectors falls back to body text."""
+    # Long enough and reads as a job ad (B13: a page must also carry job-ad markers).
     minimal = (
         "<html><body><p>Some job posting with enough text to pass the length check. "
+        "We are looking for an engineer with three years of experience. "
         + "x " * 60
         + "</p></body></html>"
     )
@@ -82,7 +83,8 @@ async def test_scrape_http_error_falls_back_gracefully():
             result = await scrape_job_posting("https://example.com/404")
 
     assert result.job_title is None
-    assert "paste" in result.job_description.lower()
+    assert result.readable is False
+    assert result.job_description == ""
     assert result.source_url == "https://example.com/404"
 
 
@@ -99,7 +101,8 @@ async def test_scrape_connection_error_falls_back_gracefully():
             result = await scrape_job_posting("https://example.com/unreachable")
 
     assert result.job_title is None
-    assert "paste" in result.job_description.lower()
+    assert result.readable is False
+    assert result.job_description == ""
 
 
 # ── SSRF guard ──
@@ -578,7 +581,7 @@ async def test_unusable_first_tier_falls_through_to_paste_prompt(
     result = await scrape_job_posting("https://example.com/job")
 
     assert result.job_title is None
-    assert result.job_description == PASTE_FALLBACK_DESCRIPTION
+    assert result.readable is False and result.job_description == ""
 
 
 @pytest.mark.asyncio
@@ -596,4 +599,4 @@ async def test_redirect_to_internal_address_falls_back_to_paste(monkeypatch, no_
 
     result = await scrape_job_posting("https://example.com/job")
 
-    assert result.job_description == PASTE_FALLBACK_DESCRIPTION
+    assert result.readable is False and result.job_description == ""
