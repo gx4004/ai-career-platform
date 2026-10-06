@@ -22,6 +22,7 @@ from app.schemas.admin import (
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
+    AdminRunsOnDay,
     AdminSetAdminRequest,
     AdminStatsResponse,
     AdminUserDetailResponse,
@@ -148,12 +149,16 @@ def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     q: str | None = Query(None, max_length=100),
+    is_admin: bool | None = Query(None),
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
     query = db.query(User)
     if q:
         query = query.filter(User.email.ilike(f"%{q}%"))
+    if is_admin is not None:
+        # A legacy NULL role is a member, as everywhere else.
+        query = query.filter(func.coalesce(User.is_admin, sa.false()) == is_admin)
 
     total = query.count()
     users = (
@@ -392,7 +397,32 @@ def get_stats(
         runs_today=runs_today,
         active_users_7d=active_users_7d,
         runs_by_tool=runs_by_tool,
+        runs_by_day=_runs_by_day(db, today_start),
     )
+
+
+_RUN_DAYS = 14
+
+
+def _runs_by_day(db: Session, today_start: datetime) -> list[AdminRunsOnDay]:
+    """Runs per UTC day for the last 14 days, oldest first, every day present."""
+    since = today_start - timedelta(days=_RUN_DAYS - 1)
+    created = ToolRun.created_at
+    if db.get_bind().dialect.name == "postgresql":
+        # date() of a timestamptz uses the session time zone; the series is UTC. A literal
+        # (not a bound parameter) keeps the SELECT and GROUP BY expressions identical.
+        created = func.timezone(sa.literal_column("'UTC'"), created)
+    day = func.date(created)
+    counts = {
+        # SQLite returns the day as text, Postgres as a date.
+        str(value)[:10]: count
+        for value, count in db.query(day, func.count(ToolRun.id))
+        .filter(ToolRun.created_at >= since)
+        .group_by(day)
+        .all()
+    }
+    days = [(since + timedelta(days=offset)).date().isoformat() for offset in range(_RUN_DAYS)]
+    return [AdminRunsOnDay(date=d, count=counts.get(d, 0)) for d in days]
 
 
 # ── Health ──

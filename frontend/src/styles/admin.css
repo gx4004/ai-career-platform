@@ -130,10 +130,6 @@
   font-variant-numeric: var(--numeric-tabular);
 }
 
-.admin-activity__note {
-  margin: 0;
-}
-
 /* Runs by tool: a tile, the name, then a bar in the tool's colour proportional to the busiest tool. */
 .kit-list.admin-tools > .kit-row {
   flex-wrap: nowrap;
@@ -152,9 +148,18 @@
   inline-size: clamp(6rem, 34%, 14rem);
 }
 
+/* Phones: a wider column, so the smallest bar is still a bar and not a glyph before its count. */
+@container kit-list (max-width: 30rem) {
+  .kit-row__meta.admin-bar-col {
+    inline-size: clamp(7.5rem, 40%, 14rem);
+  }
+}
+
 .admin-bar {
   display: block;
   box-sizing: border-box;
+  /* Under ~2:1 a 10px-high pill reads as the glyph "0" before its count. */
+  min-inline-size: 20px;
   block-size: 10px;
   border: var(--bw-thin) solid var(--ink);
   border-radius: 5px;
@@ -164,7 +169,8 @@
 .admin-count {
   color: var(--ink);
   font-weight: var(--fw-semibold);
-  font-variant-numeric: var(--numeric-tabular);
+  /* A lone number per row: running figures, or Onest's tabular "1" reads "1 44". */
+  font-variant-numeric: proportional-nums;
   text-align: end;
 }
 

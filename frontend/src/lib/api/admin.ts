@@ -68,12 +68,17 @@ export type AdminRunDetail = AdminRunItem & {
   workspace_id: string | null
 }
 
+/** One UTC day of the run series: `date` is YYYY-MM-DD. */
+export type AdminRunsOnDay = { date: string; count: number }
+
 export type AdminStats = {
   total_users: number
   total_runs: number
   runs_today: number
   active_users_7d: number
   runs_by_tool: Record<string, number>
+  // The last 14 UTC days, oldest first, today last, days without runs as 0.
+  runs_by_day: AdminRunsOnDay[]
 }
 
 export type AdminHealth = {
@@ -95,9 +100,16 @@ export function getAdminHealth() {
   return adminRequest<AdminHealth>('/admin/health')
 }
 
-export function getAdminUsers(params: { page?: number; page_size?: number; q?: string } = {}) {
+export function getAdminUsers(
+  params: { page?: number; page_size?: number; q?: string; is_admin?: boolean } = {},
+) {
   return adminRequest<AdminUserListResponse>(
-    `/admin/users${buildQs({ page: params.page, page_size: params.page_size, q: params.q })}`,
+    `/admin/users${buildQs({
+      page: params.page,
+      page_size: params.page_size,
+      q: params.q,
+      is_admin: params.is_admin === undefined ? undefined : String(params.is_admin),
+    })}`,
   )
 }
 

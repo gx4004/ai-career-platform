@@ -13,6 +13,12 @@ vi.mock('#/lib/api/admin', () => ({
   getAdminRuns: runsMock,
 }))
 
+/** The server's 14 UTC days, Sep 23 to Oct 6, oldest first: 7 runs on the first day, 2 today, none between. */
+const RUNS_BY_DAY = Array.from({ length: 14 }, (_, index) => ({
+  date: `2026-${index < 8 ? '09' : '10'}-${String(index < 8 ? 23 + index : index - 7).padStart(2, '0')}`,
+  count: index === 0 ? 7 : index === 13 ? 2 : 0,
+}))
+
 const HEALTHY = {
   database: 'ok',
   llm_provider: 'vertex',
@@ -39,14 +45,10 @@ describe('AdminDashboardPage', () => {
       runs_today: 11,
       active_users_7d: 21,
       runs_by_tool: { resume: 54, 'job-match': 43, 'application-drafts': 18 },
+      runs_by_day: RUNS_BY_DAY,
     })
     healthMock.mockReset().mockResolvedValue(HEALTHY)
-    runsMock.mockReset().mockResolvedValue({
-      items: [{ created_at: new Date().toISOString() }, { created_at: new Date().toISOString() }],
-      total: 2,
-      page: 1,
-      page_size: 100,
-    })
+    runsMock.mockReset()
   })
 
   it('shows the four numbers, one panel each', async () => {
@@ -56,11 +58,31 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByText('67')).toBeTruthy()
   })
 
-  it('draws the last 14 days of runs as a chart that names its numbers', async () => {
+  it('draws the server\'s 14 days of runs as a chart that names its numbers, oldest day included', async () => {
     renderPage()
     const chart = await screen.findByRole('img', { name: /Runs per day, last 14 days/ })
-    expect(chart.getAttribute('aria-label')).toMatch(/ 2$/)
-    expect(screen.getByText('Runs in 14 days').nextElementSibling?.textContent).toBe('2')
+    const label = chart.getAttribute('aria-label') ?? ''
+    expect(label).toMatch(/: Sep 23 7, Sep 24 0, /)
+    expect(label).toMatch(/Oct 6 2$/)
+    expect(screen.getByText('Runs in 14 days').nextElementSibling?.textContent).toBe('9')
+    expect(screen.getByText('Busiest day').nextElementSibling?.textContent).toBe('Sep 23 (7)')
+    // The count is the server's: no walk over the run list, no "at least" floor.
+    expect(runsMock).not.toHaveBeenCalled()
+    expect(screen.queryByText(/At least this many/)).toBeNull()
+  })
+
+  it('says so when no run happened in the 14 days', async () => {
+    statsMock.mockResolvedValue({
+      total_users: 1,
+      total_runs: 0,
+      runs_today: 0,
+      active_users_7d: 0,
+      runs_by_tool: {},
+      runs_by_day: RUNS_BY_DAY.map((day) => ({ ...day, count: 0 })),
+    })
+    renderPage()
+    expect((await screen.findByText('Runs in 14 days')).nextElementSibling?.textContent).toBe('0')
+    expect(screen.getByText('Busiest day').nextElementSibling?.textContent).toBe('None yet')
   })
 
   it('lists the tools busiest first, each with its tile colour', async () => {

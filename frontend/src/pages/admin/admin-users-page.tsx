@@ -50,8 +50,9 @@ export function AdminUsersPage() {
   const [confirming, setConfirming] = useState<AdminUserItem | null>(null)
 
   const { data, isLoading, isError, isFetching, refetch } = useQuery<AdminUserListResponse>({
-    queryKey: ['admin-users', page, search],
-    queryFn: () => getAdminUsers({ page, page_size: 20, q: search || undefined }),
+    queryKey: ['admin-users', page, search, adminsOnly],
+    queryFn: () =>
+      getAdminUsers({ page, page_size: 20, q: search || undefined, ...(adminsOnly ? { is_admin: true } : {}) }),
     staleTime: 30_000,
   })
 
@@ -88,8 +89,8 @@ export function AdminUsersPage() {
   const rangeStart = data ? (data.page - 1) * data.page_size + 1 : 0
   const rangeEnd = data ? Math.min(data.page * data.page_size, data.total) : 0
   const pageCount = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
-  // The server filters by email only: the chip narrows the page that is loaded, and says so.
-  const rows = adminsOnly ? (data?.items ?? []).filter((user) => user.is_admin) : (data?.items ?? [])
+  const rows = data?.items ?? []
+  const noun = adminsOnly ? 'admin' : 'user'
 
   const columns: TableColumn<AdminUserItem>[] = [
     {
@@ -113,7 +114,9 @@ export function AdminUsersPage() {
     { id: 'runs', header: 'Runs', numeric: true, width: '4.5rem', cell: (user) => user.run_count },
     {
       id: 'created',
-      header: 'Created',
+      // The same inset as the dates under it, so the heading sits over its column.
+      header: <span className="admin-after-number">Created</span>,
+      stackLabel: 'Created',
       width: '9rem',
       nowrap: true,
       cell: (user) => <span className="admin-after-number">{adminDate(user.created_at) || '—'}</span>,
@@ -151,7 +154,7 @@ export function AdminUsersPage() {
     <Page>
       <PageHeader
         title="Users"
-        meta={countMeta(data ? `${data.total} ${data.total === 1 ? 'user' : 'users'}` : null, isLoading)}
+        meta={countMeta(data ? `${data.total} ${noun}${data.total === 1 ? '' : 's'}` : null, isLoading)}
       />
 
       <Stack gap={3}>
@@ -176,7 +179,17 @@ export function AdminUsersPage() {
         </form>
 
         <div>
-          <Button type="button" variant="secondary" size="sm" aria-pressed={adminsOnly} onClick={() => setAdminsOnly((on) => !on)}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            aria-pressed={adminsOnly}
+            onClick={() => {
+              // The server filters every page: start again at the first.
+              setAdminsOnly((on) => !on)
+              setPage(1)
+            }}
+          >
             Admins only
           </Button>
         </div>
@@ -202,23 +215,32 @@ export function AdminUsersPage() {
             getRowId={(user) => user.id}
             loading={isLoading}
             empty={
-              adminsOnly ? (
+              adminsOnly && !search ? (
+                <EmptyState title="No admins" />
+              ) : search ? (
                 <EmptyState
-                  title="No admins on this page"
-                  description="The filter only looks at the users loaded here. Try another page, or search by email."
+                  title={`No ${noun}s match that email`}
+                  description={`No email contains "${search}".`}
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setSearch('')
+                        setSearchInput('')
+                        setPage(1)
+                      }}
+                    >
+                      Clear search
+                    </Button>
+                  }
                 />
               ) : (
-                <EmptyState title="No users found" />
+                <EmptyState title="No users yet" description="People appear here as soon as they create an account." />
               )
             }
           />
         )}
-
-        {adminsOnly && data ? (
-          <p className="admin-subline">
-            {rows.length} {rows.length === 1 ? 'admin' : 'admins'} among the {data.items.length} users on this page
-          </p>
-        ) : null}
 
         <Pagination
           variant="simple"
