@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useAccountQueriesEnabled } from '#/hooks/useAccountQueriesEnabled'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
 import { listCvDocuments } from '#/lib/api/client'
@@ -11,8 +12,10 @@ import { listCvDocuments } from '#/lib/api/client'
 export function useDashboardCv() {
   const { status } = useSession()
   const authenticated = status === 'authenticated'
-  const cvs = useQuery({ queryKey: ['cv-studio', 'list'], queryFn: listCvDocuments, enabled: authenticated })
-  const resumeRuns = useHistory({ tool: 'resume', page: 1, page_size: 1 }, authenticated)
+  // Loads alongside /auth/me in a browser that was signed in (see useAccountQueriesEnabled).
+  const enabled = useAccountQueriesEnabled()
+  const cvs = useQuery({ queryKey: ['cv-studio', 'list'], queryFn: listCvDocuments, enabled })
+  const resumeRuns = useHistory({ tool: 'resume', page: 1, page_size: 1 }, enabled)
 
   const latest =
     cvs.data?.items.slice().sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0] ?? null

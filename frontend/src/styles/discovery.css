@@ -104,6 +104,30 @@
   }
 }
 
+/* Narrow phones (320, and 375 with the page gutters): the stamp, the tally (up to 10 pips or the bar, 7rem) and Add with
+   its menu (8rem) no longer fit on one line, and the nowrap tally would run under the buttons. The tally takes its own
+   line under the title, and the actions the line under it. */
+@container kit-list (max-width: 22.4375rem) {
+  .kit-row.disc-row:has(> .kit-row__actions) > .kit-row__leading {
+    grid-row: 1 / span 3;
+  }
+
+  .kit-row.disc-row:has(> .kit-row__actions) > .kit-row__meta {
+    grid-column: 2 / -1;
+  }
+
+  .kit-row.disc-row > .kit-row__actions {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+
+  .kit-row.disc-row:not(:has(> .kit-row__leading)):has(> .kit-row__actions) > .kit-row__meta,
+  .kit-row.disc-row:not(:has(> .kit-row__leading)) > .kit-row__actions {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ── Drawer ── */
 
 /* Listing descriptions are third-party plain text: keep their line breaks. */

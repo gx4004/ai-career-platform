@@ -1,5 +1,8 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import type { SearchMiddleware } from '@tanstack/react-router'
+import { HISTORY_PAGE_SIZE } from '#/hooks/useHistory'
+import { warmHistory } from '#/lib/query/routePrefetch'
+import { HistoryRoutePage } from '#/pages/history-page'
 
 type HistorySearch = {
   tool?: string
@@ -61,5 +64,10 @@ export const Route = createFileRoute('/history')({
   }),
   validateSearch: validateHistorySearch,
   search: { middlewares: [unquoteNumericQuery] },
-  component: lazyRouteComponent(() => import('#/pages/history-page'), 'HistoryRoutePage'),
+  loaderDeps: ({ search }) => search,
+  // Not awaited: the page shows at once and reads whatever has arrived (hover preload warms it too).
+  loader: ({ deps }) => {
+    warmHistory(deps, HISTORY_PAGE_SIZE)
+  },
+  component: HistoryRoutePage,
 })

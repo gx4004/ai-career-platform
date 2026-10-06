@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type ComponentPropsWithoutRef, type MouseEvent } from 'react'
+import { forwardRef, useCallback, useEffect, useRef, useState, type ComponentPropsWithoutRef, type MouseEvent } from 'react'
 import { cn } from '#/lib/utils'
 import { usePrefersReducedMotion } from '#/hooks/use-prefers-reduced-motion'
 
@@ -30,6 +30,33 @@ export const JumpNav = forwardRef<HTMLElement, JumpNavProps>(function JumpNav(
   const locked = useRef(false)
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const key = items.map((item) => item.id).join('|')
+
+  // The edge fade (CSS ::after) says "more this way" only while the strip scrolls and is not at its end:
+  // `data-more` is written straight to the element, so scrolling never re-renders the links.
+  const [strip, setStrip] = useState<HTMLElement | null>(null)
+  const setRefs = useCallback(
+    (node: HTMLElement | null) => {
+      setStrip(node)
+      if (typeof ref === 'function') ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref],
+  )
+  useEffect(() => {
+    if (!strip) return
+    const measure = () => {
+      const more = strip.scrollWidth - strip.clientWidth - strip.scrollLeft > 1
+      strip.dataset.more = more ? 'true' : 'false'
+    }
+    measure()
+    strip.addEventListener('scroll', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(strip)
+    return () => {
+      strip.removeEventListener('scroll', measure)
+      observer?.disconnect()
+    }
+  }, [strip, key])
 
   useEffect(() => {
     setActive((current) => (current && items.some((item) => item.id === current) ? current : (items[0]?.id ?? null)))
@@ -88,7 +115,7 @@ export const JumpNav = forwardRef<HTMLElement, JumpNavProps>(function JumpNav(
   }
 
   return (
-    <nav ref={ref} className={cn('kit-jump-nav', className)} data-sticky={sticky ? 'true' : undefined} {...rest}>
+    <nav ref={setRefs} className={cn('kit-jump-nav', className)} data-sticky={sticky ? 'true' : undefined} {...rest}>
       {items.map((item) => (
         <a
           key={item.id}

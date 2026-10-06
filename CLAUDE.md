@@ -18,7 +18,7 @@ the work-tool design (2026-09-30 overhaul) described under Code Conventions.
 Direction and phases: `docs/roadmap.md` (umbrella #319).
 
 ## Stack
-- **Frontend**: React 19 + TanStack Start/Router + Vite 7 + Tailwind 4 + Radix/shadcn + Framer Motion
+- **Frontend**: React 19 + TanStack Start/Router + Vite 7 + Tailwind 4 + Radix/shadcn (motion is plain CSS; no animation library)
 - **Backend**: FastAPI + SQLAlchemy + Alembic + Railway Postgres
 - **LLM**: one provider per deployment, chosen by `LLM_PROVIDER`: `vertex` (default, Gemini 2.5 Flash), `google` (API key), `anthropic` (Claude Haiku 4.5), or `fake` (deterministic local fixtures; the backend refuses to boot with it outside development). No fallback between providers. Cheaper model for interview practice feedback.
 - **Auth**: JWT in HttpOnly cookies (access 30min + refresh 7day) + Google OAuth (authlib) + password reset (Resend)

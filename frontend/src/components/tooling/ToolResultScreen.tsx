@@ -13,6 +13,7 @@ import {
   ErrorState,
   KeyValue,
   Lead,
+  Notice,
   Page,
   PageHeader,
   Panel,
@@ -30,7 +31,7 @@ import {
 import { ScoreHelp } from '#/components/tooling/ScoreHelp'
 import { ClaimPromotionSection } from '#/components/profile/ClaimPromotionSection'
 import { formatRunDate, runSubject } from '#/lib/tools/runLabel'
-import { ApiError } from '#/lib/api/errors'
+import { ApiError, describeFailure } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { useRevealOnce } from '#/hooks/use-reveal-once'
@@ -83,6 +84,8 @@ export function ToolResultScreen({
   const [parentRunId, setParentRunId] = useState<string | null>(null)
   const [showUndo, setShowUndo] = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  // A Copy or PDF export that failed: said on the page, with a way to try again.
+  const [actionFailure, setActionFailure] = useState<{ message: string; retry: () => void } | null>(null)
   // The star answers at once; the server's answer settles it (a saved run read from the cache never refetches).
   const [favoriteOverride, setFavoriteOverride] = useState<{ id: string; value: boolean } | null>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -124,6 +127,20 @@ export function ToolResultScreen({
 
   const item = localItem || query.data
   const isDemoResult = Boolean(demoItem || cachedItem) || isDemoHistoryId(historyId)
+
+  // A guest who opens a saved result's link (401, or 404: the server does not say whose run it is) is sent
+  // to sign in, and comes straight back to this result afterwards ('open-result' intent on the sign-in page).
+  const needsSignIn =
+    status === 'guest' &&
+    !isDemoResult &&
+    query.error instanceof ApiError &&
+    (query.error.status === 401 || query.error.status === 404)
+  const askedToSignIn = useRef(false)
+  useEffect(() => {
+    if (!needsSignIn || askedToSignIn.current) return
+    askedToSignIn.current = true
+    openAuthDialog({ to: window.location.pathname, reason: 'open-result' })
+  }, [needsSignIn, openAuthDialog])
 
   useEffect(() => {
     if (!item) return
@@ -191,6 +208,33 @@ export function ToolResultScreen({
 
   if (!item && query.isPending) {
     return <ResultLoading toolId={toolId} />
+  }
+
+  if (needsSignIn) {
+    return (
+      <Page className="result-state">
+        <ErrorState
+          size="page"
+          headingLevel={1}
+          title="Sign in to open this result"
+          description="Saved results belong to an account. Sign in and you'll go straight back to it."
+          backAction={
+            <>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => openAuthDialog({ to: window.location.pathname, reason: 'open-result' })}
+              >
+                Sign in
+              </Button>
+              <Button asChild variant="secondary">
+                <Link to={tools[toolId].route}>Run the tool yourself</Link>
+              </Button>
+            </>
+          }
+        />
+      </Page>
+    )
   }
 
   if (query.isError || !item) {
@@ -295,7 +339,17 @@ export function ToolResultScreen({
   const runLabel = subjectInFacts ? '' : subject
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(definition.copyText(payload, item!))
+    setActionFailure(null)
+    try {
+      await navigator.clipboard.writeText(definition.copyText(payload, item!))
+    } catch {
+      // No clipboard (an insecure page) or the browser refused it (the tab lost focus, a permission).
+      setActionFailure({
+        message: 'Your browser did not let us copy the result. Try again, or select the text and copy it yourself.',
+        retry: () => void handleCopy(),
+      })
+      return
+    }
     setCopied(true)
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 1600)
@@ -332,9 +386,17 @@ export function ToolResultScreen({
       openAuthDialog({ to: resolvedTool.route, reason: 'export-pdf', label: 'Create account', toolId: resolvedTool.id })
       return
     }
+    setActionFailure(null)
     // The letter is saved as you type; wait for the last edit so the PDF is the version on the page.
     await flushLetterEdits(historyId).catch(() => {})
-    await exportPdf(historyId)
+    try {
+      await exportPdf(historyId)
+    } catch (error) {
+      setActionFailure({
+        message: `The PDF could not be made. ${describeFailure(error, 'Something went wrong on our side.').message}`,
+        retry: () => void handlePdf(),
+      })
+    }
   }
 
   const isFavorite = favoriteOverride?.id === item.id ? favoriteOverride.value : Boolean(item.is_favorite)
@@ -477,6 +539,20 @@ export function ToolResultScreen({
           meta={[runLabel, runDate ? `Result from ${runDate}` : '', applicationLink]}
           actions={actions}
         />
+
+        {actionFailure ? (
+          <Notice
+            tone="danger"
+            onDismiss={() => setActionFailure(null)}
+            action={
+              <Button type="button" variant="secondary" size="sm" onClick={actionFailure.retry}>
+                Try again
+              </Button>
+            }
+          >
+            {actionFailure.message}
+          </Notice>
+        ) : null}
 
         {guestResult && !bannerDismissed ? (
           <Sticker as="aside" role="status" tone="lemon" size="sm" reveal={reveal ? 'slap' : 'none'} revealOrder={3}>

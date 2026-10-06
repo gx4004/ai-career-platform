@@ -84,9 +84,11 @@ html:has(.cookie-banner) .auth-page {
   padding: var(--s6);
 }
 
-/* A page-sized empty or error state in the column (signed in, invalid link) starts at the column top, like the form. */
+/* A page-sized empty or error state in the column (signed in, invalid link, account ready) drops the page-sized
+   top padding so the panel's first line sits level with a form's, but keeps the frame's own inset: the heading
+   never touches the dashed top edge. */
 .auth-page__column .kit-empty[data-size='page'] {
-  padding-block-start: 0;
+  padding-block-start: var(--s5);
 }
 
 /* The forgot-password link sits under the password field and lines up with it. */

@@ -48,6 +48,7 @@ vi.mock('#/hooks/useFavoriteToggle', () => ({
 }))
 
 vi.mock('#/hooks/useHistory', () => ({
+  HISTORY_PAGE_SIZE: 10,
   useHistory: () => ({
     data: { items: historyItems.current, total: historyItems.current.length, page: 1, page_size: 12, has_more: false },
     isPending: false,

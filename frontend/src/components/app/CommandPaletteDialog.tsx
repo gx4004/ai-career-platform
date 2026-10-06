@@ -1,0 +1,330 @@
+import { useEffect, useId, useMemo, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import type { LucideIcon } from 'lucide-react'
+import {
+  Briefcase,
+  CornerDownLeft,
+  LogIn,
+  LogOut,
+  PanelLeft,
+  Search,
+  Settings,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  EmptyState,
+  Input,
+  Kbd,
+  Row,
+  RowBody,
+  RowLeading,
+  RowMeta,
+  RowTitle,
+  ToolTile,
+} from '#/components/kit'
+import type { Tone } from '#/components/kit'
+import { useOptionalSidebar } from '#/components/ui/sidebar'
+import { useKnownBreakpoint } from '#/hooks/use-breakpoint'
+import { useSession } from '#/hooks/useSession'
+import { getHistory, listApplications } from '#/lib/api/client'
+import { dashboardDestination, navGroups } from '#/lib/navigation/navGroups'
+import { APPLICATION_BOARD_QUERY_KEY } from '#/lib/query/applicationCaches'
+import { formatRunDate } from '#/lib/tools/runLabel'
+import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
+import { toolList } from '#/lib/tools/registry'
+
+/** A result either opens a page (`to`) or does something (`run`, the Actions group). */
+type PaletteItem = {
+  id: string
+  group: string
+  label: string
+  hint?: string
+  icon: LucideIcon
+  /** Tools show their colour tile instead of a bare icon. */
+  tone?: Tone
+  to?: string
+  run?: () => void
+  keywords?: string
+}
+
+const RECENT_RUNS_QUERY_KEY = ['command-palette', 'recent-runs'] as const
+
+function matches(item: PaletteItem, query: string) {
+  if (!query) return true
+  const haystack = `${item.label} ${item.hint ?? ''} ${item.keywords ?? ''}`.toLowerCase()
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => haystack.includes(word))
+}
+
+/**
+ * The ⌘K palette's dialog: jump to any page, tool or application by typing. A kit Dialog holding a
+ * combobox and a listbox of kit Rows; arrow keys move, Enter opens, Esc closes. Loaded on first open
+ * (CommandPalette.tsx owns the shortcut and the open state).
+ */
+export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(0)
+  // The results element mounts with the dialog's portal, a commit after `open` flips, so it is state, not a plain ref.
+  const [listEl, setListEl] = useState<HTMLDivElement | null>(null)
+  const [scrollable, setScrollable] = useState(false)
+  const navigate = useNavigate()
+  const { user, logout, openAuthDialog } = useSession()
+  const sidebar = useOptionalSidebar()
+  const listId = useId()
+
+  useEffect(() => {
+    if (!open) {
+      setQuery('')
+      setActive(0)
+    }
+  }, [open])
+
+  const applications = useQuery({
+    queryKey: APPLICATION_BOARD_QUERY_KEY,
+    queryFn: listApplications,
+    enabled: open && Boolean(user),
+    staleTime: 30_000,
+  })
+
+  // Saved runs are real data: the newest dozen, filtered as you type like everything else.
+  const runs = useQuery({
+    queryKey: RECENT_RUNS_QUERY_KEY,
+    queryFn: () => getHistory({ page_size: 12 }),
+    enabled: open && Boolean(user),
+    staleTime: 30_000,
+  })
+
+  // Phones have no sidebar (the provider still wraps the shell there), so no toggle action either.
+  const phone = useKnownBreakpoint() === 'mobile'
+  const toggleSidebar = phone ? undefined : sidebar?.toggleSidebar
+  const sidebarCollapsed = sidebar?.state === 'collapsed'
+  const items = useMemo<PaletteItem[]>(() => {
+    const pages: PaletteItem[] = [
+      {
+        id: 'dashboard',
+        group: 'Go to',
+        label: dashboardDestination.label,
+        icon: dashboardDestination.icon,
+        to: dashboardDestination.route,
+        keywords: 'home today',
+      },
+    ]
+    for (const group of navGroups) {
+      if (group.id === 'job-search' && !user) continue
+      for (const destination of group.destinations) {
+        pages.push({
+          id: destination.route,
+          group: 'Go to',
+          label: destination.label,
+          icon: destination.icon,
+          to: destination.route,
+        })
+      }
+    }
+    pages.push(
+      { id: 'account', group: 'Go to', label: 'Account', icon: UserRound, to: '/account' },
+      { id: 'settings', group: 'Go to', label: 'Settings', icon: Settings, to: '/settings', keywords: 'preferences' },
+    )
+    if (user?.is_admin) {
+      pages.push({ id: 'admin', group: 'Go to', label: 'Admin', icon: ShieldCheck, to: '/admin' })
+    }
+    const tools: PaletteItem[] = toolList.map((tool) => ({
+      id: `tool-${tool.id}`,
+      group: 'Tools',
+      label: tool.label,
+      icon: tool.icon,
+      tone: tool.tone,
+      to: tool.route,
+    }))
+    const actions: PaletteItem[] = [
+      user
+        ? { id: 'sign-out', group: 'Actions', label: 'Sign out', icon: LogOut, run: () => void logout(), keywords: 'log out logout' }
+        : {
+            id: 'sign-in',
+            group: 'Actions',
+            label: 'Sign in',
+            icon: LogIn,
+            run: () => openAuthDialog({ to: window.location.pathname }),
+            keywords: 'log in login account',
+          },
+    ]
+    if (toggleSidebar) {
+      actions.push({
+        id: 'toggle-sidebar',
+        group: 'Actions',
+        label: sidebarCollapsed ? 'Expand the sidebar' : 'Collapse the sidebar',
+        hint: '⌘B',
+        icon: PanelLeft,
+        run: toggleSidebar,
+        keywords: 'navigation menu rail',
+      })
+    }
+    const apps: PaletteItem[] = (applications.data?.items ?? []).map((item) => ({
+      id: `app-${item.id}`,
+      group: 'Applications',
+      label: item.title ?? item.label ?? 'Untitled application',
+      hint: item.company ?? undefined,
+      icon: Briefcase,
+      to: `/campaigns/${item.id}`,
+      keywords: item.status,
+    }))
+    const saved: PaletteItem[] = []
+    for (const run of runs.data?.items ?? []) {
+      const href = historyRunHref(run)
+      if (!href) continue
+      const display = historyToolDisplay(run.tool_name)
+      saved.push({
+        id: `run-${run.id}`,
+        group: 'Recent runs',
+        label: run.label?.trim() || run.metadata?.summary_headline?.trim() || display.label,
+        hint: `${display.label} · ${formatRunDate(run.created_at)}`,
+        icon: display.icon,
+        to: href,
+        keywords: display.label,
+      })
+    }
+    return [...pages, ...tools, ...actions, ...apps, ...saved]
+  }, [applications.data, runs.data, user, logout, openAuthDialog, toggleSidebar, sidebarCollapsed])
+
+  const visible = useMemo(() => items.filter((item) => matches(item, query.trim())), [items, query])
+
+  // Consecutive items of one group sit under one heading; `index` is the item's place in the whole list.
+  const groups = useMemo(() => {
+    const result: Array<{ name: string; entries: Array<{ item: PaletteItem; index: number }> }> = []
+    visible.forEach((item, index) => {
+      const last = result[result.length - 1]
+      if (last && last.name === item.group) last.entries.push({ item, index })
+      else result.push({ name: item.group, entries: [{ item, index }] })
+    })
+    return result
+  }, [visible])
+
+  useEffect(() => {
+    setActive(0)
+  }, [query])
+
+  useEffect(() => {
+    listEl?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [active, listEl])
+
+  // A list that scrolls must be reachable from the keyboard on its own, as in a Dialog body.
+  useEffect(() => {
+    if (!listEl) return
+    const measure = () => setScrollable(listEl.scrollHeight > listEl.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(listEl)
+    return () => observer.disconnect()
+  }, [listEl, visible.length])
+
+  const go = (item: PaletteItem | undefined) => {
+    if (!item) return
+    setOpen(false)
+    if (item.run) item.run()
+    else if (item.to) void navigate({ to: item.to })
+  }
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActive((index) => Math.min(index + 1, visible.length - 1))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActive((index) => Math.max(index - 1, 0))
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      go(visible[active])
+    }
+  }
+
+  const optionId = (item: PaletteItem) => `${listId}-${item.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent size="md" showClose={false} className="app-palette">
+        <DialogTitle visuallyHidden>Search</DialogTitle>
+        <DialogDescription visuallyHidden>
+          Jump to a page, tool, application or saved run, or run an action. Use the arrow keys and Enter.
+        </DialogDescription>
+        <div className="app-palette__search">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Search or jump to…"
+            aria-label="Search"
+            autoComplete="off"
+            spellCheck={false}
+            role="combobox"
+            aria-expanded={visible.length > 0}
+            aria-controls={visible.length > 0 ? listId : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={visible[active] ? optionId(visible[active]) : undefined}
+            leading={<Search aria-hidden />}
+            trailing={<Kbd className="app-palette__esc">Esc</Kbd>}
+          />
+        </div>
+        <div ref={setListEl} className="app-palette__results" tabIndex={scrollable ? 0 : undefined}>
+          {visible.length === 0 ? (
+            <EmptyState
+              role="status"
+              title={`No results for “${query}”`}
+              description="Try a page, tool, application or run name."
+            />
+          ) : (
+            <div id={listId} role="listbox" aria-label="Results">
+              {groups.map((group, groupIndex) => (
+                <div
+                  key={group.name}
+                  role="group"
+                  aria-labelledby={`${listId}-group-${groupIndex}`}
+                  className="app-palette__group"
+                >
+                  <div id={`${listId}-group-${groupIndex}`} className="app-palette__heading" role="presentation">
+                    {group.name}
+                  </div>
+                  {group.entries.map(({ item, index }) => (
+                    <Row
+                      key={item.id}
+                      as="div"
+                      density="compact"
+                      role="option"
+                      id={optionId(item)}
+                      aria-selected={index === active}
+                      selected={index === active}
+                      interactive
+                      data-index={index}
+                      onMouseMove={() => setActive(index)}
+                      onClick={() => go(item)}
+                    >
+                      <RowLeading>
+                        {item.tone ? <ToolTile tone={item.tone} icon={item.icon} size="sm" /> : <item.icon aria-hidden />}
+                      </RowLeading>
+                      <RowBody>
+                        <RowTitle>{item.label}</RowTitle>
+                      </RowBody>
+                      <RowMeta className="app-palette__meta">
+                        {item.hint}
+                        {index === active ? <CornerDownLeft aria-hidden /> : null}
+                      </RowMeta>
+                    </Row>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}

@@ -10,8 +10,9 @@ export function SidebarUserMenu() {
   const { status, user, logout } = useSession()
 
   // Until the session answers the slot keeps the account button's height, so the footer does not jump
-  // and a signed-in person never sees a "Sign in" button flash up first.
-  if (status === 'loading') {
+  // and a signed-in person never sees a "Sign in" button flash up first. 'unreachable' (a signed-in browser
+  // that cannot reach the server) is not a guest either: the service banner explains the outage.
+  if (status === 'loading' || status === 'unreachable') {
     return <div className="app-sidebar__account-placeholder" aria-hidden="true" />
   }
 

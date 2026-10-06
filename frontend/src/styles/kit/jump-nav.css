@@ -14,10 +14,11 @@
   display: none;
 }
 
-/* The gradient is a functional overflow cue, not decoration (allow-listed in kit-css.test). A ground-
+/* The gradient is a functional overflow cue, not decoration (allow-listed in kit-css.test). A 12px ground-
    coloured fade sticks to the strip's right edge, so a link cut there fades out and a hidden scrollbar
-   still says "more this way". At the end of the scroll it sits in its own slot after the last link,
-   so nothing is covered; the strip's opaque fill and its 2px ink rule are untouched. */
+   still says "more this way". It shows only while there is more to scroll to (`data-more`, set by the
+   component); the slot stays, so showing it never moves a link. The strip's opaque fill and its 2px ink
+   rule are untouched. */
 .kit-jump-nav::after {
   content: '';
   position: sticky;
@@ -25,7 +26,12 @@
   flex: none;
   inline-size: var(--s3);
   background: linear-gradient(to right, transparent, var(--ground));
+  opacity: 0;
   pointer-events: none;
+}
+
+.kit-jump-nav[data-more='true']::after {
+  opacity: 1;
 }
 
 .kit-jump-nav[data-sticky='true'] {

@@ -3,8 +3,10 @@ import { Route } from '#/routes/index'
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => options,
-  lazyRouteComponent: () => 'LandingExperimentPage',
 }))
+
+// The route imports the page directly (TanStack's autoCodeSplitting splits `component` into its own chunk).
+vi.mock('#/pages/landing-experiment-page', () => ({ LandingExperimentPage: 'LandingExperimentPage' }))
 
 describe('landing index route', () => {
   const route = Route as unknown as {

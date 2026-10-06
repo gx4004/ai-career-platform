@@ -1,11 +1,17 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { requireUser } from '#/lib/auth/userGuard'
+import { warmApplications } from '#/lib/query/routePrefetch'
+import { ApplicationsPage } from '#/pages/applications-page'
 
 export const Route = createFileRoute('/campaigns/')({
   // The session cookie is only sent from the browser, so the auth guard must
   // not run during server rendering (it would bounce a signed-in reload to /login).
   ssr: false,
-  beforeLoad: requireUser,
+  // The board starts loading alongside the session check, not after it.
+  beforeLoad: (ctx) => {
+    warmApplications()
+    return requireUser(ctx)
+  },
   head: () => ({ meta: [{ title: 'Applications | Career Workbench' }] }),
-  component: lazyRouteComponent(() => import('#/pages/applications-page'), 'ApplicationsPage'),
+  component: ApplicationsPage,
 })

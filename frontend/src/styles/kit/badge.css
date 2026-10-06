@@ -171,6 +171,25 @@
 
 /* ── Kbd ───────────────────────────────────────────────────────────── */
 
+/*
+ * The key symbols (⌘ ⌥ ⇧ ⎋ ⌫ ↵ ⏎) come from a font the system already has. Onest only carries them in its
+ * "symbols" subset, a 19KB download every signed-in page would make for the sidebar's one ⌘K. Letters
+ * fall through to Onest (unicode-range limits this face to the symbols), so the key reads the same.
+ */
+@font-face {
+  font-family: 'Kit Key Symbols Mac';
+  src: local('Apple Symbols'), local('AppleSymbols');
+  unicode-range: U+2318, U+2325, U+21E7, U+238B, U+232B, U+21B5, U+23CE;
+  /* Apple Symbols draws ⌘ small: scaled, it stands as tall as the K beside it, as Onest's own glyph does. */
+  size-adjust: 125%;
+}
+
+@font-face {
+  font-family: 'Kit Key Symbols';
+  src: local('Segoe UI Symbol'), local('SegoeUISymbol'), local('DejaVu Sans'), local('DejaVuSans');
+  unicode-range: U+2318, U+2325, U+21E7, U+238B, U+232B, U+21B5, U+23CE;
+}
+
 .kit-kbd {
   display: inline-flex;
   align-items: center;
@@ -184,7 +203,7 @@
   background: var(--surface);
   box-shadow: 1px 1px 0 var(--ink);
   color: var(--ink);
-  font-family: var(--font-ui);
+  font-family: 'Kit Key Symbols Mac', 'Kit Key Symbols', var(--font-ui);
   font-size: var(--fs-micro);
   font-weight: var(--fw-bold);
   line-height: 1;

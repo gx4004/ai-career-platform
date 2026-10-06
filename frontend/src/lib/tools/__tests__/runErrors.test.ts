@@ -18,10 +18,10 @@ describe('getToolRunError', () => {
     },
   )
 
-  it('turns a generative network failure into the same actionable error', () => {
+  it('turns a generative network failure (the client reports it as ApiError status 0) into the same actionable error', () => {
     const result = getToolRunError(
       tools['cover-letter'],
-      new TypeError('Failed to fetch'),
+      new ApiError('You appear to be offline.', 0),
     )
 
     expect(result.message).toBe(

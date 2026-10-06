@@ -1,16 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { getToday } from '#/lib/api/client'
-import { useSession } from '#/hooks/useSession'
+import { useAccountQueriesEnabled } from '#/hooks/useAccountQueriesEnabled'
 
 // Under the applications prefix so any application write refreshes it.
 export const TODAY_QUERY_KEY = ['applications', 'today'] as const
 
+/** The Today query (key and fetch), shared by the hook and the dashboard's route loader. */
+export const todayQuery = () => ({ queryKey: TODAY_QUERY_KEY, queryFn: getToday, staleTime: 15_000 })
+
 export function useToday() {
-  const { status } = useSession()
   return useQuery({
-    queryKey: TODAY_QUERY_KEY,
-    queryFn: getToday,
-    enabled: status === 'authenticated',
-    staleTime: 15_000,
+    ...todayQuery(),
+    enabled: useAccountQueriesEnabled(),
   })
 }

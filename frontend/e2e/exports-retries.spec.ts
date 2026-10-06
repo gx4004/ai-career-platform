@@ -36,9 +36,9 @@ async function register(page: Page, identity: string) {
   await page.locator('#register-password').fill(password)
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
-  await expect(
-    page.getByRole('heading', { name: "You're already signed in" }),
-  ).toBeVisible({ timeout: 15_000 })
+  // A new account is welcomed, then the page moves on by itself to the dashboard (no pending destination here).
+  await expect(page.getByRole('heading', { name: 'Your account is ready' })).toBeVisible({ timeout: 15_000 })
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 })
   return email
 }
 
@@ -67,7 +67,9 @@ async function readDownloadedPdfText(page: Page): Promise<{
   text: string
 }> {
   const downloadPromise = page.waitForEvent('download')
-  await page.getByTitle('Export PDF').click()
+  // PDF lives in the result header's Export menu.
+  await page.getByRole('button', { name: 'Export result' }).click()
+  await page.getByRole('menuitem', { name: 'PDF' }).click()
   const download = await downloadPromise
   const stream = await download.createReadStream()
   const chunks: Buffer[] = []

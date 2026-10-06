@@ -1,4 +1,4 @@
-import '#/lib/i18n'
+// i18n is not initialised: the app is English only (V1) and nothing calls t(). To re-enable it, add `import '#/lib/i18n'` here.
 import { type ReactNode, useEffect } from 'react'
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'

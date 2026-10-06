@@ -127,4 +127,27 @@ describe('kit JumpNav', () => {
     expect(notPrevented).toBe(true)
     expect(target.scrollIntoView).not.toHaveBeenCalled()
   })
+
+  it('marks the strip as having more to scroll to only while it overflows and is not at its end', () => {
+    render(<JumpNav aria-label="Report sections" items={ITEMS} />)
+    const nav = screen.getByRole('navigation', { name: 'Report sections' })
+    // jsdom lays nothing out: a strip with no overflow has no fade.
+    expect(nav.dataset.more).toBe('false')
+
+    Object.defineProperty(nav, 'scrollWidth', { value: 600, configurable: true })
+    Object.defineProperty(nav, 'clientWidth', { value: 320, configurable: true })
+    nav.scrollLeft = 0
+    fireEvent.scroll(nav)
+    expect(nav.dataset.more).toBe('true')
+
+    nav.scrollLeft = 280
+    fireEvent.scroll(nav)
+    expect(nav.dataset.more).toBe('false')
+  })
+
+  it('still hands the nav element to a forwarded ref', () => {
+    const ref = { current: null as HTMLElement | null }
+    render(<JumpNav ref={ref} aria-label="Report sections" items={ITEMS} />)
+    expect(ref.current?.tagName).toBe('NAV')
+  })
 })

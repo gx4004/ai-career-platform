@@ -26,8 +26,9 @@ import {
   Toolbar,
 } from '#/components/kit'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
-import { useHistory } from '#/hooks/useHistory'
+import { HISTORY_PAGE_SIZE as DEFAULT_PAGE_SIZE, useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
+import { useAccountQueriesEnabled } from '#/hooks/useAccountQueriesEnabled'
 import { deleteHistoryItem, getHistoryItem, updateHistoryItem } from '#/lib/api/client'
 import type { ToolRunSummary } from '#/lib/api/schemas'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
@@ -43,8 +44,6 @@ export type HistorySearchState = {
   page?: number
   page_size?: number
 }
-
-const DEFAULT_PAGE_SIZE = 10
 
 // Keeps the header's meta line when there is no count to show (nothing saved yet, or the list failed), so the toolbar does not jump.
 const META_PLACEHOLDER = <span key="placeholder" aria-hidden>{'\u00a0'}</span>
@@ -115,7 +114,9 @@ export function HistoryPage({
   const compact = useCompact()
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
-  const authenticated = status === 'authenticated'
+  // The list loads once signed in, and also while /auth/me is still answering in a browser that was signed
+  // in (it then loads alongside it).
+  const listEnabled = useAccountQueriesEnabled()
   const page = search.page ?? 1
   const pageSize = search.page_size ?? DEFAULT_PAGE_SIZE
   // The search box sits outside the Filters sheet, so it is not counted there; it still makes an empty list "no match".
@@ -145,7 +146,7 @@ export function HistoryPage({
       page,
       page_size: pageSize,
     },
-    authenticated,
+    listEnabled,
   )
   const favoriteToggle = useFavoriteToggle()
   const [actionError, setActionError] = useState<string | null>(null)
@@ -230,7 +231,9 @@ export function HistoryPage({
     }
   }
 
-  if (!authenticated) {
+  // Only a known guest gets the sign-in prompt. While the session resolves (or a signed-in browser cannot
+  // reach the server) the signed-in layout renders with its skeleton rows, so nobody sees a guest flash.
+  if (status === 'guest') {
     return (
       <Page>
         <PageHeader title="History" />
