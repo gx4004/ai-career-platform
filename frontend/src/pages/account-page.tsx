@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
 import { KeyRound, LogOut } from 'lucide-react'
+import { ChangePasswordDialog } from '#/components/account/ChangePasswordDialog'
+import { EditNameDialog } from '#/components/account/EditNameDialog'
 import { ApplicationDetailsCard } from '#/components/applications/ApplicationDetailsCard'
 import {
   Avatar,
@@ -29,11 +31,14 @@ import {
 import { DataControls } from '#/components/profile/DataControls'
 import { useSession } from '#/hooks/useSession'
 import { requestPasswordReset } from '#/lib/api/client'
+import { describeFailure } from '#/lib/api/errors'
 
 export function AccountPage() {
   const { status, user, openAuthDialog, providers, logout } = useSession()
   const resetLink = useMutation({ mutationFn: (email: string) => requestPasswordReset({ email }) })
-  const [resetSentTo, setResetSentTo] = useState<string | null>(null)
+  const [resetSent, setResetSent] = useState<{ email: string; devUrl?: string } | null>(null)
+  const [editingName, setEditingName] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
 
   // Until the session answers (or while a signed-in browser cannot reach the server; the service banner
   // says so) the page holds its shape instead of flashing the guest sign-in prompt.
@@ -74,6 +79,12 @@ export function AccountPage() {
       : null
   const googleEnabled = providers.some((p) => p.provider === 'google' && p.enabled)
   const displayName = user.full_name || user.email
+  const emailResetLink = () => {
+    setResetSent(null)
+    resetLink.mutate(user.email, {
+      onSuccess: (answer) => setResetSent({ email: user.email, devUrl: answer.dev_reset_url }),
+    })
+  }
 
   return (
     <Page width="narrow">
@@ -96,7 +107,17 @@ export function AccountPage() {
             <KeyValue
               aria-label="Your sign-in identity"
               items={[
-                { label: 'Name', value: user.full_name },
+                {
+                  label: 'Name',
+                  value: (
+                    <Cluster gap={3} justify="between">
+                      {user.full_name ? <span>{user.full_name}</span> : <span className="kit-kv__empty">Not set</span>}
+                      <Button variant="secondary" size="sm" onClick={() => setEditingName(true)}>
+                        {user.full_name ? 'Edit name' : 'Add name'}
+                      </Button>
+                    </Cluster>
+                  ),
+                },
                 { label: 'Email', value: user.email },
               ]}
             />
@@ -116,11 +137,18 @@ export function AccountPage() {
       <Section title="Session and password">
         {resetLink.isError ? (
           <Notice tone="danger" onDismiss={() => resetLink.reset()}>
-            We could not send the link. Try again in a moment.
+            {describeFailure(resetLink.error, 'We could not send the link. Try again in a moment.').message}
           </Notice>
-        ) : resetSentTo ? (
-          <Notice tone="success" onDismiss={() => setResetSentTo(null)}>
-            If {resetSentTo} can sign in with a password, a reset link is on its way.
+        ) : resetSent ? (
+          <Notice tone="success" onDismiss={() => setResetSent(null)}>
+            A link to choose a new password is on its way to {resetSent.email}.
+            {resetSent.devUrl ? (
+              <>
+                {' '}
+                Local development has no mail provider:{' '}
+                <a href={resetSent.devUrl}>open the reset link</a>.
+              </>
+            ) : null}
           </Notice>
         ) : null}
         <List className="settings-list" aria-label="Session">
@@ -129,19 +157,17 @@ export function AccountPage() {
               <KeyRound aria-hidden />
             </RowLeading>
             <RowBody>
-              <RowTitle>Change password</RowTitle>
-              <RowSubtitle>We email {user.email} a link to choose a new one.</RowSubtitle>
+              <RowTitle>Password</RowTitle>
+              <RowSubtitle>Changing it signs out every other device.</RowSubtitle>
+              <div>
+                <Button variant="link" size="sm" loading={resetLink.isPending} onClick={emailResetLink}>
+                  Forgot it? Email me a link
+                </Button>
+              </div>
             </RowBody>
             <RowActions reveal={false}>
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={resetLink.isPending}
-                onClick={() =>
-                  resetLink.mutate(user.email, { onSuccess: () => setResetSentTo(user.email) })
-                }
-              >
-                Email me a link
+              <Button variant="secondary" size="sm" onClick={() => setChangingPassword(true)}>
+                Change password
               </Button>
             </RowActions>
           </Row>
@@ -161,6 +187,9 @@ export function AccountPage() {
           </Row>
         </List>
       </Section>
+
+      <EditNameDialog open={editingName} onOpenChange={setEditingName} currentName={user.full_name} />
+      <ChangePasswordDialog open={changingPassword} onOpenChange={setChangingPassword} onEmailLink={emailResetLink} />
 
       <Section title="Your data" description="Download a copy, or erase what you saved. Deleting is permanent and takes effect immediately.">
         <DataControls listLabel="Your data" detailed />

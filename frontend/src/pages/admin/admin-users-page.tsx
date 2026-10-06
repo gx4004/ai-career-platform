@@ -31,6 +31,14 @@ function useCurrentUserId() {
 
 const displayName = (user: AdminUserItem) => user.full_name || user.email
 
+/** The last role change, from the server's audit columns: "Made admin by x@y.com on Oct 6". The current role says which way it went. */
+function roleAudit(user: AdminUserItem) {
+  if (!user.role_changed_at) return null
+  const what = user.is_admin ? 'Made admin' : 'Admin removed'
+  const who = user.role_changed_by ? ` by ${user.role_changed_by}` : ''
+  return `${what}${who} on ${adminDate(user.role_changed_at)}`
+}
+
 export function AdminUsersPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -92,6 +100,7 @@ export function AdminUsersPage() {
         <span className="admin-wrap">
           {user.email}
           {user.full_name ? <span className="admin-subline">{user.full_name}</span> : null}
+          {roleAudit(user) ? <span className="admin-subline">{roleAudit(user)}</span> : null}
         </span>
       ),
     },

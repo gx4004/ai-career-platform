@@ -2,14 +2,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '#/components/kit'
+import { ApiError } from '#/lib/api/errors'
 import { AdminDiscoverySourcesPage } from '#/pages/admin/admin-discovery-sources-page'
 
 const getAdminDiscoverySourcesMock = vi.hoisted(() => vi.fn())
 const setDiscoverySourceKillSwitchMock = vi.hoisted(() => vi.fn())
 
+const retrySourceFetchMock = vi.hoisted(() => vi.fn())
+
 vi.mock('#/lib/api/admin', () => ({
   getAdminDiscoverySources: getAdminDiscoverySourcesMock,
   setDiscoverySourceKillSwitch: setDiscoverySourceKillSwitchMock,
+}))
+vi.mock('#/lib/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/api/client')>()),
+  retrySourceFetch: retrySourceFetchMock,
 }))
 
 function source(overrides: Record<string, unknown> = {}) {
@@ -31,6 +38,7 @@ function source(overrides: Record<string, unknown> = {}) {
     ingestion_allowed: true,
     last_fetched_at: null,
     last_outcome: null,
+    failure_reason: null,
     listing_count: null,
     created_at: '2026-07-13T00:00:00Z',
     updated_at: '2026-07-13T00:00:00Z',
@@ -93,18 +101,65 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(screen.getByText('Never fetched')).toBeTruthy()
   })
 
-  it('explains a failed fetch in words and keeps the recorded error behind a disclosure', async () => {
+  it('shows the server\'s own words for a failed fetch and keeps the recorded error behind a disclosure (B13)', async () => {
     renderPage([
       source({
         last_fetched_at: '2026-09-27T06:00:00Z',
-        last_outcome: 'failed: HTTPStatusError',
+        last_outcome: 'failed: HTTPStatusError 404',
+        failure_reason: 'The board was not found (HTTP 404): check the board name in the endpoint URL.',
         listing_count: 7,
       }),
     ])
-    expect(await screen.findByText('The board answered with an error')).toBeTruthy()
-    expect(screen.queryByText('failed: HTTPStatusError')).toBeNull()
+    expect(await screen.findByText('The board was not found (HTTP 404): check the board name in the endpoint URL.')).toBeTruthy()
+    expect(screen.queryByText('failed: HTTPStatusError 404')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Error detail' }))
-    expect(screen.getByText('failed: HTTPStatusError')).toBeTruthy()
+    expect(screen.getByText('failed: HTTPStatusError 404')).toBeTruthy()
+  })
+
+  it('still says a fetch failed when the server sent no reason', async () => {
+    renderPage([source({ last_fetched_at: '2026-09-27T06:00:00Z', last_outcome: 'failed: Mystery', failure_reason: null })])
+    expect(await screen.findByText('The fetch failed.')).toBeTruthy()
+  })
+
+  const failedBoard = (overrides: Record<string, unknown> = {}) =>
+    source({
+      source_family: 'employer_ats',
+      last_fetched_at: '2026-09-27T06:00:00Z',
+      last_outcome: 'failed: HTTPStatusError 404',
+      failure_reason: 'The board was not found (HTTP 404): check the board name in the endpoint URL.',
+      ...overrides,
+    })
+
+  it('retries a failed employer board and puts the new outcome in its row', async () => {
+    const fetched = failedBoard({ last_fetched_at: '2026-10-06T09:00:00Z', last_outcome: 'ok', failure_reason: null, listing_count: 12 })
+    retrySourceFetchMock.mockResolvedValue(fetched)
+    renderPage([failedBoard()])
+    const button = await screen.findByRole('button', { name: 'Retry fetch' })
+    getAdminDiscoverySourcesMock.mockResolvedValue({ items: [fetched] })
+    fireEvent.click(button)
+    await waitFor(() => expect(retrySourceFetchMock).toHaveBeenCalledWith('source-1'))
+    expect(await screen.findByText('Fetched Licensed Example Feed')).toBeTruthy()
+    expect(screen.getByText('OK').closest('[data-tone]')?.getAttribute('data-tone')).toBe('success')
+    // Once in the row's meta line and once in the toast.
+    expect(screen.getAllByText('12 listings')).toHaveLength(2)
+    expect(screen.queryByText('Failed')).toBeNull()
+  })
+
+  it('says why a retry did not run, in the rate-limit words of the error mapper', async () => {
+    retrySourceFetchMock.mockRejectedValue(new ApiError('Rate limit exceeded: 6 per 1 minute', 429, undefined, { retryAfter: 60 }))
+    renderPage([failedBoard()])
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry fetch' }))
+    expect(await screen.findByText(/^Too many attempts\. Try again in 60/)).toBeTruthy()
+  })
+
+  it('offers no fetch for a source the server would refuse (not a board, kill switch on, terms pending)', async () => {
+    renderPage([
+      source({ id: 'licensed', last_fetched_at: '2026-09-27T06:00:00Z', last_outcome: 'failed: ReadTimeout' }),
+      failedBoard({ id: 'tripped', kill_switch: true, ingestion_allowed: false }),
+      failedBoard({ id: 'pending', terms_status: 'pending' }),
+    ])
+    expect(await screen.findAllByText('Failed')).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: /fetch/i })).toBeNull()
   })
 
   it('says when a source has no listing count yet', async () => {

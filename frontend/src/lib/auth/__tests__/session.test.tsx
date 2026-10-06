@@ -16,11 +16,10 @@ const api = vi.hoisted(() => ({
   login: vi.fn(),
   logout: vi.fn(),
   register: vi.fn(),
-  request: vi.fn(),
+  getSessionState: vi.fn(),
 }))
 // GET /auth/session (a browser without a session hint) answers what /auth/me would, a guest as a 200 null.
-async function sessionRead(path: string) {
-  if (path !== '/auth/session') throw new Error(`unexpected request ${path}`)
+async function sessionRead() {
   try {
     return { user: await api.getCurrentUser() }
   } catch (error) {
@@ -90,7 +89,7 @@ beforeEach(() => {
   api.getHealth.mockResolvedValue({ status: 'ok' })
   api.login.mockResolvedValue(undefined)
   api.logout.mockResolvedValue({ ok: true })
-  api.request.mockImplementation(sessionRead)
+  api.getSessionState.mockImplementation(sessionRead)
 })
 afterEach(() => {
   window.history.replaceState({}, '', '/')
@@ -279,15 +278,15 @@ describe('fetchSessionUser', () => {
   })
 
   it('a browser that never held a session asks the read that answers a guest without a 401 (B13)', async () => {
-    api.request.mockReset().mockResolvedValue({ user: null })
+    api.getSessionState.mockReset().mockResolvedValue({ user: null })
 
     await expect(fetchSessionUser()).resolves.toBeNull()
-    expect(api.request).toHaveBeenCalledWith('/auth/session', expect.objectContaining({ method: 'GET' }))
+    expect(api.getSessionState).toHaveBeenCalledTimes(1)
     expect(api.getCurrentUser).not.toHaveBeenCalled()
   })
 
   it('a session the anonymous-safe read names marks this browser as holding one (B13)', async () => {
-    api.request.mockReset().mockResolvedValue({ user: ADA })
+    api.getSessionState.mockReset().mockResolvedValue({ user: ADA })
 
     await expect(fetchSessionUser()).resolves.toEqual(ADA)
     expect(hasSessionHint()).toBe(true)

@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -19,8 +19,9 @@ import {
   getAdminDiscoverySources,
   setDiscoverySourceKillSwitch,
 } from '#/lib/api/admin'
+import { retrySourceFetch } from '#/lib/api/client'
 import type { DiscoverySource } from '#/lib/api/discoverySchemas'
-import { describeFailure } from './source-failure'
+import { describeFailure } from '#/lib/api/errors'
 import { adminDate, adminDateTime } from './toolLabel'
 
 /** A URL breaks after its slashes, never in the middle of a word. */
@@ -46,6 +47,13 @@ function sharedValue(sources: DiscoverySource[], pick: (source: DiscoverySource)
 
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
+/** Fetched at least once, and the last fetch did not work. */
+const lastFetchFailed = (source: DiscoverySource) => Boolean(source.last_fetched_at) && source.last_outcome !== 'ok'
+
+/** The server fetches on demand only an employer job board whose terms are accepted and whose kill switch is off. */
+const canFetchNow = (source: DiscoverySource) =>
+  source.terms_status === 'accepted' && !source.kill_switch && source.source_family === 'employer_ats'
+
 export function AdminDiscoverySourcesPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -67,6 +75,30 @@ export function AdminDiscoverySourcesPage() {
     },
   })
 
+  const retry = useMutation({
+    mutationFn: (sourceId: string) => retrySourceFetch(sourceId),
+    onSuccess: (source) => {
+      queryClient.setQueryData<{ items: DiscoverySource[] }>(['admin-discovery-sources'], (current) =>
+        current ? { ...current, items: current.items.map((item) => (item.id === source.id ? source : item)) } : current,
+      )
+      void queryClient.invalidateQueries({ queryKey: ['admin-discovery-sources'] })
+      if (source.last_outcome === 'ok') {
+        const count = source.listing_count
+        toast({
+          tone: 'success',
+          title: `Fetched ${source.display_name}`,
+          description: count === null || count === undefined ? undefined : `${count} ${count === 1 ? 'listing' : 'listings'}`,
+        })
+      } else {
+        toast({
+          tone: 'danger',
+          title: `${source.display_name} failed again`,
+          description: source.failure_reason ?? undefined,
+        })
+      }
+    },
+  })
+
   const pendingId =
     killSwitch.isPending && killSwitch.variables ? killSwitch.variables.sourceId : null
   // One change at a time, and a new one starts from a clean slate: no stale failure notice from the last click.
@@ -78,7 +110,7 @@ export function AdminDiscoverySourcesPage() {
   const sources = data?.items ?? []
   const sharedOwner = sharedValue(sources, (source) => source.owner)
   const sharedFamily = sharedValue(sources, (source) => source.source_family)
-  const failing = sources.filter((source) => source.last_fetched_at && source.last_outcome !== 'ok').length
+  const failing = sources.filter(lastFetchFailed).length
 
   const columns: TableColumn<DiscoverySource>[] = [
     {
@@ -142,7 +174,28 @@ export function AdminDiscoverySourcesPage() {
         </div>
       ),
     },
-    { id: 'fetch', header: 'Last fetch', cell: (source) => <LastFetch source={source} /> },
+    {
+      id: 'fetch',
+      header: 'Last fetch',
+      cell: (source) => (
+        <LastFetch source={source}>
+          {canFetchNow(source) ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={retry.isPending && retry.variables === source.id}
+              disabled={retry.isPending}
+              onClick={() => {
+                retry.reset()
+                retry.mutate(source.id)
+              }}
+            >
+              {lastFetchFailed(source) ? 'Retry fetch' : 'Fetch now'}
+            </Button>
+          ) : null}
+        </LastFetch>
+      ),
+    },
     {
       id: 'kill-switch',
       header: 'Kill switch',
@@ -185,6 +238,12 @@ export function AdminDiscoverySourcesPage() {
           </Notice>
         ) : null}
 
+        {retry.isError ? (
+          <Notice tone="danger" title="The fetch did not run" onDismiss={() => retry.reset()}>
+            {describeFailure(retry.error, 'Try again in a moment.').message}
+          </Notice>
+        ) : null}
+
         {isError ? (
           <ErrorState
             title="Couldn't load discovery sources"
@@ -212,30 +271,39 @@ export function AdminDiscoverySourcesPage() {
   )
 }
 
-function LastFetch({ source }: { source: DiscoverySource }) {
+/** The last fetch's outcome; `children` is the fetch-now control, under it. */
+function LastFetch({ source, children }: { source: DiscoverySource; children?: ReactNode }) {
   if (!source.last_fetched_at) {
-    return <Badge tone="neutral">Never fetched</Badge>
+    return (
+      <Stack gap={2}>
+        <div>
+          <Badge tone="neutral">Never fetched</Badge>
+        </div>
+        {children ? <div>{children}</div> : null}
+      </Stack>
+    )
   }
-  const reason = describeFailure(source.last_outcome)
+  const failed = lastFetchFailed(source)
+  // The server words the failure (B13 failure_reason); the raw outcome stays behind the disclosure.
+  const reason = failed ? (source.failure_reason ?? 'The fetch failed.') : null
   const count = source.listing_count
   return (
-    <div>
-      {reason ? <Badge tone="danger">Failed</Badge> : <Badge tone="success">OK</Badge>}
-      {reason ? (
-        <>
-          <span className="admin-reason">{reason}</span>
-        </>
-      ) : null}
-      <MetaRow>
-        {adminDateTime(source.last_fetched_at)}
-        {count === null || count === undefined ? 'No listing count yet' : `${count} ${count === 1 ? 'listing' : 'listings'}`}
-      </MetaRow>
-      {reason ? (
-        <Disclosure variant="inline" title="Error detail">
-          <p className="admin-subline admin-mono admin-wrap">{source.last_outcome}</p>
-        </Disclosure>
-      ) : null}
-    </div>
+    <Stack gap={2}>
+      <div>
+        {failed ? <Badge tone="danger">Failed</Badge> : <Badge tone="success">OK</Badge>}
+        {reason ? <span className="admin-reason">{reason}</span> : null}
+        <MetaRow>
+          {adminDateTime(source.last_fetched_at)}
+          {count === null || count === undefined ? 'No listing count yet' : `${count} ${count === 1 ? 'listing' : 'listings'}`}
+        </MetaRow>
+        {reason ? (
+          <Disclosure variant="inline" title="Error detail">
+            <p className="admin-subline admin-mono admin-wrap">{source.last_outcome}</p>
+          </Disclosure>
+        ) : null}
+      </div>
+      {children ? <div>{children}</div> : null}
+    </Stack>
   )
 }
 

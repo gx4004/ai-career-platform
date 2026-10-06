@@ -1,6 +1,6 @@
-import { getCurrentUser, request } from '#/lib/api/client'
+import { getCurrentUser, getSessionState } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
-import { sessionStateSchema, type User } from '#/lib/api/schemas'
+import type { User } from '#/lib/api/schemas'
 import { hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
 
 /** The one query every part of the app reads the signed-in user from (session, route guards, service banner). */
@@ -17,7 +17,7 @@ export const CURRENT_USER_QUERY_KEY = ['current-user'] as const
 export async function fetchSessionUser(): Promise<User | null> {
   if (!hasSessionHint()) {
     // Nothing to refresh, so ask the read that answers a guest with a 200 null instead of a failed 401.
-    const { user } = await request('/auth/session', { method: 'GET', schema: sessionStateSchema })
+    const { user } = await getSessionState()
     if (user) markSessionHint()
     return user
   }

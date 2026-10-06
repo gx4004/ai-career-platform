@@ -53,6 +53,19 @@ describe('AdminUsersPage', () => {
     expect(screen.getByText('2 users')).toBeTruthy()
   })
 
+  it('says who changed a role last and when, from the audit columns (B13)', async () => {
+    renderPage([
+      user('u-1', { is_admin: true, role_changed_at: '2026-10-06T08:00:00Z', role_changed_by: 'boss@example.com' }),
+      user('u-2', { role_changed_at: '2026-10-05T08:00:00Z', role_changed_by: 'boss@example.com' }),
+      user('u-3', { role_changed_at: '2026-10-04T08:00:00Z', role_changed_by: null }),
+      user('u-4', { role_changed_at: null, role_changed_by: null }),
+    ])
+    expect(await screen.findByText(/^Made admin by boss@example\.com on /)).toBeTruthy()
+    expect(screen.getByText(/^Admin removed by boss@example\.com on /)).toBeTruthy()
+    expect(screen.getByText(/^Admin removed on /)).toBeTruthy()
+    expect(screen.getAllByText(/^(Made admin|Admin removed)/)).toHaveLength(3)
+  })
+
   it('badges the role of every user: Admin in the accent colour, Member neutral', async () => {
     renderPage([user('u-1'), user('u-2', { is_admin: true })])
     await screen.findByText('u-1@example.com')
