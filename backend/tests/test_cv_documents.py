@@ -403,6 +403,39 @@ def test_tailoring_returns_reviewable_provenance_without_creating_campaigns(
     assert applied.status_code == 201
 
 
+def test_suggest_again_with_the_same_job_is_a_fresh_model_run_for_every_counted_run(
+    client, auth_headers, confirmed_evidence, monkeypatch
+):
+    """A counted tailoring run is a real model run, never a cached replay."""
+    from app.services.result_cache import clear_cache
+
+    clear_cache()
+    calls: list[int] = []
+
+    async def complete(*_args, **_kwargs):
+        calls.append(1)
+        return {"changes": [_tailoring_change(confirmed_evidence.id)]}
+
+    monkeypatch.setattr("app.services.cv_tailoring.complete_structured", complete)
+    document = client.post(
+        PREFIX,
+        json={"name": "Suggest again", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    payload = {
+        "job_title": "Site Reliability Engineer",
+        "job_description": "Own reliability for distributed platform services and on-call.",
+    }
+
+    first = client.post(f"{PREFIX}/{document['id']}/tailoring", json=payload, headers=auth_headers)
+    second = client.post(f"{PREFIX}/{document['id']}/tailoring", json=payload, headers=auth_headers)
+
+    assert first.status_code == 200 and second.status_code == 200
+    assert len(calls) == 2
+    assert first.json()["remaining_regenerations"] == CV_TAILORING_MODEL_RUN_LIMIT - 1
+    assert second.json()["remaining_regenerations"] == CV_TAILORING_MODEL_RUN_LIMIT - 2
+
+
 def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
     client, auth_headers, test_user, confirmed_evidence
 ):

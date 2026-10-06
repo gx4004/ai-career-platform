@@ -311,6 +311,9 @@ class JobMatchResponse(SharedResultEnvelope):
     tailoring_actions: list[TailoringAction]
     interview_focus: list[str]
     recruiter_summary: str
+    # The job the posting names, so "Track job" can prefill Role and Company; None when unknown.
+    job_title: str | None = None
+    company: str | None = None
 
 
 class CoverLetterSection(BaseModel):

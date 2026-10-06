@@ -118,13 +118,34 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/session", response_model=SessionStateResponse)
-def get_session(current_user: User | None = Depends(get_optional_current_user)):
+# The same read under the refresh cookie's path: the browser only sends cw_refresh to
+# /api/v1/auth/refresh..., so only this address can tell a lapsed session from a guest.
+@router.get("/refresh/session", response_model=SessionStateResponse)
+def get_session(
+    request: Request,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """The signed-in user or null, always a 200: a guest's page load is not a failed request.
 
     Reads the same access cookie (or bearer token) as ``/me`` and never refreshes or
     sets cookies; an expired, revoked or malformed token is simply a guest.
+    ``refreshable`` tells a guest whose refresh cookie is still good to call
+    ``POST /auth/refresh``; checking it rotates nothing.
     """
-    return SessionStateResponse(user=_user_response(current_user) if current_user else None)
+    if current_user is not None:
+        return SessionStateResponse(user=_user_response(current_user))
+    return SessionStateResponse(user=None, refreshable=_refresh_cookie_usable(request, db))
+
+
+def _refresh_cookie_usable(request: Request, db: Session) -> bool:
+    """Whether ``POST /auth/refresh`` would succeed with this request's cookie."""
+    token = request.cookies.get("cw_refresh")
+    claims = verify_refresh_token(token) if token else None
+    if claims is None:
+        return False
+    user = db.query(User).filter(User.id == claims["sub"]).first()
+    return bool(user and user.is_active and claims.get("tv", 0) == user.token_version)
 
 
 @router.patch("/me", response_model=UserResponse)

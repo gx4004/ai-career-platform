@@ -107,13 +107,13 @@ TEMPLATES: dict[str, Template] = {
     ),
     "professional-editorial": Template(
         "Professional Editorial",
-        "A refined single-column layout with warm serif section headings.",
+        "A roomy single-column layout with a centered name and larger section headings.",
         10, 15, 20, 8,
         title_align="center",
     ),
     "technical-portfolio": Template(
         "Technical Portfolio",
-        "Monospace-accented layout suited to engineering and technical roles.",
+        "A compact single-column layout with smaller type and tighter margins for dense technical CVs.",
         9, 12, 16, 7,
     ),
     "modern-two-column": Template(
@@ -125,7 +125,7 @@ TEMPLATES: dict[str, Template] = {
     ),
     "minimal-serif": Template(
         "Minimal Serif",
-        "A quiet, minimal serif layout with generous whitespace.",
+        "A quiet single-column layout with generous margins and whitespace.",
         10, 13, 20, 7,
     ),
 }
@@ -353,7 +353,8 @@ def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderMo
             ],
         }
         for section in sorted(document.sections, key=lambda item: (item["position"], item["id"]))
-        if section.get("visible", True)
+        # An empty section would print as a bare heading in the PDF and DOCX.
+        if section.get("visible", True) and section["entries"]
     ]
     header = _render_header(document)
     font_name, font_bold_name, unsupported = _fit_pdf_font(effective, style, header, sections)
@@ -634,7 +635,9 @@ def _entry_groups(flow: list, width: float, frame_height: float) -> list[list]:
     if len(flow) <= 3 or _flow_height(flow, width) <= _KEEP_ENTRY_TOGETHER * frame_height:
         # Short, or too few pieces to split between: a long paragraph splits by itself.
         return [flow]
-    return [flow[:3], *([item] for item in flow[3:-2]), flow[-2:]]
+    # Disjoint head, middle and tail: with four pieces the tail is only the last one.
+    tail_start = max(3, len(flow) - 2)
+    return [flow[:3], *([item] for item in flow[3:tail_start]), flow[tail_start:]]
 
 
 def _section_flow(section, styles: dict[str, ParagraphStyle], width: float, frame_height: float):

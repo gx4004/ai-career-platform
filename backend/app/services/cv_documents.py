@@ -10,6 +10,7 @@ from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
 from app.schemas.cv_documents import (
+    ENTRY_BODY_MAX_CHARS,
     CvDocumentCreate,
     CvDocumentResponse,
     CvDocumentsExport,
@@ -327,6 +328,21 @@ def _seed_entry(item: EvidenceItem, position: int) -> dict:
     return entry
 
 
+def _merged_skills(items: list[EvidenceItem]) -> list[dict]:
+    """Skill facts as ONE comma-joined skills line, the way a CV lists skills; one
+    entry per fact would print one skill per line. The merged entry links to the first
+    fact only (its evidence_item_id); the others are joined into its text."""
+    entries = [_seed_entry(item, position) for position, item in enumerate(items)]
+    if len(entries) == 1:
+        return entries
+    parts: list[str] = []
+    for entry in entries:
+        if len(", ".join([*parts, entry["body"]])) > ENTRY_BODY_MAX_CHARS:
+            break
+        parts.append(entry["body"])
+    return [{**entries[0], "body": ", ".join(parts), "bullets": []}]
+
+
 def _seed_sections(db: Session, user_id: str, ids: list[str]) -> list[dict]:
     if not ids:
         return []
@@ -355,7 +371,9 @@ def _seed_sections(db: Session, user_id: str, ids: list[str]) -> list[dict]:
                 "title": title,
                 "visible": True,
                 "position": len(sections),
-                "entries": [_seed_entry(item, position) for position, item in enumerate(group)],
+                "entries": _merged_skills(group) if kind == "skill" else [
+                    _seed_entry(item, position) for position, item in enumerate(group)
+                ],
             }
         )
     # The same validation a client-supplied section gets, before anything is stored.

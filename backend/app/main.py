@@ -162,10 +162,12 @@ MAX_BODY_CHUNKS = 4_096
 class RequestSizeLimitMiddleware:
     """Bound request bodies at the ASGI receive seam, before framework parsing.
 
-    A declared Content-Length over the limit is refused up front. Chunked bodies
-    carry no length, so received bytes and chunks are counted as they arrive and
-    the request is answered 413 the moment either bound is crossed; the app is
-    then shown a disconnect so it stops reading.
+    A declared Content-Length over the limit is refused up front, and a declared
+    body may never deliver more than it declared. Chunked bodies carry no length,
+    so received bytes and chunks are counted as they arrive. The request is
+    answered 413 the moment a bound is crossed; the app is then shown a disconnect
+    so it stops reading. The chunk cap applies only to chunked bodies: a slow,
+    in-limit declared upload may arrive in any number of small pieces.
     """
 
     def __init__(self, app):
@@ -184,14 +186,18 @@ class RequestSizeLimitMiddleware:
             else JSON_BODY_LIMIT_BYTES
         )
         raw_length = headers.get(b"content-length")
+        max_chunks: int | None = MAX_BODY_CHUNKS
         if raw_length is not None:
             try:
-                if int(raw_length) > limit:
-                    await self._reject(send)
-                    return
+                declared = int(raw_length)
             except ValueError:
                 await self._reject(send)
                 return
+            if declared < 0 or declared > limit:
+                await self._reject(send)
+                return
+            limit = declared
+            max_chunks = None
 
         received_bytes = 0
         received_chunks = 0
@@ -206,9 +212,8 @@ class RequestSizeLimitMiddleware:
             if message["type"] == "http.request":
                 received_chunks += 1
                 received_bytes += len(message.get("body", b""))
-                if (
-                    received_bytes > limit or received_chunks > MAX_BODY_CHUNKS
-                ) and not response_started:
+                too_many_chunks = max_chunks is not None and received_chunks > max_chunks
+                if (received_bytes > limit or too_many_chunks) and not response_started:
                     rejected = True
                     await self._reject(send)
                     return {"type": "http.disconnect"}

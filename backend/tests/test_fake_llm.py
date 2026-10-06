@@ -405,13 +405,18 @@ def test_career_without_a_target_role_recommends_a_real_role(client, auth_header
         assert data["recommended_direction"]["role_title"] in data["summary"]["headline"]
 
 
-def test_career_keeps_the_stated_target_role_as_the_recommendation(client, auth_headers):
+def test_career_keeps_the_stated_target_role_among_the_directions(client, auth_headers):
+    # B16: the recommendation is the best-scored direction (as in the heuristic
+    # baseline); the role the person named stays in the list and is named in why_now.
     data = _post(
         client, auth_headers, "career/recommend",
         resume_text=BACKEND_RESUME, target_role="Staff Platform Engineer",
     )
-    assert data["recommended_direction"]["role_title"] == "Staff Platform Engineer"
-    assert "Staff Platform Engineer" in data["summary"]["headline"]
+    recommended = data["recommended_direction"]
+    assert recommended["fit_score"] == max(path["fit_score"] for path in data["paths"])
+    assert "Staff Platform Engineer" in [path["role_title"] for path in data["paths"]]
+    if recommended["role_title"] != "Staff Platform Engineer":
+        assert "Staff Platform Engineer" in recommended["why_now"]
 
 
 def test_career_returns_three_to_five_distinct_directions_that_follow_the_resume(client, auth_headers):

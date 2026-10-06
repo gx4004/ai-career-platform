@@ -502,6 +502,8 @@ async def test_a_thin_browser_rendered_page_falls_back_to_the_paste_prompt():
     ("keyword", "text"),
     [
         ("Marketing", "Analysed stock market trends for a bank."),
+        ("Marketing", "Traded on stock markets daily"),
+        ("Accounting", "Managed key accounts for clients"),
         ("Server", "Served 3 customers at a cafe."),
         ("Management", "Managed a database of users."),
         ("Design", "Designer of mobile apps."),
@@ -520,6 +522,9 @@ def test_keyword_is_not_credited_by_a_lookalike_or_unrelated_phrase(keyword, tex
     ("keyword", "text"),
     [
         ("Mentoring", "Mentored 4 engineers."),
+        ("Marketing", "Led marketing for a product launch."),
+        ("Accounting", "Owned accounting for three entities."),
+        ("Managing", "Manages the release calendar."),
         ("Mentoring", "Mentor for junior developers."),
         ("Managing", "Managed the release calendar."),
         ("Databases", "Tuned a database."),

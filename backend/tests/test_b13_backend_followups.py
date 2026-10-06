@@ -17,6 +17,7 @@ from jose import jwt
 
 from app.auth.security import (
     create_access_token,
+    create_refresh_token,
     hash_password,
     verify_password_reset_token,
 )
@@ -326,7 +327,7 @@ def test_session_read_is_an_ok_null_for_an_anonymous_visitor(client):
     resp = client.get(f"{AUTH}/session")
 
     assert resp.status_code == 200
-    assert resp.json() == {"user": None}
+    assert resp.json() == {"user": None, "refreshable": False}
     assert "set-cookie" not in resp.headers
 
 
@@ -355,7 +356,7 @@ def test_session_read_with_an_expired_access_cookie_is_null_without_refreshing(
     resp = client.get(f"{AUTH}/session")
 
     assert resp.status_code == 200
-    assert resp.json() == {"user": None}
+    assert resp.json() == {"user": None, "refreshable": False}
     assert "set-cookie" not in resp.headers
 
 
@@ -367,7 +368,78 @@ def test_session_read_with_a_revoked_token_is_null(client, db, test_user):
     resp = client.get(f"{AUTH}/session", headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json() == {"user": None}
+    assert resp.json() == {"user": None, "refreshable": False}
+
+
+def _expired_access(user: User) -> str:
+    now = datetime.now(UTC)
+    return jwt.encode(
+        {"sub": user.id, "exp": now - timedelta(minutes=1), "iat": now - timedelta(hours=1), "tv": user.token_version},
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+
+
+def test_session_read_says_a_valid_refresh_cookie_can_restore_the_session(client, test_user):
+    # A browser signed in before the session hint existed (or one that blocks
+    # storage): the access cookie has lapsed, the 7-day refresh cookie has not.
+    client.cookies.set("cw_access", _expired_access(test_user))
+    client.cookies.set("cw_refresh", create_refresh_token(test_user.id, test_user.token_version))
+
+    resp = client.get(f"{AUTH}/session")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"user": None, "refreshable": True}
+    assert "set-cookie" not in resp.headers
+
+
+def test_session_read_with_a_live_access_cookie_is_not_refreshable(client, test_user):
+    assert _login(client, "test@example.com", "password123").status_code == 200
+
+    resp = client.get(f"{AUTH}/session")
+
+    assert resp.json()["user"]["id"] == test_user.id
+    assert resp.json()["refreshable"] is False
+
+
+def test_session_read_with_a_revoked_refresh_cookie_is_not_refreshable(client, db, test_user):
+    refresh = create_refresh_token(test_user.id, test_user.token_version)
+    test_user.token_version += 1
+    db.commit()
+    client.cookies.set("cw_access", _expired_access(test_user))
+    client.cookies.set("cw_refresh", refresh)
+
+    resp = client.get(f"{AUTH}/session")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"user": None, "refreshable": False}
+    assert "set-cookie" not in resp.headers
+
+
+@pytest.mark.parametrize("variant", ["expired", "access_type", "garbage", "inactive"])
+def test_session_read_with_an_unusable_refresh_cookie_is_not_refreshable(client, db, test_user, variant):
+    now = datetime.now(UTC)
+    if variant == "expired":
+        token = jwt.encode(
+            {"sub": test_user.id, "exp": now - timedelta(minutes=1), "iat": now - timedelta(days=8),
+             "type": "refresh", "tv": test_user.token_version},
+            settings.SECRET_KEY,
+            algorithm=settings.ALGORITHM,
+        )
+    elif variant == "access_type":
+        token = create_access_token(test_user.id, test_user.token_version)
+    elif variant == "garbage":
+        token = "not-a-jwt"
+    else:
+        token = create_refresh_token(test_user.id, test_user.token_version)
+        test_user.is_active = False
+        db.commit()
+    client.cookies.set("cw_refresh", token)
+
+    resp = client.get(f"{AUTH}/session")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"user": None, "refreshable": False}
 
 
 # ── Job import: the paste fallback says so explicitly ─────────────────────────

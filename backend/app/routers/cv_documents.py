@@ -411,6 +411,7 @@ async def tailor(
             status_code=429, detail="This document has reached its tailoring limit."
         )
     quota_document.tailoring_model_runs += 1
+    run_number = quota_document.tailoring_model_runs
     # Counting a run is not an edit: keep the version stamp an open editor saves against.
     flag_modified(quota_document, "updated_at")
     db.commit()
@@ -436,11 +437,12 @@ async def tailor(
             "document_id": document.id,
             "updated_at": document.updated_at.isoformat(),
             "target": body.job_title,
+            # Each counted run is its own model call: "Suggest again" with the same
+            # job must not replay a cached proposal while spending a run.
+            "run": str(run_number),
         },
     )
-    result["remaining_regenerations"] = (
-        CV_TAILORING_MODEL_RUN_LIMIT - quota_document.tailoring_model_runs
-    )
+    result["remaining_regenerations"] = CV_TAILORING_MODEL_RUN_LIMIT - run_number
     result["request_id"] = uuid4()
     result["proposal_token"] = proposal_token(
         str(result["request_id"]), document.id, current_user.id, body.job_title, result["changes"]
