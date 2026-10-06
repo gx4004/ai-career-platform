@@ -71,6 +71,7 @@ class _Line:
     title: bool = False  # Word "Title" style
     bullet: bool = False  # list paragraph or a bullet marker
     level: int = 0  # Word heading level (Heading 1 -> 1); 0 when unknown
+    gap_before: bool = False  # a blank line (or empty paragraph) came right before it
 
 
 _BULLET_MARKER = re.compile(r"^(?:[•◦▪▫●○■□·∙‣⁃*]|[-–—])(?:\s+|$)")
@@ -99,7 +100,7 @@ _URL = re.compile(
     r"(?:https?://|www\.)\S+|(?<![\w.-])(?:[\w-]+\.)+(?:com|io|dev|me|net|org|co|app|tech|ai)(?:/\S*)?",
     re.IGNORECASE,
 )
-_PHONE = re.compile(r"(?<![\w/])\+?\d[\d\s().-]{5,}\d(?!\w)")
+_PHONE = re.compile(r"(?<![\w/(])\+?\(?\d[\d\s().-]{5,}\d(?!\w)")
 _CONTACT_LABEL = re.compile(
     r"^(?:e-?mail|phone|tel|mobile|cell|linkedin|github|portfolio|website|web|location|address)\s*:\s*",
     re.IGNORECASE,
@@ -150,6 +151,9 @@ _SECTION_TITLES: dict[str, tuple[str, ...]] = {
     ),
 }
 _TITLE_KIND = {title: kind for kind, titles in _SECTION_TITLES.items() for title in titles}
+# "Technical Skills: Go, Rust, SQL" on one line: a section title and its content.
+_INLINE_SECTION = re.compile(r"^(?P<title>[A-Za-z][A-Za-z &/]{1,40}?)\s*:\s*(?P<values>\S.*)$")
+_INLINE_SECTION_KINDS = {"skills", "certifications", "custom"}
 _ROLE_SECTIONS = {"experience", "education", "projects", "certifications", "custom"}
 _CLAIM_BY_SECTION = {
     "skills": "skill", "education": "education", "projects": "project",
@@ -229,17 +233,43 @@ def _bullet_text(text: str) -> str:
 def lines_from_text(text: str) -> list[_Line]:
     lines: list[_Line] = []
     pending_marker = False
+    gap = False
     for raw in text.splitlines():
         stripped = raw.strip()
         if not stripped:
+            gap = bool(lines)
             continue
         if _BULLET_MARKER.match(stripped) and not _bullet_text(stripped):
             pending_marker = True  # a PDF often puts the "•" on a line of its own
             continue
         is_bullet = pending_marker or bool(_BULLET_MARKER.match(stripped))
         pending_marker = False
-        lines.append(_Line(_bullet_text(stripped) if is_bullet else stripped, bullet=is_bullet))
+        lines.append(
+            _Line(_bullet_text(stripped) if is_bullet else stripped, bullet=is_bullet, gap_before=gap)
+        )
+        gap = False
     return lines
+
+
+def _inline_section(line: _Line, extra: dict[str, str] | None, *, current: str | None):
+    """``(kind, title, values)`` for a "Skills: Go, Rust" line that starts its own section.
+
+    Before any heading it always does. Inside a Skills section never: "Languages: Go,
+    Python" there is one group of that section's skills. Elsewhere only after a blank
+    line: a role's own "Technologies: ..." line directly under its bullets stays with it.
+    """
+    if current == "skills" or (current is not None and not line.gap_before):
+        return None
+    if line.bullet or len(line.text) > _MAX_HEADER_LINE:
+        return None
+    match = _INLINE_SECTION.match(line.text.strip())
+    if not match:
+        return None
+    key = title_key(match.group("title"))
+    kind = (extra or {}).get(key) or _TITLE_KIND.get(key)
+    if kind not in _INLINE_SECTION_KINDS:
+        return None
+    return kind, _display_title(match.group("title")), match.group("values").strip()
 
 
 def split_sections(
@@ -256,6 +286,12 @@ def split_sections(
     for line in lines:
         if not line.text.strip():
             continue
+        inline = _inline_section(line, extra_headings, current=sections[-1][0] if sections else None)
+        if inline:
+            kind, title, values = inline
+            sections.append((kind, title, [_Line(values)]))
+            seen_content = True
+            continue
         kind = _section_kind(
             line, extra_headings, first_content=not seen_content, top_level=top_level
         )
@@ -271,8 +307,8 @@ def split_sections(
     return preamble, sections
 
 
-def _contact_tokens(text: str) -> tuple[dict, str]:
-    """Pull email / phone / links out of ``text``; the rest is a location candidate."""
+def _contact_tokens(text: str) -> tuple[dict, list[str]]:
+    """Pull email / phone / links out of ``text``; the other segments are returned as they are."""
     found: dict = {"email": None, "phone": None, "links": []}
     remainder = _CONTACT_LABEL.sub("", text.strip())
 
@@ -295,8 +331,17 @@ def _contact_tokens(text: str) -> tuple[dict, str]:
                 found["phone"] = match.group().strip()
             remainder = remainder.replace(match.group(), " ", 1)
     remainder = re.sub(r"\s*[|·•●;]+\s*", " | ", remainder)
-    parts = [re.sub(r"\s+", " ", part).strip(" ,;()-") for part in remainder.split("|")]
-    return found, ", ".join(part for part in parts if part)
+    parts = [_trim_segment(part) for part in remainder.split("|")]
+    return found, [part for part in parts if part]
+
+
+def _trim_segment(part: str) -> str:
+    """Collapse spaces and trim separators; a bracket is trimmed only when it is left
+    unpaired, so "Remote (EU)" keeps its closing one."""
+    part = re.sub(r"\s+", " ", part).strip(" ,;-")
+    if part.count("(") != part.count(")"):
+        part = part.strip(" ,;()-")
+    return part
 
 
 _MAX_HEADER_LINE = 300
@@ -354,12 +399,18 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
         if line.bullet or len(text) > _MAX_HEADER_LINE:
             break
         if _is_contact_line(text):
-            found, place = _contact_tokens(text)
+            found, parts = _contact_tokens(text)
             header["email"] = header["email"] or found["email"]
             header["phone"] = header["phone"] or found["phone"]
             header["links"].extend(found["links"])
+            # A job title on the contact line ("... | Senior Engineer") is the
+            # headline; every other segment is part of the location.
+            titles = [part for part in parts if _reads_as_role(part)]
+            place = ", ".join(part for part in parts if not _reads_as_role(part))
             if place and header["location"] is None and len(place) <= 80:
                 header["location"] = place
+            if titles and header["headline"] is None and len(titles[0]) <= 90:
+                header["headline"] = titles[0]
         elif header["location"] is None and _PLACE.match(text):
             header["location"] = text
         elif (
@@ -461,10 +512,25 @@ def _short_title_line(text: str) -> bool:
     return bool(text) and len(text.split()) <= 8 and not text.endswith((".", "!", "?", ":", ";"))
 
 
+_ROLE_WORDS = frozenset(
+    {
+        "engineer", "developer", "designer", "manager", "analyst", "scientist", "lead", "director",
+        "consultant", "architect", "specialist", "officer", "intern", "chef", "nurse", "teacher",
+        "administrator", "coordinator", "assistant", "associate", "head", "founder", "writer",
+    }
+)  # fmt: skip
+
+
+def _reads_as_role(text: str) -> bool:
+    return any(word.lower().strip(",()") in _ROLE_WORDS for word in text.split())
+
+
 def _looks_like_location(text: str) -> bool:
     words = text.split()
     if not words or len(words) > 4 or len(text) > 40 or re.search(r"\d|[.!?]$", text):
         return False
+    if _reads_as_role(text):
+        return False  # "Senior Engineer" is a title, not a place
     return bool(_PLACE.match(text)) or text.lower() in {"remote", "hybrid", "on-site", "onsite"} or (
         len(words) <= 2 and all(word[:1].isupper() for word in words)
     )
@@ -554,6 +620,23 @@ def _build_entries(
                         if date_line.group("end"):
                             fields["end_date"] = date_line.group("end")[:40]
                         index += 1
+                    elif (
+                        following is not None
+                        and not following.bullet
+                        and not following.heading
+                        and "subheading" not in fields
+                        and (org := _parse_role_header(following.text, None)) is not None
+                    ):
+                        # "Senior Engineer" (Heading 2) then "Northwind Labs | Mar 2021 - Present":
+                        # the second line is the same role's organisation and dates.
+                        org_fields, _ = org
+                        fields["subheading"] = org_fields["heading"]
+                        fields["start_date"] = org_fields["start_date"]
+                        if org_fields.get("end_date"):
+                            fields["end_date"] = org_fields["end_date"]
+                        if org_fields.get("subheading") and _looks_like_location(org_fields["subheading"]):
+                            fields["location"] = org_fields["subheading"]
+                        index += 1
                     close()
                     role = {**fields, "bullets": [], "description": [], "last_bullet": False}
                     continue
@@ -566,8 +649,12 @@ def _build_entries(
                     role = {**fields, "bullets": [], "description": [], "last_bullet": False}
                     continue
         if role is not None:
-            if wraps and role["last_bullet"] and role["bullets"]:
+            if wraps and role["last_bullet"] and role["bullets"] and not line.gap_before:
                 role["bullets"][-1] = f"{role['bullets'][-1]} {text}"
+            elif wraps and role["last_bullet"] and role["bullets"] and line.gap_before:
+                # After a blank line it is a new point, never the end of the last bullet.
+                role["bullets"].append(text)
+                role["last_bullet"] = True
             else:
                 role["description"].append(text)
                 role["last_bullet"] = False
@@ -690,9 +777,11 @@ def _extract_docx(content: bytes) -> str:
 def _clean_docx_lines(lines: list[_Line]) -> list[_Line]:
     """Drop empty paragraphs; a typed bullet marker in a paragraph counts as a list item."""
     cleaned = []
+    gap = False
     for line in lines:
         text = line.text.strip()
         if not text:
+            gap = bool(cleaned)
             continue
         typed = bool(_BULLET_MARKER.match(text))
         cleaned.append(
@@ -702,8 +791,10 @@ def _clean_docx_lines(lines: list[_Line]) -> list[_Line]:
                 line.title,
                 line.bullet or typed,
                 line.level,
+                gap_before=gap,
             )
         )
+        gap = False
     return cleaned
 
 

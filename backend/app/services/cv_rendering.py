@@ -856,9 +856,21 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
     links = [
         link for section in model.sections for entry in section.entries for link in entry.links
     ]
+    # Characters no font could draw are missing from the PDF. That is reported once,
+    # as a "Reads back" failure; the page-break check compares only what was drawn.
+    missing = set(model.unsupported_characters)
+
+    def drawn(text: str) -> str:
+        # A space, as on the read-back side: "APIs😀fast" reads back as "APIs fast".
+        return _normalize_text("".join(" " if ch in missing else ch for ch in text))
+
     with fitz.open(stream=pdf, filetype="pdf") as rendered:
         page_lines = [page.get_text().splitlines() for page in rendered]
-        page_text = [" ".join(" ".join(lines).split()) for lines in page_lines]
+        # A glyph the font lacks reads back as NUL (or U+FFFD); it is not text.
+        page_text = [
+            " ".join(" ".join(lines).replace("\x00", " ").replace("\ufffd", " ").split())
+            for lines in page_lines
+        ]
         page_breaks_ok = rendered.page_count > 0 and all(page_lines)
         for section in model.sections:
             if not section.entries:
@@ -869,12 +881,11 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
             # break a contiguous substring match.
             # Only its opening words: a long paragraph is allowed to continue on the next page.
             first_line = " ".join(
-                next(
-                    (_normalize_text(line) for line in entry_render_lines(section.entries[0])), ""
-                ).split()[:8]
+                next((drawn(line) for line in entry_render_lines(section.entries[0])), "").split()[:8]
             )
+            title = drawn(section.title)
             page_breaks_ok = page_breaks_ok and any(
-                section.title in text and first_line in text for text in page_text
+                title in text and first_line in text for text in page_text
             )
         margin = model.margin_mm * 72 / 25.4
         for number, page in enumerate(rendered):

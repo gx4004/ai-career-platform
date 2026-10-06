@@ -12,6 +12,7 @@ from app.services.quality_signals import (
     evidence_line,
     headline_conflicts_with_band,
     job_match_verdict,
+    low_confidence_note,
 )
 from app.services.tool_pipeline import mark_result_degraded
 
@@ -226,6 +227,7 @@ async def match_job(
     match_score = compute_match_score(
         prepass.matched_keywords, prepass.missing_keywords, prepass.preferred_keywords
     )
+    thin_posting_note = low_confidence_note(prepass.job_keywords)
     verdict = job_match_verdict(match_score)
     generated_at = datetime.now(UTC).isoformat()
 
@@ -364,7 +366,8 @@ async def match_job(
                 prepass.missing_keywords,
             ),
             "verdict": verdict,
-            "confidence_note": str(
+            "confidence_note": thin_posting_note
+            or str(
                 (result.get("summary", {}).get("confidence_note") if isinstance(result.get("summary"), dict) else "") or ""
             ).strip()
             or CONFIDENCE_NOTE,

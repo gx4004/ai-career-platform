@@ -359,6 +359,8 @@ class CoverLetterResponse(SharedResultEnvelope):
     body_points: list[CoverLetterSection]
     closing: CoverLetterSection
     full_text: str
+    # "Sincerely,\nName" when the resume names the applicant; kept through edits and exports.
+    sign_off: str = ""
     tone_used: str
     customization_notes: list[CoverLetterCustomizationNote]
 
@@ -493,3 +495,6 @@ class ImportedJobResponse(BaseModel):
     job_description: str
     source_url: str | None = None
     retrieved_at: datetime | None = None
+    # False when no tier produced a posting: the description is then empty and the
+    # user is asked to paste the listing (the client keeps what they typed).
+    readable: bool = True

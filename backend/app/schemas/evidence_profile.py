@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from typing import Any, Literal
 
@@ -25,6 +26,16 @@ MAX_CONTENT_VALUE_CHARS = 2_000
 MAX_CONTENT_TOTAL_CHARS = 8_000
 
 
+# C0 controls except tab and line feed, plus DEL and the C1 range. NUL in particular
+# cannot be stored by Postgres text and breaks every CV seeded from the fact.
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def strip_control_chars(text: str) -> str:
+    """``text`` with Windows line ends unified and every other control character removed."""
+    return _CONTROL_CHARS.sub("", text.replace("\r\n", "\n"))
+
+
 def normalize_evidence_content(raw: Any) -> dict[str, str | int | float | bool]:
     """Validate and tidy one fact's content: a flat record of scalar fields.
 
@@ -41,10 +52,14 @@ def normalize_evidence_content(raw: Any) -> dict[str, str | int | float | bool]:
         if not isinstance(key, str) or not key.strip():
             raise ValueError("content field names must be non-empty text")
         key = key.strip()
+        if _CONTROL_CHARS.search(key):
+            raise ValueError("content field names cannot contain control characters")
         if len(key) > MAX_CONTENT_KEY_CHARS:
             raise ValueError(f"content field names are limited to {MAX_CONTENT_KEY_CHARS} characters")
         if isinstance(value, str):
-            value = value.strip()
+            value = value.replace("\r\n", "\n").strip()
+            if _CONTROL_CHARS.search(value):
+                raise ValueError("content cannot contain control characters (tabs and line breaks are fine)")
             if not value:
                 continue
             if len(value) > MAX_CONTENT_VALUE_CHARS:

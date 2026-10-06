@@ -11,7 +11,10 @@ from datetime import UTC, datetime, timedelta
 from app.models.workspace import Workspace
 
 TODAY = "/api/v1/today"
-K8S = "Run our Kubernetes platform and improve developer tooling for every team."
+# Four skills, all covered by STACK_EVIDENCE: a strong fit, so Today may call it a best match
+# (B14: a low fit is never a "best" match).
+K8S = "Run our Kubernetes platform with Docker, Terraform and Python and improve developer tooling for every team."
+STACK_EVIDENCE = "Kubernetes, Docker, Terraform, Python"
 
 
 def _adopt(client, headers, listing_id):
@@ -58,7 +61,7 @@ def test_without_confirmed_evidence_it_asks_for_evidence_instead_of_matches(
 def test_best_matches_are_the_top_five_by_skills_fit_skipping_hidden_and_applied(
     client, auth_headers, test_user, discovery
 ):
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     discovery.listing(title="Accountant", description="Close the books every month.")
     for index in range(6):
         discovery.listing(title=f"Platform {index}", description=f"{K8S} Team {index}.")
@@ -152,7 +155,7 @@ def _application(db, user_id, *, company, role, status="saved", **fields):
 def test_a_job_already_an_application_without_a_listing_link_is_not_offered_again(
     client, auth_headers, test_user, db, discovery
 ):
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     discovery.listing(title="Senior Backend Engineer, Platform", company="Northwind Labs", description=K8S)
     discovery.listing(title="Platform Engineer", company="Acme", description=K8S + " Other.")
     _application(
@@ -173,7 +176,7 @@ def test_a_job_whose_apply_link_is_already_in_the_pipeline_is_not_offered_again(
 ):
     from app.models.campaign_listing import CampaignListing
 
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     discovery.listing(
         title="Infra Lead", company="Initech", description=K8S, apply_url="https://jobs.example.com/apply/42"
     )
@@ -197,7 +200,7 @@ def test_a_job_whose_apply_link_is_already_in_the_pipeline_is_not_offered_again(
 
 
 def test_other_owners_applications_do_not_hide_a_match(client, auth_headers, test_user, db, discovery):
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     discovery.listing(title="Platform Engineer", company="Acme", description=K8S)
     other = discovery.user_headers("other2@example.com")
     other_id = client.get("/api/v1/auth/me", headers=other).json()["id"]
@@ -209,7 +212,7 @@ def test_other_owners_applications_do_not_hide_a_match(client, auth_headers, tes
 def test_the_list_still_fills_up_after_skipping_many_pipeline_jobs(
     client, auth_headers, test_user, db, discovery
 ):
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     for index in range(12):
         discovery.listing(title=f"Role {index}", company=f"Co {index}", description=f"{K8S} Variant {index}.")
         if index < 9:
@@ -221,7 +224,7 @@ def test_the_list_still_fills_up_after_skipping_many_pipeline_jobs(
 def test_the_list_still_fills_up_when_one_application_hides_many_same_title_listings(
     client, auth_headers, test_user, db, discovery
 ):
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     # Listed first, so the newer same-title postings outrank it on the tie-break.
     discovery.listing(title="Data Engineer", company="Beta", description=K8S)
     for index in range(8):
@@ -267,7 +270,7 @@ def test_concurrent_cold_visitors_score_each_listing_once(test_user, db, discove
     from app.models.discovered_listing import DiscoveredListing
     from app.services import discovery_recommendations as recs
 
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     for index in range(12):
         discovery.listing(title=f"Role {index}", company=f"Co {index}", description=f"{K8S} Variant {index}.")
     profile = recs.load_match_profile(db, test_user.id)
@@ -291,10 +294,10 @@ def test_concurrent_cold_visitors_score_each_listing_once(test_user, db, discove
 def test_owners_with_the_same_confirmed_items_share_the_scoring_work(
     client, auth_headers, test_user, db, discovery, monkeypatch
 ):
-    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, STACK_EVIDENCE)
     twin = discovery.user_headers("twin@example.com")
     twin_id = db.query(type(test_user)).filter_by(email="twin@example.com").one().id
-    discovery.evidence(twin_id, "Kubernetes")
+    discovery.evidence(twin_id, STACK_EVIDENCE)
     for index in range(5):
         discovery.listing(title=f"Role {index}", company=f"Co {index}", description=f"{K8S} Variant {index}.")
     calls = _count_scoring(monkeypatch)

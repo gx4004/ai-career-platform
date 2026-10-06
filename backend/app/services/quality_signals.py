@@ -417,7 +417,8 @@ def infer_resume_discipline(
     }
 
     for discipline, keywords in DISCIPLINE_KEYWORDS.items():
-        scores[discipline] += sum(1 for keyword in keywords if keyword in lowered)
+        # Whole words only: "ui" is not in "built", "bi" is not in "ability".
+        scores[discipline] += sum(1 for keyword in keywords if re.search(rf"\b{re.escape(keyword)}\b", lowered))
 
     if {"Python", "SQL", "FastAPI", "APIs", "AWS", "Docker", "Kubernetes", "CI/CD", "System Design"} & skills:
         scores["backend-engineering"] += 5
@@ -638,14 +639,98 @@ def _ranked_vocabulary_hits(job_description: str) -> list[str]:
     return [label for _c, _p, label in sorted(hits)]
 
 
+#: Below this many checkable requirements a match score is a guess, not evidence.
+MIN_CONFIDENT_KEYWORDS = 3
+#: The highest score (a "borderline" verdict) a low-confidence match may show.
+LOW_CONFIDENCE_SCORE_CAP = 70
+
+_ACRONYM_RE = re.compile(r"\b[A-Z]{3,6}\b")
+_NON_SKILL_ACRONYMS = frozenset(
+    {"USA", "CEO", "CTO", "CFO", "EEO", "FAQ", "ASAP", "LLC", "INC", "USD", "EUR", "GBP", "PTO", "WFH", "NOT", "AND", "THE"}
+)
+_LIST_ITEM_BREAK = re.compile(r"[,;]|\band\b|\bor\b|&", re.IGNORECASE)
+_PHRASE_BREAK = re.compile(
+    r"\b(?:to|in|at|for|with|across|on|from|including|within|into|by|of|as)\b|:|\(|\)", re.IGNORECASE
+)
+_GENERIC_LEAD_WORDS = frozenset(
+    {
+        "a", "an", "the", "our", "your", "we", "are", "is", "be", "will", "you", "all", "any", "daily",
+        "busy", "manage", "managing", "lead", "leading", "drive", "driving", "own", "owning", "oversee",
+        "overseeing", "support", "supporting", "maintain", "maintaining", "handle", "handling", "run",
+        "running", "provide", "providing", "proven", "solid", "good", "great", "basic", "hands-on",
+        "join", "apply", "grow", "today", "us", "new", "key", "general", "high", "highly", "some",
+    }
+)  # fmt: skip
+
+
+def _plain_content_word(word: str) -> bool:
+    lowered = word.lower()
+    return lowered not in STOPWORDS and lowered not in _GENERIC_LEAD_WORDS and lowered.isalpha()
+
+
+def _list_item_terms(job_description: str) -> list[str]:
+    """Short noun phrases from requirement lists ("prep, food cost control and menu development")."""
+    lines = [line.strip() for line in job_description.splitlines() if line.strip()]
+    if lines and len(lines[0]) <= 60 and "," not in lines[0]:
+        lines = lines[1:]  # the title header is not a requirement
+    terms: list[str] = []
+    for line in lines:
+        for sentence in _SENTENCE_BREAK.split(line):
+            items = [item for item in _LIST_ITEM_BREAK.split(sentence) if item.strip()]
+            if len(items) < 3 or not re.search(r"[,;]", sentence):
+                # Only a comma list names requirements reliably; "worked at Google or
+                # Meta on Go and Kubernetes" names former employers, not skills.
+                continue
+            for item in items:
+                for segment in _PHRASE_BREAK.split(item):
+                    words = [w.strip(".!?\"'") for w in segment.split()]
+                    while words and not _plain_content_word(words[0]):
+                        words.pop(0)
+                    if not words or len(words) > 3 or not all(_plain_content_word(w) or w.isupper() for w in words):
+                        continue
+                    if max(len(w) for w in words) >= 4:
+                        terms.append(" ".join(words))
+                        break
+    return terms
+
+
+def _domain_terms(job_description: str, existing: list[str]) -> list[str]:
+    """Requirements outside the curated tech vocabulary: acronyms, list items, repeated terms."""
+    candidates = [a for a in _ACRONYM_RE.findall(job_description) if a not in _NON_SKILL_ACRONYMS]
+    candidates += _list_item_terms(job_description)
+    counts: dict[str, int] = {}
+    for word in re.findall(r"[A-Za-z][A-Za-z-]{4,}", job_description):
+        if _plain_content_word(word):
+            counts[word.lower()] = counts.get(word.lower(), 0) + 1
+    candidates += [word for word, count in counts.items() if count >= 2]
+
+    taken = {word for keyword in existing for word in keyword.lower().split()}
+    terms: list[str] = []
+    for candidate in candidates:
+        words = candidate.lower().split()
+        if any(word in taken for word in words):
+            continue
+        taken.update(words)
+        terms.append(candidate if candidate.isupper() else candidate[:1].upper() + candidate[1:])
+    return terms
+
+
 def extract_job_keywords(
-    job_description: str, limit: int = 10, *, include_plain_words: bool = False
+    job_description: str,
+    limit: int = 10,
+    *,
+    include_plain_words: bool = False,
+    domain_fallback: bool = False,
 ) -> list[str]:
     """Real skills, tools and competencies named in a posting (heuristic, no LLM).
 
     Curated vocabulary hits ranked by mention count then position, then curated
     phrases, then technology-looking tokens (CamelCase, ``Node.js``) the
     vocabulary does not know. Generic verbs and nouns never qualify.
+
+    With ``domain_fallback``, a posting the tech vocabulary barely covers (a chef,
+    nurse or warehouse role) also yields its own acronyms, requirement-list
+    phrases and repeated terms, so it is not reduced to one generic keyword.
     """
     lowered = job_description.lower()
     keywords: list[str] = _ranked_vocabulary_hits(job_description)
@@ -672,7 +757,10 @@ def extract_job_keywords(
     for token, _count in ranked:
         keywords.append(format_keyword(original_token[token]))
 
-    return ordered_unique(keywords)[:limit]
+    keywords = ordered_unique(keywords)
+    if domain_fallback and len(keywords) < MIN_CONFIDENT_KEYWORDS:
+        keywords = ordered_unique(keywords + _domain_terms(job_description, keywords))
+    return keywords[:limit]
 
 
 _ROLE_NOUNS = frozenset(
@@ -758,7 +846,7 @@ def extract_role_label(job_description: str) -> str | None:
 def build_resume_prepass(resume_text: str, job_description: str | None) -> ResumePrepass:
     detected_sections = detect_sections(resume_text)
     detected_skills = extract_detected_skills(resume_text)
-    job_keywords = extract_job_keywords(job_description or "")
+    job_keywords = extract_job_keywords(job_description or "", domain_fallback=True)
     matched_keywords = [kw for kw in job_keywords if keyword_present(kw, resume_text)]
     missing_keywords = [kw for kw in job_keywords if kw not in matched_keywords]
     return ResumePrepass(
@@ -780,6 +868,8 @@ def compute_resume_breakdown(prepass: ResumePrepass) -> list[dict[str, int | str
     if prepass.job_keywords:
         keyword_ratio = len(prepass.matched_keywords) / max(len(prepass.job_keywords), 1)
         keywords_score = clamp(round(30 + (keyword_ratio * 70)))
+        if len(prepass.job_keywords) < MIN_CONFIDENT_KEYWORDS:
+            keywords_score = min(keywords_score, LOW_CONFIDENCE_SCORE_CAP)
     else:
         keywords_score = clamp(36 + (len(prepass.detected_skills) * 7))
 
@@ -855,13 +945,39 @@ def compute_match_score(
     if total == 0:
         return 58
     ratio = sum(weight(k) for k in matched_keywords) / total
-    return clamp(round(25 + (ratio * 75)))
+    score = clamp(round(25 + (ratio * 75)))
+    if len(matched_keywords) + len(missing_keywords) < MIN_CONFIDENT_KEYWORDS:
+        # One or two checkable requirements cannot make a strong match.
+        score = min(score, LOW_CONFIDENCE_SCORE_CAP)
+    return score
+
+
+def low_confidence_note(job_keywords: list[str]) -> str | None:
+    """Why a score from too few checkable requirements is capped, or None when there are enough."""
+    if len(job_keywords) >= MIN_CONFIDENT_KEYWORDS:
+        return None
+    if not job_keywords:
+        return (
+            "Low confidence: the posting names no requirement we can check, so this score is only a "
+            "starting point. Paste the full posting for a firmer read."
+        )
+    named = ", ".join(job_keywords)
+    return (
+        f"Low confidence: the posting names only {len(job_keywords)} requirement"
+        f"{'s' if len(job_keywords) > 1 else ''} we can check ({named}), so the score is capped. "
+        "Paste the full posting for a firmer read."
+    )
+
+
+#: Fit bands shared by Job Match verdicts, What's working buckets and Today's best matches.
+STRONG_MATCH_FROM = 78
+BORDERLINE_MATCH_FROM = 55
 
 
 def job_match_verdict(match_score: int) -> str:
-    if match_score >= 78:
+    if match_score >= STRONG_MATCH_FROM:
         return "strong"
-    if match_score >= 55:
+    if match_score >= BORDERLINE_MATCH_FROM:
         return "borderline"
     return "stretch"
 

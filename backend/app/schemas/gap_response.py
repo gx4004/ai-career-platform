@@ -34,7 +34,7 @@ GapActionPath = Literal[
 
 #: The first-party surfaces a next step may point at — existing routes only, so a
 #: named step is always reachable.
-FirstPartyRoute = Literal["/portfolio", "/career"]
+FirstPartyRoute = Literal["/portfolio", "/career", "/cv-studio"]
 
 
 class GapRecommendationSource(BaseModel):
