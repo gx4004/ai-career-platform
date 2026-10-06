@@ -1,24 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { Badge, MetaRow, Row, RowBody, RowMeta, RowSubtitle, RowTitle, type Tone } from '#/components/kit'
 import type { HistoryToolDisplay } from '#/lib/tools/historyToolLabel'
+import { splitScore } from '#/lib/tools/runLabel'
 
-/** "Sep 29", or "Sep 29, 2025" when the run is not from the current year. */
-export function formatRunDate(value: string | Date, now: Date = new Date()) {
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const sameYear = date.getFullYear() === now.getFullYear()
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  })
-}
-
-/** "Job Match (75%)" is the name and the score: the score is drawn as a pill, the name stays the link. */
-export function splitScore(label: string): { name: string; score: string | null } {
-  const match = /^(.*\S)\s*\((\d{1,3}(?:\.\d+)?%|\d{1,3}\/\d{1,3})\)$/.exec(label)
-  return match ? { name: match[1], score: match[2] } : { name: label, score: null }
-}
+// Kept for the dashboard modules that import the date format from here; the one definition is in lib/tools/runLabel.
+export { formatRunDate } from '#/lib/tools/runLabel'
 
 /**
  * One saved run: its label (the whole row opens it), the tool underneath, the date at the end.

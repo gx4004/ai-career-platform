@@ -3,7 +3,7 @@
 // Then also run, from backend/ with DATABASE_URL set:
 //   python -m tests.seed_discovery_listings <email>; python -m tests.seed_campaigns <email>; python -m tests.promote_admin <email>
 const resumeText = `
-Alex Rivera
+Alex Morgan
 Backend Engineer
 
 Summary

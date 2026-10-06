@@ -344,6 +344,10 @@ async def review_application(
         raise HTTPException(status_code=409, detail="Add the job posting before checking")
     cv_text, cover_text = project_campaign_materials(workspace)
     cv_document_text = project_cv_document_text(workspace)
+    # Nothing chosen to send: a check would only score two empty documents. A chosen CV version that is
+    # empty is still checked (its "almost empty" finding is the useful answer).
+    if workspace.selected_cv_variant is None and not cover_text.strip():
+        raise HTTPException(status_code=409, detail="Pick a CV version or cover letter before checking")
     clean_cover = sanitize_user_input(cover_text)
     response = await run_tool_pipeline(
         tool_name="application-reviewer",

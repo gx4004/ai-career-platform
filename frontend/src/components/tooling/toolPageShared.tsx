@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import {
   Badge,
   Button,
+  EmptyState,
   ErrorState,
   List,
   Notice,
@@ -22,18 +23,18 @@ import {
   Stack,
   ToolTile,
 } from '#/components/kit'
-import { splitScore } from '#/components/dashboard/RunRow'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
 import { rememberResume } from '#/components/tooling/sampleResume'
 import { useHistory } from '#/hooks/useHistory'
+import { usePrefersReducedMotion } from '#/hooks/use-prefers-reduced-motion'
 import { useSession } from '#/hooks/useSession'
 import { readRegenFeedback, readWorkflowContext } from '#/lib/tools/drafts'
 import { getResumeCarryText } from '#/lib/tools/resumeCarryStore'
 import { getWorkflowTargetRole } from '#/lib/tools/workflowContext'
 import { historyRunHref } from '#/lib/tools/historyToolLabel'
-import { formatRunDate } from '#/lib/tools/runLabel'
+import { formatRunDate, splitScore } from '#/lib/tools/runLabel'
 import { useToolDraft } from '#/hooks/useToolDraft'
 import { useToolMutation } from '#/hooks/useToolMutation'
 import { useWorkflowBridge } from '#/hooks/useWorkflowBridge'
@@ -219,7 +220,9 @@ export function WhatYouGet({ toolId }: { toolId: ToolId }) {
       <ol className="tool-delivers" aria-labelledby="what-you-get-heading">
         {tool.delivers.map((line, index) => (
           <li key={line} className="tool-delivers__item">
-            <NumberDisc n={index + 1} size="sm" />
+            <span className="tool-delivers__mark">
+              <NumberDisc n={index + 1} size="sm" />
+            </span>
             <span>{line}</span>
           </li>
         ))}
@@ -260,16 +263,17 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
   const seen = new Map<string, number>()
   for (const item of items) seen.set(rowKey(item), (seen.get(rowKey(item)) ?? 0) + 1)
 
-  if (status !== 'authenticated' || (!query.isPending && !query.isError && items.length === 0)) return null
+  if (status !== 'authenticated') return null
 
   return (
     <Section
       id="recent-runs"
       title="Recent runs"
       actions={
-        query.isPending || query.isError ? null : (
+        query.isPending || query.isError || items.length === 0 ? null : (
           <Button asChild variant="link" size="sm">
-            <Link to="/history" search={{ tool: toolId }}>
+            {/* The visible words lead the name, which says where it goes when read out of context. */}
+            <Link to="/history" search={{ tool: toolId }} aria-label={`View all ${tools[toolId].label} runs in History`}>
               View all
             </Link>
           </Button>
@@ -283,6 +287,9 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
         />
+      ) : !query.isPending && items.length === 0 ? (
+        // Signed in, nothing run yet: the section stays (no skeleton that then vanishes) and says what will appear.
+        <EmptyState size="inline" title="No runs yet" description={`Your ${tools[toolId].label} results will be listed here.`} />
       ) : (
         <List aria-labelledby="recent-runs-heading" aria-busy={query.isPending || undefined}>
           {query.isPending ? (
@@ -297,23 +304,29 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
                 (seen.get(rowKey(item)) ?? 0) > 1
                   ? timeOf(item.created_at, items.filter((other) => rowKey(other) === rowKey(item)))
                   : ''
+              const detailsId = `recent-run-${item.id}`
               return (
                 <Row key={item.id} overflow="truncate">
                   <RowBody>
+                    {/* Several runs share a name ("Job Match"): the date, subject and score describe each link. */}
                     {href ? (
                       <RowTitle asChild>
-                        <Link to={href}>{name}</Link>
+                        <Link to={href} aria-describedby={detailsId}>
+                          {name}
+                        </Link>
                       </RowTitle>
                     ) : (
                       <RowTitle>{name}</RowTitle>
                     )}
                     {/* Plain text, date first: in the narrow rail the subject is what gets cut, with a clean ellipsis. */}
-                    <RowSubtitle title={about || undefined}>
+                    <RowSubtitle id={detailsId} title={about || undefined}>
                       {[time ? `${date}, ${time}` : date, about].filter(Boolean).join(' · ')}
+                      {/* The pill is decorative to assistive tech; the score is read here, with the link's description. */}
+                      {score ? <span className="kit-sr-only">, score {score}</span> : null}
                     </RowSubtitle>
                   </RowBody>
                   {score ? (
-                    <RowMeta>
+                    <RowMeta aria-hidden="true">
                       <Badge tone={tools[toolId].tone} score>
                         {score}
                       </Badge>
@@ -347,13 +360,14 @@ export function ToolPageLoading({
   const { status } = useSession()
   const height = formHeights[toolId]
   const panelRef = useRef<HTMLDivElement | null>(null)
+  const reduceMotion = usePrefersReducedMotion()
 
   // Submitting from the foot of a long form (a phone) leaves the panel's status and track above the viewport: bring its top into view.
   useEffect(() => {
     const panel = panelRef.current
     if (!panel || panel.getBoundingClientRect().top >= 0) return
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    panel.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+    panel.scrollIntoView?.({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the panel takes the form's place
   }, [])
 
   return (

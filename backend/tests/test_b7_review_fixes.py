@@ -347,3 +347,23 @@ def test_facts_cut_by_the_section_cap_are_marked_not_silently_dropped(db, test_u
     db.commit()
     rendered = render_evidence_section(build_evidence_payload(items))
     assert "further items omitted" in rendered
+
+
+# --- applications F01: nothing to check is a refusal, not a run that scores empty documents ---
+
+
+def test_review_refuses_an_application_with_no_cv_and_no_letter(client, auth_headers, test_user, db):
+    workspace = Workspace(user_id=test_user.id, label="Empty")
+    db.add(workspace)
+    db.flush()
+    posting = CampaignListing(workspace_id=workspace.id, title="Data Engineer", company="Fjord", description="SQL and dbt.")
+    db.add(posting)
+    db.flush()
+    workspace.current_listing_id = posting.id
+    db.commit()
+
+    response = client.post(f"{APPS}/{workspace.id}/review", headers=auth_headers)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "Pick a CV version or cover letter before checking"
+    assert db.query(ToolRun).filter_by(user_id=test_user.id, tool_name="application-reviewer").count() == 0

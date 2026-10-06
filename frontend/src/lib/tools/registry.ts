@@ -75,7 +75,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 1,
     summary: 'Score the resume you have and fix the issues recruiters notice first.',
     delivers: [
-      'A score out of 100 with a one-line verdict.',
+      'A score out of 100 with a short verdict.',
       'The fixes to make first, in order.',
       'A breakdown of where the points are.',
     ],
@@ -174,7 +174,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 5,
     summary: 'Generate likely questions and stronger answer angles for the role.',
     delivers: [
-      'Likely questions, each with a sample answer.',
+      'Likely questions with sample answers.',
       'The focus areas and weak signals to prepare.',
       'A practice mode that gives feedback on your answers.',
     ],

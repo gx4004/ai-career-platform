@@ -144,7 +144,7 @@ describe('Tool registry', () => {
       }
       expect(new Set(tool.delivers).size, tool.id).toBe(3)
     }
-    expect(tools.resume.delivers[0]).toBe('A score out of 100 with a one-line verdict.')
+    expect(tools.resume.delivers[0]).toBe('A score out of 100 with a short verdict.')
     expect(tools['job-match'].delivers[1]).toBe('Each requirement marked matched, partial or missing.')
   })
 })

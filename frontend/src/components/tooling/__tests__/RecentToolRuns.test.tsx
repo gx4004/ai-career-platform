@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RecentToolRuns } from '#/components/tooling/toolPageShared'
 
@@ -66,7 +66,13 @@ describe('RecentToolRuns', () => {
     const link = await screen.findByRole('link', { name: 'Resume Analysis' })
     expect(link.getAttribute('href')).toBe('/resume/result/r1')
     expect(link.closest('li')?.querySelector('.kit-badge[data-score]')?.textContent).toBe('77/100')
-    expect(screen.getByRole('link', { name: 'View all' }).getAttribute('href')).toBe('/history?tool=resume')
+    // Two runs can share a name: each link is described by its own date and score.
+    const description = document.getElementById(link.getAttribute('aria-describedby') ?? '')?.textContent ?? ''
+    expect(description).toContain('Oct 3')
+    expect(description).toContain('score 77/100')
+    const viewAll = screen.getByRole('link', { name: 'View all Resume Analyzer runs in History' })
+    expect(viewAll.textContent).toBe('View all')
+    expect(viewAll.getAttribute('href')).toBe('/history?tool=resume')
     expect(screen.getByRole('link', { name: 'Untitled run' }).getAttribute('href')).toBe('/resume/result/r2')
     expect(screen.getByRole('list', { name: 'Recent runs' }).querySelectorAll('li')).toHaveLength(2)
     expect(getHistoryMock).toHaveBeenCalledWith({ tool: 'resume', page: 1, page_size: 3 })
@@ -108,12 +114,14 @@ describe('RecentToolRuns', () => {
     expect(metas[2]).not.toContain(time('2026-10-03T10:00:00Z'))
   })
 
-  it('shows nothing for a new user and nothing for a guest (no request is made)', async () => {
+  it('tells a signed-in user with no runs what will appear (the section stays, no link to an empty History), and shows nothing to a guest', async () => {
     getHistoryMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 3, has_more: false })
-    const { container } = renderRuns()
-    await waitFor(() => expect(getHistoryMock).toHaveBeenCalled())
-    await waitFor(() => expect(container.querySelector('section')).toBeNull())
+    renderRuns()
+    expect(await screen.findByText('No runs yet')).toBeTruthy()
+    expect(screen.getByText('Your Resume Analyzer results will be listed here.')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /View all/ })).toBeNull()
 
+    cleanup()
     getHistoryMock.mockClear()
     sessionStatus = 'guest'
     const guest = renderRuns()
