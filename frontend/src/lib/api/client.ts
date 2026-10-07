@@ -73,6 +73,7 @@ import {
   cvVariantCreateSchema,
   cvVariantSchema,
   cvPreviewSchema,
+  cvTemplateThumbnailsSchema,
   cvQualityResponseSchema,
   cvTailoringApplySchema,
   cvTailoringProposalSchema,
@@ -126,6 +127,13 @@ export function deleteAllCvDocuments() {
 export function previewCvDraft(documentId: string, draft: Omit<CvDocumentUpdate, 'expected_updated_at'>, options: { signal?: AbortSignal } = {}) {
   return request(`/cv-documents/${encodeURIComponent(documentId)}/preview`, {
     method: 'POST', body: parseRequest(cvDocumentUpdateSchema, draft), schema: cvPreviewSchema, signal: options.signal,
+  })
+}
+
+/** Page 1 of an unsaved draft in every template, for the Design panel's gallery; nothing is saved. */
+export function templateThumbnailsForDraft(documentId: string, draft: Omit<CvDocumentUpdate, 'expected_updated_at'>, options: { signal?: AbortSignal } = {}) {
+  return request(`/cv-documents/${encodeURIComponent(documentId)}/template-thumbnails`, {
+    method: 'POST', body: parseRequest(cvDocumentUpdateSchema, draft), schema: cvTemplateThumbnailsSchema, signal: options.signal,
   })
 }
 

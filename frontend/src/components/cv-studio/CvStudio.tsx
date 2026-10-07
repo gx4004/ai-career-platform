@@ -20,7 +20,7 @@ import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { safeFileName } from '#/lib/tools/exports'
 import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
 import { CvAtsPanel, useCvQuality } from './CvAtsPanel'
-import { CvDesignPanel } from './CvDesignPanel'
+import { CvDesignTool } from './CvDesignPanel'
 import { CvDesk } from './CvDesk'
 import { CvExportMoment, countPdfPages } from './CvExportMoment'
 import type { ExportMoment } from './CvExportMoment'
@@ -546,7 +546,7 @@ export function CvStudio({
     <>
       {desktop && !activeSection && !headerOpen ? <h2 className="kit-sr-only">{TOOL_TITLES[tool]}</h2> : null}
       {tool === 'design' ? (
-        <CvDesignPanel style={draft.style} catalog={catalog} onChange={editStyle} />
+        <CvDesignTool documentId={draft.id} draft={draft} catalog={catalog} onChange={editStyle} />
       ) : tool === 'checks' ? (
         <CvAtsPanel
           quality={quality} sections={draft.sections} onAddSection={addAndOpen}

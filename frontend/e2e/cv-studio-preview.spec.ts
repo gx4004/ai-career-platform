@@ -59,16 +59,27 @@ test('CV Studio page preview fits 320/375px, edits in a sheet, follows the draft
   await expect(page.getByTestId('cv-preview')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 })
   await sheet.getByRole('button', { name: 'Close panel' }).click()
 
-  // The catalog lists only the templates that exist (Classic until T6-T8 add the rest).
-  for (const template of ['Classic']) {
+  // The Design panel is a gallery: every template drawn with this CV (page 1, server-rendered), in a sheet that
+  // fits the phone. Picking a picture picks the template, and the preview follows. Ends on Classic for the PDF check.
+  for (const template of ['Lagoon', 'Classic']) {
     await toolbar.getByRole('tab', { name: /^Design/ }).click()
     const design = page.getByRole('dialog', { name: 'Design' })
     // The sheet slides in: let it settle before reaching into its scrolling body (lower templates sit below the fold).
     await design.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
-    const option = design.getByRole('radio', { name: new RegExp(template) })
-    await option.scrollIntoViewIfNeeded()
-    await option.check({ force: true })
-    await page.getByRole('dialog', { name: 'Design' }).getByRole('button', { name: 'Close panel' }).click()
+    const picture = design.getByRole('img', { name: `Preview of the ${template} template` })
+    await expect(picture).toBeVisible({ timeout: 30_000 })
+    await expect(design.getByRole('img', { name: /^Preview of the .* template$/ })).not.toHaveCount(0)
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 812 })
+      const metrics = await measureOverflow(page)
+      expect(metrics.document, metrics.offenders.join(', ')).toBeLessThanOrEqual(metrics.viewport)
+    }
+    const previewed = page.waitForRequest((request) => request.url().includes('/preview') && (request.postData() ?? '').includes(`"template_id":"${template.toLowerCase()}"`))
+    await picture.scrollIntoViewIfNeeded()
+    await picture.click()
+    await expect(design.getByRole('radio', { name: template })).toBeChecked()
+    await previewed
+    await design.getByRole('button', { name: 'Close panel' }).click()
     await expect(page.getByTestId('cv-pages')).toBeVisible()
     for (const width of [320, 375]) {
       await page.setViewportSize({ width, height: 812 })
