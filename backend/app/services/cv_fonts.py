@@ -202,14 +202,6 @@ def override_size_adjust(template_body: Typeface, override: Typeface) -> float:
 OVERRIDE_FONT_IDS: tuple[str, ...] = (
     "inter", "source-sans-3", "ibm-plex-sans", "source-serif-4", "lora", "eb-garamond",
 )
-# Ids stored before the 16-template catalog map to the nearest curated family.
-LEGACY_FONT_IDS: dict[str, str] = {
-    "lato": "inter",
-    "pt-sans": "source-sans-3",
-    "pt-serif": "source-serif-4",
-    "crimson-text": "lora",
-    "ibm-plex-mono": "ibm-plex-sans",
-}
 
 
 def typeface_for_name(name: str) -> Typeface:

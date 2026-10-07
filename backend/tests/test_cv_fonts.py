@@ -151,13 +151,16 @@ def test_nearest_face_never_synthesises():
 
 
 def test_a_legacy_typeface_id_maps_to_the_nearest_curated_family():
+    # lato was the old default and was stored on every row, chosen or not: it means
+    # "the template's own pairing" (None), never an explicit Inter override.
     assert LEGACY_CV_FONT_IDS == {
-        "lato": "inter", "pt-sans": "source-sans-3", "pt-serif": "source-serif-4",
+        "lato": None, "pt-sans": "source-sans-3", "pt-serif": "source-serif-4",
         "crimson-text": "lora", "ibm-plex-mono": "ibm-plex-sans",
     }
     for legacy, mapped in LEGACY_CV_FONT_IDS.items():
         assert CvStyle.model_validate({"font_id": legacy}).font_id == mapped
-        assert mapped in OVERRIDE_FONT_IDS
+        assert mapped is None or mapped in OVERRIDE_FONT_IDS
+    assert CvStyle.model_validate({"font_id": "lato"}).font_id is None
     assert CvStyle.model_validate({"font_id": "eb-garamond"}).font_id == "eb-garamond"
     with pytest.raises(ValueError):
         CvStyle(font_id="comic-sans")
