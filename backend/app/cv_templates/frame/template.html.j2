@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+{{ fontface }}
+@page { size: {{ page_size }}; margin: {{ margin.top }}mm {{ margin.right }}mm {{ margin.bottom }}mm {{ margin.left }}mm; }
+{{ root_vars }}
+{{ base_css }}
+{{ css }}
+</style>
+</head>
+<body class="cv cv--frame">
+{#- A list-like paragraph ("TypeScript • React • Vue", "English, Dutch") prints as separate
+    items; anything that reads as prose (a colon, a URL, long or sentence-like parts,
+    unbalanced brackets) stays a paragraph. #}
+{%- macro chip_items(text) -%}
+{%- if "•" in text or "·" in text or ";" in text or "|" in text or "\n" in text -%}
+{%- set parts = text.replace("·", "•").replace(";", "•").replace("|", "•").replace("\n", "•").split("•") -%}
+{%- else -%}
+{%- set parts = text.split(",") -%}
+{%- endif -%}
+{%- set items = parts|map("trim")|reject("equalto", "")|list -%}
+{%- set ns = namespace(ok=items|length >= 2 and ":" not in text and "://" not in text) -%}
+{%- for item in items -%}
+{%- if item|length > 42 or item.split()|length > 5 or item.endswith(".") or item.count("(") != item.count(")") -%}{% set ns.ok = false %}{% endif -%}
+{%- endfor -%}
+{%- if ns.ok %}{{ items|join("\x1f") }}{% endif -%}
+{%- endmacro %}
+{#- The summary (when it is the first section and plain text) sits in the name card. #}
+{%- set first = sections[0] if sections else none %}
+{%- set card_summary = first if first and first.kind == "summary" and first.entries and (first.entries|selectattr("heading", "none")|list|length == first.entries|length) else none %}
+{%- set rest = sections[1:] if card_summary else sections %}
+{%- set has_card = header.headline or card_summary %}
+<header class="fr-head{% if not has_card %} fr-head--bare{% endif %}{% if card_summary %} fr-head--summary{% endif %}" data-section-id="header">
+  {#- DOM order is the reading order: name, headline, contact band, then the summary. The grid
+      draws the summary inside the card, above the band. #}
+  <h1>{{ header.title }}</h1>
+  {%- if header.headline %}
+  <div class="fr-headline">{{ header.headline }}</div>
+  {%- endif %}
+  {%- if contact_items %}
+  <div class="fr-band">
+    {%- for item in contact_items %}
+    <div class="fr-contact{% if item.text|length > 46 %} fr-contact--wide{% endif %}">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</div>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+  {%- if card_summary %}
+  <section class="fr-summary{% if card_summary.entries|map(attribute='paragraph')|map('default', '', true)|join(' ')|length > 460 %} fr-summary--long{% endif %}" data-section-id="{{ card_summary.id }}">
+    <h2>{{ card_summary.title }}</h2>
+    {%- for entry in card_summary.entries %}
+    {%- if entry.paragraph %}
+    <p class="fr-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+    {%- endif %}
+    {%- endfor %}
+  </section>
+  {%- endif %}
+</header>
+{% for section in rest %}
+<section class="fr-section fr-section--{{ section.kind }}" data-section-id="{{ section.id }}">
+  <h2><span class="fr-mark" aria-hidden="true"></span>{{ section.title }}</h2>
+  {%- for entry in section.entries %}
+  {%- if entry.heading is none %}
+  {%- if entry.paragraph %}
+  {%- set listed = chip_items(entry.paragraph) %}
+  {%- if listed %}
+  <div class="fr-list{% if section.kind == 'skills' %} fr-list--grid{% else %} fr-list--tags{% endif %}" data-entry-id="{{ entry.id }}">
+    {%- for item in listed.split("\x1f") %}
+    <span>{{ item }}</span>
+    {%- endfor %}
+  </div>
+  {%- else %}
+  <p class="fr-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+  {%- endif %}
+  {%- endif %}
+  {%- else %}
+  <div class="fr-entry{% if entry.bullets|length > 5 or entry.text|length > 700 %} fr-entry--split{% endif %}" data-entry-id="{{ entry.id }}">
+    <div class="fr-entry-head">
+      <div class="fr-role">{{ entry.heading }}</div>
+      {%- if entry.subheading %}
+      <div class="fr-org">{{ entry.subheading }}</div>
+      {%- endif %}
+      {%- if entry.dates or entry.location %}
+      <div class="fr-meta">
+        {%- if entry.dates %}<span class="fr-dates">{{ entry.dates }}</span>{% endif %}
+        {%- if entry.dates and entry.location %}<span class="fr-dot"> · </span>{% endif %}
+        {%- if entry.location %}<span>{{ entry.location }}</span>{% endif -%}
+      </div>
+      {%- endif %}
+    </div>
+    {%- if entry.bullets %}
+    <ul>
+      {%- for bullet in entry.bullets %}
+      <li>{{ bullet|autolink }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if entry.paragraph %}
+    <p class="fr-text">{{ entry.paragraph|autolink }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- endfor %}
+</section>
+{% endfor %}
+</body>
+</html>

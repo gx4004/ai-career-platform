@@ -1,0 +1,212 @@
+/* Frame: a single-column CV (spec section 4, T7). A framed name card holds the headline and
+   the summary, a dark band below it holds the contact details, and each section heading
+   carries a small boxed marker (a CSS shape, never an icon font) and a long rule ending in a dot.
+   The band is a deep shade of the accent (35% accent in near-black), so any palette colour
+   keeps its --on-accent text at 4.5:1 or better on it (tested). Sizes are em of the body size
+   so the density scale (--type) moves everything; the body is clamped to 9-10.4pt (spacious stays a little under 11pt so a short CV keeps its shape). */
+.cv--frame {
+  --frame-ink-2: #333333;                                            /* organisation, tags: 12.6:1 */
+  --frame-line: var(--ink);
+  --frame-band: color-mix(in srgb, var(--accent) 35%, #161b22);
+  --frame-band-mark: color-mix(in srgb, var(--accent) 30%, #ffffff); /* shapes on the band */
+  font: 400 clamp(9pt, calc(9.6pt * var(--type)), 10.4pt) / 1.45 var(--font-body);
+  hyphens: manual;
+  orphans: 2;
+  widows: 2;
+}
+.cv--frame a { color: inherit; text-decoration: underline; text-decoration-thickness: 0.5pt; text-underline-offset: 0.15em; }
+
+/* -- the name card ------------------------------------------------------------------- */
+/* One grid column; DOM order is name, headline, band, summary (the reading order), and the
+   rows draw the summary inside the card above the band. The frame is the ::before box, which
+   starts halfway down the name so the name sits on its top edge. */
+.fr-head { display: grid; grid-template-columns: minmax(0, 1fr); text-align: center; }
+.fr-head::before {
+  content: "";
+  grid-column: 1;
+  grid-row: 1 / 3;
+  margin-top: calc(2.5em * 1.1 / 2);
+  border: 1pt solid var(--frame-line);
+  border-radius: 9pt;
+}
+.fr-head--summary::before { grid-row: 1 / 4; }
+.fr-head--bare::before { content: none; }
+.fr-head h1 {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: center;
+  max-width: calc(100% - 24mm);
+  margin: 0;
+  padding: 0 5mm;
+  background: #ffffff;
+  font: 400 2.5em / 1.1 var(--font-heading);
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+.fr-headline {
+  grid-row: 2;
+  grid-column: 1;
+  padding: var(--space-3) 14mm var(--space-4);
+  font: 500 1.15em / 1.3 var(--font-heading);
+  color: var(--accent);
+  text-wrap: balance;
+}
+.fr-head--summary .fr-headline { padding-bottom: var(--space-3); }
+.fr-head:not(:has(.fr-headline)):not(.fr-head--bare) h1 { margin-bottom: var(--space-3); }
+.fr-summary { grid-row: 3; grid-column: 1; padding: 0 14mm var(--space-4); }
+.fr-summary h2 {
+  /* The user's own section title, kept in the text layer, set as a quiet label. */
+  margin: 0 0 var(--space-1);
+  font: 500 0.82em / 1.3 var(--font-heading);
+  letter-spacing: 0.08em;
+  color: var(--frame-ink-2);
+}
+.fr-summary .fr-text { text-wrap: balance; }
+.fr-summary--long .fr-text { text-align: left; text-wrap: pretty; }
+
+/* -- the contact band ---------------------------------------------------------------- */
+.fr-band {
+  grid-row: 4;
+  grid-column: 1;
+  margin-top: var(--space-3);
+  padding: var(--space-4) 8mm calc(var(--space-3) + 4.5mm);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) 6mm;
+  text-align: left;
+  font-size: 0.92em;
+  line-height: 1.35;
+  color: var(--on-accent);
+  background: var(--frame-band);
+  border-radius: 9pt 9pt 50% 50% / 9pt 9pt 16pt 16pt;
+  break-inside: avoid;
+}
+.fr-head--bare .fr-band { margin-top: var(--space-4); }
+.fr-contact { display: flex; align-items: baseline; gap: 2.4mm; min-width: 0; }
+.fr-contact--wide { grid-column: 1 / -1; }
+.fr-contact::before {
+  content: "";
+  flex: none;
+  width: 4.5pt;
+  height: 4.5pt;
+  border-radius: 1.2pt;
+  background: var(--frame-band-mark);
+  transform: translateY(-0.5pt);
+}
+.fr-band a { text-decoration: none; }
+
+/* -- section headings ---------------------------------------------------------------- */
+.fr-section { margin-top: var(--space-5); }
+.fr-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 2.6mm;
+  margin: 0 0 var(--space-3);
+  font: 700 1.3em / 1.15 var(--font-heading);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  break-inside: avoid; /* a flex heading otherwise splits: marker and rule on one page, text on the next */
+  break-after: avoid;
+}
+.fr-section > h2 + * { break-before: avoid; }
+/* The long rule, ending in a dot (two boxes: a gradient dot clips when printed). */
+.fr-section > h2::after {
+  content: "";
+  flex: 1 1 auto;
+  min-width: 12mm;
+  height: 1pt;
+  background: var(--frame-line);
+}
+.fr-section > h2::before {
+  content: "";
+  order: 1;
+  flex: none;
+  width: 5.5pt;
+  height: 5.5pt;
+  margin-left: -2.6mm;
+  border-radius: 50%;
+  background: var(--frame-line);
+}
+/* The boxed marker: a rounded square with a shape in the accent, by section kind. */
+.fr-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17pt;
+  height: 17pt;
+  border: 1pt solid var(--frame-line);
+  border-radius: 4pt;
+}
+.fr-mark::before {
+  content: "";
+  width: 6pt;
+  height: 6pt;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.fr-section--experience .fr-mark::before { border-radius: 1.2pt; }
+.fr-section--education .fr-mark::before { width: 5.5pt; height: 5.5pt; border-radius: 0.8pt; transform: rotate(45deg); }
+.fr-section--projects .fr-mark::before { width: 7.5pt; height: 6.5pt; border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.fr-section--skills .fr-mark::before {
+  width: 7pt;
+  height: 7pt;
+  border-radius: 0;
+  background: radial-gradient(circle, var(--accent) 1.25pt, transparent 1.45pt) 0 0 / 3.5pt 3.5pt;
+}
+.fr-section--certifications .fr-mark::before,
+.fr-section--achievements .fr-mark::before { background: none; border: 1.6pt solid var(--accent); width: 7pt; height: 7pt; }
+
+/* -- entries ------------------------------------------------------------------------- */
+.fr-entry { break-inside: avoid; }
+.fr-entry + .fr-entry { margin-top: var(--space-4); }
+.fr-entry--split { break-inside: auto; }
+.fr-entry-head { break-inside: avoid; break-after: avoid; }
+.fr-role { font: 700 1.08em / 1.3 var(--font-heading); text-wrap: balance; }
+.fr-org { font-size: 1.04em; line-height: 1.3; color: var(--frame-ink-2); text-wrap: balance; }
+.fr-meta {
+  margin-top: var(--space-1);
+  font-size: 0.86em;
+  font-style: italic;
+  color: var(--accent);
+}
+.fr-dates { font-variant-numeric: lining-nums; }
+
+/* Text bullets in flow, in the accent. */
+.fr-entry ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.fr-entry li { padding-left: 11pt; break-inside: avoid; text-wrap: pretty; }
+.fr-entry li + li { margin-top: calc(var(--space-1) * 0.67); }
+.fr-entry li::before {
+  content: "\2022";
+  display: inline-block;
+  box-sizing: content-box;
+  width: 10pt;
+  margin-left: -11pt;
+  padding-left: 1pt;
+  color: var(--accent);
+  font-size: 1.2em;
+  line-height: 0;
+}
+.fr-entry li:first-child, .fr-entry li:nth-child(2) { break-before: avoid; }
+.fr-entry li:last-child { break-before: avoid; }
+
+.fr-text { margin: 0; hyphens: none; text-wrap: pretty; }
+.fr-text + .fr-text { margin-top: var(--space-2); }
+.fr-entry > .fr-text { margin-top: var(--space-2); }
+
+/* -- list-like paragraphs: a grid of skills, outlined tags for the rest ------------------ */
+.fr-list { break-inside: avoid; }
+.fr-list + .fr-list, .fr-list + .fr-text, .fr-text + .fr-list { margin-top: var(--space-3); }
+.fr-list--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(25mm, 1fr));
+  gap: var(--space-2) 5mm;
+}
+.fr-list--tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.fr-list--tags span {
+  padding: var(--space-1) 2.6mm;
+  border: 0.9pt solid #8c9097;
+  border-radius: 3.5pt;
+  font-size: 0.94em;
+  color: var(--frame-ink-2);
+}

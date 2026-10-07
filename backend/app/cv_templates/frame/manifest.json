@@ -1,0 +1,19 @@
+{
+  "id": "frame",
+  "name": "Frame",
+  "description": "A single-column CV that opens on a framed name card with the summary, then a dark contact band; section headings carry a small boxed marker and a long rule ending in a dot.",
+  "ats_safe": true,
+  "photo_slot": false,
+  "columns": 1,
+  "title_align": "center",
+  "typefaces": {"heading": "Ubuntu", "body": "Ubuntu"},
+  "accent_role": "band-and-markers",
+  "sidebar_kinds": [],
+  "page_margin_mm": {"top": 14, "right": 13, "bottom": 13, "left": 13},
+  "fonts": [
+    {"family": "Ubuntu", "weight": 400, "style": "normal", "file": "ubuntu/Ubuntu-Regular.ttf"},
+    {"family": "Ubuntu", "weight": 400, "style": "italic", "file": "ubuntu/Ubuntu-Italic.ttf"},
+    {"family": "Ubuntu", "weight": 500, "style": "normal", "file": "ubuntu/Ubuntu-Medium.ttf"},
+    {"family": "Ubuntu", "weight": 700, "style": "normal", "file": "ubuntu/Ubuntu-Bold.ttf"}
+  ]
+}
