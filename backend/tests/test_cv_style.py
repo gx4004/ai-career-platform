@@ -95,9 +95,9 @@ def test_unstyled_cv_exports_in_the_font_its_preview_shows(client, auth_headers,
     rendered artifact (export, "View exact PDF", the ATS check) must match it."""
     document = _structured_document(db, test_user)
     assert document.style is None
-    # No typeface override: the template's own pair prints (DOCX falls back to Lato until T10).
+    # No typeface override: the template's own pair prints .
     assert client.get(f"{PREFIX}/{document.id}", headers=auth_headers).json()["style"]["font_id"] is None
-    family = FONT_FAMILIES["lato"]
+    family = load_manifest("classic").typefaces["body"]
 
     pdf = client.get(f"{PREFIX}/{document.id}/artifacts/pdf", headers=auth_headers)
     docx = client.get(f"{PREFIX}/{document.id}/artifacts/docx", headers=auth_headers)
@@ -108,8 +108,9 @@ def test_unstyled_cv_exports_in_the_font_its_preview_shows(client, auth_headers,
     assert embedded_fonts(pdf.content)
     assert font_problems(pdf.content, load_manifest("classic").families) == []
     with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
-        document_xml = archive.read("word/document.xml").decode()
-    assert f'w:ascii="{family.name}"' in document_xml
+        styles_xml = archive.read("word/styles.xml").decode()
+    # The DOCX prints the template's own pair too (T10), set in the styles.
+    assert f'w:ascii="{family}"' in styles_xml and "Source Serif 4" in styles_xml
 
 
 def test_ats_mode_forces_single_column_standard_font_neutral_accent():

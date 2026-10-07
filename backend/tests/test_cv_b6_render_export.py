@@ -648,7 +648,7 @@ def test_docx_is_a4_with_heading_styles(client, auth_headers):
     section = parsed.sections[0]
     assert abs(section.page_width - Mm(210)) < Mm(1)
     assert abs(section.page_height - Mm(297)) < Mm(1)
-    headings = [p.text for p in parsed.paragraphs if p.style.name.startswith("Heading")]
+    headings = [p.text for p in parsed.paragraphs if p.style.name == "Heading 1"]
     assert headings == ["Summary", "Experience", "Skills", "Education"]
 
 

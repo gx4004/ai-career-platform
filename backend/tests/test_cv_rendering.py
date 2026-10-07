@@ -151,8 +151,10 @@ def test_docx_boundary_fixture_renders_every_template_without_orphaned_headings(
             pages = [page.get_text(flags=fitz.TEXT_INHIBIT_SPACES) for page in pdf]
             assert all(page.strip() for page in pages)
             for section in _model(document, template).sections:
+                # Some templates set their section headings in capitals (display only).
                 assert any(
-                    section.title in page and section.entries[0].text in page for page in pages
+                    section.title.casefold() in page.casefold() and section.entries[0].text in page
+                    for page in pages
                 )
 
 
