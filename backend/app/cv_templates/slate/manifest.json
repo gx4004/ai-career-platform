@@ -1,0 +1,21 @@
+{
+  "id": "slate",
+  "name": "Slate",
+  "description": "A colourful CV: a deep slate band for the name and contact details, then the summary beside a tinted panel of skill and language chips, and experience and education at full width below.",
+  "ats_safe": false,
+  "photo_slot": false,
+  "columns": 2,
+  "title_align": "left",
+  "typefaces": {"heading": "Fira Sans", "body": "Fira Sans"},
+  "accent_role": "band-headings-and-chips",
+  "default_accent": "#0F766E",
+  "sidebar_kinds": ["skills", "certifications"],
+  "page_margin_mm": {"top": 14, "right": 15, "bottom": 13, "left": 15},
+  "fonts": [
+    {"family": "Fira Sans", "weight": 400, "style": "normal", "file": "fira-sans/FiraSans-Regular.ttf"},
+    {"family": "Fira Sans", "weight": 400, "style": "italic", "file": "fira-sans/FiraSans-Italic.ttf"},
+    {"family": "Fira Sans", "weight": 500, "style": "normal", "file": "fira-sans/FiraSans-Medium.ttf"},
+    {"family": "Fira Sans", "weight": 600, "style": "normal", "file": "fira-sans/FiraSans-SemiBold.ttf"},
+    {"family": "Fira Sans", "weight": 700, "style": "normal", "file": "fira-sans/FiraSans-Bold.ttf"}
+  ]
+}

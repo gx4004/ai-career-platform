@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+{{ fontface }}
+{#- The header band runs to the paper edges: the page has no side margins (the body pads
+    itself) and page one has no top margin. Later pages keep the manifest's top margin. #}
+@page { size: {{ page_size }}; margin: {{ margin.top }}mm 0 {{ margin.bottom }}mm 0; }
+@page :first { margin-top: 0; }
+{{ root_vars }}
+{{ base_css }}
+{{ css }}
+</style>
+</head>
+<body class="cv cv--slate">
+{#- A list-like paragraph ("TypeScript • React • Vue", "English, Dutch") prints as chips;
+    anything that reads as prose (a colon, a URL, long or sentence-like parts, unbalanced
+    brackets) stays a paragraph. Items come back joined by \x1f. #}
+{%- macro chip_items(text) -%}
+{%- if "•" in text or "·" in text or ";" in text or "|" in text or "\n" in text -%}
+{%- set parts = text.replace("·", "•").replace(";", "•").replace("|", "•").replace("\n", "•").split("•") -%}
+{%- else -%}
+{%- set parts = text.split(",") -%}
+{%- endif -%}
+{%- set items = parts|map("trim")|reject("equalto", "")|list -%}
+{%- set ns = namespace(ok=items|length >= 2 and ":" not in text and "://" not in text) -%}
+{%- for item in items -%}
+{%- if item|length > 42 or item.split()|length > 5 or item.endswith(".") or item.count("(") != item.count(")") -%}{% set ns.ok = false %}{% endif -%}
+{%- endfor -%}
+{%- if ns.ok %}{{ items|join("\x1f") }}{% endif -%}
+{%- endmacro %}
+{#- Skills, certifications and any other section that is only a short list go in a narrow
+    column beside the summary, at the top of the body; everything else then runs full width.
+    DOM order is the visual order (summary, lists, the rest), so every section extracts whole
+    and in one piece on every page; only their order differs from the CV's when the lists are
+    not already next to the summary. That is the "less ATS-safe" trade-off of this template. #}
+{%- set split = namespace(summary=none, main=[], side=[]) %}
+{%- for section in sections %}
+{%- set plain = section.entries|selectattr("heading", "none")|list %}
+{%- set lists = namespace(all=plain|length == section.entries|length and section.entries|length > 0) %}
+{%- for entry in plain %}{% if not entry.paragraph or not chip_items(entry.paragraph) %}{% set lists.all = false %}{% endif %}{% endfor %}
+{%- if loop.first and section.kind == "summary" %}
+{%- set split.summary = section %}
+{%- elif section.kind in ("skills", "certifications") or (section.kind not in ("summary", "experience", "education", "projects") and lists.all) %}
+{%- set split.side = split.side + [section] %}
+{%- else %}
+{%- set split.main = split.main + [section] %}
+{%- endif %}
+{%- endfor %}
+
+{%- macro render_section(section, narrow) %}
+<section class="sl-section sl-section--{{ section.kind }}" data-section-id="{{ section.id }}">
+  <h2>{{ section.title }}</h2>
+  {%- for entry in section.entries %}
+  {%- if entry.heading is none %}
+  {%- if entry.paragraph %}
+  {%- set listed = chip_items(entry.paragraph) %}
+  {%- if listed %}
+  <div class="sl-chips{% if section.kind != 'skills' %} sl-chips--outline{% endif %}" data-entry-id="{{ entry.id }}">
+    {%- for item in listed.split("\x1f") %}
+    <span>{{ item }}</span>
+    {%- endfor %}
+  </div>
+  {%- else %}
+  <p class="sl-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+  {%- endif %}
+  {%- endif %}
+  {%- else %}
+  <div class="sl-entry{% if entry.bullets|length > 5 or entry.text|length > 700 %} sl-entry--split{% endif %}" data-entry-id="{{ entry.id }}">
+    <div class="sl-entry-head">
+      <div class="sl-role">{{ entry.heading }}</div>
+      {%- if entry.subheading %}
+      <div class="sl-org">{{ entry.subheading }}</div>
+      {%- endif %}
+      {%- if entry.dates or entry.location %}
+      <div class="sl-meta">
+        {%- if entry.dates %}<span class="sl-dates">{{ entry.dates }}</span>{% endif %}
+        {%- if entry.dates and entry.location %}<span class="sl-sep"> · </span>{% endif %}
+        {%- if entry.location %}<span class="sl-place">{{ entry.location }}</span>{% endif -%}
+      </div>
+      {%- endif %}
+    </div>
+    {%- if entry.bullets %}
+    <ul>
+      {%- for bullet in entry.bullets %}
+      <li>{{ bullet|autolink }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if entry.paragraph %}
+    <p class="sl-text">{{ entry.paragraph|autolink }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- endfor %}
+</section>
+{%- endmacro %}
+
+<header class="sl-head" data-section-id="header">
+  <div class="sl-band">
+    <h1>{{ header.title }}</h1>
+    {%- if header.headline %}
+    <div class="sl-headline">{{ header.headline }}</div>
+    {%- endif %}
+  </div>
+  {%- if contact_items %}
+  <div class="sl-contact">
+    {%- for item in contact_items %}
+    <div class="sl-contact-item{% if item.text|length > 44 %} sl-contact-item--wide{% endif %}">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</div>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+</header>
+{%- if sections %}
+<div class="sl-body">
+  {%- if split.summary or split.side %}
+  <div class="sl-intro{% if split.summary and split.side %} sl-intro--two{% elif split.side %} sl-intro--lists{% endif %}">
+    {%- if split.summary %}
+    <div class="sl-intro-main">{{ render_section(split.summary, false) }}</div>
+    {%- endif %}
+    {%- if split.side %}
+    <div class="sl-intro-side">
+      {%- for section in split.side %}{{ render_section(section, true) }}{% endfor %}
+    </div>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- for section in split.main %}{{ render_section(section, false) }}{% endfor %}
+</div>
+{%- endif %}
+</body>
+</html>

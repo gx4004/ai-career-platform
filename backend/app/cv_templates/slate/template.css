@@ -1,0 +1,157 @@
+/* Slate: a colourful two-column CV (spec section 4, T8; "less ATS-safe"). A deep slate band
+   runs to the paper edges with the name and the headline, a darker strip below it holds the
+   contact details, then the body splits into a main column and a narrow column of chips.
+   The band is the accent mixed into slate (35% accent), so every palette colour keeps white
+   (--on-accent) text at 4.5:1 or better on it, and on the darker strip (tested). The headline
+   and the small shapes on the band are a light tone of the accent. Sizes are em of the body
+   size so --type moves everything; the body is clamped to 9-10.4pt (spacious stays a little under 11pt so a short CV keeps its shape). */
+.cv--slate {
+  --slate-band: color-mix(in srgb, var(--accent) 35%, #243142);
+  --slate-strip: color-mix(in srgb, var(--slate-band) 78%, #000000);
+  --slate-light: color-mix(in srgb, var(--accent) 30%, #ffffff);
+  --slate-ink-2: #333333;   /* organisation: 12.6:1 */
+  --slate-muted: #595959;   /* location, separators: 7:1 */
+  --slate-side: 15mm;       /* the page's side margin, padded by the body itself */
+  font: 400 clamp(9pt, calc(9.6pt * var(--type)), 10.4pt) / 1.42 var(--font-body);
+  hyphens: manual;
+  orphans: 2;
+  widows: 2;
+}
+.cv--slate a { color: inherit; text-decoration: underline; text-decoration-thickness: 0.5pt; text-underline-offset: 0.15em; }
+
+/* -- header band ----------------------------------------------------------------------- */
+.sl-head { color: var(--on-accent); }
+.sl-band {
+  padding: calc(var(--space-5) + 4mm) var(--slate-side) calc(var(--space-4) + 2mm);
+  background: var(--slate-band);
+}
+.sl-band h1 {
+  margin: 0;
+  font: 500 2.9em / 1.08 var(--font-heading);
+  letter-spacing: 0.002em;
+  text-wrap: balance;
+}
+.sl-headline {
+  margin-top: var(--space-2);
+  font-size: 1.16em;
+  line-height: 1.3;
+  color: var(--slate-light);
+  text-wrap: balance;
+}
+.sl-contact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) 8mm;
+  padding: var(--space-4) var(--slate-side);
+  font-size: 0.94em;
+  line-height: 1.35;
+  background: var(--slate-strip);
+}
+.sl-contact-item { display: flex; align-items: baseline; gap: 2.4mm; min-width: 0; }
+.sl-contact-item--wide { grid-column: 1 / -1; }
+.sl-contact-item::before {
+  content: "";
+  flex: none;
+  width: 5pt;
+  height: 5pt;
+  border-radius: 50%;
+  border: 1.2pt solid var(--slate-light);
+  transform: translateY(0.2pt);
+}
+.sl-contact a { text-decoration: none; }
+/* Name only: the band alone, with a little more air below the name. */
+.sl-band:only-child { padding-bottom: calc(var(--space-5) + 3mm); }
+
+/* -- body ------------------------------------------------------------------------------ */
+.sl-body { padding: calc(var(--space-5) + 1mm) var(--slate-side) 0; }
+/* The intro row: the summary beside a narrow column of lists. */
+.sl-intro--two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 66mm;
+  column-gap: 9mm;
+  align-items: start;
+}
+/* Lists with no summary to sit beside: side by side, two to a row. */
+.sl-intro--lists .sl-intro-side {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5) 9mm;
+  align-items: start;
+}
+.sl-intro--lists .sl-intro-side > .sl-section + .sl-section { margin-top: 0; }
+.sl-intro + .sl-section { margin-top: calc(var(--space-5) + var(--space-1)); }
+.sl-intro-side > .sl-section + .sl-section { margin-top: var(--space-4); }
+/* Beside the summary the lists sit on a light tint of the accent (ink text on it is 12:1 or more). */
+.sl-intro--two .sl-intro-side {
+  padding: var(--space-4) 4mm calc(var(--space-4) + 1pt);
+  border-radius: 4pt;
+  background: var(--accent-tint);
+}
+.sl-intro--two .sl-chips--outline span { background: #ffffff; }
+
+.sl-section + .sl-section { margin-top: var(--space-5); }
+.sl-section > h2 {
+  /* Real small capitals (Fira Sans has them): the text layer keeps the user's own title. */
+  width: fit-content;
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-1);
+  border-bottom: 2pt solid var(--accent);
+  font: 700 1.24em / 1.15 var(--font-heading);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  break-inside: avoid;
+  break-after: avoid;
+}
+.sl-section > h2 + * { break-before: avoid; }
+
+/* -- entries --------------------------------------------------------------------------- */
+.sl-entry { break-inside: avoid; }
+.sl-entry + .sl-entry { margin-top: var(--space-4); }
+.sl-entry--split { break-inside: auto; }
+.sl-entry-head { break-inside: avoid; break-after: avoid; }
+.sl-role { font: 600 1.1em / 1.28 var(--font-heading); text-wrap: balance; }
+.sl-org { font-size: 1.02em; line-height: 1.3; color: var(--slate-ink-2); text-wrap: balance; }
+.sl-meta { margin-top: 1pt; font-size: 0.9em; font-style: italic; }
+.sl-dates { color: var(--accent); font-variant-numeric: lining-nums; }
+.sl-sep, .sl-place { color: var(--slate-muted); }
+
+/* Text bullets in flow, in the accent. */
+.sl-entry ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.sl-entry li { padding-left: 11pt; break-inside: avoid; text-wrap: pretty; }
+.sl-entry li + li { margin-top: calc(var(--space-1) * 0.8); }
+.sl-entry li::before {
+  content: "\2022";
+  display: inline-block;
+  box-sizing: content-box;
+  width: 10pt;
+  margin-left: -11pt;
+  padding-left: 1pt;
+  color: var(--accent);
+  font-size: 1.15em;
+  line-height: 0;
+}
+.sl-entry li:first-child, .sl-entry li:nth-child(2) { break-before: avoid; }
+.sl-entry li:last-child { break-before: avoid; }
+
+.sl-text { margin: 0; hyphens: none; text-wrap: pretty; }
+.sl-text + .sl-text { margin-top: var(--space-2); }
+.sl-entry > .sl-text { margin-top: var(--space-2); }
+
+/* -- chips ----------------------------------------------------------------------------- */
+.sl-chips { display: flex; flex-wrap: wrap; gap: var(--space-2) calc(var(--space-2) + 1pt); break-inside: avoid; }
+.sl-chips + .sl-chips, .sl-chips + .sl-text, .sl-text + .sl-chips { margin-top: var(--space-3); }
+.sl-chips span {
+  padding: calc(var(--space-1) + 0.5pt) 2.4mm;
+  border: 0.9pt solid var(--slate-band);
+  border-radius: 3pt;
+  font-size: 0.92em;
+  line-height: 1.25;
+  color: var(--on-accent);
+  background: var(--slate-band);
+}
+.sl-chips--outline span { color: var(--ink); background: none; border-color: #77808c; }
+
+/* The narrow column: entries there are compact. */
+.sl-intro-side .sl-role { font-size: 1em; }
+.sl-intro-side .sl-entry + .sl-entry { margin-top: var(--space-3); }
