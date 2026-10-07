@@ -1,0 +1,19 @@
+{
+  "id": "lagoon",
+  "name": "Lagoon",
+  "description": "A full-height colour sidebar with a monogram, education, skills and languages beside a clean main column.",
+  "ats_safe": false,
+  "photo_slot": true,
+  "columns": 2,
+  "title_align": "left",
+  "typefaces": {"heading": "Inter", "body": "Inter"},
+  "accent_role": "sidebar",
+  "default_accent": "#0F766E",
+  "sidebar_kinds": ["education", "skills", "certifications", "custom"],
+  "page_margin_mm": {"top": 13, "right": 12, "bottom": 12, "left": 8.5},
+  "fonts": [
+    {"family": "Inter", "weight": 400, "style": "normal", "file": "inter/Inter-Regular.ttf"},
+    {"family": "Inter", "weight": 500, "style": "normal", "file": "inter/Inter-Medium.ttf"},
+    {"family": "Inter", "weight": 600, "style": "normal", "file": "inter/Inter-SemiBold.ttf"}
+  ]
+}

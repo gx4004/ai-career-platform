@@ -1,0 +1,188 @@
+/* Lagoon: a full-height accent sidebar (monogram, education, skills, languages) beside a
+   white main column (name, headline, contact, summary, experience, projects).
+   The sidebar colour is a fixed strip, so it repeats edge to edge on every printed page;
+   the sidebar's content flows on page 1 and later pages carry the main column only
+   (docs/cv-templates-spec.md 3.3). Text on the strip is var(--on-accent), the colour the
+   accent tokens pick for at least 4.5:1 on the fill; text on white is ink, greys at 7:1 or
+   better, or the accent (every palette colour reads at 4.5:1 on white). */
+.cv--lagoon {
+  --lg-side-w: 60mm;
+  --lg-side-pad: 7.5mm;
+  --lg-ink-2: #3d3d3d;   /* contact, organisation line: 11:1 */
+  --lg-muted: #555555;   /* dates, location: 7.5:1 */
+  --lg-rule: #d4d4d4;
+  font: 400 clamp(8.75pt, calc(9.3pt * var(--type)), 10.5pt) / 1.42 var(--font-body);
+  hyphens: manual;
+  orphans: 2;
+  widows: 2;
+}
+.cv--lagoon a { color: inherit; text-decoration: none; }
+
+.lg-strip {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--lg-side-w);
+  background: var(--accent);
+  z-index: -1;
+}
+.lg-page {
+  display: grid;
+  grid-template-columns: var(--lg-side-w) minmax(0, 1fr);
+  grid-template-areas: "mono head" "side main";
+  grid-template-rows: auto 1fr;
+  row-gap: var(--space-5);
+  padding: var(--lg-top) 0 var(--lg-bottom);
+  /* Each printed page gets the top and bottom inset, not just the first and last. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* -- header (main column) ------------------------------------------------------------- */
+.cv-header { grid-area: head; padding: 0 var(--lg-main-right) 0 var(--lg-main-left); align-self: start; }
+.cv-header h1 {
+  font: 600 2.35em / 1.08 var(--font-heading);
+  letter-spacing: -0.012em;
+  margin: 0;
+  text-wrap: balance;
+}
+.cv-headline {
+  font-weight: 500;
+  font-size: 1.12em;
+  line-height: 1.3;
+  color: var(--accent);
+  margin-top: var(--space-2);
+  text-wrap: balance;
+}
+.cv-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-1) * 0.67) calc(var(--space-4) + var(--space-1));
+  font-size: 0.88em;
+  line-height: 1.4;
+  color: var(--lg-ink-2);
+}
+.cv-headline + .cv-contact, .cv-header h1 + .cv-contact { margin-top: var(--space-3); }
+.cv-contact + .cv-contact { margin-top: calc(var(--space-1) * 0.67); }
+.lg-contact-item { white-space: nowrap; display: inline-flex; align-items: baseline; gap: 3.5pt; }
+.lg-contact-item.lg-long { white-space: normal; }
+.lg-icon { flex: none; width: 0.85em; height: 0.85em; fill: var(--accent); align-self: center; }
+
+/* -- monogram (the photo slot) ---------------------------------------------------------- */
+.lg-mono {
+  grid-area: mono;
+  align-self: start;
+  margin-top: var(--space-1);
+  justify-self: start;
+  margin-left: var(--lg-side-pad);
+  width: 25mm;
+  height: 25mm;
+  border-radius: 3.5mm;
+  background: var(--on-accent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 22pt / 1 var(--font-heading);
+  letter-spacing: 0.02em;
+}
+
+/* -- main column ------------------------------------------------------------------------ */
+.lg-main { grid-area: main; padding: 0 var(--lg-main-right) 0 var(--lg-main-left); min-width: 0; }
+.cv-section + .cv-section { margin-top: var(--space-5); }
+.cv-section > h2 {
+  font: 600 1.34em / 1.1 var(--font-heading);
+  letter-spacing: 0.055em;
+  font-variant-caps: all-small-caps;
+  color: var(--ink);
+  margin: 0 0 calc(var(--space-3) + var(--space-1));
+  padding-bottom: var(--space-2);
+  border-bottom: 1pt solid var(--accent);
+  break-after: avoid;
+}
+.cv-section > h2 + * { break-before: avoid; }
+
+.cv-entry { break-inside: avoid; }
+.cv-entry + .cv-entry { margin-top: var(--space-4); }
+.cv-entry--split { break-inside: auto; }
+.cv-entry-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "role dates" "org place";
+  column-gap: 12pt;
+  align-items: baseline;
+  break-inside: avoid;
+  break-after: avoid;
+}
+.cv-entry-head--no-dates { grid-template-areas: "role place" "org org"; }
+.cv-role { grid-area: role; font-weight: 600; font-size: 1.06em; line-height: 1.3; text-wrap: balance; }
+.cv-dates { grid-area: dates; text-align: right; white-space: nowrap; color: var(--lg-muted); font-size: 0.92em; font-variant-numeric: tabular-nums lining-nums; }
+.cv-org { grid-area: org; font-weight: 500; color: var(--accent); text-wrap: balance; }
+.cv-place { grid-area: place; text-align: right; color: var(--lg-muted); font-size: 0.92em; }
+
+.cv--lagoon ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.cv--lagoon li { padding-left: 11pt; break-inside: avoid; text-wrap: pretty; }
+.cv--lagoon li + li { margin-top: calc(var(--space-1) * 0.67); }
+/* In flow, never positioned: a positioned box paints (and so extracts) after the text. */
+.cv--lagoon li::before {
+  content: "\2022";
+  display: inline-block;
+  box-sizing: content-box;
+  width: 10pt;
+  margin-left: -11pt;
+  padding-left: 1pt;
+  font-size: 1.05em;
+  line-height: 0;
+}
+.lg-main li::before { color: var(--accent); }
+.cv-entry li:first-child, .cv-entry li:nth-child(2), .cv-entry li:last-child { break-before: avoid; }
+
+.cv-text { margin: 0; text-wrap: pretty; }
+.cv-text + .cv-text { margin-top: var(--space-2); }
+.cv-entry > .cv-text { margin-top: var(--space-2); }
+
+/* -- sidebar ---------------------------------------------------------------------------- */
+.lg-side {
+  grid-area: side;
+  padding: 0 calc(var(--lg-side-pad) - 1mm) 0 var(--lg-side-pad);
+  color: var(--on-accent);
+  background: var(--accent); /* the same colour as the strip, so the side reads as one fill */
+  font-size: 0.94em;
+  min-width: 0;
+}
+.lg-side-section + .lg-side-section { margin-top: var(--space-5); }
+.lg-side-section > h2 {
+  font: 600 1.3em / 1.1 var(--font-heading);
+  letter-spacing: 0.07em;
+  font-variant-caps: all-small-caps;
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 0.75pt solid var(--on-accent);
+  break-after: avoid;
+}
+.lg-side-section > h2 + * { break-before: avoid; }
+.lg-side-entry { break-inside: avoid; }
+.lg-side-entry + .lg-side-entry { margin-top: var(--space-4); }
+.lg-side-role { font-weight: 600; line-height: 1.3; }
+.lg-side-org { margin-top: var(--space-1); line-height: 1.35; }
+.lg-side-meta { margin-top: var(--space-1); font-size: 0.94em; font-variant-numeric: tabular-nums lining-nums; }
+.lg-side-sep { padding: 0 1pt; }
+.lg-side li { font-size: 0.96em; }
+.lg-side-text { margin: 0; text-wrap: pretty; }
+.lg-side-entry > .lg-side-text { margin-top: var(--space-2); }
+
+.lg-chips { margin: 0; line-height: 1; }
+.lg-chip {
+  display: inline-block;
+  margin: 0 3pt 4.5pt 0;
+  padding: 2.5pt 5.5pt 2.75pt;
+  border: 0.75pt solid var(--on-accent);
+  border-radius: 8pt;
+  font-size: 0.94em;
+  line-height: 1.15;
+}
+.lg-pairs { display: grid; row-gap: calc(var(--space-2) + var(--space-1)); }
+.lg-pair { display: flex; justify-content: space-between; align-items: baseline; gap: 8pt; }
+.lg-pair-name { font-weight: 500; }
+.lg-pair-level { text-align: right; }
