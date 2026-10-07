@@ -176,7 +176,7 @@
 .lg-side-text { margin: 0; text-wrap: pretty; }
 .lg-side-entry > .lg-side-text { margin-top: var(--space-2); }
 
-.lg-chips { margin: 0; line-height: 1; }
+.lg-chips { margin: 0; line-height: 1; break-inside: avoid; }
 .lg-chip {
   display: inline-block;
   margin: 0 3pt 4.5pt 0;

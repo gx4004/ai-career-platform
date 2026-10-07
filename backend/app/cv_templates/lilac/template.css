@@ -105,7 +105,7 @@
 .li-side-sep { padding: 0 1pt; }
 .li-side-text { margin: 0; text-wrap: pretty; }
 .li-side-entry > .li-side-text { margin-top: var(--space-2); }
-.li-chips { margin: 0; line-height: 1; }
+.li-chips { margin: 0; line-height: 1; break-inside: avoid; }
 .li-chip {
   display: inline-block;
   margin: 0 3pt 4.5pt 0;
