@@ -99,7 +99,7 @@
 <div class="li-page">
 <header class="cv-header{{ '' if initials else ' li-top' }}" data-section-id="header">
   {#- The panel is narrow: a long name steps down a size instead of breaking inside a word. #}
-  <h1{% if header.title|length > 40 %} class="li-name-longer"{% elif header.title|length > 22 %} class="li-name-long"{% endif %}>{{ header.title }}</h1>
+  <h1{% if header.title|length > 40 %} class="li-name-longer"{% elif header.title|length > 15 %} class="li-name-long"{% endif %}>{{ header.title }}</h1>
   {%- if header.headline %}
   <div class="cv-headline">{{ header.headline }}</div>
   {%- endif %}
