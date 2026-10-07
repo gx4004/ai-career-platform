@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_HEADER, buildPaperHeader, describeHeader, splitLinks, toSavableHeader } from '../header'
+import { EMPTY_HEADER, buildPaperHeader, describeHeader, toSavableHeader } from '../header'
 
 const full = {
   name: 'Ada Lovelace', headline: 'Analyst', email: 'ada@example.com', phone: '+44 20 7946 0958', location: 'London, UK',
@@ -22,15 +22,6 @@ describe('buildPaperHeader', () => {
   it('treats blank and whitespace-only fields as unset and collapses runs of spaces', () => {
     expect(buildPaperHeader({ ...full, name: '   ', headline: ' ', email: null, phone: ' 555   0100 ', links: ['', '  '] }, 'CV'))
       .toEqual({ title: 'CV', headline: null, contact: ['555 0100', 'London, UK'] })
-  })
-})
-
-describe('splitLinks', () => {
-  it('marks only URLs as links, leaving trailing punctuation out', () => {
-    expect(splitLinks('see https://example.com/a.')).toEqual([
-      { text: 'see ', link: false }, { text: 'https://example.com/a', link: true }, { text: '.', link: false },
-    ])
-    expect(splitLinks('ada@example.com')).toEqual([{ text: 'ada@example.com', link: false }])
   })
 })
 

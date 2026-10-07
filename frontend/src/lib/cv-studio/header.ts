@@ -11,9 +11,6 @@ const clean = (value: string | null | undefined) => {
   return text || null
 }
 
-/** The renderer's `URL_RE`: only text that matches is drawn as a link in the PDF. */
-const URL_RE = /https?:\/\/[^\s<>()[\]{}"']*[^\s<>()[\]{}"'.,;:!?]/g
-
 export type PaperHeader = { title: string; headline: string | null; contact: string[] }
 
 /**
@@ -30,22 +27,6 @@ export function buildPaperHeader(header: CvHeader | undefined, documentName: str
     headline: clean(raw.headline),
     contact,
   }
-}
-
-export type TextPart = { text: string; link: boolean }
-
-/** Splits a contact item into plain and link parts: the PDF draws the link parts blue. */
-export function splitLinks(text: string): TextPart[] {
-  const parts: TextPart[] = []
-  let cursor = 0
-  for (const match of text.matchAll(URL_RE)) {
-    const start = match.index ?? 0
-    if (start > cursor) parts.push({ text: text.slice(cursor, start), link: false })
-    parts.push({ text: match[0], link: true })
-    cursor = start + match[0].length
-  }
-  if (cursor < text.length) parts.push({ text: text.slice(cursor), link: false })
-  return parts
 }
 
 /** The header as the API stores it: blank fields become null, links are trimmed and capped. */

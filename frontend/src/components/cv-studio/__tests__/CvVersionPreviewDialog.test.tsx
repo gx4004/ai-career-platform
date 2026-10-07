@@ -1,8 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvVersionPreviewDialog } from '#/components/cv-studio/CvVersionPreviewDialog'
-import type { CvSection } from '#/lib/api/schemas'
-import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
+import type { CvDocumentUpdate, CvSection } from '#/lib/api/schemas'
+import { previewFor } from '#/lib/cv-studio/__tests__/preview.fixture'
+
+const api = vi.hoisted(() => ({ previewCvDraft: vi.fn() }))
+vi.mock('#/lib/api/client', () => api)
 
 const skills: CvSection = { id: 's2', kind: 'skills', title: 'Skills', visible: true, position: 0, entries: [{ id: 'e2', evidence_item_id: null, body: 'Figma, research', position: 0 }] }
 const variant = { id: 'v1', name: 'Before tailoring', target_role: null, sections: [skills], created_at: '2026-10-07T10:00:00Z' }
@@ -10,15 +14,20 @@ const style = { template_id: 'classic' as const, font_id: null, accent_color: '#
 
 function view(onExport = vi.fn()) {
   render(
+    <QueryClientProvider client={new QueryClient()}>
     <CvVersionPreviewDialog
-      variant={variant} documentName="Dana Reyes CV" style={style} catalog={styleCatalogFixture} currentSections={[skills]}
+      variant={variant} documentId="d1" documentName="Dana Reyes CV" style={style} currentSections={[skills]}
       exporting={null} canRestore error="" onOpenChange={vi.fn()} onExport={onExport} onRestore={vi.fn()}
-    />,
+    />
+    </QueryClientProvider>,
   )
   return onExport
 }
 
-beforeEach(() => { window.innerWidth = 1440 })
+beforeEach(() => {
+  window.innerWidth = 1440
+  api.previewCvDraft.mockImplementation((_id: string, draft: CvDocumentUpdate) => Promise.resolve(previewFor(draft)))
+})
 
 describe('version preview dialog', () => {
   it('offers PDF, DOCX and Use as my CV, with what changed, on a wide screen', () => {

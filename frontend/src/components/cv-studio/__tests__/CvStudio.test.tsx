@@ -4,8 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
 import { ApiError } from '#/lib/api/errors'
-import type { CvDocument } from '#/lib/api/schemas'
+import type { CvDocument, CvDocumentUpdate } from '#/lib/api/schemas'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
+import { previewFor } from '#/lib/cv-studio/__tests__/preview.fixture'
 import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
 
 const api = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const api = vi.hoisted(() => ({
   proposeCvImport: vi.fn(), acceptCvImport: vi.fn(),
   tailorCvDocument: vi.fn(), applyCvTailoring: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
+  previewCvDraft: vi.fn(),
 }))
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn(), user: null as { full_name?: string | null } | null }))
 vi.mock('#/lib/api/client', () => api)
@@ -57,7 +59,10 @@ function view() {
 }
 const saveStatus = () => screen.getByTestId('save-status')
 const lastPatch = () => api.updateCvDocument.mock.calls.at(-1)?.[1]
-const paper = () => screen.getByTestId('cv-paper')
+const paper = () => screen.getByTestId('cv-pages')
+/** The draft the preview was last asked to draw (it follows the editor ~400ms after the last edit). */
+const lastPreview = () => api.previewCvDraft.mock.calls.at(-1)?.[1]
+const previewShows = (check: (draft: any) => void) => waitFor(() => check(lastPreview()), { timeout: 2000 })
 const panel = () => screen.getByRole('complementary')
 /** Open a studio tool (Sections, Design, ATS check, Versions) from the toolbar. */
 async function openTool(name: RegExp) {
@@ -86,6 +91,7 @@ beforeEach(() => {
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockImplementation((_id: string, payload: Partial<CvDocument>) => Promise.resolve({ ...document, ...payload, updated_at: '2026-07-12T10:05:00Z' }))
   api.getCvStyleCatalog.mockResolvedValue(styleCatalogFixture)
+  api.previewCvDraft.mockImplementation((_id: string, draft: CvDocumentUpdate) => Promise.resolve(previewFor(draft)))
   api.deleteCvDocument.mockResolvedValue(undefined)
   api.deleteAllCvDocuments.mockResolvedValue(undefined)
   api.exportCvDocuments.mockResolvedValue({ schema_version: 'cv-documents-export/v1', exported_at: '2026-08-13T10:00:00Z', document_count: 1, documents: [document] })
@@ -199,7 +205,7 @@ describe('CV Studio empty state', { timeout: 15_000 }, () => {
 })
 
 describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
-  it('opens a section’s editor from the paper, mirrors edits live, then autosaves', async () => {
+  it('opens a section’s editor from the pages, previews edits unsaved, then autosaves', async () => {
     view()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Experience' }))
     expect(within(panel()).getByRole('heading', { name: 'Edit Experience' })).toBeTruthy()
@@ -207,8 +213,7 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     fireEvent.change(within(panel()).getByLabelText('Company'), { target: { value: '' } })
     fireEvent.click(within(panel()).getByRole('button', { name: 'Add highlight' }))
     fireEvent.change(within(panel()).getByLabelText('Highlight 2 for Principal Designer'), { target: { value: 'Grew adoption by 40%.' } })
-    expect(within(paper()).getByText('Principal Designer')).toBeTruthy()
-    expect(within(paper()).getByText('Grew adoption by 40%.')).toBeTruthy()
+    await previewShows((draft) => expect(draft.sections[0].entries[0]).toMatchObject({ heading: 'Principal Designer', bullets: ['Built accessible systems.', 'Grew adoption by 40%.'] }))
     expect(saveStatus().textContent).toContain('Saving')
 
     await waitFor(() => expect(api.updateCvDocument).toHaveBeenCalledTimes(1), { timeout: 1500 })
@@ -265,7 +270,7 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
 
   it('offers only the section kinds a CV can hold twice once it has them', async () => {
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     const menu = await openMenu('Add section')
     const items = within(menu).getAllByRole('menuitem').map((item) => item.textContent)
     // The fixture CV already has Experience and Skills.
@@ -301,7 +306,7 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
   it('opens the Versions sheet on a phone without focusing its name field', async () => {
     window.innerWidth = 375
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     fireEvent.click(within(screen.getByRole('tablist', { name: 'Studio tools' })).getByRole('tab', { name: /^Versions/ }))
     const sheet = await screen.findByRole('dialog', { name: 'Versions' })
     // A focused field would raise the phone keyboard over the list of versions.
@@ -310,7 +315,8 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
 
   it('opens a section with the keyboard and goes back to the sections list', async () => {
     view()
-    fireEvent.keyDown(await screen.findByRole('button', { name: 'Edit Skills' }), { key: 'Enter' })
+    // A real <button>: the browser turns Enter and Space into this click.
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Skills' }))
     expect(within(panel()).getByLabelText('Skills text')).toBeTruthy()
     fireEvent.click(within(panel()).getByRole('button', { name: 'All sections' }))
     expect(within(panel()).getByRole('list', { name: 'Sections in your CV' })).toBeTruthy()
@@ -318,19 +324,19 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
 
   it('reorders, hides and adds sections from the sections list', async () => {
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     fireEvent.click(within(panel()).getByRole('button', { name: 'Move Skills up' }))
     expect(screen.getByText('Skills moved to position 1 of 2.')).toBeTruthy()
-    expect(within(paper()).getAllByRole('button').map((section) => section.getAttribute('aria-label'))).toEqual(['Edit header', 'Edit Skills', 'Edit Experience'])
+    await waitFor(() => expect(within(paper()).getAllByRole('button').map((section) => section.getAttribute('aria-label'))).toEqual(['Edit header', 'Edit Skills', 'Edit Experience']), { timeout: 2000 })
     fireEvent.click(within(panel()).getByRole('button', { name: 'Hide Skills' }))
-    expect(within(paper()).queryByText('Skills')).toBeNull()
+    await waitFor(() => expect(within(paper()).queryByRole('button', { name: 'Edit Skills' })).toBeNull(), { timeout: 2000 })
     await waitFor(() => expect(lastPatch()?.sections.map((s: { id: string; position: number; visible: boolean }) => [s.id, s.position, s.visible]))
       .toEqual([['s2', 0, false], ['s1', 1, true]]), { timeout: 1500 })
 
     const menu = await openMenu('Add section')
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Education' }))
     expect(within(panel()).getByRole('heading', { name: 'Edit Education' })).toBeTruthy()
-    expect(within(paper()).getByRole('button', { name: 'Edit Education' }).getAttribute('aria-pressed')).toBe('true')
+    expect((await within(paper()).findByRole('button', { name: 'Edit Education' }, { timeout: 2000 })).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('keeps a newer edit saving when an older autosave response resolves', async () => {
@@ -353,7 +359,7 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     expect(saveStatus().textContent).toContain('Saved')
     expect(api.updateCvDocument).toHaveBeenLastCalledWith('d1', expect.objectContaining({ name: 'Newest edit' }))
     expect((name as HTMLInputElement).value).toBe('Newest edit')
-    expect(within(paper()).getByText('Newest edit')).toBeTruthy()
+    await previewShows((draft) => expect(draft.name).toBe('Newest edit'))
   })
 
   it('updates the CV list from the autosave response without refetching every CV', async () => {
@@ -380,12 +386,12 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
   it('opens a section’s editor in a bottom sheet on a phone', async () => {
     window.innerWidth = 375
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     expect(screen.queryByRole('complementary')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Skills' }))
     const sheet = await screen.findByRole('dialog', { name: 'Edit Skills' })
     fireEvent.change(within(sheet).getByLabelText('Skills text'), { target: { value: 'Figma, research, SQL' } })
-    expect(within(paper()).getByText('Figma, research, SQL')).toBeTruthy()
+    await previewShows((draft) => expect(draft.sections[1].entries[0].body).toBe('Figma, research, SQL'))
     fireEvent.click(within(sheet).getByRole('button', { name: 'Close panel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
@@ -393,7 +399,7 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
   it('keeps one tool selected as a tab on a phone and opens its sheet from the tab', async () => {
     window.innerWidth = 375
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     const tabs = screen.getByRole('tablist', { name: 'Studio tools' })
     // cv-studio-F03: on a phone or tablet a tab opens a sheet, so no tab reads as open while only the paper shows
     // (this test used to assert that Sections stayed selected with its sheet closed).
@@ -418,7 +424,7 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
   it('takes focus to the editor when a section or the header is chosen in the Sections sheet (cv-studio-F09)', async () => {
     window.innerWidth = 1024
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     fireEvent.click(within(screen.getByRole('tablist', { name: 'Studio tools' })).getByRole('tab', { name: 'Sections' }))
     let sheet = await screen.findByRole('dialog', { name: 'Sections' })
     // A keyboard or screen-reader user is on the row's button when they choose it; the row unmounts.
@@ -471,61 +477,44 @@ describe('CV Studio document header', { timeout: 15_000 }, () => {
     api.getCvDocument.mockResolvedValue(doc)
   }
 
-  it('leaves the paper as it was while the header is empty: the title is the document name', async () => {
+  it('previews a CV with an empty header under the document name', async () => {
     view()
-    await screen.findByTestId('cv-paper')
-    const shown = within(paper()).getByTestId('cv-header')
-    expect(within(shown).getByRole('heading', { name: 'Principal CV' })).toBeTruthy()
-    expect(shown.className).not.toContain('cvp-header--detailed')
-    expect(shown.querySelector('.cvp-headline, .cvp-contact')).toBeNull()
+    await screen.findByTestId('cv-pages')
+    expect(lastPreview()).toMatchObject({
+      name: 'Principal CV', header: { name: null, headline: null, email: null, phone: null, location: null, links: [] },
+    })
   })
 
-  it('draws name, headline and the contact line like the export, links blue', async () => {
+  it('sends the header with its contact details to the preview', async () => {
     withHeader()
     view()
-    await screen.findByTestId('cv-paper')
-    const shown = within(paper()).getByTestId('cv-header')
-    expect(within(shown).getByRole('heading', { name: 'Ada Lovelace' })).toBeTruthy()
-    expect(shown.querySelector('.cvp-headline')?.textContent).toBe('Analyst and Mathematician')
-    expect(shown.querySelector('.cvp-contact')?.textContent).toBe('ada@example.com | +44 20 7946 0958 | London, UK | https://github.com/ada')
-    expect(shown.querySelector('.cvp-link')?.textContent).toBe('https://github.com/ada')
+    await screen.findByTestId('cv-pages')
+    expect(lastPreview().header).toEqual(header)
   })
 
-  it('stacks the contact items in a two-column template, as the export does', async () => {
-    withHeader()
-    const doc = { ...document, header, style: { ...style, template_id: 'lagoon' as const } }
-    api.listCvDocuments.mockResolvedValue({ items: [doc] })
-    api.getCvDocument.mockResolvedValue(doc)
-    view()
-    await screen.findByTestId('cv-paper')
-    const contact = within(paper()).getByTestId('cv-header').querySelector('.cvp-contact')!
-    expect(contact.querySelectorAll('br')).toHaveLength(3)
-    expect(contact.textContent).not.toContain('|')
-  })
-
-  it('opens the header editor from the paper and from the Header row, updates live and autosaves', async () => {
+  it('opens the header editor from the pages and from the Header row, previews edits and autosaves', async () => {
     withHeader()
     view()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit header' }))
     expect(within(panel()).getByRole('heading', { name: 'Edit header' })).toBeTruthy()
     expect(within(paper()).getByRole('button', { name: 'Edit header' }).getAttribute('aria-pressed')).toBe('true')
     fireEvent.change(within(panel()).getByLabelText(/^Headline/), { target: { value: 'Countess of Computing' } })
-    expect(within(paper()).getByTestId('cv-header').querySelector('.cvp-headline')?.textContent).toBe('Countess of Computing')
     fireEvent.change(within(panel()).getByLabelText(/^Links/), { target: { value: 'https://example.com/a\nhttps://example.com/b' } })
-    expect(within(paper()).getByTestId('cv-header').querySelectorAll('.cvp-link')).toHaveLength(2)
+    await previewShows((draft) => expect(draft.header).toEqual({
+      ...header, headline: 'Countess of Computing', links: ['https://example.com/a', 'https://example.com/b'],
+    }))
     await waitFor(() => expect(lastPatch()?.header).toEqual({
       ...header, headline: 'Countess of Computing', links: ['https://example.com/a', 'https://example.com/b'],
     }), { timeout: 1500 })
   })
 
-  it('removes a cleared field from the paper and saves it as null', async () => {
+  it('previews a cleared header field as unset and saves it as null', async () => {
     withHeader()
     view()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit header' }))
     fireEvent.change(within(panel()).getByLabelText(/^Email/), { target: { value: '' } })
-    expect(within(paper()).getByTestId('cv-header').querySelector('.cvp-contact')?.textContent).toBe('+44 20 7946 0958 | London, UK | https://github.com/ada')
     fireEvent.change(within(panel()).getByLabelText(/^Name/), { target: { value: '' } })
-    expect(within(paper()).getByRole('heading', { name: 'Principal CV' })).toBeTruthy()
+    await previewShows((draft) => expect(draft.header).toMatchObject({ name: null, email: null, phone: header.phone }))
     await waitFor(() => expect(lastPatch()?.header).toMatchObject({ name: null, email: null }), { timeout: 1500 })
   })
 
@@ -543,16 +532,14 @@ describe('CV Studio document header', { timeout: 15_000 }, () => {
 })
 
 describe('CV Studio design panel', { timeout: 15_000 }, () => {
-  it('persists a template, font, accent and spacing change and mirrors it on the paper', async () => {
+  it('persists a template, font, accent and spacing change and previews it', async () => {
     view()
     const design = await openTool(/^Design/)
     fireEvent.click(within(design).getByRole('radio', { name: /Lagoon/ }))
     fireEvent.click(within(design).getByRole('radio', { name: /Source Serif 4/ }))
     fireEvent.click(within(design).getByRole('radio', { name: 'Ocean' }))
     fireEvent.click(within(design).getByRole('radio', { name: 'Roomy' }))
-    expect(paper().className).toContain('cvp-paper--two-column')
-    expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#075985')
-    expect(paper().style.getPropertyValue('--cvp-font')).toContain('Source Serif 4')
+    await previewShows((draft) => expect(draft.style).toMatchObject({ template_id: 'lagoon', font_id: 'source-serif-4', accent_color: '#075985', density: 'spacious' }))
     await waitFor(() => expect(lastPatch()?.style).toEqual({
       template_id: 'lagoon', font_id: 'source-serif-4', accent_color: '#075985', density: 'spacious', ats_mode: false,
       page_size: 'a4', fit_one_page: false,
@@ -610,7 +597,7 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     // The button shows a spinner (and ignores clicks) while the other requests are still in flight.
     await waitFor(() => expect(retry.getAttribute('aria-busy')).toBeNull())
     fireEvent.click(retry)
-    expect(await screen.findByTestId('cv-paper')).toBeTruthy()
+    expect(await screen.findByTestId('cv-pages')).toBeTruthy()
   })
 
   it('turns on ATS-friendly mode, pauses the other controls and saves it', async () => {
@@ -622,10 +609,8 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     expect((toggle as HTMLInputElement).checked).toBe(true)
     expect(within(design).getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
     expect((within(design).getByRole('radio', { name: /Source Serif 4/ }) as HTMLInputElement).disabled).toBe(true)
-    expect(paper().className).not.toContain('two-column')
-    expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#111827')
-    // The plain-Helvetica export has no bold face; the paper keys its heading weight on this flag.
-    expect(paper().getAttribute('data-ats')).toBe('true')
+    // The server applies the ATS template, accent and density; the preview just sends the flag.
+    await previewShows((draft) => expect(draft.style.ats_mode).toBe(true))
     await waitFor(() => expect(lastPatch()?.style).toMatchObject({ ats_mode: true }), { timeout: 1500 })
   })
 })

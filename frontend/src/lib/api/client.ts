@@ -72,6 +72,7 @@ import {
   cvDocumentUpdateSchema,
   cvVariantCreateSchema,
   cvVariantSchema,
+  cvPreviewSchema,
   cvQualityResponseSchema,
   cvTailoringApplySchema,
   cvTailoringProposalSchema,
@@ -119,6 +120,13 @@ export function deleteCvDocument(documentId: string) {
 
 export function deleteAllCvDocuments() {
   return request('/cv-documents', { method: 'DELETE' })
+}
+
+/** Page images and section rectangles of an unsaved draft; nothing is saved. `signal` aborts a superseded request. */
+export function previewCvDraft(documentId: string, draft: Omit<CvDocumentUpdate, 'expected_updated_at'>, options: { signal?: AbortSignal } = {}) {
+  return request(`/cv-documents/${encodeURIComponent(documentId)}/preview`, {
+    method: 'POST', body: parseRequest(cvDocumentUpdateSchema, draft), schema: cvPreviewSchema, signal: options.signal,
+  })
 }
 
 export function updateCvDocument(documentId: string, payload: CvDocumentUpdate) {
