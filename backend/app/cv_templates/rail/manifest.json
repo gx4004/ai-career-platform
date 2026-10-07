@@ -1,0 +1,19 @@
+{
+  "id": "rail",
+  "name": "Rail",
+  "description": "A full-height ink rail carrying a monogram and right-aligned section labels, set apart from the content beside it.",
+  "ats_safe": false,
+  "photo_slot": true,
+  "columns": 2,
+  "title_align": "left",
+  "typefaces": {"heading": "IBM Plex Sans", "body": "IBM Plex Sans"},
+  "accent_role": "rail",
+  "sidebar_kinds": [],
+  "page_margin_mm": {"top": 13, "right": 13, "bottom": 12, "left": 7},
+  "fonts": [
+    {"family": "IBM Plex Sans", "weight": 400, "style": "normal", "file": "ibm-plex-sans/IBMPlexSans-Regular.ttf"},
+    {"family": "IBM Plex Sans", "weight": 500, "style": "normal", "file": "ibm-plex-sans/IBMPlexSans-Medium.ttf"},
+    {"family": "IBM Plex Sans", "weight": 600, "style": "normal", "file": "ibm-plex-sans/IBMPlexSans-SemiBold.ttf"},
+    {"family": "IBM Plex Sans", "weight": 700, "style": "normal", "file": "ibm-plex-sans/IBMPlexSans-Bold.ttf"}
+  ]
+}
