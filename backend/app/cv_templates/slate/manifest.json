@@ -1,7 +1,7 @@
 {
   "id": "slate",
   "name": "Slate",
-  "description": "A colourful CV: a deep slate band for the name and contact details, then the summary beside a tinted panel of skill and language chips, and experience and education at full width below.",
+  "description": "A colourful CV: a deep slate band for the name and contact details, then the summary, and a tinted panel of skill and language chips at the top right that the experience wraps around.",
   "ats_safe": false,
   "photo_slot": false,
   "columns": 2,

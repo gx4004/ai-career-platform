@@ -1,6 +1,6 @@
 /* Slate: a colourful two-column CV (spec section 4, T8; "less ATS-safe"). A deep slate band
    runs to the paper edges with the name and the headline, a darker strip below it holds the
-   contact details, then the body splits into a main column and a narrow column of chips.
+   contact details; a tinted panel of chips floats at the top right of the body.
    The band is the accent mixed into slate (35% accent), so every palette colour keeps white
    (--on-accent) text at 4.5:1 or better on it, and on the darker strip (tested). The headline
    and the small shapes on the band are a light tone of the accent. Sizes are em of the body
@@ -9,6 +9,7 @@
   --slate-band: color-mix(in srgb, var(--accent) 35%, #243142);
   --slate-strip: color-mix(in srgb, var(--slate-band) 78%, #000000);
   --slate-light: color-mix(in srgb, var(--accent) 30%, #ffffff);
+  --slate-panel: color-mix(in srgb, var(--accent) 7%, #ffffff);  /* accent headings on it: 4.5:1+ */
   --slate-ink-2: #333333;   /* organisation: 12.6:1 */
   --slate-muted: #595959;   /* location, separators: 7:1 */
   --slate-side: 15mm;       /* the page's side margin, padded by the body itself */
@@ -64,30 +65,25 @@
 
 /* -- body ------------------------------------------------------------------------------ */
 .sl-body { padding: calc(var(--space-5) + 1mm) var(--slate-side) 0; }
-/* The intro row: the summary beside a narrow column of lists. */
-.sl-intro--two {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 66mm;
-  column-gap: 9mm;
-  align-items: start;
-}
-/* Lists with no summary to sit beside: side by side, two to a row. */
-.sl-intro--lists .sl-intro-side {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5) 9mm;
-  align-items: start;
-}
-.sl-intro--lists .sl-intro-side > .sl-section + .sl-section { margin-top: 0; }
-.sl-intro + .sl-section { margin-top: calc(var(--space-5) + var(--space-1)); }
-.sl-intro-side > .sl-section + .sl-section { margin-top: var(--space-4); }
-/* Beside the summary the lists sit on a light tint of the accent (ink text on it is 12:1 or more). */
-.sl-intro--two .sl-intro-side {
+/* The panel of lists: floated right under the summary, the main sections wrap round it.
+   Its light tint of the accent keeps the accent headings on it at 4.5:1 for every palette colour. */
+.sl-panel {
+  float: right;
+  width: 64mm;
+  margin: 0 0 var(--space-4) 8mm;
   padding: var(--space-4) 4mm calc(var(--space-4) + 1pt);
   border-radius: 4pt;
-  background: var(--accent-tint);
+  background: var(--slate-panel);
+  break-inside: avoid;
 }
-.sl-intro--two .sl-chips--outline span { background: #ffffff; }
+.sl-lead, .sl-flow { isolation: isolate; } /* paint order = reading order (see the template) */
+.sl-flow::after { content: ""; display: block; clear: both; }
+.sl-lead + .sl-flow > .sl-panel { margin-top: var(--space-5); }
+.sl-flow > .sl-panel:first-child { margin-top: 0; }
+.sl-lead + .sl-flow > .sl-panel + .sl-section,
+.sl-lead + .sl-flow > .sl-section:first-child { margin-top: var(--space-5); }
+.sl-panel > .sl-section + .sl-section { margin-top: var(--space-4); }
+.sl-panel .sl-chips--outline span { background: #ffffff; }
 
 .sl-section + .sl-section { margin-top: var(--space-5); }
 .sl-section > h2 {
@@ -153,5 +149,5 @@
 .sl-chips--outline span { color: var(--ink); background: none; border-color: #77808c; }
 
 /* The narrow column: entries there are compact. */
-.sl-intro-side .sl-role { font-size: 1em; }
-.sl-intro-side .sl-entry + .sl-entry { margin-top: var(--space-3); }
+.sl-panel .sl-role { font-size: 1em; }
+.sl-panel .sl-entry + .sl-entry { margin-top: var(--space-3); }
