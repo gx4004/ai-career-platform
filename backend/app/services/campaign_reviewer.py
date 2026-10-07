@@ -89,7 +89,17 @@ async def review_campaign_materials(
     cv_document_text: str = "",
     listing_title: str = "",
     listing_company: str = "",
+    has_cv: bool | None = None,
 ) -> dict:
+    """``has_cv``: a CV version is chosen (an empty one still is). Defaults to "the CV has text".
+
+    The response names the documents chosen (``documents``), so a check that needs a document nobody chose
+    reads as not checked, never as a pass.
+    """
+    documents = {
+        "cv": bool(resume_text.strip()) if has_cv is None else has_cv,
+        "cover_letter": bool(cover_text.strip()),
+    }
     confirmed_sources = {
         f"confirmed_evidence:{item['evidence_item_id']}": json.dumps(
             item["content"], sort_keys=True
@@ -110,10 +120,10 @@ async def review_campaign_materials(
             job_description,
         )
     )
-    findings.extend(_missed_requirements(job_description, resume_text, cover_text))
+    findings.extend(_missed_requirements(job_description, resume_text, cover_text, documents))
     findings.extend(_contradictions(resume_text, cover_text))
     findings.extend(_generic_and_repeated(resume_text, cover_text))
-    findings.extend(_document_defects(resume_text, cover_text))
+    findings.extend(_document_defects(resume_text, cover_text, documents))
     return {
         "schema_version": "application-reviewer/v1",
         "summary": {
@@ -140,6 +150,7 @@ async def review_campaign_materials(
             }
         ],
         "editable_blocks": [],
+        "documents": documents,
         "findings": findings,
     }
 
@@ -223,17 +234,20 @@ def _names_a_skill(text: str) -> bool:
     return bool(extract_detected_skills(text)) or text.lower() in _SKILL_PATTERNS_BY_LOWER_LABEL
 
 
-def _missed_requirements(listing: str, cv: str, cover: str) -> list[dict]:
+def _missed_requirements(listing: str, cv: str, cover: str, chosen: dict[str, bool]) -> list[dict]:
+    # Speak only of the documents chosen: with one of them missing, the other alone is checked.
+    names = [name for name, key in (("CV", "cv"), ("Cover letter", "cover_letter")) if chosen[key]]
+    if len(names) == 1:
+        documents = f"your {'CV' if names[0] == 'CV' else 'cover letter'} doesn't"
+    else:
+        documents = "your CV and cover letter don't" if names else "your documents don't"
+    locations = [f"{name}:entire document" for name in names]
     return [
         _finding(
             "missed_requirement",
             "medium",
-            f"The job asks for “{keyword}”, but your CV and cover letter don't mention it.",
-            [
-                _locator("Job posting", listing, keyword),
-                "CV:entire document",
-                "Cover letter:entire document",
-            ],
+            f"The job asks for “{keyword}”, but {documents} mention it.",
+            [_locator("Job posting", listing, keyword), *locations],
             [f"listing_requirement:{keyword}", "result:not_found_in_selected_materials"],
         )
         for keyword in extract_job_keywords(listing, limit=12)
@@ -309,9 +323,10 @@ def _generic_and_repeated(cv: str, cover: str) -> list[dict]:
     return findings
 
 
-def _document_defects(cv: str, cover: str) -> list[dict]:
+def _document_defects(cv: str, cover: str, chosen: dict[str, bool]) -> list[dict]:
     findings = []
-    if len(cv.strip()) < 80:
+    # A chosen CV that is empty is the useful answer; no CV chosen is nothing to measure.
+    if chosen["cv"] and len(cv.strip()) < 80:
         findings.append(
             _finding(
                 "document_defect",
@@ -321,7 +336,8 @@ def _document_defects(cv: str, cover: str) -> list[dict]:
                 [f"{TRACE_VISIBLE_CHARACTERS}{len(cv.strip())}", "minimum:80"],
             )
         )
-    if len(cover.strip()) < 120:
+    # No cover letter chosen is not a short one: there is nothing to measure.
+    if 0 < len(cover.strip()) < 120:
         findings.append(
             _finding(
                 "document_defect",

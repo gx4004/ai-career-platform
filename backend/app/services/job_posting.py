@@ -67,3 +67,33 @@ def posting_header(job_description: str) -> tuple[str, str]:
             return match.group("title").strip(), company or named or company_from_prose(job_description)
         break
     return "", company or company_from_prose(job_description)
+
+
+def job_subject(job_description: str | None, *, title: str | None = None, company: str | None = None) -> str:
+    """The job a run was for, for its label: "Senior Backend Engineer at Northwind Labs".
+
+    A title or company the tool already read (Job Match reports both) wins; otherwise
+    the posting's header names them. "" when the posting names no job, so the label
+    keeps its plain default.
+    """
+    # Local import: quality_signals is the heavier module, and only labels need it here.
+    from app.services.quality_signals import extract_role_label
+
+    def clean(value: str | None, limit: int) -> str:
+        text = " ".join(re.sub(r"[\x00-\x1f\x7f]", " ", value or "").split()).strip(" ,;:.")
+        return text if len(text) <= limit else text[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
+    header_title, header_company = posting_header(job_description) if job_description else ("", "")
+    named_title = clean(title or header_title or (extract_role_label(job_description) if job_description else ""), 80)
+    named_company = clean(company or header_company, 60)
+    if not named_title:
+        return ""
+    return f"{named_title} at {named_company}" if named_company else named_title
+
+
+def run_label(tool: str, detail: str, subject: str = "") -> str:
+    """A saved run's default label: "Job Match: <job> (75%)", or "Job Match (75%)" with no job named.
+
+    The frontend's ``runSubject`` (frontend/src/lib/tools/runLabel.ts) reads both shapes.
+    """
+    return f"{tool}: {subject} ({detail})" if subject else f"{tool} ({detail})"

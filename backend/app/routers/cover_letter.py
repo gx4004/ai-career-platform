@@ -11,6 +11,7 @@ from app.models.user import User
 from app.prompts.cover_letter import COVER_LETTER_PROMPT_VERSION
 from app.schemas.tools import CoverLetterRequest, CoverLetterResponse
 from app.services.cover_letter_gen import generate_cover_letter
+from app.services.job_posting import job_subject, run_label
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
@@ -52,7 +53,7 @@ async def generate(
             # silently dropped user feedback before reaching the prompt.
             "feedback": body.feedback,
         },
-        label_fn=lambda r: f"Cover Letter ({r['tone_used']})",
+        label_fn=lambda r: run_label("Cover Letter", r["tone_used"], job_subject(body.job_description)),
         resume_text=body.resume_text,
         job_description=body.job_description,
         feedback=body.feedback,

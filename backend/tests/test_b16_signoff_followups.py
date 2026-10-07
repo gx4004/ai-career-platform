@@ -621,3 +621,25 @@ def test_cover_letter_headline_quotes_whole_words(client, auth_headers):
     assert LONG_FACT.startswith(kept)
     assert LONG_FACT[len(kept)] == " ", f"cut mid-word: {quote!r}"
     assert len(kept) > 70  # a normal bullet is quoted nearly whole, not cut at the old 70 characters
+
+
+# --- tool-results F24b: a "Role | City, Country" header line is a place, never the employer ------
+
+LOCATION_HEADER_RESUME = """Alex Morgan
+Senior Backend Engineer | Berlin, Germany
+Experience
+- Led delivery of a FastAPI service used by 40 internal teams and reduced latency by 35 percent.
+- Owned PostgreSQL schema changes and incident response for 2 million events a month.
+Skills
+Python, FastAPI, PostgreSQL
+"""
+
+
+def test_a_city_and_country_is_never_quoted_as_an_employer(client, auth_headers):
+    job = "Backend Engineer at Northwind Labs\nPython, FastAPI and PostgreSQL."
+    letter = _post(client, auth_headers, "/cover-letter/generate", {"resume_text": LOCATION_HEADER_RESUME, "job_description": job})
+    interview = _post(
+        client, auth_headers, "/interview/questions", {"resume_text": LOCATION_HEADER_RESUME, "job_description": job, "num_questions": 4}
+    )
+    for text in (letter["full_text"], str(interview)):
+        assert "At Berlin" not in text and "at Berlin" not in text

@@ -162,7 +162,8 @@ def _stage_completion_proposal(db: Session, item: DevelopmentItem) -> None:
         EvidenceItemCreate(
             kind="achievement",
             content={"statement": statement},
-            provenance="inferred",
+            # The owner wrote these notes: the fact is theirs, not a tool's suggestion.
+            provenance="user-entered",
         ),
         confirmation_state="confirmed",
     )

@@ -17,6 +17,7 @@ from app.schemas.tools import (
 )
 from app.services.input_sanitizer import sanitize_user_input
 from app.services.interview_gen import evaluate_practice_answer, generate_interview_questions
+from app.services.job_posting import job_subject, run_label
 from app.services.llm_budget import reserve_anonymous_model_call
 from app.services.tool_pipeline import run_tool_pipeline
 
@@ -59,7 +60,9 @@ async def questions(
             # silently dropped user feedback before reaching the prompt.
             "feedback": body.feedback,
         },
-        label_fn=lambda r: f"Interview Prep ({len(r['questions'])} questions)",
+        label_fn=lambda r: run_label(
+            "Interview Prep", f"{len(r['questions'])} questions", job_subject(body.job_description)
+        ),
         resume_text=body.resume_text,
         job_description=body.job_description,
         feedback=body.feedback,
@@ -89,7 +92,7 @@ async def practice_feedback(
     # This route calls the model directly, so it applies the pipeline's sanitisation itself.
     question = sanitize_user_input(body.question)
     if not question:
-        raise HTTPException(status_code=422, detail="question is required")
+        raise HTTPException(status_code=422, detail="Add the interview question you want to practice.")
     user_answer = sanitize_user_input(body.user_answer)
     model_answer = sanitize_user_input(body.model_answer) if body.model_answer else None
     if current_user is None:

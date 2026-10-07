@@ -135,7 +135,9 @@ async def test_input_with_nothing_meaningful_is_rejected_and_not_saved(
         f"{PREFIX}{path}", json={"resume_text": resume_text, **extra}, headers=auth_headers
     )
     assert response.status_code == 422
-    assert "resume text" in str(response.json()["detail"]).lower()
+    detail = str(response.json()["detail"])
+    # A plain sentence about the resume (public-G18), never the old code-like detail.
+    assert "resume" in detail.lower() and detail[0].isupper() and detail.endswith("."), detail
     assert db.query(ToolRun).count() == 0
     assert fake_provider.calls == 0
 
@@ -525,7 +527,7 @@ async def test_application_review_without_a_cv_or_letter_is_refused_plainly(
     assert response.json()["detail"] == "Pick a CV version or cover letter before checking"
 
 
-async def test_application_review_with_only_a_letter_still_flags_the_missing_cv(
+async def test_application_review_with_only_a_letter_says_no_cv_was_chosen(
     aclient, db, test_user, auth_headers, fake_provider
 ):
     from tests.test_applications import make_application
@@ -535,8 +537,11 @@ async def test_application_review_with_only_a_letter_still_flags_the_missing_cv(
         f"{PREFIX}/applications/{workspace.id}/review", headers=auth_headers
     )
     assert response.status_code == 200, response.text
+    # A CV nobody chose is not an "almost empty" one (BT-7): the review says it was not chosen,
+    # and the page marks the CV-against-letter check "Not checked: no CV chosen."
+    assert response.json()["documents"] == {"cv": False, "cover_letter": True}
     findings = " ".join(str(f) for f in response.json()["findings"]).lower()
-    assert "almost empty" in findings
+    assert "almost empty" not in findings
 
 
 async def test_tailoring_an_empty_document_is_not_rejected_as_unusable_input(

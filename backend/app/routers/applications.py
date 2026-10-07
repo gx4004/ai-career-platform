@@ -359,6 +359,7 @@ async def review_application(
             "cv_document_text": cv_document_text,
             "listing_title": workspace.listing.title,
             "listing_company": workspace.listing.company,
+            "has_cv": workspace.selected_cv_variant is not None,
         },
         label_fn=lambda result: f"Application review ({len(result['findings'])} findings)",
         resume_text=cv_text,
@@ -367,7 +368,9 @@ async def review_application(
         current_user=current_user,
         db=db,
         cache_extra_keys={
-            "reviewer_version": "v3",
+            "reviewer_version": "v4",
+            # An empty chosen CV and no CV give the same text but different checks.
+            "has_cv": str(workspace.selected_cv_variant is not None),
             "listing_sha256": hashlib.sha256(
                 f"{workspace.listing.title}\n{workspace.listing.company}".encode()
             ).hexdigest(),
@@ -454,6 +457,7 @@ async def classify_gaps(
         cv_document_text=project_cv_document_text(workspace),
         listing_title=workspace.listing.title,
         listing_company=workspace.listing.company,
+        has_cv=workspace.selected_cv_variant is not None,
     )
     classifications = classify_findings(review["findings"], payload)
     rows = persist_gap_classifications(db, current_user.id, workspace.id, classifications)

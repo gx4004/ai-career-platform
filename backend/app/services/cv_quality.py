@@ -7,8 +7,10 @@ from app.services.cv_rendering import ATS_SAFE_TEMPLATES
 
 
 def _visible(sections: list[dict]) -> list[dict]:
+    """The sections the PDF prints: visible and not empty (an empty one is left out of it)."""
     return sorted(
-        (s for s in sections if s.get("visible", True)), key=lambda s: s.get("position", 0)
+        (s for s in sections if s.get("visible", True) and s.get("entries")),
+        key=lambda s: s.get("position", 0),
     )
 
 
