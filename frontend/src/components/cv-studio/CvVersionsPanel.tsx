@@ -10,7 +10,7 @@ import { isVersionNameTaken, versionNameTakenMessage } from './versionNames'
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
-export type VersionExport = { variantId: string; format: 'pdf' | 'docx' } | null
+export type VersionExport = { variantId: string; format: 'pdf' | 'docx' | 'txt' } | null
 
 /** Saved versions as cards: when, for which job, how it differs from the CV now, and what you can do with it. */
 export function CvVersionsPanel({ variants, currentSections, busy, exporting, onSave, onRestore, onPreview, onExport }: {
@@ -25,7 +25,7 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
   onRestore: (variantId: string) => Promise<void>
   onPreview: (variant: CvVariant) => void
   /** Absent while the server cannot build a saved version as a file: no Export menu is shown. */
-  onExport?: (variant: CvVariant, format: 'pdf' | 'docx') => void
+  onExport?: (variant: CvVariant, format: 'pdf' | 'docx' | 'txt') => void
 }) {
   const [name, setName] = useState('')
   /** A name this CV already has: said at the field, which keeps the cursor. */
@@ -112,6 +112,7 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
                           <DropdownMenuContent align="start">
                             <DropdownMenuItem onSelect={() => onExport(variant, 'pdf')}>PDF</DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => onExport(variant, 'docx')}>DOCX</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => onExport(variant, 'txt')}>Plain text</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : null}

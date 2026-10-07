@@ -28,10 +28,10 @@ export function CvVersionPreviewDialog({ variant, documentId, documentName, head
   error: string
   onOpenChange: (open: boolean) => void
   /** Absent while the server cannot build a saved version as a file: the export buttons are then not shown. */
-  onExport?: (variant: CvVariant, format: 'pdf' | 'docx') => void
+  onExport?: (variant: CvVariant, format: 'pdf' | 'docx' | 'txt') => void
   onRestore: (variant: CvVariant) => void
 }) {
-  const building = (format: 'pdf' | 'docx') => Boolean(variant && exporting?.variantId === variant.id && exporting.format === format)
+  const building = (format: 'pdf' | 'docx' | 'txt') => Boolean(variant && exporting?.variantId === variant.id && exporting.format === format)
   /**
    * On a phone the preview is the point of the dialog (cv-studio-G13): the description is the date and the one rule,
    * and PDF and DOCX share one Export menu (as on the version's card), so the footer holds two buttons, not three.
@@ -76,17 +76,21 @@ export function CvVersionPreviewDialog({ variant, documentId, documentName, head
           {onExport && phone ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" loading={building('pdf') || building('docx')}>
+                <Button type="button" loading={building('pdf') || building('docx') || building('txt')}>
                   <Download aria-hidden="true" /> Export
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => variant && onExport(variant, 'pdf')}>PDF</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => variant && onExport(variant, 'docx')}>DOCX</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => variant && onExport(variant, 'txt')}>Plain text</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : onExport ? (
             <>
+              <Button type="button" variant="secondary" loading={building('txt')} onClick={() => variant && onExport(variant, 'txt')}>
+                <Download aria-hidden="true" /> TXT
+              </Button>
               <Button type="button" variant="secondary" loading={building('docx')} onClick={() => variant && onExport(variant, 'docx')}>
                 <Download aria-hidden="true" /> DOCX
               </Button>

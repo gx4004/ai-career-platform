@@ -159,7 +159,7 @@ export function CvStudio({
   const [createFromProfile, setCreateFromProfile] = useState(false)
   const [tailorSeed, setTailorSeed] = useState<{ jobTitle: string; jobDescription: string } | null>(null)
   const autoOpenedTailorRef = useRef(false)
-  const [exporting, setExporting] = useState<'pdf' | 'docx' | 'data' | null>(null)
+  const [exporting, setExporting] = useState<'pdf' | 'docx' | 'txt' | 'data' | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   /** Kept while the dialog fades out, so its text does not flip to the other variant. */
   const [confirmKind, setConfirmKind] = useState<'one' | 'all'>('one')
@@ -334,19 +334,20 @@ export function CvStudio({
   }
 
   /** The moment an export lands: the page count comes from the file itself, the checks from this CV's last ATS run. */
-  async function celebrate(format: 'pdf' | 'docx', filename: string, blob: Blob, variant: CvVariant | null = null) {
+  async function celebrate(format: 'pdf' | 'docx' | 'txt', filename: string, blob: Blob, variant: CvVariant | null = null) {
     // The ATS checks were run on the working CV: a saved version's file does not borrow them.
     const checks = variant ? undefined : quality.data?.checks
     momentCount.current += 1
     setMomentVariant(variant)
     setMoment({
       id: momentCount.current, format, filename,
+      note: format === 'docx' ? docxNote : null,
       pages: format === 'pdf' ? await countPdfPages(blob) : null,
       checks: checks && checks.length > 0 ? { passing: checks.filter((check) => check.passed).length, total: checks.length } : null,
     })
   }
 
-  async function exportFile(format: 'pdf' | 'docx' | 'data') {
+  async function exportFile(format: 'pdf' | 'docx' | 'txt' | 'data') {
     if (!draft || exporting || (dirty && format !== 'data')) return
     setExporting(format)
     await run('Your CV data could not be downloaded.', async () => {
@@ -367,7 +368,7 @@ export function CvStudio({
   }
 
   /** A saved version as a file, without touching the working CV. */
-  async function exportVersion(variant: CvVariant, format: 'pdf' | 'docx') {
+  async function exportVersion(variant: CvVariant, format: 'pdf' | 'docx' | 'txt') {
     if (!draft || versionExport) return
     setVersionExport({ variantId: variant.id, format })
     await run('The version could not be exported.', async () => {
@@ -506,6 +507,8 @@ export function CvStudio({
   const failingChecks = checks?.filter((check) => !check.passed).length ?? 0
   const checksPass = failingChecks === 0
   const templateName = catalog.templates.find((template) => template.id === draft.style.template_id)?.name ?? ''
+  // ATS-friendly mode prints Classic, which is one column everywhere.
+  const docxNote = draft.style.ats_mode ? null : catalog.templates.find((template) => template.id === draft.style.template_id)?.docx_note ?? null
   const activeSection = typeof panel === 'object' ? draft.sections.find((section) => section.id === panel.sectionId) : undefined
   /** The tab that is selected: a section's editor belongs to Sections. */
   const tool: Tool = typeof panel === 'string' && panel !== 'header' ? panel : 'sections'
@@ -679,6 +682,8 @@ export function CvStudio({
               <DropdownMenuItem icon={<Layers />} disabled={dirty} onSelect={() => setDialog('create')}>Start from your profile</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem icon={<Download />} disabled={dirty || exporting === 'docx'} onSelect={() => void exportFile('docx')}>Export DOCX</DropdownMenuItem>
+              {docxNote ? <DropdownMenuLabel>{docxNote}</DropdownMenuLabel> : null}
+              <DropdownMenuItem icon={<Download />} disabled={dirty || exporting === 'txt'} onSelect={() => void exportFile('txt')}>Export plain text</DropdownMenuItem>
               <DropdownMenuItem icon={<Download />} disabled={exporting === 'data'} onSelect={() => void exportFile('data')}>Download my CV data</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem destructive icon={<Trash2 />} disabled={dirty} onSelect={() => { setConfirmKind('one'); setConfirmOpen(true) }}>Delete this CV</DropdownMenuItem>
