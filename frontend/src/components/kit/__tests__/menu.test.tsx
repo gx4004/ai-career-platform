@@ -247,6 +247,39 @@ describe('kit Tooltip', () => {
     expect(document.querySelector('.kit-tooltip kbd')?.textContent).toBe('⌘K')
   })
 
+  describe('openOnFocusVisibleOnly', () => {
+    function FocusDemo() {
+      return (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip content="Last saved 10:52" openOnFocusVisibleOnly>
+            <span tabIndex={0} data-testid="status">Saved</span>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    }
+    /** jsdom has no input-modality heuristic: say whether the browser would draw a focus ring for this focus. */
+    const focusWith = (el: HTMLElement, focusVisible: boolean) => {
+      const matches = el.matches.bind(el)
+      vi.spyOn(el, 'matches').mockImplementation((selector) => (selector === ':focus-visible' ? focusVisible : matches(selector)))
+      act(() => el.focus())
+    }
+
+    it('stays closed when focus arrives without a focus ring (a script moved it after a tap)', async () => {
+      render(<FocusDemo />)
+      const status = screen.getByTestId('status')
+      focusWith(status, false)
+      expect(document.activeElement).toBe(status)
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+    })
+
+    it('still opens on keyboard focus', async () => {
+      render(<FocusDemo />)
+      focusWith(screen.getByTestId('status'), true)
+      expect((await screen.findByRole('tooltip')).textContent).toBe('Last saved 10:52')
+    })
+  })
+
   it('works without a TooltipProvider', async () => {
     render(
       <Tooltip content="Alone">

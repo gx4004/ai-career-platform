@@ -4,7 +4,7 @@ import {
   DialogHeader, DialogTitle, Field, Notice, Stack, Textarea,
 } from '#/components/kit'
 import type { DevelopmentItem } from '#/lib/api/developmentSchemas'
-import { RESPONSE_KIND_LABELS, toDateInputValue } from '#/lib/development/plan'
+import { GAP_KIND_LABELS, RESPONSE_KIND_LABELS, toDateInputValue } from '#/lib/development/plan'
 
 export type DevelopmentEditSubmit = {
   target_date: string | null
@@ -57,15 +57,11 @@ export function EditDevelopmentItemDialog({
       <DialogContent dismissible={!submitting}>
         <DialogForm onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Edit development item</DialogTitle>
+            {/* Named as the row names it (what to build; older items only know their kind). */}
+            <DialogTitle>{current ? `Edit ${current.label?.trim() || GAP_KIND_LABELS[current.gap_kind]}` : 'Edit skill to build'}</DialogTitle>
             <DialogDescription>
-              {current ? (
-                <>
-                  Set an optional target date and notes for this{' '}
-                  <strong>{RESPONSE_KIND_LABELS[current.response_kind].toLowerCase()}</strong>{' '}
-                  item. Leave a field empty to clear it.
-                </>
-              ) : null}
+              {current ? `${RESPONSE_KIND_LABELS[current.response_kind]}. ` : null}
+              Set a target date and notes; leave a field empty to clear it.
             </DialogDescription>
           </DialogHeader>
 
@@ -87,7 +83,7 @@ export function EditDevelopmentItemDialog({
 
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="secondary" disabled={submitting}>Cancel</Button></DialogClose>
-            <Button type="submit" loading={submitting}>Save changes</Button>
+            <Button type="submit" loading={submitting}>Save skill</Button>
           </DialogFooter>
         </DialogForm>
       </DialogContent>

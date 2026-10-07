@@ -111,10 +111,60 @@ describe('HistoryPage', () => {
     expect(screen.getByText('Solid baseline')).toBeTruthy()
   })
 
-  it('says the tool once underneath a label that does not name it', () => {
+  // history-profile-F34: the tool's full name, as the filter Select on the same page says it ('Resume' alone was the
+  // registry's short label; 'Match' under a renamed Job Match run did not say which tool it was).
+  it('says the tool once, by its full name, underneath a label that does not name it', () => {
     state.items = [{ ...baseRun, label: 'Backend application' }]
     renderPage()
-    expect(within(screen.getByRole('list', { name: 'Saved runs' })).getByText('Resume')).toBeTruthy()
+    expect(within(screen.getByRole('list', { name: 'Saved runs' })).getByText('Resume Analyzer')).toBeTruthy()
+  })
+
+  it('names a renamed Job Match run\'s tool in full', () => {
+    state.items = [{ ...baseRun, tool_name: 'job-match', label: 'Harbor Freight resume check' }]
+    renderPage()
+    const list = screen.getByRole('list', { name: 'Saved runs' })
+    expect(within(list).getByText('Job Match')).toBeTruthy()
+    expect(within(list).queryByText('Match')).toBeNull()
+  })
+
+  // history-profile-F33: History has no sort, so its Filters sheet must not promise one.
+  it('describes the phone Filters sheet by what it can do', async () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    const sheet = await screen.findByRole('dialog')
+    expect(sheet.getAttribute('aria-describedby')).toBeTruthy()
+    expect(document.getElementById(sheet.getAttribute('aria-describedby') as string)?.textContent).toBe(
+      'Show runs from one tool, or only starred ones.',
+    )
+  })
+
+  // history-profile-F32: never the search field (a phone raises its keyboard over the list); the row that took its place.
+  it('after a delete moves focus to the run that took the deleted one\'s place, not into the search field', async () => {
+    const second = { ...baseRun, id: 'run-2', label: 'Second run' }
+    state.items = [baseRun, second]
+    state.total = 2
+    deleteHistoryItemMock.mockImplementation(async () => {
+      state.items = [second]
+      state.total = 1
+    })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete My resume run' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete run' }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Second run' })))
+  })
+
+  it('after deleting the last run on the page moves focus to the page title', async () => {
+    deleteHistoryItemMock.mockImplementation(async () => {
+      state.items = []
+      state.total = 0
+    })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete My resume run' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete run' }))
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'History' })))
   })
 
   it('does not repeat the tool when the label already names it', () => {
@@ -126,7 +176,9 @@ describe('HistoryPage', () => {
   it('marks a starred run next to its label', () => {
     state.items = [{ ...baseRun, is_favorite: true }]
     renderPage()
-    expect(screen.getByRole('button', { name: 'Remove from favorites' }).getAttribute('aria-pressed')).toBe('true')
+    // consistency-F28: the toggle keeps its name ("Star <run>"); aria-pressed says it is starred.
+    expect(screen.getByRole('button', { name: 'Star My resume run', pressed: true })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Remove star from / })).toBeNull()
     expect(screen.getByRole('link', { name: 'My resume run' }).closest('li')?.querySelector('.history-row__star')).toBeTruthy()
   })
 
@@ -142,7 +194,7 @@ describe('HistoryPage', () => {
     const row = screen.getByRole('link', { name: 'My resume run' }).closest('li') as HTMLElement
     const next = within(row).getByRole('button', { name: 'Continue: Match' })
     expect(next.closest('.kit-row__reveal')).toBeNull()
-    expect(within(row).getByRole('button', { name: 'Add to favorites' }).closest('.kit-row__reveal')).toBeTruthy()
+    expect(within(row).getByRole('button', { name: /^Star / }).closest('.kit-row__reveal')).toBeTruthy()
     expect(next.closest('.kit-row__actions')?.getAttribute('data-reveal')).toBeNull()
   })
 
@@ -172,9 +224,10 @@ describe('HistoryPage', () => {
     expect(onChange).toHaveBeenCalledWith({ tool: undefined, page: 1 })
   })
 
-  it('toggles Favorites as a pressed button beside the tool filter', () => {
+  // "Starred", the one word app-wide for kept results (consistency-F11; was "Favorites").
+  it('toggles Starred as a pressed button beside the tool filter', () => {
     const onChange = renderPage()
-    const favorites = screen.getByRole('button', { name: 'Favorites' })
+    const favorites = screen.getByRole('button', { name: 'Starred' })
     expect(favorites.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(favorites)
     expect(onChange).toHaveBeenCalledWith({ favorite: true, page: 1 })
@@ -203,7 +256,8 @@ describe('HistoryPage', () => {
     expect(screen.getByRole('searchbox', { name: /search saved runs/i })).toBeTruthy()
   })
 
-  it('shows a filtered empty state with a secondary Clear filters button and no Resume CTA', () => {
+  // Clear filters now sits in the header line beside "0 matches" (it used to be repeated as the empty state's button).
+  it('shows a filtered empty state with Clear filters beside the count and no Resume CTA', () => {
     state.items = []
     state.total = 0
     renderPage({ tool: 'career' })
@@ -220,6 +274,9 @@ describe('HistoryPage', () => {
     expect(screen.getByRole('link', { name: 'Start with Resume' })).toBeTruthy()
     // Nothing to search or filter yet.
     expect(screen.queryByRole('searchbox')).toBeNull()
+    // consistency-F19: no blank meta line under the title (the placeholder only holds the toolbar still), so the
+    // empty state starts where it does on every other empty page.
+    expect(document.querySelector('.kit-page-header__meta')).toBeNull()
   })
 
   it('leaves a page past the end for the last page that has runs, never showing the first-run copy', () => {
@@ -230,14 +287,29 @@ describe('HistoryPage', () => {
     expect(onChange).toHaveBeenCalledWith({ page: 2 }, { replace: true })
   })
 
-  it('shows a search-only empty state with its own Clear filters and no Filters badge', () => {
+  // Only words were typed, no filter is set: the empty state talks about the search, not about filters (it used to say
+  // "No runs match these filters" and offer "Clear filters").
+  it('shows a search-only empty state that names the search and offers Clear search, and no Filters badge', () => {
     state.items = []
     state.total = 0
-    const onChange = renderPage({ q: 'nothing' })
-    expect(screen.getByText('No runs match these filters')).toBeTruthy()
+    const onChange = renderPage({ q: 'zzzz' })
+    expect(screen.getByText('No runs match “zzzz”')).toBeTruthy()
+    expect(screen.getByText('Try another word, or clear the search.')).toBeTruthy()
+    expect(screen.queryByText('No runs match these filters')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Filters' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
     expect(onChange).toHaveBeenCalledWith({ tool: undefined, favorite: undefined, q: undefined, page: 1 })
+  })
+
+  it('puts Clear filters in the header line beside the count, so the toolbar row never grows a line for it', () => {
+    const onChange = renderPage({ tool: 'resume' })
+    const header = document.querySelector('.kit-page-header') as HTMLElement
+    expect(within(header).getByText('1 match')).toBeTruthy()
+    fireEvent.click(within(header).getByRole('button', { name: 'Clear filters' }))
+    expect(onChange).toHaveBeenCalledWith({ tool: undefined, favorite: undefined, q: undefined, page: 1 })
+    // On a fine-pointer desktop the toolbar has no second Clear filters link of its own.
+    expect(document.querySelector('.kit-toolbar .kit-toolbar__clear')).toBeNull()
   })
 
   it('says why a delete failed inside the dialog, and keeps it open', async () => {
@@ -245,6 +317,8 @@ describe('HistoryPage', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Delete My resume run' }))
     const dialog = screen.getByRole('alertdialog')
+    // The run name sits in typographic quotes, like the rest of the UI.
+    expect(dialog.textContent).toContain('“My resume run” will be permanently removed')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete run' }))
     expect((await within(dialog).findByRole('alert')).textContent).toContain('The run could not be deleted.')
     expect(screen.getByRole('alertdialog')).toBeTruthy()
@@ -258,7 +332,9 @@ describe('HistoryPage', () => {
     state.isError = true
     state.items = []
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    // Same words as the profile's error: the kit's "Try again" and a typographic apostrophe (was "Retry").
+    expect(screen.getByText('We couldn’t load your history')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(refetchMock).toHaveBeenCalled()
   })
 
@@ -345,6 +421,18 @@ describe('HistoryPage', () => {
       expect(onChange).toHaveBeenCalledWith({ tool: undefined, page: 1 })
     } finally {
       vi.unstubAllGlobals()
+    }
+  })
+
+  it('offers the select, not the six-option control, when the toolbar is too narrow for it (a tablet)', () => {
+    // A 656px toolbar (768px tablet beside the rail): the segmented control would wrap onto rows of its own.
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 656 } as DOMRect)
+    try {
+      renderPage()
+      expect(screen.queryByRole('radiogroup', { name: 'Filter by tool' })).toBeNull()
+      expect(screen.getByRole('combobox', { name: 'Filter by tool' })).toBeTruthy()
+    } finally {
+      rect.mockRestore()
     }
   })
 })

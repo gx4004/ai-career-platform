@@ -128,12 +128,15 @@
   /* ── Type: scale (size / line-height; weights below) ──────────────── */
   --fs-display: 2.75rem; /* 44, page title (display face) */
   --lh-display: 2.75rem; /* 1.0; a length, skeletons use it as a block size */
-  --fs-title: 1.25rem; /* 20, card / dialog title */
+  --fs-title: 1.25rem; /* 20, card / dialog title, and every sub-section or card heading */
   --lh-title: 1.5rem;
+  --fs-title-sm: 1.125rem; /* 18, a card title on the narrowest phones (< 360px) only */
   --fs-section: 1.5rem; /* 24, section heading (display face) */
   --lh-section: 1.75rem;
   --fs-body: 0.9375rem; /* 15 */
   --lh-body: 1.40625rem; /* 1.5 */
+  --fs-body-l: 1.1875rem; /* 19, body large: the landing sub-lines, the auth pages' lead */
+  --lh-body-l: 1.721875rem; /* 1.45 */
   --fs-meta: 0.8125rem; /* 13 */
   --lh-meta: 1.25rem;
   --fs-micro: 0.75rem; /* 12: no text is smaller than this anywhere */
@@ -186,6 +189,8 @@
   --mobile-tab-height: 70px; /* floating tab tray: 56px item + 2 x 5px padding + 2 x 2px border */
   --mobile-tab-offset: 10px; /* tray floats this far above the bottom edge */
   --phone-header-h: calc(var(--touch-target) + 2 * var(--s3) + var(--bw)); /* sticky phone app bar: 44px control + 12px padding each side + 2px rule; what scroll targets clear */
+  --jump-nav-link-h: 40px; /* kit JumpNav link; the touch target on a coarse pointer (below) */
+  --jump-nav-h: calc(var(--jump-nav-link-h) + 2 * var(--s2) + var(--bw)); /* the sticky JumpNav strip: link + 8px padding each side + 2px rule; what its anchors clear */
 
   /* ── Layout ───────────────────────────────────────────────────────── */
   --sidebar-w: 264px;
@@ -205,7 +210,9 @@
   --z-sticky: 10; /* sticky headers and table heads */
   --z-nav: 40; /* mobile tab bar */
   --z-banner: 50; /* non-modal notices pinned to the viewport (cookie notice) */
+  --z-notice: 55; /* a moment's notice over the cookie card, under every overlay (the CV export "ready" card) */
   --z-overlay: 60; /* scrim, dialogs, sheets */
+  --z-yield: 65; /* the toast stack while a menu or popover is open: still over dialogs, under the open menu */
   --z-popover: 70; /* menus and popovers: they open from inside dialogs too */
   --z-toast: 80;
   --z-tooltip: 90;
@@ -257,6 +264,12 @@
     --lh-display: 2.375rem;
     --fs-section: 1.375rem; /* 22 */
     --lh-section: 1.625rem;
+  }
+}
+
+@media (pointer: coarse) {
+  :root {
+    --jump-nav-link-h: var(--touch-target);
   }
 }
 

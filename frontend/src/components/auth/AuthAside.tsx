@@ -13,7 +13,7 @@ export function AuthAside() {
       </Sticker>
       <Sticker tone="lemon" tilt={-1.6}>
         <p className="auth-aside__title">Keep your work</p>
-        <p>Runs, favorites and CV drafts stay with your account, across every tool.</p>
+        <p>Runs, starred results and CV drafts stay with your account, across every tool.</p>
       </Sticker>
       <Sticker tone="mint" tilt={1.2}>
         <p className="auth-aside__title">Try first</p>

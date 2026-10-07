@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearSessionHint, hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
+import { SESSION_HINT_SCRIPT, clearSessionHint, hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
 
 describe('session hint', () => {
   beforeEach(() => {
@@ -46,5 +46,21 @@ describe('session hint', () => {
     expect(() => markSessionHint()).not.toThrow()
     expect(hasSessionHint()).toBe(false)
     expect(() => clearSessionHint()).not.toThrow()
+  })
+
+  // Sign-off chrome-F33: the <head> script marks <html> by the same rule, so CSS can pick the first paint.
+  it('has a <head> script that marks <html> by the same rule as hasSessionHint', () => {
+    const run = () => {
+      document.documentElement.removeAttribute('data-session-hint')
+      new Function(SESSION_HINT_SCRIPT)()
+      return document.documentElement.hasAttribute('data-session-hint')
+    }
+    expect(run()).toBe(false)
+    markSessionHint()
+    expect(run()).toBe(true)
+    vi.setSystemTime(new Date('2026-10-13T10:00:01Z'))
+    expect(hasSessionHint()).toBe(false)
+    expect(run()).toBe(false)
+    document.documentElement.removeAttribute('data-session-hint')
   })
 })

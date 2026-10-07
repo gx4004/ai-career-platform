@@ -61,11 +61,38 @@ function writeAttempts(runId: string | undefined, attempts: AttemptsByQuestion) 
   }
 }
 
-function FeedbackList({ title, items }: { title: string; items: string[] }) {
+/**
+ * Where each question's current round starts: the number of its attempts made before "Practice the weakest again".
+ * A new round gives three more attempts and keeps the earlier ones (with their feedback) on the page and in the summary.
+ */
+type RoundStarts = Record<number, number>
+const roundsKey = (runId: string | undefined) => `cw:practice-rounds:${runId ?? 'adhoc'}`
+
+function readRounds(runId: string | undefined): RoundStarts {
+  try {
+    const stored = sessionStorage.getItem(roundsKey(runId))
+    const parsed = stored ? (JSON.parse(stored) as unknown) : null
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as RoundStarts) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeRounds(runId: string | undefined, rounds: RoundStarts) {
+  try {
+    sessionStorage.setItem(roundsKey(runId), JSON.stringify(rounds))
+  } catch {
+    // storage blocked: the round stays in memory for this visit
+  }
+}
+
+function FeedbackList({ title, items, last = false }: { title: string; items: string[]; last?: boolean }) {
   if (items.length === 0) return null
   return (
-    <Section headingLevel={4} size="sm" title={title} rule={false}>
-      <ResultList label={title} items={items.map((item, i) => ({ key: `${i}-${item}`, title: item }))} />
+    <Section headingLevel={4} size="xs" title={title} rule={false}>
+      {/* Each item is a full sentence of feedback: regular weight, as the report's other sentence lists (F41). */}
+      {/* A rule closes each group; the last one is closed by the attempt panel's own edge (no double rule). */}
+      <ResultList framed={false} flush boxed={last ? undefined : 'end'} label={title} items={items.map((item, i) => ({ key: `${i}-${item}`, title: item, titleWeight: 'regular' as const }))} />
     </Section>
   )
 }
@@ -74,9 +101,9 @@ function FeedbackBody({ feedback }: { feedback: InterviewPracticeFeedback }) {
   return (
     <Stack gap={4}>
       <Prose>{feedback.overall_feedback}</Prose>
-      <FeedbackList title="Strengths" items={feedback.strengths} />
-      <FeedbackList title="Areas to improve" items={feedback.weaknesses} />
-      <FeedbackList title="Suggestions" items={feedback.suggestions} />
+      <FeedbackList title="Strengths" items={feedback.strengths} last={!feedback.weaknesses.length && !feedback.suggestions.length} />
+      <FeedbackList title="Areas to improve" items={feedback.weaknesses} last={!feedback.suggestions.length} />
+      <FeedbackList title="Suggestions" items={feedback.suggestions} last />
     </Stack>
   )
 }
@@ -84,6 +111,27 @@ function FeedbackBody({ feedback }: { feedback: InterviewPracticeFeedback }) {
 /** Did the last attempt leave fewer things to improve than the first? The feedback's own list decides. */
 function improved(attempts: Attempt[]) {
   return attempts.length >= 2 && attempts[attempts.length - 1].feedback.weaknesses.length < attempts[0].feedback.weaknesses.length
+}
+
+const suggestionCount = (n: number) => `${n} ${n === 1 ? 'suggestion' : 'suggestions'}`
+
+/**
+ * "2 to improve"; "No weak spots · 1 suggestion" when only suggestions are left (it said "Nothing to improve"
+ * above a Suggestions list); "Nothing to improve" only when the feedback found nothing at all (never "0 to improve").
+ */
+function toImprove(feedback: InterviewPracticeFeedback) {
+  const weak = feedback.weaknesses.length
+  const tips = feedback.suggestions.length
+  if (weak > 0) return `${weak} to improve`
+  return tips > 0 ? `No weak spots · ${suggestionCount(tips)}` : 'Nothing to improve'
+}
+
+function lastLeft(list: Attempt[]) {
+  const { weaknesses, suggestions } = list[list.length - 1].feedback
+  if (weaknesses.length > 0) return `${weaknesses.length} to improve in the last one.`
+  return suggestions.length > 0
+    ? `no weak spots in the last one, ${suggestionCount(suggestions.length)}.`
+    : 'nothing left to improve.'
 }
 
 export function InterviewPracticeMode({
@@ -102,36 +150,30 @@ export function InterviewPracticeMode({
   const [loading, setLoading] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [attempts, setAttempts] = useState<AttemptsByQuestion>(() => readAttempts(runId))
+  const [rounds, setRounds] = useState<RoundStarts>(() => readRounds(runId))
 
   const rootRef = useRef<HTMLDivElement | null>(null)
   const questionRef = useRef<HTMLParagraphElement | null>(null)
   const summaryBackRef = useRef<HTMLButtonElement | null>(null)
-  const summaryTouched = useRef(false)
 
-  // Switching from the report to practice replaces the button that was just pressed: start at the question.
-  // Scroll the practice block to the top first, so the answer box is on screen too (a plain focus scrolls only
-  // as far as the question).
+  // Every view change (entering practice, Next/Previous, opening or closing the summary) replaces the control that
+  // was just pressed, and usually shortens the page: scroll the practice block to its top (so the question and the
+  // answer box are on screen together) and then move focus into the new view without a second scroll.
+  const view = summaryOpen ? 'summary' : currentIndex
   useEffect(() => {
     const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     rootRef.current?.scrollIntoView?.({ block: 'start', behavior: reduced ? 'auto' : 'smooth' })
-    questionRef.current?.focus({ preventScroll: true })
-  }, [])
-
-  // The summary replaces the button that opened it (and the question replaces the summary): keep focus on the new view.
-  useEffect(() => {
-    if (!summaryTouched.current) {
-      summaryTouched.current = true
-      return
-    }
-    if (summaryOpen) summaryBackRef.current?.focus()
-    else questionRef.current?.focus()
-  }, [summaryOpen])
+    const target = view === 'summary' ? summaryBackRef.current : questionRef.current
+    target?.focus({ preventScroll: true })
+  }, [view])
 
   const current = questions[currentIndex]
   if (!current) return null
   const questionText = current.question || `Question ${currentIndex + 1}`
   const done = attempts[currentIndex] ?? []
-  const attemptCount = done.length
+  // Attempts before this round stay listed (as "Earlier round"); only this round's count against the three.
+  const roundStart = Math.min(rounds[currentIndex] ?? 0, done.length)
+  const attemptCount = done.length - roundStart
   const maxedOut = attemptCount >= MAX_ATTEMPTS
   const practiced = questions.filter((_, i) => (attempts[i]?.length ?? 0) > 0).length
 
@@ -196,15 +238,16 @@ export function InterviewPracticeMode({
       .map((_, index) => ({ index, last: attempts[index]?.[attempts[index].length - 1] }))
       .filter((entry): entry is { index: number; last: Attempt } => Boolean(entry.last))
       .sort((a, b) => b.last.feedback.weaknesses.length - a.last.feedback.weaknesses.length || a.index - b.index)[0]
+    // A new round of three attempts for the weakest question; its earlier answers and feedback stay.
     const practiceAgain = () => {
       if (!weakest) return
-      const next = { ...attempts }
-      delete next[weakest.index]
-      record(next)
+      const next = { ...rounds, [weakest.index]: attempts[weakest.index]?.length ?? 0 }
+      setRounds(next)
+      writeRounds(runId, next)
       goTo(weakest.index)
     }
     return (
-      <Stack gap={6}>
+      <Stack gap={6} ref={rootRef} className="result-practice">
         <Cluster justify="between">
           <Button ref={summaryBackRef} type="button" variant="link" className="tool-link" onClick={() => setSummaryOpen(false)}>
             <ArrowLeft aria-hidden="true" />
@@ -221,13 +264,12 @@ export function InterviewPracticeMode({
                 <Row key={`${index}-${q.question}`}>
                   <RowBody>
                     <RowTitle>{q.question || `Question ${index + 1}`}</RowTitle>
-                    <RowSubtitle>
-                      {list.length === 0
-                        ? 'Not practiced yet.'
-                        : `${list.length} ${list.length === 1 ? 'attempt' : 'attempts'}; ${list[list.length - 1].feedback.weaknesses.length} to improve in the last one.`}
-                    </RowSubtitle>
+                    {list.length > 0 ? (
+                      <RowSubtitle>{`${list.length} ${list.length === 1 ? 'attempt' : 'attempts'}; ${lastLeft(list)}`}</RowSubtitle>
+                    ) : null}
                   </RowBody>
-                  <RowMeta>
+                  {/* The status is the row's one "Not practiced yet"; on a phone it drops under the text so the question keeps the full width. */}
+                  <RowMeta placement="below">
                     {list.length === 0 ? (
                       <Badge tone="stone">Not practiced yet</Badge>
                     ) : improved(list) ? (
@@ -288,7 +330,7 @@ export function InterviewPracticeMode({
         <Stack gap={3}>
           <Field label="Your answer">
             <Textarea
-              placeholder="Type your answer here..."
+              placeholder="Type your answer here…"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               rows={6}
@@ -298,7 +340,7 @@ export function InterviewPracticeMode({
           <Cluster>
             <Button type="button" onClick={handleSubmit} loading={loading} disabled={!answer.trim()}>
               <Send aria-hidden="true" />
-              {loading ? 'Evaluating...' : 'Submit answer'}
+              {loading ? 'Evaluating…' : 'Submit answer'}
             </Button>
           </Cluster>
           {error && !loading ? <Notice tone="danger">{error}</Notice> : null}
@@ -318,8 +360,8 @@ export function InterviewPracticeMode({
                     <Disclosure
                       variant="section"
                       defaultOpen={n === done.length}
-                      title={`Attempt ${n}`}
-                      meta={`${attempt.feedback.weaknesses.length} to improve`}
+                      title={n <= roundStart ? `Earlier round · attempt ${n}` : `Attempt ${n - roundStart}`}
+                      meta={toImprove(attempt.feedback)}
                     >
                       <Stack gap={4}>
                         <Prose>

@@ -5,8 +5,8 @@ import type { Tone } from './tone'
 export type NumberDiscProps = Omit<ComponentPropsWithoutRef<'span'>, 'children'> & {
   /** The number, or any short node (a Check icon for a finished step). */
   n: ReactNode
-  /** sm 28 | md 34 | lg 44 (the steps). Default md. */
-  size?: 'sm' | 'md' | 'lg'
+  /** xs 20 (a button's icon slot: the mint check of "Copied") | sm 28 | md 34 | lg 44 (the steps). Default md. */
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   /** Default white. Mint marks a finished step, lemon the current one. */
   tone?: Tone
   /** The step in progress: a dotted outer ring (data-current). Pair it with a lemon tone. */

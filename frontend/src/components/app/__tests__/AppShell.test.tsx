@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from '#/components/app/AppShell'
+import { useToast } from '#/components/kit'
 
 const mockPathname = vi.hoisted(() => ({ current: '/' }))
 const mockBreakpoint = vi.hoisted(() => ({ current: 'desktop' as string | null }))
@@ -244,6 +245,31 @@ describe('AppShell', () => {
     expect(screen.getByTestId('mobile-nav')).toBeTruthy()
   })
 
+  // Sign-off r4 chrome-F02: on a 320px phone two stacked toasts covered about 60% of the screen above the tray.
+  it('shows one toast at a time on phones and stacks up to three on wider screens', () => {
+    mockPathname.current = '/dashboard'
+    let api: ReturnType<typeof useToast> | null = null
+    function Grab() {
+      api = useToast()
+      return null
+    }
+    const openToasts = () => document.querySelectorAll('.kit-toast[data-state="open"]').length
+
+    for (const [breakpoint, expected] of [['mobile', 1], ['tablet', 3]] as const) {
+      mockBreakpoint.current = breakpoint
+      const { unmount } = render(
+        <AppShell>
+          <Grab />
+        </AppShell>,
+      )
+      act(() => {
+        for (const title of ['One', 'Two', 'Three']) api?.toast({ title })
+      })
+      expect(openToasts()).toBe(expected)
+      unmount()
+    }
+  })
+
   it('renders every layout part while the width is unknown (server render, hydration), for CSS to pick', () => {
     mockPathname.current = '/dashboard'
     mockBreakpoint.current = null
@@ -299,6 +325,25 @@ describe('AppShell', () => {
     expect(skip.getAttribute('href')).toBe('#main-content')
     skip.click()
     expect(document.activeElement?.id).toBe('main-content')
+  })
+
+  // public-F06: the public pages (landing, sign-in, legal) put a nav and contents before the body too.
+  it('offers the skip link first on a shell-less public page, focusing its main', () => {
+    mockPathname.current = '/'
+
+    const { container } = render(
+      <AppShell>
+        <nav>
+          <a href="#a">Overview</a>
+        </nav>
+        <main>page</main>
+      </AppShell>,
+    )
+
+    const skip = screen.getByRole('link', { name: 'Skip to main content' })
+    expect(container.querySelector('a')).toBe(skip)
+    skip.click()
+    expect(document.activeElement).toBe(screen.getByRole('main'))
   })
 
   it('focuses a page main that has no id or tabindex of its own', () => {

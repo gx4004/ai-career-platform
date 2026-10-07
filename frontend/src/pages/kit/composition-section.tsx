@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Search, SlidersHorizontal, Star } from 'lucide-react'
-import { Badge, Button, Checkbox, Count, Field, Input, Segmented, Select, Switch, Textarea } from '#/components/kit'
+import { Badge, Button, Checkbox, Count, Field, Input, Segmented, Select, Switch, Textarea, Toolbar } from '#/components/kit'
 import { GallerySection, Group, Row } from './gallery-parts'
 
 const TOOLS = [
@@ -48,28 +48,37 @@ function DiscoveryToolbar() {
   )
 }
 
+/** The real kit Toolbar, as /history uses it (the search grows; the filters wrap, or move into a sheet on phones). */
 function HistoryToolbar() {
   const [tool, setTool] = useState<string | null>('resume')
   const [favorites, setFavorites] = useState(false)
+  const active = (tool ? 1 : 0) + (favorites ? 1 : 0)
   return (
-    <div className="kit-gallery__toolbar">
-      <Input
-        type="search"
-        aria-label="Search by saved label"
-        placeholder="Search by saved label"
-        leading={<Search aria-hidden="true" />}
-        clearable
-        className="kit-gallery__narrow"
-      />
-      <Segmented aria-label="Filter by tool" deselectable options={TOOLS} value={tool} onValueChange={setTool} />
-      <Button variant="secondary" aria-pressed={favorites} onClick={() => setFavorites((value) => !value)}>
-        <Star aria-hidden="true" fill={favorites ? 'currentColor' : 'none'} />
-        Favorites
-      </Button>
-      <Button variant="link" size="sm" onClick={() => setTool(null)}>
-        Clear filters
-      </Button>
-    </div>
+    <Toolbar
+      search={
+        <Input
+          type="search"
+          aria-label="Search by saved label"
+          placeholder="Search by saved label"
+          leading={<Search aria-hidden="true" />}
+          clearable
+        />
+      }
+      filters={
+        <>
+          <Segmented aria-label="Filter by tool" deselectable options={TOOLS} value={tool} onValueChange={setTool} />
+          <Button variant="secondary" aria-pressed={favorites} onClick={() => setFavorites((value) => !value)}>
+            <Star aria-hidden="true" fill={favorites ? 'currentColor' : 'none'} />
+            Favorites
+          </Button>
+        </>
+      }
+      activeFilters={active}
+      onClearFilters={() => {
+        setTool(null)
+        setFavorites(false)
+      }}
+    />
   )
 }
 

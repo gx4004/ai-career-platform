@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RunList } from '#/components/dashboard/RunList'
 import { formatRunDate } from '#/components/dashboard/RunRow'
+import { formatRunDay } from '#/lib/tools/runLabel'
 
 const items = vi.hoisted(() => ({ current: [] as unknown[] }))
 
@@ -75,7 +76,9 @@ describe('RunList', () => {
     items.current = [{ ...base, id: 'r1', tool_name: 'resume' }]
     renderList()
     expect(screen.getByText('Resume')).toBeTruthy()
-    expect(screen.getByText(formatRunDate(base.created_at))).toBeTruthy()
+    // A run from today reads "Today", as History's day heading does, not the bare date.
+    expect(screen.getByText(formatRunDay(base.created_at))).toBeTruthy()
+    expect(formatRunDay(base.created_at)).toBe('Today')
   })
 
   it('draws the score as a pill in the tool colour and keeps the name as the link', () => {

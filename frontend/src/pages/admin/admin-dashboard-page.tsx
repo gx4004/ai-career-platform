@@ -13,6 +13,7 @@ import {
   PanelBody,
   Row,
   RowBody,
+  RowLeading,
   RowMeta,
   RowTitle,
   ScoreSeal,
@@ -26,7 +27,7 @@ import type { AdminStats, AdminHealth } from '#/lib/api/admin'
 import { RunSparkline, dayLabel } from './run-sparkline'
 import { RUN_DAYS, toDayCounts } from './runs-by-day'
 import type { DayCount } from './runs-by-day'
-import { toolLabel, toolVisual } from './toolLabel'
+import { ADMIN_TOOL_IDS, toolLabel, toolVisual } from './toolLabel'
 
 /** The bar of a tool: proportional to the busiest one, never a sliver for a tool that has runs. */
 function barWidth(count: number, max: number) {
@@ -56,16 +57,15 @@ export function AdminDashboardPage() {
     <Page>
       <PageHeader title="Dashboard" />
 
-      {stats.isError ? (
-        <Retry what="stats" onRetry={() => void stats.refetch()} />
-      ) : (
+      {/* When the stats fail, the one Retry sits under "Runs, last 14 days" below, so the left column never stands empty. */}
+      {stats.isError ? null : (
         <div className="admin-stats">
           {stats.data ? (
             <>
               <StatPanel label="Total users" value={stats.data.total_users} />
               <StatPanel label="Total runs" value={stats.data.total_runs} />
               <StatPanel label="Runs today" value={stats.data.runs_today} />
-              <StatPanel label="Active users (7d)" value={stats.data.active_users_7d} />
+              <StatPanel label="Active, 7 days" value={stats.data.active_users_7d} />
             </>
           ) : (
             Array.from({ length: 4 }, (_, index) => (
@@ -81,48 +81,66 @@ export function AdminDashboardPage() {
 
       <div className="admin-columns">
         <div className="admin-column">
-          {stats.isError ? null : (
-            <Section title={`Runs, last ${RUN_DAYS} days`}>
+          <Section title={`Runs, last ${RUN_DAYS} days`}>
+            {stats.isError ? (
+              <Retry what="stats" onRetry={() => void stats.refetch()} />
+            ) : (
               <ActivityPanel days={stats.data ? toDayCounts(stats.data.runs_by_day) : undefined} />
-            </Section>
-          )}
+            )}
+          </Section>
 
-          {stats.isError ? null : (
-            <Section title="Runs by tool">
-              {stats.isLoading ? (
-                <Panel flush>
-                  <Skeleton variant="row" density="compact" leading count={6} label="Loading runs by tool" />
-                </Panel>
-              ) : stats.data && byTool.length === 0 ? (
-                <EmptyState icon={<History />} title="No runs yet" />
-              ) : stats.data ? (
-                <Panel flush>
-                  <List framed={false} className="admin-tools" aria-label="Runs by tool">
-                    {byTool.map((entry) => {
-                      const visual = toolVisual(entry.tool)
-                      return (
-                        <Row key={entry.tool} density="compact">
+          <Section title="Runs by tool">
+            {stats.isError ? (
+              <EmptyState size="inline" title="Shown once the stats load." />
+            ) : stats.isLoading ? (
+              <Panel flush>
+                {/* A row for every kind of run the server records (the six tools and the application kinds), and on a
+                    phone a second line for the bar that drops under the name, so System health below does not jump
+                    when the counts arrive (AAG-F06). */}
+                <List framed={false} className="admin-tools" aria-busy="true" aria-label="Loading runs by tool">
+                  <Skeleton
+                    variant="row"
+                    as="li"
+                    density="compact"
+                    leading
+                    count={ADMIN_TOOL_IDS.length}
+                    lines={0}
+                    narrowLines={1}
+                  />
+                </List>
+              </Panel>
+            ) : stats.data && byTool.length === 0 ? (
+              <EmptyState icon={<History />} title="No runs yet" />
+            ) : stats.data ? (
+              <Panel flush>
+                <List framed={false} className="admin-tools" aria-label="Runs by tool">
+                  {byTool.map((entry) => {
+                    const visual = toolVisual(entry.tool)
+                    return (
+                      <Row key={entry.tool} density="compact">
+                        <RowLeading>
                           <ToolTile size="sm" tone={visual.tone} icon={visual.icon} />
-                          <RowBody>
-                            <RowTitle>{entry.label}</RowTitle>
-                          </RowBody>
-                          <RowMeta className="admin-bar-col">
-                            <span
-                              className="kit-tone admin-bar"
-                              data-tone={visual.tone}
-                              aria-hidden="true"
-                              style={{ inlineSize: `${barWidth(entry.count, maxToolRuns)}%` }}
-                            />
-                            <span className="admin-count">{entry.count}</span>
-                          </RowMeta>
-                        </Row>
-                      )
-                    })}
-                  </List>
-                </Panel>
-              ) : null}
-            </Section>
-          )}
+                        </RowLeading>
+                        <RowBody>
+                          <RowTitle>{entry.label}</RowTitle>
+                        </RowBody>
+                        {/* On a phone the bar and count drop under the name, so every name keeps one line. */}
+                        <RowMeta placement="below" className="admin-bar-col">
+                          <span
+                            className="kit-tone admin-bar"
+                            data-tone={visual.tone}
+                            aria-hidden="true"
+                            style={{ inlineSize: `${barWidth(entry.count, maxToolRuns)}%` }}
+                          />
+                          <span className="admin-count">{entry.count}</span>
+                        </RowMeta>
+                      </Row>
+                    )
+                  })}
+                </List>
+              </Panel>
+            ) : null}
+          </Section>
         </div>
 
         <Section title="System health">
@@ -155,9 +173,25 @@ function StatPanel({ label, value }: { label: string; value: number }) {
 function ActivityPanel({ days }: { days: DayCount[] | undefined }) {
   if (!days) {
     return (
+      // The loaded panel's own parts (plot at the sparkline's aspect ratio, axis line, two facts), so nothing below
+      // jumps when the counts arrive, at any width.
       <Panel aria-hidden>
-        <PanelBody className="admin-activity admin-activity--loading">
-          <Skeleton lines={3} />
+        <PanelBody className="admin-activity">
+          <div className="admin-activity__chart">
+            <div className="admin-activity__plot">
+              <Skeleton variant="block" width="100%" height="100%" />
+            </div>
+            <Skeleton size="meta" width="100%" />
+          </div>
+          <div className="admin-activity__facts">
+            {[0, 1].map((index) => (
+              <div key={index}>
+                {/* About as wide as "Runs in 14 days": two of them still share a line at 320px, as the loaded facts do. */}
+                <Skeleton size="meta" width="6rem" />
+                <Skeleton size="title" width="4rem" />
+              </div>
+            ))}
+          </div>
         </PanelBody>
       </Panel>
     )

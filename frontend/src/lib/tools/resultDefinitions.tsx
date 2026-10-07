@@ -27,8 +27,9 @@ import {
   Sticker,
   Table,
   Textarea,
+  fitLevel,
 } from '#/components/kit'
-import type { TableColumn, Tone } from '#/components/kit'
+import type { BadgeTone, TableColumn, Tone } from '#/components/kit'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import {
   CheckDisc,
@@ -43,6 +44,7 @@ import {
   useLetterAutosave,
   useReportPracticing,
   useResultReveal,
+  useResultSignerName,
   verdictTone,
 } from '#/components/tooling/ResultParts'
 import type { LetterSaveState } from '#/components/tooling/ResultParts'
@@ -64,7 +66,8 @@ type ResumeResultPayload = {
     action: string
     priority: 'high' | 'medium' | 'low'
   }>
-  overallScore: number
+  /** null when the run has no score (a missing score is not a zero). */
+  overallScore: number | null
   scoreBreakdown: Array<{
     key: 'keywords' | 'impact' | 'structure' | 'clarity' | 'completeness'
     label: string
@@ -105,7 +108,8 @@ type JobMatchResultPayload = {
     action: string
     priority: 'high' | 'medium' | 'low'
   }>
-  matchScore: number
+  /** null when the run has no score. */
+  matchScore: number | null
   verdict: 'strong' | 'borderline' | 'stretch'
   requirements: Array<{
     requirement: string
@@ -298,6 +302,22 @@ function toNumber(value: unknown): number {
   return 0
 }
 
+/** A score the payload may leave out: null stays null, so the page can say "not available" instead of 0. */
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+/** "77/100", or "not available" for a run without a score. */
+function scoreText(score: number | null) {
+  return score === null ? 'not available' : `${score}/100`
+}
+
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value
@@ -331,7 +351,7 @@ function normalizeResumePayload(payload: AnyObject): ResumeResultPayload {
       action: toString(item.action) || 'Revise the resume to make this evidence clearer.',
       priority: (toString(item.priority) || 'medium') as 'high' | 'medium' | 'low',
     })),
-    overallScore: toNumber(payload.overall_score),
+    overallScore: toNumberOrNull(payload.overall_score),
     scoreBreakdown: toObjectArray(payload.score_breakdown).map((item) => ({
       key: (toString(item.key) || 'clarity') as ResumeResultPayload['scoreBreakdown'][number]['key'],
       label: toString(item.label) || 'Score',
@@ -384,7 +404,7 @@ function normalizeJobMatchPayload(payload: AnyObject): JobMatchResultPayload {
       action: toString(item.action) || 'Tailor the resume to the highest-priority requirement.',
       priority: (toString(item.priority) || 'medium') as 'high' | 'medium' | 'low',
     })),
-    matchScore: toNumber(payload.match_score),
+    matchScore: toNumberOrNull(payload.match_score),
     verdict: (toString(payload.verdict) || 'borderline') as JobMatchResultPayload['verdict'],
     requirements: toObjectArray(payload.requirements).map((item) => ({
       requirement: toString(item.requirement) || 'Role requirement',
@@ -458,6 +478,16 @@ function composeCoverLetterText(parts: {
     .map((item) => item.trim())
     .filter(Boolean)
     .join('\n\n')
+}
+
+/**
+ * The letter's sign-off: the one the letter came with, else "Sincerely," and the signed-in person's name, else the
+ * "[Your name]" placeholder (a guest, or an account without a name). The page, Copy and Export all use this one value.
+ */
+export function letterSignOff(signOff: string, signerName: string | null | undefined) {
+  if (signOff.trim()) return signOff
+  const name = signerName?.trim()
+  return `Sincerely,\n${name || '[Your name]'}`
 }
 
 /** "Target role: <role>", or just "Target role" when the backend sent only a placeholder. */
@@ -641,7 +671,8 @@ export function FixFirstList({ actions }: { actions: TopAction[] }) {
                   <RowTitle>{a.title}</RowTitle>
                   <RowSubtitle>{a.action}</RowSubtitle>
                 </RowBody>
-                <RowMeta>
+                {/* On a phone the badge drops under the text, so the title and detail keep the full width. */}
+                <RowMeta placement="below">
                   <SeverityBadge level={a.priority} />
                 </RowMeta>
               </Row>
@@ -653,10 +684,40 @@ export function FixFirstList({ actions }: { actions: TopAction[] }) {
   )
 }
 
+/**
+ * A list of skills: short names wrap as a cluster of quiet badges (one per line left a tall, mostly empty panel);
+ * sentence-length items keep a line each.
+ */
+function SkillLines({ items, label }: { items: string[]; label: string }) {
+  const short = items.every((item) => item.length <= 40 && item.trim().split(/\s+/).length <= 5)
+  if (!short) return <Lines items={items} />
+  return (
+    <ul className="result-chips result-chips--flush" role="list" aria-label={label}>
+      {items.map((item, i) => (
+        <li key={`${i}-${item}`}>
+          <Badge tone="info" size="sm">
+            {item}
+          </Badge>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * The role fit in words, on the app's fit bands (FitStamp: 80 and up strong, 65 to 79 in between): a 74 used to
+ * read "High match" right above a rationale saying it is not yet a strong match.
+ */
+export function roleFitLevel(score: number): { label: string; tone: BadgeTone } {
+  const { level } = fitLevel(score)
+  if (level === 'good') return { label: 'Strong match', tone: 'success' }
+  if (level === 'fair') return { label: 'Good match', tone: 'warning' }
+  return { label: 'Stretch', tone: 'danger' }
+}
+
 function RoleFitLevel({ score }: { score: number }) {
-  if (score >= 70) return <Badge tone="success">High match</Badge>
-  if (score >= 40) return <Badge tone="warning">Moderate</Badge>
-  return <Badge tone="danger">Low match</Badge>
+  const { label, tone } = roleFitLevel(score)
+  return <Badge tone={tone}>{label}</Badge>
 }
 
 /** "Why it matters / Fix" pairs under a row's title. */
@@ -752,7 +813,14 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
         <ReportSection title="Major strengths" count={Math.min(result.strengths.length, 4)} countTone="mint">
           <ResultList
             label="Major strengths"
-            items={result.strengths.slice(0, 4).map((s) => ({ key: s, title: s, leading: <CheckDisc />, titleSize: 'lg' as const }))}
+            items={result.strengths.slice(0, 4).map((s) => ({
+              key: s,
+              title: s,
+              leading: <CheckDisc />,
+              titleSize: 'lg' as const,
+              // A statement, not a name: 17/600 as in the mockup's strengths list.
+              titleWeight: 'semibold' as const,
+            }))}
           />
         </ReportSection>
       )}
@@ -874,7 +942,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
   return (
     <>
       {requirementRows.length > 0 && (
-        <ReportSection title="Detailed requirements">
+        <ReportSection title="Detailed requirements" count={requirementRows.length}>
           <Table
             caption="Requirements"
             columns={REQUIREMENT_COLUMNS}
@@ -885,7 +953,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
       )}
 
       {tailoringActions.length > 0 && (
-        <ReportSection title="Tailoring actions">
+        <ReportSection title="Tailoring actions" count={tailoringActions.length}>
           <ResultList
             numbered
             label="Tailoring actions"
@@ -953,7 +1021,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
       )}
 
       {interviewFocus.length > 0 && (
-        <ReportSection title="Interview prep">
+        <ReportSection title="Interview prep" count={interviewFocus.length}>
           <ResultList label="Interview prep" items={interviewFocus.map((f) => ({ key: f, title: f }))} />
         </ReportSection>
       )}
@@ -972,7 +1040,7 @@ const COVER_NOTE_LABELS: Record<string, string> = {
 
 const SAVE_LABELS: Record<LetterSaveState, { text: string; tone: 'mint' | 'stone' | 'lilac' | 'rose' } | null> = {
   idle: null,
-  saving: { text: 'Saving...', tone: 'stone' },
+  saving: { text: 'Saving…', tone: 'stone' },
   saved: { text: 'Saved', tone: 'mint' },
   'saved-local': { text: 'Saved in this tab', tone: 'lilac' },
   error: { text: "Couldn't save. Kept in this tab", tone: 'rose' },
@@ -987,7 +1055,6 @@ function LetterSection({
   onChange,
   why,
   requirements,
-  children,
 }: {
   n: number
   name: string
@@ -996,7 +1063,6 @@ function LetterSection({
   onChange: (value: string) => void
   why: string
   requirements: string[]
-  children?: ReactNode
 }) {
   return (
     <div className="result-sheet__section">
@@ -1004,8 +1070,7 @@ function LetterSection({
         <Sticker as="span" size="sm" tone="lemon" className="result-sheet__tag">
           <NumberDisc n={n} size="sm" /> {name}
         </Sticker>
-        <Textarea autosize rows={1} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} className="result-sheet__text" />
-        {children}
+        <Textarea autosize prose rows={1} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
       </div>
       <Panel tone="lilac" as="aside" className="result-sheet__why" aria-label={`Why the ${name.toLowerCase()} is there`}>
         <PanelBody>
@@ -1040,10 +1105,11 @@ function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRun
   const [bodyTexts, setBodyTexts] = useState(seed?.body ?? result.bodyPoints.map((p) => p.text))
   const [closingText, setClosingText] = useState(seed?.closing ?? result.closing.text)
   const [edited, setEdited] = useState(false)
+  const signOff = letterSignOff(result.signOff, useResultSignerName())
 
   const compiledText = useMemo(
-    () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText, signOff: result.signOff }),
-    [bodyTexts, closingText, openingText, result.signOff],
+    () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText, signOff }),
+    [bodyTexts, closingText, openingText, signOff],
   )
 
   useEffect(() => {
@@ -1058,10 +1124,10 @@ function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRun
   // The PDF is rendered from the stored letter, so it only carries edits once the server has them.
   const letterSubtitle =
     saveState === 'saved'
-      ? 'Edit any paragraph. Copy, Download and PDF use your edits.'
+      ? 'Edit any paragraph. Copy and every export, PDF included, use your edits.'
       : saveState === 'saved-local' || saveState === 'error'
-        ? 'Edit any paragraph. Copy and Download use your edits; the PDF still has the original letter.'
-        : 'Edit any paragraph. Copy and Download use your edits.'
+        ? 'Edit any paragraph. Copy and Export use your edits; the PDF still has the original letter.'
+        : 'Edit any paragraph. Copy and Export use your edits.'
 
   return (
     <>
@@ -1120,28 +1186,32 @@ function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRun
                 }}
                 why={result.closing.whyThisParagraph}
                 requirements={result.closing.requirementsUsed}
-              >
+              />
+              {/* The sign-off follows the whole closing block (never between the paragraph and its margin note when they
+                  stack), and stays in the letter's text column on wide screens. */}
+              <div className="result-sheet__section">
                 <p className="result-sheet__sign">
-                  {(result.signOff || 'Sincerely,\n[Your name]').split('\n').map((line, index) => (
+                  {signOff.split('\n').map((line, index) => (
                     <Fragment key={index}>
                       {index > 0 ? <br /> : null}
                       {line}
                     </Fragment>
                   ))}
                 </p>
-              </LetterSection>
+              </div>
             </div>
           </PanelBody>
         </Panel>
       </ReportSection>
 
       {result.customizationNotes.length > 0 && (
-        <ReportSection title="Customization notes">
+        <ReportSection title="Customization notes" count={result.customizationNotes.length}>
           <ResultList
             label="Customization notes"
             items={result.customizationNotes.map((n, i) => ({
               key: `${n.note}-${i}`,
               title: n.note,
+              titleWeight: 'regular' as const,
               meta: <Badge>{COVER_NOTE_LABELS[n.category] ?? n.category}</Badge>,
             }))}
           />
@@ -1202,7 +1272,7 @@ function InterviewView({ payload, runId }: { payload: AnyObject; runId?: string 
     <>
       <ReportSection
         title="Question breakdown"
-        count={countOf(result.questions.length, 'question')}
+        count={result.questions.length}
         actions={
           <>
             <Segmented
@@ -1238,20 +1308,25 @@ function InterviewView({ payload, runId }: { payload: AnyObject; runId?: string 
             items={visibleQuestions.map((q, index) => ({
               key: `${index}-${q.question}`,
               title: q.question,
-              detail: (
-                <Cluster gap={1}>
-                  <Badge>{q.focusArea}</Badge>
-                  {q.practiceFirst && !allQuestionsPracticeFirst ? <Badge tone="warning">Practice first</Badge> : null}
-                </Cluster>
+              // The tags are a block of their own under the question (8px clear), not subtitle text hugging it.
+              body: (
+                <>
+                  <div className="result-q-tags">
+                    <Cluster gap={1}>
+                      <Badge>{q.focusArea}</Badge>
+                      {q.practiceFirst && !allQuestionsPracticeFirst ? <Badge tone="warning">Practice first</Badge> : null}
+                    </Cluster>
+                  </div>
+                  <QuestionDetails question={q} />
+                </>
               ),
-              body: <QuestionDetails question={q} />,
             }))}
           />
         )}
       </ReportSection>
 
       {result.focusAreas.length > 0 && (
-        <ReportSection title="Focus areas">
+        <ReportSection title="Focus areas" count={result.focusAreas.length}>
           <ResultList
             label="Focus areas"
             items={result.focusAreas.map((area) => ({
@@ -1265,7 +1340,7 @@ function InterviewView({ payload, runId }: { payload: AnyObject; runId?: string 
       )}
 
       {result.weakSignals.length > 0 && (
-        <ReportSection title="Weak signals">
+        <ReportSection title="Weak signals" count={result.weakSignals.length}>
           <ResultList
             label="Weak signals"
             items={result.weakSignals.map((w) => ({
@@ -1279,8 +1354,11 @@ function InterviewView({ payload, runId }: { payload: AnyObject; runId?: string 
       )}
 
       {result.interviewerNotes.length > 0 && (
-        <ReportSection title="Interviewer notes">
-          <ResultList label="Interviewer notes" items={result.interviewerNotes.map((n) => ({ key: n, title: n }))} />
+        <ReportSection title="Interviewer notes" count={result.interviewerNotes.length}>
+          <ResultList
+            label="Interviewer notes"
+            items={result.interviewerNotes.map((n) => ({ key: n, title: n, titleWeight: 'regular' as const }))}
+          />
         </ReportSection>
       )}
     </>
@@ -1291,7 +1369,7 @@ function InterviewView({ payload, runId }: { payload: AnyObject; runId?: string 
 function QuestionDetails({ question: q }: { question: InterviewResultPayload['questions'][number] }) {
   const hasAnswerBlock = Boolean(q.answer) || q.answerStructure.length > 0 || q.followUpQuestions.length > 0
   const items = [
-    ...(q.practiceFirst ? [{ label: 'Focus area', value: q.whyAsked }] : []),
+    ...(q.practiceFirst ? [{ label: "Why it's asked", value: q.whyAsked }] : []),
     ...(hasAnswerBlock
       ? [
           {
@@ -1434,7 +1512,19 @@ type PathRow = CareerResultPayload['paths'][number] & { rowId: string }
 const RISK_TONE: Record<'low' | 'medium' | 'high', Tone> = { low: 'mint', medium: 'lemon', high: 'rose' }
 
 const PATH_COLUMNS: Array<TableColumn<PathRow>> = [
-  { id: 'role', header: 'Role', primary: true, width: '14rem', cell: (p) => p.roleTitle },
+  // The role takes the free width and carries its rationale as a second line, so the paragraph is not squeezed
+  // into a narrow last column while Fit, Timeline and Risk sit beside empty space.
+  {
+    id: 'role',
+    header: 'Role',
+    primary: true,
+    cell: (p) => (
+      <>
+        {p.roleTitle}
+        {p.rationale ? <span className="result-path-why">{p.rationale}</span> : null}
+      </>
+    ),
+  },
   {
     id: 'fit',
     header: 'Fit',
@@ -1443,14 +1533,13 @@ const PATH_COLUMNS: Array<TableColumn<PathRow>> = [
       <ScoreBar aria-label={`${p.roleTitle} fit`} layout="inline" size="sm" value={p.fitScore} valueLabel={`${p.fitScore}%`} />
     ),
   },
-  { id: 'timeline', header: 'Timeline', width: '8rem', cell: (p) => p.transitionTimeline },
+  { id: 'timeline', header: 'Timeline', width: '8rem', nowrap: true, cell: (p) => p.transitionTimeline },
   {
     id: 'risk',
     header: 'Risk',
     width: '6rem',
     cell: (p) => <Badge tone={RISK_TONE[p.riskLevel] ?? 'stone'}>{p.riskLevel.charAt(0).toUpperCase() + p.riskLevel.slice(1)}</Badge>,
   },
-  { id: 'rationale', header: 'Rationale', cell: (p) => p.rationale },
 ]
 
 function CareerView({ payload }: { payload: AnyObject }) {
@@ -1466,12 +1555,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
   const recommendedPath =
     result.paths.find((p) => p.roleTitle.toLowerCase() === recommendedRole) ?? result.paths[0]
   const strengths = recommendedPath?.strengthsToLeverage.slice(0, 3) ?? []
-  const tip =
-    result.recommendedDirection.confidence === 'high'
-      ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
-      : result.recommendedDirection.confidence === 'medium'
-        ? 'The fit is solid but needs sharper proof. Pick the highest-urgency gap and build one concrete example before applying.'
-        : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'
+  const startLine = careerStartLine(result.skillGaps, result.recommendedDirection.transitionTimeline)
 
   return (
     <>
@@ -1493,12 +1577,12 @@ function CareerView({ payload }: { payload: AnyObject }) {
                 labelWidth="11rem"
                 items={[
                   { label: 'Why this is your ideal next step', value: result.recommendedDirection.whyNow },
-                  ...(strengths.length > 0 ? [{ label: 'Strengths to leverage', value: <Lines items={strengths} /> }] : []),
+                  ...(strengths.length > 0 ? [{ label: 'Strengths to leverage', value: <SkillLines label="Strengths to leverage" items={strengths} /> }] : []),
                   ...(result.targetSkills.length > 0
-                    ? [{ label: 'Skills to develop next', value: <Lines items={result.targetSkills} /> }]
+                    ? [{ label: 'Skills to develop next', value: <SkillLines label="Skills to develop next" items={result.targetSkills} /> }]
                     : []),
                   ...(result.currentSkills.length > 0
-                    ? [{ label: 'Skills you already bring', value: <Lines items={result.currentSkills} /> }]
+                    ? [{ label: 'Skills you already bring', value: <SkillLines label="Skills you already bring" items={result.currentSkills} /> }]
                     : []),
                 ]}
               />
@@ -1538,26 +1622,62 @@ function CareerView({ payload }: { payload: AnyObject }) {
         </ReportSection>
       )}
 
+      {/* Derived from the gaps and the timeline (STICKER 5.9: no invented sentences), right after the gaps it names. */}
+      {startLine ? (
+        <ReportSection title="Where to start">
+          <Panel>
+            <PanelBody>
+              <Prose>{startLine}</Prose>
+            </PanelBody>
+          </Panel>
+        </ReportSection>
+      ) : null}
+
       {altPaths.length > 0 && (
-        <ReportSection title="Alternative paths">
+        <ReportSection title="Alternative paths" count={altPaths.length}>
           <Table caption="Alternative career paths" columns={PATH_COLUMNS} rows={altPaths} getRowId={(p) => p.rowId} />
         </ReportSection>
       )}
-
-      <ReportSection title="Note">
-        <Panel>
-          <PanelBody>
-            <Prose>{tip}</Prose>
-          </PanelBody>
-        </Panel>
-      </ReportSection>
     </>
   )
 }
 
+const URGENCY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
+
+/**
+ * The Career report's "Where to start": the most urgent skill gap (the first listed among equals) and the move's
+ * timeline, both read from the payload. Null without a gap: the section is then left out.
+ */
+export function careerStartLine(
+  gaps: Array<{ skill: string; urgency: string }>,
+  timeline: string,
+): string | null {
+  // The normaliser's stand-in for a gap without a name is not a skill to start with.
+  const named = gaps.filter((g) => g.skill.trim() && !/^unspecified skill$/i.test(g.skill.trim()))
+  if (named.length === 0) return null
+  const rank = (g: { urgency: string }) => URGENCY_RANK[g.urgency] ?? 1
+  const top = named.reduce((best, g) => (rank(g) < rank(best) ? g : best))
+  const tied = named.filter((g) => rank(g) === rank(top)).length
+  const why =
+    named.length === 1
+      ? 'it is the one skill gap this move names.'
+      : tied === 1
+        ? `it is the most urgent of the ${named.length} skill gaps above.`
+        : `it is listed first of the ${tied} ${top.urgency}-urgency gaps above.`
+  const when = timeline.trim() && !/not specified/i.test(timeline) ? ` The move is estimated at ${timeline.trim()}.` : ''
+  return `Start with ${top.skill.trim()}: ${why}${when}`
+}
+
+/** The career verdict sticker: the confidence in words and colour, or the backend's verdict when there is none. */
+export function careerVerdict(verdict: string, confidence: string, fitScore: number): { label: string; tone: Tone } {
+  const tones: Record<string, Tone> = { high: 'mint', medium: 'lemon', low: 'rose' }
+  const key = confidence.trim().toLowerCase()
+  if (key in tones) return { label: `${key.charAt(0).toUpperCase()}${key.slice(1)} confidence`, tone: tones[key] }
+  return { label: verdict, tone: verdictTone(verdict, fitScore) }
+}
+
 /* ── Portfolio ── */
 
-const COMPLEXITY_TONE: Record<string, Tone> = { foundational: 'mint', intermediate: 'lemon', advanced: 'lilac' }
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 function PortfolioView({ payload }: { payload: AnyObject }) {
@@ -1602,21 +1722,30 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
         </Panel>
       </ReportSection>
 
-      <ReportSection title="The build sequence" count={countOf(orderedSteps.length, 'project')}>
+      <ReportSection title="The build sequence" count={orderedSteps.length}>
         {orderedSteps.length === 0 ? (
           <EmptyState icon={<Layers />} title="No projects in this run" />
         ) : (
           <ol className="result-path" aria-label="Build sequence">
             {orderedSteps.map(({ step, project }, index) => (
               <li key={project.projectTitle} className="result-path__step">
-                <NumberDisc n={index + 1} size="lg" tone={index === startIndex ? 'lemon' : 'white'} />
+                <NumberDisc className="result-path__disc" n={index + 1} size="lg" tone={index === startIndex ? 'lemon' : 'white'} />
                 <Card as="div">
                   <Stack gap={3}>
                     <div className="result-path__head">
+                      {/* Under 400px the number rail goes and this disc starts the card's head instead (results.css). */}
+                      <NumberDisc
+                        className="result-path__disc-inline"
+                        n={index + 1}
+                        size="sm"
+                        tone={index === startIndex ? 'lemon' : 'white'}
+                      />
                       <h3 className="result-path__title">{project.projectTitle}</h3>
                       <Cluster gap={2}>
                         {index === startIndex ? <Badge tone="accent">Start here</Badge> : null}
-                        <Badge tone={COMPLEXITY_TONE[project.complexity] ?? 'stone'}>{capitalize(project.complexity)}</Badge>
+                        {/* Quiet: difficulty is not good / attention / thinking, so it gets no hue (STICKER 1.1);
+                            "Start here" stays the card's one coloured badge. */}
+                        <Badge tone="info">{capitalize(project.complexity)}</Badge>
                       </Cluster>
                     </div>
                     <MetaRow>{project.estimatedTimeline}</MetaRow>
@@ -1637,7 +1766,8 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
                         <ul className="result-chips" role="list">
                           {project.hiringSignals.slice(0, 3).map((signal) => (
                             <li key={signal}>
-                              <Badge tone="aqua" size="sm">
+                              {/* wrap: a long signal goes onto two lines inside softened corners, not a crowded pill. */}
+                              <Badge tone="aqua" size="sm" wrap>
                                 {signal}
                               </Badge>
                             </li>
@@ -1654,17 +1784,17 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
       </ReportSection>
 
       {result.presentationTips.length > 0 && (
-        <ReportSection title="Presentation tips">
+        <ReportSection title="Presentation tips" count={result.presentationTips.length}>
           <ResultList
             numbered
             label="Presentation tips"
-            items={result.presentationTips.map((tip) => ({ key: tip, title: tip }))}
+            items={result.presentationTips.map((tip) => ({ key: tip, title: tip, titleWeight: 'regular' as const }))}
           />
         </ReportSection>
       )}
 
       {allDeliverables.length > 0 && (
-        <ReportSection title="Key deliverables">
+        <ReportSection title="Key deliverables" count={allDeliverables.length}>
           <ResultList label="Key deliverables" items={allDeliverables.map((d) => ({ key: d, title: d }))} />
         </ReportSection>
       )}
@@ -1675,7 +1805,7 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
 function resumeCopyText(payload: AnyObject) {
   const result = normalizeResumePayload(payload)
   const lines = [
-    `Resume score: ${result.overallScore}/100`,
+    `Resume score: ${scoreText(result.overallScore)}`,
     `Verdict: ${result.summary.verdict}`,
     result.summary.headline,
     '',
@@ -1692,7 +1822,7 @@ function jobMatchCopyText(payload: AnyObject) {
   const result = normalizeJobMatchPayload(payload)
   const lines = [
     // As the page shows them: the seal's "/100" and the verdict sticker's capital.
-    `Match score: ${result.matchScore}/100`,
+    `Match score: ${scoreText(result.matchScore)}`,
     `Verdict: ${result.verdict.charAt(0).toUpperCase()}${result.verdict.slice(1)}`,
     result.summary.headline,
     '',
@@ -1773,7 +1903,8 @@ function portfolioCopyText(payload: AnyObject) {
 }
 /** What the report header shows above the content: one score and a few facts. */
 export type ResultSummary = {
-  score?: { value: number; label: string; unit: '/100' | '%' }
+  /** value null: the run has no score, and the seal says "not available" (STICKER 5.9). */
+  score?: { value: number | null; label: string; unit: '/100' | '%' }
   /** The verdict sticker under the seal; its colour says good, borderline or weak. */
   verdict?: { label: string; tone: Tone }
   /** The white sticker beside it: "2 issues". */
@@ -1894,10 +2025,9 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       const r = normalizeCareerPayload(payload)
       return {
         score: { value: r.recommendedDirection.fitScore, label: 'Fit score', unit: '%' },
-        verdict: {
-          label: r.summary.verdict,
-          tone: ({ high: 'mint', medium: 'lemon', low: 'rose' } as const)[r.recommendedDirection.confidence] ?? 'white',
-        },
+        // The sticker's colour is the direction's confidence, so its words say the confidence too ("Medium
+        // confidence" on lemon), in one short line; "Best next move identified" on lemon contradicted itself.
+        verdict: careerVerdict(r.summary.verdict, r.recommendedDirection.confidence, r.recommendedDirection.fitScore),
         facts: [
           ...fact('Timeline', r.recommendedDirection.transitionTimeline),
           ...(r.skillGaps.length > 0 ? fact('Skill gaps', `${r.skillGaps.length} to close`) : []),

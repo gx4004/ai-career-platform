@@ -15,6 +15,7 @@ const getListing = vi.hoisted(() => vi.fn())
 const startDeepMatch = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn())
 const hiddenJobs = vi.hoisted(() => vi.fn())
+const deleteApplication = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
   searchDiscoveryListings: searchListings,
@@ -23,7 +24,11 @@ vi.mock('#/lib/api/client', () => ({
   adoptDiscoveryRecommendation: adoptRecommendation,
   getDiscoveryListing: getListing,
   startDiscoveryDeepMatch: startDeepMatch,
+  deleteApplication,
 }))
+
+const session = vi.hoisted(() => ({ status: 'authenticated' as string, openAuthDialog: vi.fn() }))
+vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status, openAuthDialog: session.openAuthDialog }) }))
 
 vi.mock('#/components/discovery/hiddenJobs', () => ({
   hiddenJobsQuery: () => ({ queryKey: ['discovery', 'recommendations', 'hidden'], queryFn: hiddenJobs, retry: false }),
@@ -90,12 +95,13 @@ const openMenu = async (card: HTMLElement) => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  session.status = 'authenticated'
   sessionStorage.clear()
   localStorage.clear()
   hiddenJobs.mockResolvedValue({ items: [], total: 0 })
   dismissRecommendation.mockResolvedValue({ listing_id: 'listing-1', created_at: '2026-09-20T00:00:00Z' })
   undismissRecommendation.mockResolvedValue(undefined)
-  adoptRecommendation.mockResolvedValue({ id: 'campaign-9' })
+  adoptRecommendation.mockResolvedValue({ application: { id: 'campaign-9' }, created: true })
   getListing.mockResolvedValue({
     ...LISTING,
     description: 'Build Kubernetes services.\n\nWork with Python every day.',
@@ -103,6 +109,19 @@ beforeEach(() => {
 })
 
 describe('DiscoveryPage', () => {
+  // consistency-F25: a guest gets the in-page sign-in gate every signed-in-only page uses (one action), not /login.
+  it('shows a guest the in-page sign-in gate with one action, and searches nothing', () => {
+    session.status = 'guest'
+    renderPage()
+    expect(screen.getByRole('heading', { name: 'Discover jobs', level: 1 })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Sign in to discover jobs' })).toBeTruthy()
+    const empty = document.querySelector('.kit-empty') as HTMLElement
+    expect([...empty.querySelectorAll('button, a')].map((control) => control.textContent)).toEqual(['Sign in'])
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(session.openAuthDialog).toHaveBeenCalledWith({ to: '/discovery', reason: 'protected-route' })
+    expect(searchListings).not.toHaveBeenCalled()
+  })
+
   it('shows a two-line job row with match, meta and attribution', async () => {
     renderPage()
     const card = await findCard()
@@ -142,19 +161,56 @@ describe('DiscoveryPage', () => {
     expect(apply.getAttribute('rel')).toContain('noopener')
   })
 
-  it('adds the job to Applications and opens it', async () => {
+  // Sign-off consistency-F20: Add here does what the dashboard's Add does. The person stays on the list (so several
+  // jobs can be added in a row), the row flips to View application, and the toast offers the application and Undo.
+  it('adds the job and stays on the list, with a toast that opens it or undoes the add', async () => {
+    adoptRecommendation.mockResolvedValue({ application: { id: 'campaign-9', title: 'Platform Engineer', created_at: new Date().toISOString() }, created: true })
+    renderPage()
+    const card = await findCard()
+    const add = within(card).getByRole('button', { name: /Add to applications/ })
+    add.focus()
+
+    fireEvent.click(add)
+
+    await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledWith('listing-1'))
+    const view = await within(card).findByRole('link', { name: 'View application for Platform Engineer' })
+    expect(navigate).not.toHaveBeenCalled()
+    // Focus left with the Add button: it lands on the control that replaced it, not on the page.
+    await waitFor(() => expect(document.activeElement).toBe(view))
+    expect(await screen.findByText('Added to your applications', { selector: '.kit-toast__title' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'View application' }))
+    expect(navigate).toHaveBeenCalledWith({ to: '/campaigns/$campaignId', params: { campaignId: 'campaign-9' } })
+  })
+
+  it('undoes an add from the toast: the application is deleted and the row offers Add again', async () => {
+    adoptRecommendation.mockResolvedValue({ application: { id: 'campaign-9', title: 'Platform Engineer', created_at: new Date().toISOString() }, created: true })
+    deleteApplication.mockResolvedValue({ deleted: 1 })
     renderPage()
     const card = await findCard()
 
     fireEvent.click(within(card).getByRole('button', { name: /Add to applications/ }))
+    await within(card).findByRole('link', { name: 'View application for Platform Engineer' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
 
-    await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledWith('listing-1'))
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith({
-        to: '/campaigns/$campaignId',
-        params: { campaignId: 'campaign-9' },
-      }),
-    )
+    await waitFor(() => expect(deleteApplication).toHaveBeenCalledWith('campaign-9'))
+    expect(await within(card).findByRole('button', { name: 'Add to applications' })).toBeTruthy()
+    expect(within(card).queryByText('Added')).toBeNull()
+    expect(await screen.findByText('Removed from your applications', { selector: '.kit-toast__title' })).toBeTruthy()
+  })
+
+  it('adds from the drawer and keeps the drawer open on the job, now linking to the application', async () => {
+    adoptRecommendation.mockResolvedValue({ application: { id: 'campaign-9', title: 'Platform Engineer', created_at: new Date().toISOString() }, created: true })
+    renderPage()
+    fireEvent.click(within(await findCard()).getByRole('button', { name: 'Platform Engineer' }))
+    const drawer = await screen.findByRole('dialog')
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Add to applications' }))
+
+    const view = await within(drawer).findByRole('link', { name: /View application/ })
+    expect(view.getAttribute('href')).toBe('/campaigns/campaign-9')
+    expect(navigate).not.toHaveBeenCalled()
+    expect(await screen.findByText('Added to your applications', { selector: '.kit-toast__title' })).toBeTruthy()
   })
 
   it('hides a job from the overflow menu and offers undo', async () => {
@@ -411,7 +467,7 @@ describe('DiscoveryPage', () => {
 
     fireEvent.click(within(card).getByRole('button', { name: 'Add to applications' }))
 
-    const link = await within(card).findByRole('link', { name: 'Open application for Platform Engineer' })
+    const link = await within(card).findByRole('link', { name: 'View application for Platform Engineer' })
     expect(link.getAttribute('href')).toBe('/campaigns/campaign-9')
     expect(within(card).getByText('Added')).toBeTruthy()
     expect(within(card).queryByRole('button', { name: 'Add to applications' })).toBeNull()
@@ -422,7 +478,7 @@ describe('DiscoveryPage', () => {
     const card = await findCard()
 
     expect(within(card).getByText('Added')).toBeTruthy()
-    expect(within(card).getByRole('link', { name: 'Open application for Platform Engineer' }).getAttribute('href')).toBe('/campaigns/app-4')
+    expect(within(card).getByRole('link', { name: 'View application for Platform Engineer' }).getAttribute('href')).toBe('/campaigns/app-4')
     expect(within(card).queryByRole('button', { name: 'Add to applications' })).toBeNull()
   })
 
@@ -528,5 +584,56 @@ describe('DiscoveryPage', () => {
 
     expect(screen.queryByText('Add your skills to see fit scores')).toBeNull()
     expect(localStorage.getItem('cw:discovery-skills-callout')).toBe('1')
+  })
+
+  // F30: a deep match started from a row's menu ran in silence (the only pending sign was a menu item nobody saw).
+  it('shows on the row that a deep match started from its menu is running', async () => {
+    getListing.mockResolvedValue({ ...LISTING, description: 'x', deep_match: null })
+    startDeepMatch.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    const card = await findCard()
+    const menu = await openMenu(card)
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Deep match' }))
+    const status = await within(card).findByRole('status')
+    expect(status.textContent).toBe('Running a deep match… this can take up to a minute.')
+    expect(within(card).getByRole('button', { name: 'More actions for Platform Engineer' }).getAttribute('data-loading')).toBe('true')
+  })
+
+  // F33: the hidden row unmounts and focus fell to <body>.
+  it('moves focus to the next job after hiding one', async () => {
+    const second = { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer' }
+    renderPage(page({ items: [LISTING, second], total: 2 }))
+    const menu = await openMenu(await findCard())
+    searchListings.mockResolvedValue(page({ items: [second], total: 1 }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Hide this job' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Platform Engineer', level: 2 })).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Data Engineer' })))
+  })
+
+  it('moves focus to the list itself after hiding the last job left', async () => {
+    renderPage()
+    const menu = await openMenu(await findCard())
+    searchListings.mockResolvedValue(page({ items: [], total: 0 }))
+    hiddenJobs.mockResolvedValue({
+      total: 1,
+      items: [{ listing_id: 'listing-1', title: 'Platform Engineer', company: 'Acme Systems', location: null, remote: null, posted_at: null, hidden_at: '2026-10-02T09:00:00Z' }],
+    })
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Hide this job' }))
+    expect(await screen.findByText('No jobs left to show')).toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Review hidden jobs' })))
+  })
+
+  // F40: with every job hidden, "0 open jobs" was false (the hidden ones are still open), and the fit-score callout
+  // explained scores for a list with nothing in it.
+  it('counts what is shown and what is hidden, without the fit-score callout, when every job is hidden', async () => {
+    hiddenJobs.mockResolvedValue({
+      total: 20,
+      items: [{ listing_id: 'listing-1', title: 'Platform Engineer', company: 'Acme Systems', location: null, remote: null, posted_at: null, hidden_at: '2026-10-02T09:00:00Z' }],
+    })
+    renderPage(page({ items: [], total: 0, has_evidence: false, sort: 'newest' }))
+    expect(await screen.findByText('No jobs left to show')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('0 to show · 20 hidden')).toBeTruthy())
+    expect(screen.queryByText(/0 open jobs/)).toBeNull()
+    expect(screen.queryByText('Add your skills to see fit scores')).toBeNull()
   })
 })

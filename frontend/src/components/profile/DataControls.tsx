@@ -30,7 +30,7 @@ import { markAccountDeleted } from '#/components/profile/AccountDeletedToast'
 import { useSession } from '#/hooks/useSession'
 import { deleteAccount, deleteEvidenceProfile, exportCareerData } from '#/lib/api/client'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
-import { EVIDENCE_QUERY_KEY } from '#/lib/profile/evidence'
+import { EVIDENCE_QUERY_KEY, PROFILE_PURGE_CONFIRM, PROFILE_PURGE_TITLE } from '#/lib/profile/evidence'
 import { invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
 
 /** What deleting the account removes, mirroring the backend's erasure (`delete_all_user_data`). */
@@ -119,7 +119,13 @@ function DeleteAccountDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
-      <DialogContent size="md" showClose={false} dismissible={!submitting}>
+      <DialogContent
+        size="md"
+        showClose={false}
+        dismissible={!submitting}
+        // The kit's own focus rule (consistency-F09): the email field, the first focusable, on a mouse; the dialog itself
+        // on a phone, so the keyboard does not come up over the warning and the footer.
+      >
         <DialogForm
           onSubmit={(event) => {
             event.preventDefault()
@@ -129,16 +135,13 @@ function DeleteAccountDialog({
           <DialogHeader data-tone="danger">
             <DialogTitle>Delete your account?</DialogTitle>
             <DialogDescription>
-              This permanently removes everything below. It is irreversible — we do not retain a backup. To confirm,
-              type your email address.
+              This permanently removes your account and everything saved in it. It is irreversible — we do not retain
+              a backup.
             </DialogDescription>
           </DialogHeader>
+          {/* The field comes first: on a short phone the list would push it below the fold, leaving only a disabled
+              button in view. */}
           <DialogBody>
-            <ul className="data-erases" aria-label="What is erased">
-              {ACCOUNT_ERASES.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
             <Field
               id="delete-confirm-input"
               label={
@@ -159,6 +162,14 @@ function DeleteAccountDialog({
                 disabled={submitting}
               />
             </Field>
+            <p className="data-erases__lead">
+              What is erased:
+            </p>
+            <ul className="data-erases" aria-label="What is erased">
+              {ACCOUNT_ERASES.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </DialogBody>
           <DialogFooter>
             <DialogClose asChild>
@@ -203,10 +214,10 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
       toast({
         tone: 'success',
         title: 'Profile deleted',
-        description: 'Your runs, CVs and applications are untouched.',
+        description: 'Your runs, CVs and applications are untouched',
       })
     } catch (failure) {
-      setProfileError(failure instanceof Error ? failure.message : 'Evidence profile deletion failed.')
+      setProfileError(failure instanceof Error && failure.message ? failure.message : 'Could not delete your profile. Try again.')
     } finally {
       setErasing(false)
     }
@@ -243,7 +254,7 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
           <RowBody>
             <RowTitle>Delete profile</RowTitle>
             <RowSubtitle>
-              Erase the facts saved on your profile without deleting your account
+              Erase every fact on your profile, saved or suggested, without deleting your account
               {detailed ? '. Your runs, CVs and applications stay.' : '.'}
             </RowSubtitle>
           </RowBody>
@@ -284,9 +295,9 @@ export function DataControls({ listLabel, detailed = false }: { listLabel: strin
         open={profileOpen}
         onOpenChange={setProfileOpen}
         pending={erasing}
-        title="Delete your profile?"
+        title={PROFILE_PURGE_TITLE}
         description="This immediately removes every fact on your profile, saved or suggested. It does not delete your account, and it cannot be undone."
-        confirmLabel="Delete all facts"
+        confirmLabel={PROFILE_PURGE_CONFIRM}
         icon={<Trash2 aria-hidden />}
         onConfirm={() => void eraseProfile()}
       >

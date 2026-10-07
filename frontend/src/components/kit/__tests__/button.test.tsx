@@ -77,6 +77,39 @@ describe('kit Button', () => {
     expect(onClick).not.toHaveBeenCalled()
   })
 
+  // cv-studio-G18: a long wait (an LLM run) says what is happening on the button itself, where the eye is; the
+  // overlay is visual only, so the accessible name stays the label (a role="status" line speaks for screen readers).
+  it('loadingLabel shows a visible progress label with the spinner over the kept label, without renaming the button', () => {
+    const { rerender } = render(<Button loadingLabel="Suggesting…">Suggest changes</Button>)
+    let button = screen.getByRole('button', { name: 'Suggest changes' })
+    // Idle: nothing extra is rendered.
+    expect(button.querySelector('.kit-button__loading-label')).toBeNull()
+    expect(button.hasAttribute('data-loading-label')).toBe(false)
+    rerender(<Button loading loadingLabel="Suggesting…">Suggest changes</Button>)
+    button = screen.getByRole('button', { name: 'Suggest changes' })
+    expect(button.getAttribute('aria-busy')).toBe('true')
+    expect(button.getAttribute('data-loading-label')).toBe('true')
+    const overlay = button.querySelector('.kit-button__loading-label') as HTMLElement
+    expect(overlay.getAttribute('aria-hidden')).toBe('true')
+    expect(overlay.textContent).toBe('Suggesting…')
+    // The spinner sits beside its words; the label stays in the DOM, hidden in the same grid cell, and keeps the width.
+    expect(overlay.querySelector('.kit-button__spinner')).not.toBeNull()
+    expect(button.querySelector('.kit-button__stack > .kit-button__label')?.textContent).toBe('Suggest changes')
+    expect(button.querySelectorAll('.kit-button__spinner')).toHaveLength(1)
+    expect(button.textContent).toBe('Suggest changesSuggesting…')
+  })
+
+  it('loadingLabel CSS stacks the words over the hidden label (the wider sets the width), in the button colour', () => {
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/button.css'), 'utf8')
+    expect(css).toMatch(/\.kit-button__stack\s*\{[^}]*display:\s*inline-grid/)
+    expect(css).toMatch(/\.kit-button__stack\s*>\s*\*\s*\{[^}]*grid-area:\s*1\s*\/\s*1/)
+    // opacity, not visibility: a visibility-hidden label would leave the busy button without a name.
+    expect(css).toMatch(/\.kit-button__label\s*\{[^}]*opacity:\s*0/)
+    expect(css).not.toMatch(/\.kit-button__label\s*\{[^}]*visibility/)
+    expect(css.match(/\.kit-button__loading-label\s*\{([^}]*)\}/)![1]).toMatch(/color:\s*var\(--kit-button-fg\)/)
+    expect(css).toMatch(/\.kit-button__loading-label\s*>\s*\.kit-button__spinner\s*\{[^}]*position:\s*static/)
+  })
+
   it('does not submit a form while loading', () => {
     const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault())
     render(
@@ -178,5 +211,28 @@ describe('Button Sticker contract (button.css)', () => {
     expect(disabled).toMatch(/--kit-button-bg:\s*var\(--stone\)/)
     expect(disabled).toMatch(/--kit-button-shadow:\s*none/)
     expect(css.match(/\.kit-button\[data-loading='true'\]\s*\{([^}]*)\}/)![1]).not.toMatch(/box-shadow|--kit-button-shadow/)
+  })
+})
+
+describe('Button flush="start" (a ghost button that starts a block, e.g. the "All applications" back link)', () => {
+  it('marks the button data-flush="start" only when asked, also through asChild', () => {
+    const { rerender } = render(<Button variant="ghost" size="sm">Back</Button>)
+    expect(screen.getByRole('button', { name: 'Back' }).hasAttribute('data-flush')).toBe(false)
+    rerender(<Button variant="ghost" size="sm" flush="start">Back</Button>)
+    expect(screen.getByRole('button', { name: 'Back' }).getAttribute('data-flush')).toBe('start')
+    rerender(
+      <Button asChild variant="ghost" size="sm" flush="start">
+        <a href="/campaigns">All applications</a>
+      </Button>,
+    )
+    expect(screen.getByRole('link', { name: 'All applications' }).getAttribute('data-flush')).toBe('start')
+  })
+
+  it('pulls the button back by its own inset in the kit, and no page restyles a kit button for it', () => {
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/button.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = css.match(/\.kit-button\[data-flush='start'\]\s*\{([^}]*)\}/)
+    expect(rule?.[1]).toMatch(/margin-inline-start:\s*calc\(var\(--space-1\) \* -2\.5 - 1px\)/)
+    const apps = readFileSync(path.resolve(__dirname, '../../../styles/applications.css'), 'utf8')
+    expect(apps).not.toMatch(/\.kit-button\.camp-flush/)
   })
 })

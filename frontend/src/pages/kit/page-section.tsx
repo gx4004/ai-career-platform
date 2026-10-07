@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Cluster,
+  Input,
   KeyValue,
   Lead,
   MetaRow,
@@ -28,7 +29,7 @@ import { LONG_TITLE } from './sample-data'
 
 function Back() {
   return (
-    <Button asChild variant="link" size="sm">
+    <Button asChild variant="ghost" size="sm" flush="start">
       <DemoLink>
         <ArrowLeft aria-hidden="true" />
         All applications
@@ -125,7 +126,7 @@ export function PageSection() {
     >
       <Group title="PageHeader">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
-          <Specimen label="back, title, lead, meta, actions">
+          <Specimen label="back (a ghost sm Button, flush=&quot;start&quot; so its arrow lines up with the title), title, lead, meta, actions">
             <div className="kit-gallery__frame">
               <PageHeader
                 headingLevel={3}
@@ -160,7 +161,7 @@ export function PageSection() {
                 meta={['7 in progress', '2 ready to apply']}
                 actions={
                   <Button asChild size="sm">
-                    <DemoLink>Find jobs</DemoLink>
+                    <DemoLink>Discover jobs</DemoLink>
                   </Button>
                 }
               />
@@ -188,9 +189,44 @@ export function PageSection() {
               <TabbedHeader />
             </div>
           </Specimen>
+          <Specimen label="titleEditor: rename in place. The field and its buttons replace the visible title beside the heading (which stays for screen readers), so they keep body type and normal tracking">
+            <div className="kit-gallery__frame">
+              <PageHeader
+                headingLevel={3}
+                back={<Back />}
+                title="Senior Backend Engineer, Platform"
+                meta={['Northwind Labs']}
+                titleEditor={
+                  <Cluster gap={2}>
+                    <div style={{ flex: '1 1 16rem', minInlineSize: 0 }}>
+                      <Input aria-label="Application name" defaultValue="Senior Backend Engineer, Platform" />
+                    </div>
+                    <Cluster gap={2} nowrap>
+                      <Button type="button" variant="ghost">
+                        Cancel
+                      </Button>
+                      <Button type="button" variant="secondary">
+                        Save name
+                      </Button>
+                    </Cluster>
+                  </Cluster>
+                }
+              />
+            </div>
+          </Specimen>
           <Specimen label="title and lead">
             <div className="kit-gallery__frame">
               <PageHeader headingLevel={3} title="Settings" lead="Account, notifications and data." />
+            </div>
+          </Specimen>
+          <Specimen label="title and large lead (leadSize lg: sign in, reset password)">
+            <div className="kit-gallery__frame">
+              <PageHeader
+                headingLevel={3}
+                title="Sign in to your workspace"
+                lead="Pick up your saved runs, starred results and CV drafts."
+                leadSize="lg"
+              />
             </div>
           </Specimen>
         </div>
@@ -204,7 +240,7 @@ export function PageSection() {
             meta={['7 in progress']}
             actions={
               <Button asChild size="sm">
-                <DemoLink>Find jobs</DemoLink>
+                <DemoLink>Discover jobs</DemoLink>
               </Button>
             }
           />
@@ -239,6 +275,20 @@ export function PageSection() {
             </div>
           </Specimen>
         </div>
+        <Specimen label="a 54rem container (a tool page at 1024 with the sidebar collapsed), default breakpoint (56rem): stacked">
+          <div className="kit-gallery__frame--split-compact">
+            <Split rail={<Rail />} railLabel="Summary (default)">
+              <SplitMain />
+            </Split>
+          </div>
+        </Specimen>
+        <Specimen label={'the same 54rem container with breakpoint="compact" (from 52rem): the rail stays beside the main column'}>
+          <div className="kit-gallery__frame--split-compact">
+            <Split rail={<Rail />} railLabel="Summary (compact)" breakpoint="compact" data-testid="split-compact-specimen">
+              <SplitMain />
+            </Split>
+          </div>
+        </Specimen>
       </Group>
 
       <Group title="Stack and Cluster">

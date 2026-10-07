@@ -11,6 +11,8 @@ const getAuthProvidersMock = vi.hoisted(() => vi.fn())
 const pendingIntent = vi.hoisted(() => ({ current: null as null | Record<string, unknown> }))
 const loginMock = vi.hoisted(() => vi.fn(async () => undefined))
 const routerNavigate = vi.hoisted(() => vi.fn())
+const routerBack = vi.hoisted(() => vi.fn())
+const canGoBack = vi.hoisted(() => ({ current: false }))
 
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
@@ -42,9 +44,10 @@ vi.mock('@tanstack/react-router', () => ({
   ),
   createFileRoute: () => (options: unknown) => options,
   useRouter: () => ({
-    history: { back: vi.fn() },
+    history: { back: routerBack },
     navigate: routerNavigate,
   }),
+  useCanGoBack: () => canGoBack.current,
 }))
 
 vi.mock('#/hooks/useSession', () => ({
@@ -69,7 +72,43 @@ describe('LoginPage', () => {
     loginMock.mockClear()
     registerMock.mockClear()
     routerNavigate.mockReset()
+    routerBack.mockReset()
+    canGoBack.current = false
     window.history.replaceState({}, '', '/login')
+  })
+
+  it('opens straight on the reset form when asked to (?view=reset), the way out of a dead reset link', () => {
+    window.history.replaceState({}, '', '/login?view=reset')
+    render(<LoginPage />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Reset your password' })).toBeTruthy()
+  })
+
+  it('header Back stays inside the app: no in-app history links home instead of leaving (public-F10)', () => {
+    window.history.pushState({}, '', '/login')
+    render(<LoginPage />)
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/')
+    expect(routerBack).not.toHaveBeenCalled()
+  })
+
+  it('header Back returns to the previous page of this app when there is one', () => {
+    canGoBack.current = true
+    render(<LoginPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(routerBack).toHaveBeenCalled()
+  })
+
+  it('keeps the email-first Google note short (public-F09)', () => {
+    window.history.replaceState({}, '', '/login?oauth_error=signup_via_email_required')
+    render(<LoginPage />)
+    // A next step, not a failure: the page already switched to the right form, so the note is the calm info
+    // notice (status) with its own title, not a rose alert (sign-off public-G15).
+    expect(screen.queryByRole('alert')).toBeNull()
+    const notice = screen.getByText('Create your account first').closest('.kit-notice')!
+    expect(notice.getAttribute('role')).toBe('status')
+    expect(notice.getAttribute('data-tone')).not.toBe('danger')
+    // The sentence under the title does not repeat it.
+    expect(notice.textContent).toContain('Make it here with email')
+    expect(notice.textContent!.split(/\s+/).length).toBeLessThanOrEqual(24)
   })
 
   async function signIn() {
@@ -147,7 +186,7 @@ describe('LoginPage', () => {
 
     expect(screen.getByRole('tab', { name: 'Sign in' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Create account' })).toBeTruthy()
-    expect(screen.getByText('Keep your runs and favorites across every tool.')).toBeTruthy()
+    expect(screen.getByText('Keep your runs and starred results across every tool.')).toBeTruthy()
     expect(screen.queryByText(/No account needed to browse/)).toBeNull()
     expect(container.querySelector('.auth-surface-note')).toBeNull()
   })
@@ -164,6 +203,8 @@ describe('LoginPage', () => {
     expect(container.querySelector('.cw-brand-lockup')).toBeTruthy()
     expect(container.querySelector('.auth-page__column')).toBeTruthy()
     expect(screen.getByRole('main')).toBeTruthy()
+    // Every die-cut empty state carries its tilted icon disc (STICKER 1.16, 4.O; sign-off public-G11).
+    expect(container.querySelector('.kit-empty .kit-empty__icon svg')).toBeTruthy()
     sessionStatus.current = 'guest'
   })
 
@@ -175,7 +216,7 @@ describe('LoginPage', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Reset your password' })).toBeTruthy()
     expect(screen.getAllByRole('heading', { name: 'Reset your password' })).toHaveLength(1)
     expect(screen.queryByRole('tab', { name: 'Sign in' })).toBeNull()
-    expect(screen.queryByText('Keep your runs and favorites across every tool.')).toBeNull()
+    expect(screen.queryByText('Keep your runs and starred results across every tool.')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
     expect(screen.getByRole('heading', { level: 1, name: 'Sign in to your workspace' })).toBeTruthy()
@@ -218,6 +259,24 @@ describe('LoginPage', () => {
     expect((await screen.findByTestId('auth-intent')).textContent).toContain('Your session ended')
   })
 
+  // A guest who follows a link to a members' page never saw it: the note names it instead of "where you were"
+  // (sign-off public-G16).
+  it('names the page a guest opened before being asked to sign in', async () => {
+    pendingIntent.current = { to: '/campaigns', reason: 'protected-route', createdAt: Date.now() }
+    const { unmount } = render(<LoginPage />)
+    const notice = await screen.findByTestId('auth-intent')
+    expect(notice.textContent).toContain("You'll go straight to Applications.")
+    expect(notice.textContent).not.toContain('where you were')
+    unmount()
+    pendingIntent.current = { to: '/discovery?q=python', reason: 'protected-route', createdAt: Date.now() }
+    const discovery = render(<LoginPage />)
+    expect((await screen.findByTestId('auth-intent')).textContent).toContain("You'll go straight to Discover.")
+    discovery.unmount()
+    pendingIntent.current = { to: '/admin/users', reason: 'protected-route', createdAt: Date.now() }
+    render(<LoginPage />)
+    expect((await screen.findByTestId('auth-intent')).textContent).toContain("You'll go straight to the page you opened.")
+  })
+
   it('says a saved result will open after sign-in (deep link while signed out)', async () => {
     pendingIntent.current = { to: '/cover-letter/result/run-1', reason: 'open-result', createdAt: Date.now() }
     render(<LoginPage />)
@@ -228,7 +287,12 @@ describe('LoginPage', () => {
   it('names the tool a guest result will return to', async () => {
     pendingIntent.current = { to: '/resume', reason: 'guest-demo-result', toolId: 'resume', createdAt: Date.now() }
     render(<LoginPage />)
-    expect((await screen.findByTestId('auth-intent')).textContent).toContain('Resume Analyzer')
+    const notice = await screen.findByTestId('auth-intent')
+    expect(notice.textContent).toContain('Resume Analyzer')
+    // The guest result itself is not kept: the title promises what happens (the next run is saved), not "save this result".
+    expect(notice.textContent).toContain('Sign in to keep your results')
+    expect(notice.textContent).not.toContain('save this result')
+    expect(notice.textContent).toContain('that run is saved')
   })
 
   it('welcomes a new account with a seal, then moves on to where the visitor was going', async () => {
@@ -251,6 +315,10 @@ describe('LoginPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Your account is ready' })).toBeTruthy()
     expect(container.querySelector('.auth-stamp .kit-seal')).toBeTruthy()
+    // An outcome, not an empty box: the open anatomy the reset outcomes use (public-F03).
+    expect(screen.getByRole('heading', { name: 'Your account is ready' }).closest('.kit-empty')?.getAttribute('data-variant')).toBe('open')
+    // The welcome replaced the form and moves on by itself: its heading takes focus so it is read out first (public-G05).
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Your account is ready' }))
     await act(() => vi.advanceTimersByTimeAsync(1000))
     expect(routerNavigate).not.toHaveBeenCalled()
     await act(() => vi.advanceTimersByTimeAsync(2000))

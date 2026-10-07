@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Download, Eye, RotateCcw, Save } from 'lucide-react'
 import {
-  Badge, Button, Card, CardHeader, CardTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Field, Input, MetaRow, Stack,
+  Badge, Button, Card, CardHeader, Cluster, CardTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Field, Input, MetaRow, Stack,
 } from '#/components/kit'
 import type { CvSection, CvVariant } from '#/lib/api/schemas'
 import { describeDiff, diffVersion } from './versionDiff'
+import { isVersionNameTaken, versionNameTakenMessage } from './versionNames'
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -27,6 +28,9 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
   onExport?: (variant: CvVariant, format: 'pdf' | 'docx') => void
 }) {
   const [name, setName] = useState('')
+  /** A name this CV already has: said at the field, which keeps the cursor. */
+  const [nameError, setNameError] = useState('')
+  const nameRef = useRef<HTMLInputElement>(null)
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [restoring, setRestoring] = useState<string | null>(null)
@@ -35,6 +39,11 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!name.trim() || busy || saving) return
+    if (isVersionNameTaken(name, variants.map((variant) => variant.name))) {
+      setNameError(versionNameTakenMessage(name))
+      nameRef.current?.focus()
+      return
+    }
     setSaving(true)
     if (await onSave(name.trim())) setName('')
     setSaving(false)
@@ -49,14 +58,18 @@ export function CvVersionsPanel({ variants, currentSections, busy, exporting, on
 
   return (
     <Stack gap={4}>
+      {/* One field holds the name and its button, so a name error runs the panel's full width under both (cv-studio-F06). */}
       <form className="cvs-versions__form" onSubmit={(event) => void submit(event)}>
         <Field
           label="Version name" hideLabel className="cvs-versions__name"
           help={busy ? <span role="status">Saving your latest edits first…</span> : undefined}
+          error={nameError || undefined}
         >
-          <Input value={name} maxLength={120} placeholder="Name this version" onChange={(event) => setName(event.target.value)} />
+          <Cluster gap={2} align="start" className="cvs-versions__row">
+            <Input ref={nameRef} value={name} maxLength={120} placeholder="Name this version" onChange={(event) => { setName(event.target.value); setNameError('') }} />
+            <Button type="submit" variant="secondary" loading={saving} disabled={!name.trim() || busy}><Save aria-hidden="true" /> Save version</Button>
+          </Cluster>
         </Field>
-        <Button type="submit" variant="secondary" loading={saving} disabled={!name.trim() || busy}><Save aria-hidden="true" /> Save version</Button>
       </form>
       {ordered.length === 0 ? (
         <EmptyState size="inline" title="No versions yet. Save one before big changes so you can always go back." />

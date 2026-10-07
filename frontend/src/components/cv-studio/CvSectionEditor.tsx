@@ -60,8 +60,10 @@ function Bullet({ text, index, count, label, onChange, onMove, onRemove }: {
   )
 }
 
-function StructuredEntry({ section, entry, index, onSections }: {
+function StructuredEntry({ section, entry, index, onSections, inline = false }: {
   section: CvSection; entry: CvEntry; index: number; onSections: SectionsChange
+  /** In the desktop editor rail (about 300px): the card's name wraps beside its tools instead of over them. */
+  inline?: boolean
 }) {
   const labels = FIELD_LABELS[section.kind] ?? FIELD_LABELS.experience!
   const bullets = entry.bullets ?? []
@@ -77,7 +79,8 @@ function StructuredEntry({ section, entry, index, onSections }: {
     <Card aria-label={cardTitle} padding="sm">
       <Section
         headingLevel={3}
-        size="sm"
+        size="xs"
+        actionsWrap={!inline}
         title={cardTitle}
         actions={<EntryTools
           name={cardTitle} index={index} count={section.entries.length}
@@ -95,7 +98,8 @@ function StructuredEntry({ section, entry, index, onSections }: {
             {field('end_date', 'End', 'Present')}
           </div>
           {bullets.length > 0 ? (
-            <Section headingLevel={4} size="sm" title="Highlights" rule={false}>
+            // Labelled like the fields above it (14px label, 8px gap), not as a section heading (cv-studio-G14).
+            <Field group label="Highlights">
               <ul className="cvs-bullets" role="list">
                 {bullets.map((bullet, bulletIndex) => (
                   // Bullets have no ids of their own; the index is their identity.
@@ -107,7 +111,7 @@ function StructuredEntry({ section, entry, index, onSections }: {
                   />
                 ))}
               </ul>
-            </Section>
+            </Field>
           ) : (
             <Field label="Description">
               <Textarea autosize maxRows={10} rows={3} maxLength={5000} value={entry.body} placeholder="A short description, or add highlights below." onChange={(event) => set({ body: event.target.value })} />
@@ -124,8 +128,10 @@ function StructuredEntry({ section, entry, index, onSections }: {
   )
 }
 
-function FreeformEntry({ section, entry, index, onSections, inline }: {
-  section: CvSection; entry: CvEntry; index: number; onSections: SectionsChange; inline: boolean
+function FreeformEntry({ section, entry, index, onSections, inline = false }: {
+  section: CvSection; entry: CvEntry; index: number; onSections: SectionsChange
+  /** In the desktop editor rail (about 300px): the card's name wraps beside its tools instead of over them. */
+  inline?: boolean
 }) {
   const only = section.entries.length === 1
   const label = only ? `${section.title} text` : `${section.title} entry ${index + 1}`
@@ -136,8 +142,8 @@ function FreeformEntry({ section, entry, index, onSections, inline }: {
       onChange={(event) => onSections((s) => updateEntry(s, section.id, entry.id, { body: event.target.value }))}
     />
   )
-  if (only && inline) {
-    // The open row's header already names the section.
+  if (only) {
+    // The open row's header (desktop) or the sheet title (phones, tablets) already names the section.
     return (
       <Stack gap={2}>
         {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
@@ -145,21 +151,12 @@ function FreeformEntry({ section, entry, index, onSections, inline }: {
       </Stack>
     )
   }
-  if (only) {
-    return (
-      <Section headingLevel={3} size="sm" title={sectionLabels[section.kind]} rule={false}>
-        <Stack gap={2}>
-          {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
-          {text}
-        </Stack>
-      </Section>
-    )
-  }
   return (
     <Card padding="sm">
       <Section
         headingLevel={3}
-        size="sm"
+        size="xs"
+        actionsWrap={!inline}
         title={`Entry ${index + 1}`}
         actions={<EntryTools
           name={label} index={index} count={section.entries.length}
@@ -185,6 +182,9 @@ export function CvSectionEditor({ section, onSections, onBack, inline = false }:
   const structured = isStructuredKind(section.kind)
   const customTitle = section.title.trim() !== sectionLabels[section.kind]
   const addLabel = structured ? `Add ${FIELD_LABELS[section.kind]?.noun ?? 'entry'}` : 'Add entry'
+  const noun = structured ? FIELD_LABELS[section.kind]?.noun : undefined
+  /** What an empty section means for the file (cv-studio-G04): "No projects yet." then why it matters. */
+  const emptyLine = noun ? `No ${noun}s yet.` : 'No entries yet.'
 
   function remove() {
     if (section.entries.length > 0) setConfirmRemove(true)
@@ -202,11 +202,12 @@ export function CvSectionEditor({ section, onSections, onBack, inline = false }:
 
   return (
     <Stack gap={inline ? 4 : 6} role="group" aria-label={sectionLabels[section.kind]}>
+      {/* Remove section sits in the foot at every width: beside All sections it wrapped onto a row of its own at 320
+          and read as a stray control (cv-studio-G11). */}
       {inline ? null : (
-        <Cluster justify="between" gap={3}>
+        <div>
           <Button type="button" variant="ghost" size="sm" onClick={onBack}><ArrowLeft aria-hidden="true" /> All sections</Button>
-          <Button type="button" variant="ghost" size="sm" onClick={remove}><Trash2 aria-hidden="true" /> Remove section</Button>
-        </Cluster>
+        </div>
       )}
       {inline ? null : renameField}
       {customTitle || !section.visible ? (
@@ -215,15 +216,16 @@ export function CvSectionEditor({ section, onSections, onBack, inline = false }:
           {!section.visible ? <Badge size="sm" tone="info">Hidden from your CV</Badge> : null}
         </Cluster>
       ) : null}
-      {section.entries.length === 0 ? <EmptyState size="inline" title="Nothing here yet." /> : null}
+      {section.entries.length === 0 ? <EmptyState size="inline" title={`${emptyLine} Empty sections are left out of your PDF.`} /> : null}
       {section.entries.map((entry, index) => structured
-        ? <StructuredEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} />
+        ? <StructuredEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} inline={inline} />
         : <FreeformEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} inline={inline} />)}
       <div className="cvs-editor__foot">
         <Button type="button" variant="secondary" size="sm" onClick={() => onSections((sections) => addEntry(sections, section.id))}>
           <Plus aria-hidden="true" /> {addLabel}
         </Button>
-        {inline ? <Button type="button" variant="ghost" size="sm" onClick={remove}><Trash2 aria-hidden="true" /> Remove section</Button> : null}
+        {/* Under 360px "section" is read, not shown, so the pair keeps one line beside "Add role". */}
+        <Button type="button" variant="ghost" size="sm" onClick={remove}><Trash2 aria-hidden="true" /> <span>Remove <span className="cvs-narrowest-sr">section</span></span></Button>
       </div>
       {inline ? <Disclosure variant="inline" title="Rename section">{renameField}</Disclosure> : null}
       {inline ? <p className="cvs-hint">The page updates as you type.</p> : null}

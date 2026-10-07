@@ -9,8 +9,8 @@ import {
   MAX_FACT_VALUE_CHARS,
   applyFieldEdits,
   contentEntries,
+  factFieldLabel,
   factLengthHint,
-  fieldLabel,
 } from '#/lib/profile/evidence'
 
 // Long values (a summary, a story) get a textarea; short ones a single line.
@@ -77,7 +77,7 @@ export function EditFactDialog({
               {entries.map(({ key, value }) => (
                 <Field
                   key={key}
-                  label={fieldLabel(key)}
+                  label={current ? factFieldLabel(current, key) : key}
                   help={(values[key] ?? '').length > MAX_FACT_VALUE_CHARS * 0.8 ? factLengthHint((values[key] ?? '').trim().length) : undefined}
                 >
                   {value.length > LONG_VALUE ? (
@@ -99,7 +99,7 @@ export function EditFactDialog({
 
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="secondary" disabled={submitting}>Cancel</Button></DialogClose>
-            <Button type="submit" loading={submitting}>Save</Button>
+            <Button type="submit" loading={submitting}>Save fact</Button>
           </DialogFooter>
         </DialogForm>
       </DialogContent>

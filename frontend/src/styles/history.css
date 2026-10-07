@@ -1,17 +1,5 @@
 /* History: layout hooks only. The page, toolbar, list, rows and dialogs are kit components. */
 
-/* The day heading is a row of its own: the stone-soft strip every table header uses, so the day reads as a divider, not a run. */
-.history-day {
-  min-height: 0;
-  padding-block: var(--space-2);
-  background: var(--stone-soft);
-}
-
-.history-day .kit-row__title {
-  font-family: var(--font-display);
-  font-size: var(--fs-title);
-}
-
 /* The date keeps the row's end edge: the hover-revealed actions sit in front of it, so rows line up and nothing shifts when they appear. */
 .history-row > .kit-row__actions {
   order: 1;
@@ -31,10 +19,16 @@
 }
 
 /* One width for the "Continue: Tool" link, text at its start, so it begins at the same x on every row
-   (the kit button centres its label, so this needs the button's own specificity). */
+   (the kit button centres its label, so this needs the button's own specificity). Only on a wide list: on a tablet
+   list (under 53rem) the fixed slot left the title and summary ~230px, so there the link sizes to its own text. */
 .history-row .kit-button.history-row__continue {
-  min-inline-size: 10.5rem;
   justify-content: flex-start;
+}
+
+@container kit-list (min-width: 53rem) {
+  .history-row .kit-button.history-row__continue {
+    min-inline-size: 10.5rem;
+  }
 }
 
 /* The time keeps one slot whether or not the run is starred, so the actions before it line up on every row
@@ -42,6 +36,55 @@
 @container kit-list (min-width: 32rem) {
   .history-row > .kit-row__meta {
     min-inline-size: 5.5rem;
+  }
+}
+
+/* A tablet-width list (32-53rem): the time does not fit beside the actions, so it takes a line of its own under the
+   summary, at the text's start edge on every row. Wrapping the flex row left it floating at an x that lined up with
+   nothing; from ~44rem only some rows wrapped. Above 53rem every row keeps it on one line. */
+@container kit-list (min-width: 32rem) and (max-width: 52.9375rem) {
+  /* Doubled class: the kit's .kit-row { display: flex } loads after this file. */
+  .kit-row.history-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .history-row > .kit-row__leading {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .history-row > .kit-row__body {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .history-row > .kit-row__meta {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    min-inline-size: 0;
+    margin: 0;
+    text-align: start;
+  }
+
+  .history-row > .kit-row__actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    margin: 0;
+  }
+}
+
+/* A tablet-width list (32-48rem): star, rename and delete go into the row's More menu (as on a phone) and only
+   "Continue" stays inline, so the title and summary get the width instead of three 44px icon buttons. */
+@container kit-list (min-width: 32rem) and (max-width: 47.9375rem) {
+  .history-row > .kit-row__actions[data-collapsible] .kit-row__reveal {
+    display: none;
+  }
+
+  .history-row > .kit-row__actions[data-collapsible] > .kit-row__actions-collapsed {
+    display: flex;
   }
 }
 
@@ -66,6 +109,17 @@
   }
 }
 
+/* A 320px phone: the column is ~140px even with the smaller tile, so the title and summary get a line more each. */
+@container kit-list (max-width: 20rem) {
+  .history-row .kit-row__title {
+    -webkit-line-clamp: 4;
+  }
+
+  .history-row .history-row__clamp {
+    -webkit-line-clamp: 3;
+  }
+}
+
 .history-row__clamp {
   display: -webkit-box;
   overflow: hidden;
@@ -73,7 +127,12 @@
   -webkit-line-clamp: 2;
 }
 
-/* Inline rename: the field takes the room, Save and Cancel sit beside it. */
+/* Inline rename: the field takes the room, Save and Cancel sit beside it, or under it on a phone. The row never
+   wraps the form under the tile (the actions are hidden while renaming, so the kit's narrow grid does not apply). */
+.history-row:has(> .kit-row__body > .history-rename) {
+  flex-wrap: nowrap;
+}
+
 .history-rename {
   display: flex;
   flex-wrap: wrap;
@@ -82,6 +141,6 @@
 }
 
 .history-rename > .kit-field {
-  flex: 1 1 18rem;
+  flex: 1 1 12rem;
   min-width: 0;
 }

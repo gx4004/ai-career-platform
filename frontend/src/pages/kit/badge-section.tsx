@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Clock, Star } from 'lucide-react'
-import { Avatar, Badge, Card, CardHeader, CardTitle, Chip, Count, Kbd, MetaRow, type BadgeTone } from '#/components/kit'
+import { Avatar, Badge, Card, CardHeader, CardTitle, Chip, Count, Kbd, MetaRow, Sticker, type BadgeTone } from '#/components/kit'
 import { GallerySection, Group, Row, Specimen } from './gallery-parts'
 
 const TONES: Array<{ tone: BadgeTone; label: string }> = [
@@ -87,6 +87,21 @@ export function BadgeSection() {
               </Badge>
             </Row>
           </Specimen>
+          <Specimen label="severity on a lemon Fix-first sticker: white (tone wins over data-severity)">
+            <Sticker tone="lemon" size="sm">
+              <Row>
+                <Badge tone="white" data-severity="high">
+                  High
+                </Badge>
+                <Badge tone="white" data-severity="medium">
+                  Medium
+                </Badge>
+                <Badge tone="white" data-severity="low">
+                  Low
+                </Badge>
+              </Row>
+            </Sticker>
+          </Specimen>
           <Specimen label="score (a run's score beside its row)">
             <Row>
               <Badge tone="tangerine" score>
@@ -99,6 +114,13 @@ export function BadgeSection() {
           </Specimen>
           <Specimen label="quiet (info)">
             <Badge tone="info">Remote-friendly</Badge>
+          </Specimen>
+          <Specimen label="wrap (a long name goes onto more lines, no ellipsis)">
+            <div style={{ maxInlineSize: '14rem' }}>
+              <Badge tone="info" wrap>
+                Job from Senior Backend Engineer, Platform at Northwind Labs
+              </Badge>
+            </div>
           </Specimen>
         </Row>
       </Group>

@@ -95,33 +95,16 @@
   }
 }
 
+/* The status keeps the width of its longest usual reading ("Saved 59 min ago"), so the template badge after it
+   never moves while autosave goes Saving… → Saved. */
 .cvs-save-wrap {
   display: inline-flex;
   align-items: center;
-  gap: var(--s2);
+  min-inline-size: 10rem;
 }
 
-/* The icon of the save Badge sits beside its words; the spinner turns slower under reduced motion. */
-.cvs-save .kit-badge__label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  white-space: nowrap;
-}
-
-.cvs-save .kit-badge__label > svg {
-  flex: none;
-  width: 0.875rem;
-  height: 0.875rem;
-  stroke-width: 3;
-}
-
-.cvs-save .cvs-save__spin {
-  animation: kit-spin 900ms linear infinite;
-}
-
-/* Saved: a 22px mint disc with a check, "Saved" in 14/700 and when, muted. */
-.cvs-save--saved {
+/* Every state is the same shape: a 22px disc in the state's tone with its icon, then the word in 14/700. */
+.cvs-save {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -146,10 +129,26 @@
   background: var(--mint);
 }
 
+.cvs-save[data-state='saving'] .cvs-save__disc {
+  background: var(--stone);
+}
+
+.cvs-save[data-state='error'] .cvs-save__disc {
+  background: var(--rose);
+}
+
+.cvs-save[data-state='conflict'] .cvs-save__disc {
+  background: var(--lemon);
+}
+
 .cvs-save__disc > svg {
   width: 0.75rem;
   height: 0.75rem;
   stroke-width: 3;
+}
+
+.cvs-save .cvs-save__spin {
+  animation: kit-spin 900ms linear infinite;
 }
 
 .cvs-save__ago {
@@ -194,24 +193,22 @@
   max-width: 14rem;
 }
 
-/* Beside the name the switcher reads "CV 1 of 2" and its chevron: the open CV's name is already in the bar, and
-   the native select still covers the whole frame (its list names every CV). Phones show the name on its own line. */
-@media (min-width: 768px) {
-  .cvs-bar .kit-select.cvs-bar__select {
-    padding-inline-end: calc(var(--kit-control-px) + var(--kit-control-icon) + var(--s2));
-  }
+/* The switcher reads "CV 1 of 2" and its chevron at every width: the open CV's name is already in the bar, and the
+   native select still covers the whole frame (its list names every CV). Phones set it beside the save state. */
+.cvs-bar .kit-select.cvs-bar__select {
+  padding-inline-end: calc(var(--kit-control-px) + var(--kit-control-icon) + var(--s2));
+}
 
-  .cvs-bar .kit-select.cvs-bar__select > .kit-select__leading {
-    color: var(--ink);
-    font-weight: var(--fw-bold);
-  }
+.cvs-bar .kit-select.cvs-bar__select > .kit-select__leading {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
 
-  .cvs-bar .kit-select.cvs-bar__select > .kit-select__control {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    opacity: 0;
-  }
+.cvs-bar .kit-select.cvs-bar__select > .kit-select__control {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
 }
 
 .cvs-notices {
@@ -255,8 +252,10 @@
   background: var(--surface);
 }
 
+/* From where the column starts to 20px above the screen's bottom: under the bar at rest, at its sticky offset once
+   stuck (CvStudio writes --cvs-side-top on .cvs-side; the fallback is the stuck height). */
 .kit-tabs.cvs-tabs {
-  max-height: calc(100svh - 6rem);
+  max-height: calc(100svh - var(--cvs-side-top, 4.75rem) - var(--s5));
   min-height: 0;
 }
 
@@ -356,9 +355,10 @@
   flex: 1 1 12rem;
 }
 
-/* The sheet's panel is bare: the sheet is the frame. */
+/* The sheet's panel is bare: the sheet is the frame. The 4px at the top keeps a first field's focus ring clear of
+   the sheet body's scroll edge. */
 .cvs-panel--sheet {
-  padding: 0;
+  padding: var(--s1) 0 0;
 }
 
 /* The sheet of paper while the CV loads: A4, same width rule as the paper itself. */
@@ -407,6 +407,9 @@
 }
 
 .kit-list.cvs-outline > .kit-row.cvs-sec > .kit-row__actions {
+  /* A section row is one line (name and count share it): its chevron sits on the row's middle. The kit top-aligns the
+     actions of a narrow list's rows for multi-line text (history-profile-F39), which lifted it 10px (cv-studio-G02). */
+  align-self: center;
   margin-inline-start: var(--s2);
 }
 
@@ -489,8 +492,9 @@
     background: var(--lemon-soft);
   }
 
-  /* While the controls are up, the count gives way, so a long name never shows a count cut mid-word ("2 er"). */
-  .kit-list.cvs-outline > .kit-row.cvs-sec:is(:hover, :focus-within, [data-over]) .kit-row__subtitle {
+  /* While the controls are up, the count gives way, so a long name never shows a count cut mid-word ("2 er").
+     Only rows that have such controls: the Header row keeps "3 details" while it has focus. */
+  .kit-list.cvs-outline > .kit-row.cvs-sec:has(.kit-row__reveal):is(:hover, :focus-within, [data-over]) .kit-row__subtitle {
     visibility: hidden;
   }
 }
@@ -500,6 +504,51 @@
     position: static;
     background: none;
     transform: none;
+  }
+
+  /* A phone's sheet cannot give the name a line beside three 44px controls (320px left about 70px, so
+     "Summa / ry"). The name takes the whole first line; the count and the controls share the second. */
+  @container kit-list (max-width: 31.9375rem) {
+    .kit-list.cvs-outline > .kit-row.cvs-sec:has(.kit-row__reveal) {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      row-gap: 0;
+    }
+
+    .kit-list.cvs-outline > .kit-row.cvs-sec:has(.kit-row__reveal) > .kit-row__body {
+      display: contents;
+    }
+
+    .kit-list.cvs-outline > .kit-row.cvs-sec:has(.kit-row__reveal) > .kit-row__leading {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+    }
+
+    .kit-list.cvs-outline > .kit-row.cvs-sec:has(.kit-row__reveal) .kit-row__title {
+      grid-column: 2 / -1;
+      grid-row: 1;
+      justify-self: start;
+      max-width: 100%;
+      overflow-wrap: break-word;
+    }
+
+    /* About 90px beside the three controls at 320: the count stays one line so every row keeps the same height. */
+    .kit-list.cvs-outline > .kit-row.cvs-sec:has(.kit-row__reveal) .kit-row__subtitle {
+      grid-column: 2;
+      grid-row: 2;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .kit-list.cvs-outline > .kit-row.cvs-sec:has(.kit-row__reveal) > .kit-row__actions {
+      grid-column: 3;
+      grid-row: 2;
+      /* One grid row shared with the count: centred on it (the kit top-aligns actions that span the text). */
+      align-self: center;
+      margin-block: calc(var(--s2) * -1) 0;
+    }
   }
 }
 
@@ -522,6 +571,8 @@
 }
 
 /* ── Section editor (inside the open row or the sheet) ── */
+
+/* An entry card's title wraps beside its move and delete tools: the kit Section's size="xs" actionsWrap={false}. */
 
 .cvs-entry__grid {
   display: grid;
@@ -551,26 +602,23 @@
 }
 
 .cvs-bullet {
-  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Under the text, at its end: never over it (cv-studio-G01: drawn over the textarea's corner they hid the end of the
+   first line being typed). */
 .cvs-bullet__tools {
   display: flex;
   align-items: center;
   justify-self: end;
+  margin-top: var(--s1);
 }
 
-/* Move and remove are secondary: they appear over the corner of the text on hover and while focus is inside the bullet, always on touch (below the text). */
+/* Move and remove are secondary: with a mouse they appear on hover and while focus is inside the bullet, in the space
+   kept for them, so nothing shifts when they do; always shown on touch. */
 @media (hover: hover) and (pointer: fine) {
   .cvs-bullet__tools {
-    position: absolute;
-    inset-block-start: var(--s1);
-    inset-inline-end: var(--s1);
-    padding-inline-start: var(--s1);
-    background: var(--focus-fill);
-    border-radius: var(--r-xs);
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--dur-1) var(--ease-out);
@@ -600,20 +648,15 @@
 
 /* ── Versions ── */
 
-/* The name keeps room for its placeholder: below 12rem the button takes its own full-width line. */
-.cvs-versions__form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--s2);
-}
-
-.kit-field.cvs-versions__name {
+/* The name keeps room for its placeholder: below 12rem the button takes its own full-width line. Both sit inside the
+   one Field, so its help and its error run under the pair at the panel's full width. */
+.cvs-versions__row > .kit-input {
   flex: 999 1 12rem;
+  width: auto;
   min-width: 0;
 }
 
-.cvs-versions__form > .kit-button {
+.cvs-versions__row > .kit-button {
   flex: 1 0 auto;
 }
 
@@ -702,9 +745,21 @@
   justify-content: space-between;
 }
 
-.kit-field.cvs-tailor__version {
+/* Only beside Save in the footer: on phones the field moves into the body's column, where a 14rem basis would be a
+   224px height (cv-studio-F07). */
+.kit-panel__footer.cvs-tailor__footer > .kit-field.cvs-tailor__version {
   flex: 1 1 14rem;
   min-width: 0;
+}
+
+/* A name error grows the field downwards: Save stays level with the name input, not with the error text
+   (the label above the input is one meta line plus the field gap). */
+.kit-panel__footer.cvs-tailor__footer:has(.kit-field__error) {
+  align-items: flex-start;
+}
+
+.kit-panel__footer.cvs-tailor__footer:has(.kit-field__error) > .kit-button {
+  margin-top: calc(var(--lh-meta) + var(--s2));
 }
 
 .cvs-create__body {
@@ -761,16 +816,15 @@
   position: fixed;
   right: var(--s6);
   bottom: calc(var(--s6) + env(safe-area-inset-bottom, 0px));
-  z-index: var(--z-toast);
+  /* A notice pinned to the viewport, under every overlay: a tool sheet, a dialog (also one the export came from, whose
+     close button it would cover) and the phone Tools sheet cover it, and nothing of it is clickable over them
+     (cv-studio-F01). Over the cookie card in the same corner, though: the export is what the reader just asked for,
+     and it leaves by itself. */
+  z-index: var(--z-notice);
   width: min(28rem, calc(100vw - var(--s4) * 2));
   /* The hard shadow sits outside the box. */
   padding: 0 var(--s2) var(--s2) 0;
   pointer-events: none;
-}
-
-.cvs-moment[data-raised] {
-  top: var(--s6);
-  bottom: auto;
 }
 
 .cvs-moment__card {
@@ -820,6 +874,11 @@
   margin-top: var(--s2);
 }
 
+/* "Download DOCX" stays one line: the text column is sized for it on every phone (cv-studio-F08). */
+.cvs-moment__actions > .kit-button {
+  white-space: nowrap;
+}
+
 .cvs-moment__close {
   align-self: start;
 }
@@ -840,8 +899,19 @@
     padding-inline: var(--s5);
   }
 
+}
+
+/* From a tablet up to a small laptop the bar keeps one line: the template badge steps out (the Design tab names
+   the template) and the name may shrink to 12rem before the actions would take a second line (1024 wrapped). */
+@media (min-width: 768px) and (max-width: 1239px) {
   .cvs-bar .cvs-bar__template {
     display: none;
+  }
+
+  .cvs-bar .kit-input.cvs-bar__name {
+    flex-basis: 12rem;
+    width: 12rem;
+    min-width: 12rem;
   }
 }
 
@@ -926,8 +996,8 @@
   }
 
   .cvs-bar .kit-select.cvs-bar__select {
-    width: 100%;
-    max-width: none;
+    flex: none;
+    margin-inline-start: auto;
   }
 
   /* The first-run choices stack full width, so each label stays on one line. */
@@ -943,6 +1013,11 @@
 @media (max-width: 359px) {
   .cvs-bar .kit-input.cvs-bar__name .kit-input__control {
     font-size: 1.125rem;
+  }
+
+  /* The save state (10rem) and "CV 1 of 2" share the 288px line. */
+  .cvs-bar__doc {
+    column-gap: var(--s2);
   }
 }
 
@@ -976,19 +1051,34 @@
     bottom: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s3));
   }
 
-  .cvs-moment[data-raised] {
-    top: var(--s4);
-    bottom: auto;
-  }
-
   .cvs-moment__card {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  /* A 64px seal leaves the text its room; the text keeps clear of the 44px close button in the corner (cv-studio-F08). */
+  .cvs-moment .kit-seal.cvs-moment__seal {
+    inline-size: 4rem;
+  }
+
+  .cvs-moment__text {
+    padding-inline-end: var(--s7);
   }
 
   .cvs-moment .cvs-moment__close {
     position: absolute;
     top: var(--s1);
     right: var(--s1);
+  }
+}
+
+/* The narrowest phones drop the seal: the facts line still gives the page count, the title the format. */
+@media (max-width: 359px) {
+  .cvs-moment .kit-seal.cvs-moment__seal {
+    display: none;
+  }
+
+  .cvs-moment__card {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

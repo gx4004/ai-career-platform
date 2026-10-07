@@ -14,6 +14,11 @@ export type ToolTileProps = Omit<ComponentPropsWithoutRef<'span'>, 'children'> &
   size?: ToolTileSize
   /** Degrees, -8..8. lg defaults to -4; the rest to 0. */
   tilt?: number
+  /**
+   * A tile inside a row (What next): level and without the hard shadow at any size. The tilted, shadowed lg
+   * tile is the page-title mark only (STICKER 1.15). Ignores `tilt`.
+   */
+  flat?: boolean
 }
 
 /**
@@ -21,16 +26,23 @@ export type ToolTileProps = Omit<ComponentPropsWithoutRef<'span'>, 'children'> &
  * (aria-hidden): the label always sits next to it.
  */
 export const ToolTile = forwardRef<HTMLSpanElement, ToolTileProps>(function ToolTile(
-  { tone, icon, size = 'md', tilt, className, style, ...rest },
+  { tone, icon, size = 'md', tilt, flat = false, className, style, ...rest },
   ref,
 ) {
   const Icon = icon
-  const angle = tilt === undefined ? (size === 'lg' ? -4 : 0) : Math.min(8, Math.max(-8, Number.isFinite(tilt) ? tilt : 0))
+  const angle = flat
+    ? 0
+    : tilt === undefined
+      ? size === 'lg'
+        ? -4
+        : 0
+      : Math.min(8, Math.max(-8, Number.isFinite(tilt) ? tilt : 0))
   return (
     <span
       ref={ref}
       className={cn('kit-tool-tile', `kit-tool-tile--${size}`, className)}
       data-tone={tone ?? 'white'}
+      data-flat={flat ? 'true' : undefined}
       aria-hidden="true"
       style={angle === 0 ? style : ({ ...style, '--kit-tilt': `${angle}deg` } as CSSProperties)}
       {...rest}

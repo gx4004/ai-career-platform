@@ -91,7 +91,7 @@ export function StatePage({
   const tone = seal.tone ?? 'rose'
   return (
     <div className="state-page">
-      <ScoreSeal value={seal.value} unit={null} label={seal.label} size="lg" tone={tone} rotate={-4} />
+      <ScoreSeal value={seal.value} unit={null} label={seal.label} size="md" tone={tone} rotate={-4} />
       <ErrorState
         variant="open"
         role={role}

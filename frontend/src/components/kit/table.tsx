@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode, type Ref, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode, type Ref, type RefObject } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
+import { useScrollEdges } from '#/hooks/use-scroll-edges'
 import { cn } from '#/lib/utils'
 import { Skeleton } from './skeleton'
 import { useMergedRef } from './utils'
@@ -23,11 +24,23 @@ export type TableColumn<T> = {
   primary?: boolean
   /** Do not draw the heading: an actions column. It is still read by assistive tech, and its cells sit above a StretchedLink. */
   hideHeader?: boolean
+  /**
+   * An actions column (hideHeader) when rows stack. title (default): beside the title line. below: under the row's
+   * other lines, at their start, so a long title (an email) keeps the full width instead of wrapping beside a button.
+   */
+  stackActions?: 'title' | 'below'
   /** Label beside the value when rows stack (default: the header, when it is a string). false: no label (actions, a lone badge). */
   stackLabel?: string | false
   mono?: boolean
   /** Keep the value on one line. */
   nowrap?: boolean
+  /** Long text (a rationale, a note): when rows stack, the label sits above the value instead of beside it. */
+  stackWide?: boolean
+  /**
+   * A cell that holds a stamp or tile with a hard shadow (a FitStamp): 12px above and below it instead of 4px, so the
+   * object and its shadow clear the row rules. Every cell of that row grows with it.
+   */
+  roomy?: boolean
   /**
    * A column of Checkboxes (the header cell holds the select-all box). Stacked, the box takes the start of
    * the title line and the header box stays in the header row; give `stackLabel` to print a text ("Select all") beside it.
@@ -56,12 +69,22 @@ export type TableProps<T> = {
   loading?: boolean
   /** Placeholder rows while loading. Default 5. */
   loadingRows?: number
+  /**
+   * Lines in each text cell's placeholder: 2 for a table whose cells hold a name and a sub-line (an email over a
+   * name), so a loading row is as tall as a loaded one. Default 1.
+   */
+  loadingLines?: number
   /** Tinted with a bar on its start edge. One id, or several for a table with a selection column (see the doc: a Checkbox in the first column). */
   selectedRowId?: string | readonly string[] | null
   /** Extra props for a row: aria-busy, data-testid, onClick, className. */
   getRowProps?: (row: T) => HTMLAttributes<HTMLTableRowElement>
   /** Stack each row into a labelled list below ~640px of table width (default). false keeps the table. */
   stack?: boolean
+  /**
+   * The table width (in rem) under which rows stack. Default 40 (640px). A wide table with many columns (six, with a
+   * labelled action) passes more, e.g. 56, so a tablet stacks it instead of squeezing columns and scrolling sideways.
+   */
+  stackBelow?: number
   className?: string
   style?: CSSProperties
   ref?: Ref<HTMLDivElement>
@@ -121,9 +144,11 @@ export function Table<T>({
   empty,
   loading = false,
   loadingRows = 5,
+  loadingLines = 1,
   selectedRowId = null,
   getRowProps,
   stack = true,
+  stackBelow,
   className,
   style,
   ref,
@@ -134,6 +159,29 @@ export function Table<T>({
   const overflowing = useOverflowing(wrap)
   const showEmpty = !loading && rows.length === 0 && empty !== undefined
   const hasSortable = columns.some((column) => column.sortable)
+  // Stacked (a phone), the sort buttons are one strip that scrolls sideways: its ends say when there is more
+  // (data-overflow, drawn as Segmented's fade and chevron), and the current sort is kept in view (consistency-F26).
+  const headRow = useRef<HTMLTableRowElement | null>(null)
+  const trackEdges = useScrollEdges<HTMLTableRowElement>()
+  const headRowRef = useCallback(
+    (element: HTMLTableRowElement | null) => {
+      headRow.current = element
+      trackEdges(element)
+    },
+    [trackEdges],
+  )
+  useEffect(() => {
+    const row = headRow.current
+    if (!row || row.scrollWidth - row.clientWidth <= 1) return
+    const active = row.querySelector<HTMLElement>('[aria-sort="ascending"], [aria-sort="descending"]')
+    if (!active) return
+    // Clear of the 36px edge fade on either side.
+    const clear = 40
+    const strip = row.getBoundingClientRect()
+    const cell = active.getBoundingClientRect()
+    if (cell.right > strip.right - clear) row.scrollLeft += cell.right - (strip.right - clear)
+    else if (cell.left < strip.left + clear) row.scrollLeft -= strip.left + clear - cell.left
+  }, [sort?.id, sort?.direction])
 
   return (
     <div
@@ -143,7 +191,15 @@ export function Table<T>({
       data-stack={stack ? 'true' : undefined}
       data-sticky={stickyHeader || maxHeight ? 'true' : undefined}
       data-scroll={maxHeight ? 'true' : undefined}
-      style={maxHeight ? ({ ...style, '--kit-table-max-h': maxHeight } as CSSProperties) : style}
+      style={
+        maxHeight || stackBelow
+          ? ({
+              ...style,
+              ...(maxHeight ? { '--kit-table-max-h': maxHeight } : {}),
+              ...(stackBelow ? { '--kit-table-stack-below': stackBelow } : {}),
+            } as CSSProperties)
+          : style
+      }
       {...(overflowing ? { tabIndex: 0, role: 'region', 'aria-label': `${caption} (scrollable)` } : {})}
     >
       <table
@@ -161,7 +217,7 @@ export function Table<T>({
           ))}
         </colgroup>
         <thead className="kit-table__head" role="rowgroup">
-          <tr role="row" className="kit-table__head-row">
+          <tr ref={headRowRef} role="row" className="kit-table__head-row">
             {columns.map((column) => {
               const sorted = sort?.id === column.id ? sort.direction : null
               const align = column.numeric ? 'end' : (column.align ?? 'start')
@@ -212,10 +268,23 @@ export function Table<T>({
                       data-align={column.numeric ? 'end' : (column.align ?? 'start')}
                       data-primary={column.primary ? 'true' : undefined}
                       data-actions={column.hideHeader ? 'true' : undefined}
+                      data-stack-actions={column.hideHeader && column.stackActions === 'below' ? 'below' : undefined}
                       data-selection={column.selection ? 'true' : undefined}
                       data-label={column.selection ? undefined : stackLabelOf(column)}
                     >
-                      <Skeleton variant="line" width={column.selection ? '1rem' : column.primary ? '70%' : '55%'} />
+                      {column.hideHeader && !column.selection ? (
+                        // An actions column holds a button: its placeholder is a button's box, so the row keeps its height.
+                        <Skeleton variant="block" width="6rem" height="var(--kit-h-sm)" />
+                      ) : column.selection || column.numeric || loadingLines <= 1 ? (
+                        <Skeleton variant="line" width={column.selection ? '1rem' : column.primary ? '70%' : '55%'} />
+                      ) : (
+                        <>
+                          <Skeleton variant="line" width={column.primary ? '70%' : '55%'} />
+                          {Array.from({ length: loadingLines - 1 }, (_, line) => (
+                            <Skeleton key={line} variant="line" size="meta" width={column.primary ? '45%' : '35%'} />
+                          ))}
+                        </>
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -248,8 +317,11 @@ export function Table<T>({
                           'data-numeric': column.numeric ? 'true' : undefined,
                           'data-mono': column.mono ? 'true' : undefined,
                           'data-nowrap': column.nowrap ? 'true' : undefined,
+                          'data-stack-wide': column.stackWide ? 'true' : undefined,
+                          'data-roomy': column.roomy ? 'true' : undefined,
                           'data-primary': column.primary ? 'true' : undefined,
                           'data-actions': column.hideHeader ? 'true' : undefined,
+                          'data-stack-actions': column.hideHeader && column.stackActions === 'below' ? 'below' : undefined,
                           'data-selection': column.selection ? 'true' : undefined,
                           'data-label': label,
                         }

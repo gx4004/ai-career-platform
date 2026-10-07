@@ -36,7 +36,13 @@ export function DashboardCv() {
           </RowBody>
           <RowActions reveal={false}>
             <Button asChild variant="secondary" size="sm">
-              <Link to="/cv-studio">Open CV Studio</Link>
+              {/* Under 360px only "Open" shows (dashboard.css), so the CV name keeps the row; the name stays whole. */}
+              <Link to="/cv-studio">
+                {/* One flex item: the button's gap would otherwise open between "Open" and the rest. */}
+                <span>
+                  Open <span className="dash-cv__more">CV Studio</span>
+                </span>
+              </Link>
             </Button>
           </RowActions>
         </Row>

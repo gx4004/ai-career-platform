@@ -6,10 +6,6 @@ import { CalendarClock, Check, Copy, ExternalLink, Trash2 } from 'lucide-react'
 import {
   Badge,
   Button,
-  Card,
-  CardActions,
-  CardHeader,
-  CardTitle,
   Checkbox,
   Cluster,
   DateField,
@@ -41,9 +37,12 @@ import { applicationQueryKey, invalidateApplications } from '#/lib/query/applica
 import { ApplicationPanel } from './ApplicationPanel'
 import { listApplicationEvents } from './applicationsApi'
 import { dueText, daysUntil, SOON_DAYS } from './deadlines'
-import { STATUS_LABELS, formatDate, timeAgo } from './stages'
+import { STATUS_LABELS, formatDate, sentRecordedLate, timeAgo } from './stages'
 
 type Props = { application: ApplicationDetail }
+
+/** How long a "Saved." confirmation stays up. */
+const SAVED_NOTE_MS = 2500
 
 function useApplicationUpdate(applicationId: string) {
   const queryClient = useQueryClient()
@@ -60,17 +59,31 @@ function useApplicationUpdate(applicationId: string) {
 
 export function DocumentsPanel({ application }: Props) {
   const materials = useApplicationUpdate(application.id)
+  // "Saved." confirms the choice just made, for a moment; it is not a lasting state of the panel.
+  const [savedNote, setSavedNote] = useState(false)
+  useEffect(() => {
+    if (!materials.isSuccess) return
+    setSavedNote(true)
+    const timer = setTimeout(() => setSavedNote(false), SAVED_NOTE_MS)
+    return () => clearTimeout(timer)
+  }, [materials.isSuccess, materials.submittedAt])
   const { selected_materials: selected, available_materials: available, drafts } = application
   const draftCover = drafts?.cover_letter
   // Once applied, what was sent is the frozen record in the panel above; the CV and letter picked here
   // no longer change it, so they read as fixed. Interview prep still matters for what comes next.
   const sent = application.applied_at !== null
+  const sentWhen = sentRecordedLate(application) ? 'recorded what you sent' : 'marked it applied'
+  // The same test as the document checks: a chosen CV or letter, or the prepared letter that was sent in its place.
+  const attached = Boolean(selected.cv_variant || selected.cover_letter || draftCover?.body.trim())
+  const interviewNote = available.interviews.length ? ' You can still pick interview prep.' : ''
   return (
     <ApplicationPanel
       title={sent ? 'Your documents' : "What you're sending"}
       description={
         sent
-          ? 'The CV and cover letter are kept as they were when you marked it applied. You can still pick interview prep.'
+          ? attached
+            ? `The CV and cover letter are kept as they were when you ${sentWhen}.${interviewNote}`
+            : `No CV or cover letter was attached when you ${sentWhen}.${interviewNote}`
           : 'Pick the version of each document that goes with this application.'
       }
     >
@@ -93,27 +106,28 @@ export function DocumentsPanel({ application }: Props) {
           onChange={(value) => materials.mutate({ cover_letter_run_id: value || null })}
         />
         {draftCover && !selected.cover_letter && !sent ? (
-          <CopyBlock label="Prepared cover letter" text={draftCover.body} />
+          <CopyList label="Prepared cover letter" items={[{ label: 'Prepared cover letter', text: draftCover.body }]} />
         ) : null}
         {drafts?.screening_answers.length && !sent ? (
-          <Section headingLevel={3} title="Screening answers" rule={false}>
-            <Stack gap={2}>
-              {drafts.screening_answers.map((item) => (
-                <CopyBlock key={item.question} label={item.question} text={item.answer} />
-              ))}
-            </Stack>
+          <Section headingLevel={3} size="xs" title="Screening answers" rule={false}>
+            <CopyList
+              label="Screening answers"
+              underHeading
+              items={drafts.screening_answers.map((item) => ({ label: item.question, text: item.answer }))}
+            />
           </Section>
         ) : null}
         <MaterialRow
           label="Interview prep" field="interview_run_id" value={selected.interview?.id ?? ''} pending={materials.isPending}
           items={available.interviews.map((item) => ({ id: item.id, label: runLabel(item, 'Interview prep') }))}
           open={selected.interview ? { to: '/interview/result/$historyId', historyId: selected.interview.id } : null}
-          create={{ to: '/interview', label: 'Prepare for interviews' }}
+          // Once applied, "Prepare for interviews" is the applied panel's next step; offering it here too repeated it.
+          create={sent ? null : { to: '/interview', label: 'Prepare for interviews' }}
           onChange={(value) => materials.mutate({ interview_run_id: value || null })}
         />
         {/* Always mounted so screen readers announce it; only takes room while it has something to say. */}
-        <p className={materials.isPending || materials.isSuccess ? 'camp-note' : 'kit-sr-only'} role="status" aria-live="polite">
-          {materials.isPending ? 'Saving…' : materials.isSuccess ? 'Saved.' : ''}
+        <p className={materials.isPending || savedNote ? 'camp-note' : 'kit-sr-only'} role="status" aria-live="polite">
+          {materials.isPending ? 'Saving…' : savedNote ? 'Saved.' : ''}
         </p>
         {materials.isError ? <Notice tone="danger">Your choice couldn't be saved. Try again.</Notice> : null}
       </Stack>
@@ -150,50 +164,65 @@ function MaterialRow({ label, field, value, items, pending, locked = false, open
             <option value="">None yet</option>
           </Select>
         )}
+        {/* md: the height of the Select beside it, as Import beside the job URL and Add beside Keywords (consistency-F12). */}
         {items.length && open ? (
-          <Button asChild variant="secondary" size="sm">
+          <Button asChild variant="secondary">
             {'historyId' in open
               ? <Link to={open.to} params={{ historyId: open.historyId }}>Open</Link>
               : <Link to={open.to}>Open</Link>}
           </Button>
         ) : null}
         {!items.length && create && !locked ? (
-          <Button asChild variant="secondary" size="sm"><Link to={create.to}>{create.label}</Link></Button>
+          <Button asChild variant="secondary"><Link to={create.to}>{create.label}</Link></Button>
         ) : null}
       </Cluster>
     </Field>
   )
 }
 
-function CopyBlock({ label, text }: { label: string; text: string }) {
+/**
+ * Prepared text to paste into the employer's form: flat rows inside the panel (a Card here would make a stack of
+ * shadowed stickers out of panel content), each with its own Copy.
+ */
+/** Prepared text with a Copy button per item. underHeading: the list sits right under its own heading, which labels
+ *  its first row the way a field label sits on its control, so only the rule below the last row is drawn. */
+function CopyList({ label, items, underHeading = false }: { label: string; items: Array<{ label: string; text: string }>; underHeading?: boolean }) {
+  return (
+    <List aria-label={label} framed={false} flush boxed={underHeading ? 'end' : true} className="camp-copies">
+      {items.map((item) => <CopyRow key={item.label} label={item.label} text={item.text} />)}
+    </List>
+  )
+}
+
+function CopyRow({ label, text }: { label: string; text: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <Card as="div" padding="sm">
-      <CardHeader>
-        <CardTitle>{label}</CardTitle>
-        <CardActions reveal={false}>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            aria-label={`Copy ${label}`}
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(text)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1200)
-              } catch {
-                // Clipboard access can be denied; the text stays visible to copy by hand.
-              }
-            }}
-          >
-            {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-            {copied ? 'Copied' : 'Copy'}
-          </Button>
-        </CardActions>
-      </CardHeader>
-      <p className="camp-prose">{text}</p>
-    </Card>
+    <Row className="camp-copy">
+      <RowBody>
+        <RowTitle>{label}</RowTitle>
+        <p className="camp-prose">{text}</p>
+      </RowBody>
+      <RowActions reveal={false} placement="below">
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          aria-label={`Copy ${label}`}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(text)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 1200)
+            } catch {
+              // Clipboard access can be denied; the text stays visible to copy by hand.
+            }
+          }}
+        >
+          {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </RowActions>
+    </Row>
   )
 }
 
@@ -275,11 +304,12 @@ export function TasksPanel({ application }: Props) {
           </div>
         </form>
         {application.tasks.length ? (
-          <List aria-label="Tasks" framed={false} className="camp-tasks">
+          <List aria-label="Tasks" framed={false} flush className="camp-tasks">
             {[...open, ...done].map((task) => (
               <Row key={task.id} density="compact">
                 <RowBody>
                   <Checkbox
+                    tone="success"
                     label={task.completed ? <span className="camp-done">{task.title}</span> : task.title}
                     checked={task.completed}
                     onCheckedChange={() => write.mutate(() => updateApplicationTask(application.id, task.id, !task.completed))}
@@ -326,11 +356,19 @@ export function NotesPanel({ application }: Props) {
   const [text, setText] = useState(application.notes ?? '')
   const changed = text.trim() !== (application.notes ?? '').trim()
   return (
-    <Section title="Notes" description="Only you can see these: interview impressions, salary details, who you spoke to.">
+    <ApplicationPanel title="Notes" description="Only you can see these: interview impressions, salary details, who you spoke to.">
       <Stack gap={2}>
         <form className="camp-notes" onSubmit={(event) => { event.preventDefault(); save.mutate({ notes: text.trim() || null }) }}>
           <Field label="Your notes" hideLabel>
-            <Textarea autosize rows={3} maxRows={14} maxLength={20_000} value={text} onChange={(event) => setText(event.target.value)} />
+            <Textarea
+              autosize
+              rows={3}
+              maxRows={14}
+              maxLength={20_000}
+              placeholder="Add a note: who you spoke to, the salary range, your impressions"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+            />
           </Field>
           {changed || save.isPending ? (
             <Button type="submit" size="sm" variant="secondary" disabled={save.isPending}>
@@ -341,7 +379,7 @@ export function NotesPanel({ application }: Props) {
         {save.isSuccess && !changed ? <p className="camp-note" role="status">Saved.</p> : null}
         {save.isError ? <Notice tone="danger">Your notes couldn't be saved. Try again.</Notice> : null}
       </Stack>
-    </Section>
+    </ApplicationPanel>
   )
 }
 
@@ -445,10 +483,11 @@ export function ActivityPanel({ application }: Props) {
     onSuccess: (page) => setOlder((current) => mergeEvents(current, application.events, page.items)),
   })
   return (
-    <Section title="Activity">
+    <ApplicationPanel title="Activity">
       {events.length ? (
         <Stack gap={3}>
-          <List aria-label="Activity">
+          {/* Flush inside the panel like the Tasks list: the panel is the frame, the rows start on its content edge. */}
+          <List aria-label="Activity" framed={false} flush>
             {withoutAppliedMoveEcho(events).map((event) => (
               <Row key={event.id} density="compact">
                 <RowBody>
@@ -470,7 +509,7 @@ export function ActivityPanel({ application }: Props) {
       ) : (
         <EmptyState size="inline" title="Nothing yet" description="Changes you make to this application will show up here." />
       )}
-    </Section>
+    </ApplicationPanel>
   )
 }
 
@@ -525,6 +564,7 @@ function DeadlineEditor({ application }: Props) {
               type="button"
               size="sm"
               variant="ghost"
+              flush="start"
               loading={save.isPending}
               onClick={() => {
                 setValue('')
@@ -549,7 +589,7 @@ function DeadlineEditor({ application }: Props) {
 export function FactsPanel({ application }: Props) {
   const rows: Array<{ label: string; value: ReactNode }> = [
     ...(application.match_score !== null
-      ? [{ label: 'Skills fit', value: <span className="camp-fit"><FitStamp value={application.match_score} size="sm" /> when saved</span> }]
+      ? [{ label: 'Skills fit', value: <span className="camp-fit"><FitStamp value={application.match_score} size="sm" /><span className="camp-fit__note">when saved</span></span> }]
       : []),
     ...(OUTCOMES[application.status] ? [{ label: 'Outcome', value: OUTCOMES[application.status] }] : []),
     ...(application.created_at ? [{ label: 'Saved', value: formatDate(application.created_at) }] : []),

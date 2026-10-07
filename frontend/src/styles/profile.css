@@ -20,9 +20,33 @@
 }
 
 .profile-suggestions__list {
+  --profile-fade-start: 0px;
+  --profile-fade-end: 0px;
   max-height: calc(100svh - 12rem);
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Focus scrolls a suggestion clear of the edge fades below (32px top, 40px bottom), focus ring and all. */
+  scroll-padding-block: var(--s7) var(--s8);
+}
+
+/* The scroll cue: the edge that still has rows out of view fades out (the page sets data-overflow only while
+   there is more that way), so the frame never cuts a row mid-text without saying there is more. */
+.profile-suggestions__list[data-overflow~='start'] {
+  --profile-fade-start: var(--s7);
+}
+
+.profile-suggestions__list[data-overflow~='end'] {
+  --profile-fade-end: var(--s8);
+}
+
+.profile-suggestions__list[data-overflow] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--ink) var(--profile-fade-start),
+    var(--ink) calc(100% - var(--profile-fade-end)),
+    transparent
+  );
 }
 
 @media (max-width: 900px) {
@@ -40,26 +64,6 @@
   }
 }
 
-/* A suggestion row stacks at every width: the text keeps the whole line, its answers (Save, Dismiss, Edit) sit
-   under it. Three controls beside the text would leave it a few characters wide on a phone. */
-.profile-suggestions .profile-suggestions__list > .kit-row:has(> .kit-row__actions) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-2) 0;
-}
-
-.profile-suggestions .profile-suggestions__list > .kit-row > .kit-row__body {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.profile-suggestions .profile-suggestions__list > .kit-row > .kit-row__actions {
-  grid-column: 1;
-  grid-row: 2;
-  justify-self: start;
-  margin: 0;
-}
-
 /* The panel's one action never wraps its label: the title and the count give way instead. */
 .profile-suggestions .kit-panel-surface__actions {
   flex: none;
@@ -70,8 +74,8 @@
   white-space: nowrap;
 }
 
+/* The title's words wrap, never the count: the pill stays beside the last line instead of on a line of its own. */
 .profile-suggestions .kit-panel-surface__title {
-  flex-wrap: wrap;
   min-width: 0;
 }
 
@@ -97,8 +101,12 @@
   overflow-wrap: anywhere;
 }
 
+/* The status select is as wide as its longest option ("In progress"), at the 15px desktop and the 16px touch size
+   alike; a fixed width cut it to "In progre…" on touch. */
 .kit-select.profile-status {
-  width: 8.5rem;
+  flex: none;
+  inline-size: auto;
+  min-inline-size: 8.5rem;
 }
 
 /* Loading rows end where the real ones do: the controls come in with the text, not as a trailing pill. */
@@ -112,14 +120,25 @@
   border-bottom: var(--bw) solid var(--line);
   color: var(--ink-2);
   font-size: var(--fs-meta);
+  text-wrap: pretty;
 }
 
-/* "N facts found": the seal stamps in beside what it counted. */
+/* "N facts found": the seal stamps in beside what it counted. It spans the page column like a Notice, so its end
+   edge lines up with the header actions and the lists under it. One row at every width (a 96px seal on a phone);
+   Dismiss keeps the sticker's top end corner, clear of the text. */
 .kit-sticker.profile-stamp {
+  position: relative;
   display: flex;
-  max-inline-size: 44rem;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-5);
+  padding-inline-end: calc(var(--kit-h-sm) + var(--s3));
+}
+
+.profile-stamp > .kit-button {
+  position: absolute;
+  inset-block-start: var(--s3);
+  inset-inline-end: var(--s3);
 }
 
 .profile-stamp__seal {
@@ -133,39 +152,13 @@
 
 .profile-stamp__text > p {
   margin: 0;
+  text-wrap: pretty;
   color: var(--ink-2);
 }
 
 .profile-stamp__text > .profile-stamp__title {
   margin-block-end: var(--space-1);
   color: var(--ink);
-  font-family: var(--font-display);
-  font-size: var(--fs-section);
-  font-weight: 800;
-  line-height: 1.05;
-}
-
-/* The empty profile's one call to action: the lemon sticker. */
-.kit-sticker.profile-import {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-3);
-  max-inline-size: 36rem;
-}
-
-/* Nothing tilts on a phone except the seal, the brand mark and stamps (STICKER 1.15). */
-@media (max-width: 639px) {
-  .kit-sticker.profile-import::before {
-    transform: none;
-  }
-}
-
-.profile-import > p {
-  margin: 0;
-}
-
-.profile-import__title {
-  margin: 0;
   font-family: var(--font-display);
   font-size: var(--fs-section);
   font-weight: 800;
@@ -241,7 +234,7 @@
 }
 
 @media (max-width: 639px) {
-  .profile-stamp {
-    flex-wrap: wrap;
+  .kit-sticker.profile-stamp {
+    gap: var(--space-4);
   }
 }

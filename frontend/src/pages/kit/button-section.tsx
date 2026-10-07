@@ -231,6 +231,19 @@ export function ButtonSection() {
             <SaveDemo />
           </Specimen>
         </Row>
+        <Row>
+          {/* A long wait (an AI run) says what is happening on the button; the name stays "Suggest changes". */}
+          <Specimen label="loadingLabel (primary)">
+            <Button loading loadingLabel="Suggesting…">
+              Suggest changes
+            </Button>
+          </Specimen>
+          <Specimen label="loadingLabel (secondary, sm)">
+            <Button variant="secondary" size="sm" loading loadingLabel="Suggesting…">
+              Suggest again
+            </Button>
+          </Specimen>
+        </Row>
       </Group>
 
       <Group title="Toggle, link and long label">
@@ -266,6 +279,11 @@ export function ButtonSection() {
           <Specimen label="long label in a 20rem column: wraps inside the border, never spills out">
             <div className="kit-gallery__bounded">
               <Button variant="secondary">Generate a tailored cover letter for this application</Button>
+            </div>
+          </Specimen>
+          <Specimen label="lg primary in a 252px column (a 320px phone's form): under 360px wide its sides drop from 32px to 20px, so the label keeps one line">
+            <div className="kit-gallery__phone-column">
+              <Button size="lg">Compare career paths</Button>
             </div>
           </Specimen>
           <Specimen label="long label in 12rem, with icon, primary and loading">

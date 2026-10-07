@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button, Table, useToast } from '#/components/kit'
+import { Button, Table } from '#/components/kit'
 import type { TableColumn } from '#/components/kit'
 import { LegalLayout } from '#/components/legal/LegalLayout'
 import { StorageInventory } from '#/components/legal/StorageInventory'
 import { LEGAL_CONTACT_EMAIL } from '#/components/legal/constants'
-import { clearStoredConsent } from '#/lib/consent'
+import { clearStoredConsent, getStoredConsent, subscribeConsent, type ConsentState } from '#/lib/consent'
 
 type CookieRow = { name: string; type: string; purpose: string; lifetime: string }
 
@@ -37,26 +37,35 @@ const NECESSARY_COOKIES: CookieRow[] = [
 ]
 
 const COOKIE_COLUMNS: TableColumn<CookieRow>[] = [
-  { id: 'name', header: 'Name', primary: true, cell: (cookie) => <code>{cookie.name}</code> },
-  { id: 'type', header: 'Type', cell: (cookie) => cookie.type },
+  { id: 'name', header: 'Name', primary: true, nowrap: true, cell: (cookie) => <code>{cookie.name}</code> },
+  { id: 'type', header: 'Type', nowrap: true, cell: (cookie) => cookie.type },
   { id: 'purpose', header: 'Purpose', cell: (cookie) => cookie.purpose },
   { id: 'lifetime', header: 'Lifetime', cell: (cookie) => cookie.lifetime },
 ]
 
 export function CookiePolicyPage() {
-  const { toast } = useToast()
   // Bumped after a reset so the live table of stored keys is read again.
   const [inventoryVersion, setInventoryVersion] = useState(0)
+  // The stored choice since the last reset on this page (null before any reset): the status line follows it.
+  const [afterReset, setAfterReset] = useState<ConsentState | null>(null)
+  const resetDone = afterReset !== null
 
+  // The cookie notice comes back at once (it follows the stored choice), and that is the feedback. A toast would
+  // sit in the same corner on top of it, so the confirmation is a status line under the button instead.
   function resetConsent() {
     clearStoredConsent()
     setInventoryVersion((version) => version + 1)
-    toast({
-      tone: 'success',
-      title: 'Cookie consent reset',
-      description: "We'll ask again the next time you visit.",
-    })
+    setAfterReset('pending')
   }
+
+  // Once the returned notice is answered, the line says what was saved instead of "the notice is back".
+  useEffect(() => {
+    if (!resetDone) return
+    return subscribeConsent(() => {
+      setAfterReset(getStoredConsent())
+      setInventoryVersion((version) => version + 1)
+    })
+  }, [resetDone])
 
   return (
     <LegalLayout title="Cookie Policy">
@@ -135,14 +144,23 @@ export function CookiePolicyPage() {
           for guides. Blocking strictly-necessary cookies will sign you out.
         </li>
         <li>
-          <strong>In Career Workbench:</strong> you can reset your cookie-consent choice below. The consent banner
-          will reappear the next time you visit.
+          <strong>In Career Workbench:</strong> you can reset your cookie-consent choice below; the cookie notice
+          comes back so you can choose again.
         </li>
       </ul>
       <p>
         <Button variant="secondary" size="sm" onClick={resetConsent}>
           Reset cookie consent
         </Button>
+      </p>
+      <p className="legal-page__status" role="status">
+        {afterReset === 'pending'
+          ? 'Reset. The cookie notice is back so you can choose again.'
+          : afterReset === 'rejected'
+            ? 'Saved: essential cookies only.'
+            : afterReset === 'accepted'
+              ? 'Saved: optional diagnostics on.'
+              : null}
       </p>
 
       <h2>6. Contact</h2>

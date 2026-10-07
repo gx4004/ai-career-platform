@@ -44,7 +44,7 @@
   display: inline-flex;
   align-items: center;
   flex: none;
-  min-block-size: 40px;
+  min-block-size: var(--jump-nav-link-h, 40px);
   padding-inline: var(--s4);
   border: var(--bw) solid transparent;
   border-radius: var(--r-sm);
@@ -75,10 +75,11 @@
   outline-offset: -3px;
 }
 
-@media (pointer: coarse) {
-  .kit-jump-nav__link {
-    min-block-size: var(--touch-target);
-  }
+/* The current link already has a 2px ink border on lemon, so a ring on its edge only read as a thicker border. Its
+   focus ring sits inside a white band instead: ink border, white, ink ring, lemon (the strip clips outside rings). */
+.kit-jump-nav__link[aria-current='true']:focus-visible {
+  outline-offset: calc(-1 * (var(--bw) + 2 * var(--focus-ring-width)));
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--surface);
 }
 
 /* Phones: one scrolling row under the sticky app bar. */

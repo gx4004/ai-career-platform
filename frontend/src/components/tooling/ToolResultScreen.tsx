@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -15,10 +15,12 @@ import {
   Lead,
   List,
   Notice,
+  NumberDisc,
   Page,
   PageHeader,
   Panel,
   PanelBody,
+  PanelHeader,
   ScoreBar,
   ScoreSeal,
   Skeleton,
@@ -34,6 +36,7 @@ import { formatRunDate, runSubject } from '#/lib/tools/runLabel'
 import { ApiError, describeFailure } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
+import { useMediaQuery } from '#/hooks/use-media-query'
 import { useRevealOnce } from '#/hooks/use-reveal-once'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useSession } from '#/hooks/useSession'
@@ -55,6 +58,11 @@ import { trackTelemetry } from '#/lib/telemetry/client'
 import { ResultChromeContext, ResultJumpNav, WhatNext, flushLetterEdits } from './ResultParts'
 import type { ResultSummary } from '#/lib/tools/resultDefinitions'
 
+/** The transient store has no change events: a run is written before its result page opens. */
+function subscribeNever() {
+  return () => {}
+}
+
 function downloadTextFile(filename: string, content: string, mimeType = 'text/plain;charset=utf-8') {
   const blob = new Blob([content], { type: mimeType })
   const url = URL.createObjectURL(blob)
@@ -73,7 +81,7 @@ export function ToolResultScreen({
   historyId: string
 }) {
   const navigate = useNavigate()
-  const { status, openAuthDialog } = useSession()
+  const { status, user, openAuthDialog } = useSession()
   const favoriteToggle = useFavoriteToggle()
   const [copied, setCopied] = useState(false)
   const [regenOpen, setRegenOpen] = useState(false)
@@ -93,7 +101,24 @@ export function ToolResultScreen({
   const queryClient = useQueryClient()
   const reveal = useRevealOnce(historyId)
   const breakpoint = useBreakpoint()
-  const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
+  // Below 360px Star, Copy and Export drop their words so they share one row and the seal reaches the first screen.
+  const compactActions = useMediaQuery('(max-width: 359px)')
+  // Spread onto Star, Copy and Export (each already carries its aria-label, which an icon-only button needs).
+  const compactProps = compactActions ? ({ iconOnly: true } as const) : ({ iconOnly: false } as const)
+  // Touch or a stacked header: no hover to show a tooltip, and room on the actions' second row, so Undo says its word.
+  const wordedUndo = useMediaQuery('(max-width: 860px), (pointer: coarse)')
+  // The hero stacks at 860px and below (results.css): there the seal is the 220px one, as on a phone.
+  const stackedHero = useMediaQuery('(max-width: 860px)')
+  // A guest run lives only in this tab (memory, then session storage), which the server cannot read: the server and
+  // the hydration render see `undefined` (not known yet) and draw the loading frame; the browser's value follows at
+  // once. A client-side navigation reads it straight away. getTransientResult returns the same object each time.
+  const demoSnapshot = useSyncExternalStore(
+    subscribeNever,
+    () => getTransientResult(historyId),
+    () => undefined,
+  )
+  const demoItem = demoSnapshot ?? null
+  const demoPending = demoSnapshot === undefined && isDemoHistoryId(historyId)
   const cachedItem = queryClient.getQueryData(['tool-run', historyId]) as ReturnType<typeof getTransientResult> | undefined
   const localItem = demoItem || cachedItem || null
 
@@ -109,7 +134,8 @@ export function ToolResultScreen({
   // This should rarely happen: a cache miss here means the mutation's onSuccess
   // failed to populate the cache, or the cache was cleared between navigation.
   useEffect(() => {
-    if (!hasLocalData) {
+    // A guest demo id is never fetched, so it is never a cache miss (and while hydrating it is not known yet).
+    if (!hasLocalData && !isDemoHistoryId(historyId)) {
       trackTelemetry({
         event_name: 'result_page_cache_miss',
         tool_id: toolId,
@@ -208,7 +234,7 @@ export function ToolResultScreen({
 
 
   // A disabled query (a demo id that is gone from this tab) stays pending forever: fall through to its error state.
-  if (!item && query.isPending && !isDemoHistoryId(historyId)) {
+  if (demoPending || (!item && query.isPending && !isDemoHistoryId(historyId))) {
     return <ResultLoading toolId={toolId} />
   }
 
@@ -414,11 +440,11 @@ export function ToolResultScreen({
   }
 
   const isFavorite = favoriteOverride?.id === item.id ? favoriteOverride.value : Boolean(item.is_favorite)
-  const favoriteLabel = savedResult
-    ? isFavorite
-      ? 'Remove from favorites'
-      : 'Add to favorites'
-    : 'Sign in to favorite this result'
+  // A toggle keeps one name and says its state with aria-pressed (consistency-F28: "Starred, remove star" + pressed
+  // was read as "Starred, remove star, toggle button, pressed"); the History row's star does the same. The name starts
+  // with the visible word, Star in both states, so a speech user can say what they see (WCAG 2.5.3, consistency-F11);
+  // the pressed state shows as the lemon fill and the filled star.
+  const favoriteLabel = savedResult ? 'Star this result' : 'Star this result: sign in first'
   // aria-disabled rather than disabled: the button keeps its focus stop, its name and its tooltip.
   const favoriteBusy = favoriteToggle.isPending
   const favoriteButton = (
@@ -426,6 +452,7 @@ export function ToolResultScreen({
       type="button"
       variant="secondary"
       size="sm"
+      {...compactProps}
       aria-disabled={favoriteBusy || undefined}
       data-disabled={favoriteBusy ? 'true' : undefined}
       onClick={() => {
@@ -453,7 +480,7 @@ export function ToolResultScreen({
       aria-pressed={savedResult ? isFavorite : undefined}
     >
       <Star fill={isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
-      {isFavorite ? 'Starred' : 'Star'}
+      {compactActions ? null : 'Star'}
     </Button>
   )
 
@@ -463,9 +490,9 @@ export function ToolResultScreen({
     hasExport || hasPdf ? (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="secondary" size="sm" aria-label="Export result">
+          <Button type="button" variant="secondary" size="sm" {...compactProps} aria-label="Export result">
             <Download aria-hidden="true" />
-            Export
+            {compactActions ? null : 'Export'}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -480,47 +507,103 @@ export function ToolResultScreen({
       </DropdownMenu>
     ) : null
 
-  const actions = (
-    <Cluster gap={2} className="result-actions">
-      <Tooltip content={favoriteLabel}>{favoriteButton}</Tooltip>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={handleCopy}
-        aria-label={copied ? 'Copied to clipboard' : 'Copy result to clipboard'}
-      >
-        {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-        {copied ? 'Copied' : 'Copy'}
-      </Button>
-      {exportMenu}
-      {parentRunId && showUndo ? (
+  const copyButton = (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      {...compactProps}
+      onClick={handleCopy}
+      aria-label={copied ? 'Copied to clipboard' : 'Copy result to clipboard'}
+    >
+      {/* Copied: the check sits in a small mint disc, so the success moment has its colour (STICKER 4.R.1). Both
+          states are laid out on top of each other and only one is visible, so the button never changes width and
+          its neighbours never jump (F64). The button's aria-label is its name. */}
+      <span className="result-copy__swap result-copy__swap--icon" aria-hidden="true">
+        <Copy data-shown={!copied} />
+        <NumberDisc n={<Check />} size="xs" tone="mint" data-shown={copied} />
+      </span>
+      {compactActions ? null : (
+        <span className="result-copy__swap" aria-hidden="true">
+          <span data-shown={!copied}>Copy</span>
+          <span data-shown={copied}>Copied</span>
+        </span>
+      )}
+    </Button>
+  )
+
+  // Icon-only with a tooltip in the action cluster on a wide screen with a mouse (a sixth labelled action pushed the
+  // whole cluster under the title at 1440). On touch, where a tooltip never shows, and on a stacked header it carries
+  // its word (F62) and sits in the meta line, after the run's date, as a link that keeps the line's height (F68): the
+  // worded button in the cluster pushed Re-generate onto a row of its own, and the report jumped when it hid after 30s.
+  const undoTo = parentRunId ? resolvedTool.resultRoute.replace('$historyId', parentRunId) : null
+  const showUndoAction = Boolean(undoTo) && showUndo
+  const restoreParent = () => {
+    if (undoTo) void navigate({ to: undoTo })
+  }
+  const undoButton =
+    showUndoAction && !wordedUndo ? (
+      <Tooltip content="Undo: restore previous result">
         <Button
           type="button"
           variant="ghost"
           size="sm"
+          iconOnly
           aria-label="Undo: restore previous result"
-          onClick={() => navigate({ to: resolvedTool.resultRoute.replace('$historyId', parentRunId) })}
+          onClick={restoreParent}
         >
           <Undo2 aria-hidden="true" />
-          Undo
         </Button>
-      ) : null}
-      <Button asChild variant="ghost" size="sm" className="tool-link result-actions__new">
-        <Link to={resolvedTool.route} activeOptions={{ exact: true }}>
-          New input
-        </Link>
-      </Button>
+      </Tooltip>
+    ) : null
+  const undoMeta =
+    showUndoAction && wordedUndo ? (
       <Button
+        key="undo"
         type="button"
-        variant={practicing ? 'secondary' : 'primary'}
-        className="result-actions__primary"
-        aria-expanded={regenOpen}
-        onClick={() => setRegenOpen((v) => !v)}
+        variant="link"
+        size="sm"
+        aria-label="Undo: restore previous result"
+        onClick={restoreParent}
       >
-        <RefreshCw aria-hidden="true" />
-        Re-generate
+        <Undo2 aria-hidden="true" />
+        Undo
       </Button>
+    ) : null
+
+  const newInput = (
+    <Button asChild variant="ghost" size="sm" className="tool-link result-actions__new">
+      <Link to={resolvedTool.route} activeOptions={{ exact: true }}>
+        New input
+      </Link>
+    </Button>
+  )
+
+  const regenerateButton = (
+    <Button
+      type="button"
+      // While the feedback panel is open its Continue is the view's one primary; this button shows its open state.
+      variant={practicing || regenOpen ? 'secondary' : 'primary'}
+      className="result-actions__primary"
+      aria-expanded={regenOpen}
+      onClick={() => setRegenOpen((v) => !v)}
+    >
+      <RefreshCw aria-hidden="true" />
+      Re-generate
+    </Button>
+  )
+
+  // One order at every width, the order of every page header (consistency-F13): the one primary ends the actions,
+  // at the right side by side (the mockup) and last when the header stacks, as on Applications and Profile. The DOM
+  // order is the order on screen (WCAG 2.4.3).
+  const actions = (
+    <Cluster gap={2} className="result-actions">
+      <Tooltip content={favoriteLabel}>{favoriteButton}</Tooltip>
+      {copyButton}
+      {exportMenu}
+      {undoButton}
+      {newInput}
+      {regenerateButton}
     </Cluster>
   )
 
@@ -574,12 +657,14 @@ export function ToolResultScreen({
     ) : null
 
   return (
-    <ResultChromeContext.Provider value={{ setPracticing, reveal }}>
+    <ResultChromeContext.Provider
+      value={{ setPracticing, reveal, signerName: status === 'authenticated' ? (user?.full_name ?? null) : null }}
+    >
       <Page>
         <PageHeader
           mark={<ToolTile tone={resolvedTool.tone} icon={resolvedTool.icon} size="lg" />}
           title={resolvedTool.label}
-          meta={[runLabel, runDate ? `Result from ${runDate}` : '', applicationLink]}
+          meta={[runLabel, runDate ? `Result from ${runDate}` : '', undoMeta, applicationLink]}
           actions={actions}
         />
 
@@ -601,11 +686,12 @@ export function ToolResultScreen({
 
         {regenOpen ? (
           <Panel>
+            <PanelHeader title="Re-generate with feedback" />
             <PanelBody>
               <Stack gap={3} role="group" aria-label="Re-generate with feedback">
                 <Textarea
                   autoFocus
-                  placeholder="Optional: describe what you'd like changed..."
+                  placeholder="Optional: describe what you'd like changed…"
                   aria-label="Re-generate feedback"
                   value={regenFeedback}
                   onChange={(e) => setRegenFeedback(e.target.value)}
@@ -628,8 +714,9 @@ export function ToolResultScreen({
                   >
                     Cancel
                   </Button>
-                  <Button type="button" variant="secondary" size="sm" loading={regenSeeding} onClick={() => void handleRegenSubmit()}>
-                    Submit
+                  {/* Continue, not Submit: it opens the tool's form with this run's input, where the run starts. */}
+                  <Button type="button" size="sm" loading={regenSeeding} onClick={() => void handleRegenSubmit()}>
+                    Continue
                   </Button>
                 </Cluster>
               </Stack>
@@ -647,6 +734,7 @@ export function ToolResultScreen({
             scoreDelta={scoreDelta}
             reveal={reveal}
             phone={phone}
+            stacked={stackedHero}
           >
             {hasHeadline ? <Lead size="xl">{headline}</Lead> : null}
             <FixFirstList actions={topActions} />
@@ -692,6 +780,7 @@ function ResultHero({
   scoreDelta,
   reveal,
   phone,
+  stacked,
   children,
 }: {
   summary: ResultSummary
@@ -700,9 +789,13 @@ function ResultHero({
   scoreDelta: number | null
   reveal: boolean
   phone: boolean
+  /** The hero is one column (<= 860px): the seal is the 220px one. */
+  stacked: boolean
   children: ReactNode
 }) {
   const hasBars = Boolean(summary.bars && summary.bars.length > 0)
+  // The score's explanation opens under the verdict row, so it never covers the number it explains (F60).
+  const tagsRef = useRef<HTMLDivElement | null>(null)
   // The verdict and the count are stickers under the seal: the facts list does not say them twice.
   const facts = summary.facts.filter(
     (f) => !(summary.verdict && f.label === 'Verdict') && !(summary.count && f.label === 'Issues'),
@@ -714,14 +807,21 @@ function ResultHero({
       <div className="result-hero__side">
         {summary.score ? (
           <>
-            <ScoreSeal
-              value={summary.score.value}
-              label={summary.score.label}
-              unit={summary.score.unit}
-              size={phone ? 'lg' : 'xl'}
-              reveal={reveal ? 'stamp' : 'none'}
-            />
-            <div className="result-hero__tags">
+            {/* The score's "?" belongs to the seal: anchored to the seal's own box (not the side column), so it stays
+                beside the seal when the hero stacks and the side spans the page. */}
+            <div className="result-hero__seal">
+              <ScoreSeal
+                value={summary.score.value}
+                label={summary.score.label}
+                unit={summary.score.unit}
+                size={phone || stacked ? 'md' : 'xl'}
+                reveal={reveal ? 'stamp' : 'none'}
+              />
+              <span className="result-hero__help">
+                <ScoreHelp toolId={toolId} anchorRef={tagsRef} />
+              </span>
+            </div>
+            <div ref={tagsRef} className="result-hero__tags">
               {summary.verdict?.label ? (
                 <Sticker as="span" size="sm" tone={summary.verdict.tone} tilt={phone ? 0 : -3} reveal={slap} revealOrder={3} className="result-verdict">
                   {summary.verdict.label}
@@ -729,23 +829,25 @@ function ResultHero({
               ) : null}
               {summary.count ? (
                 <Sticker as="span" size="sm" tone="white" tilt={phone ? 0 : 2.5} reveal={slap} revealOrder={3} className="result-issues">
-                  <b>{summary.count.value}</b> {countNoun(summary.count)}
+                  {/* The kit makes a small sticker inline-block: the row layout lives on an inner wrapper, not the plate. */}
+                  <span className="result-issues__body">
+                    <b>{summary.count.value}</b> {countNoun(summary.count)}
+                  </span>
                 </Sticker>
               ) : null}
               {scoreDelta !== null && scoreDelta !== 0 ? (
-                <Sticker as="span" size="sm" tone={scoreDelta > 0 ? 'mint' : 'rose'} reveal={slap} revealOrder={3} className="result-delta">
-                  {scoreDelta > 0 ? <ArrowUp aria-hidden="true" /> : <ArrowDown aria-hidden="true" />}
-                  <span>
-                    {scoreDelta > 0 ? '+' : ''}
-                    {scoreDelta} pts <span className="kit-sr-only">since the previous result</span>
+                <Sticker as="span" size="sm" tone={scoreDelta > 0 ? 'mint' : 'rose'} reveal={slap} revealOrder={3}>
+                  {/* One line: arrow then number. On the plate itself the kit's inline-block beat inline-flex and stacked them. */}
+                  <span className="result-delta">
+                    {scoreDelta > 0 ? <ArrowUp aria-hidden="true" /> : <ArrowDown aria-hidden="true" />}
+                    <span>
+                      {scoreDelta > 0 ? '+' : ''}
+                      {scoreDelta} pts <span className="kit-sr-only">since the previous result</span>
+                    </span>
                   </span>
                 </Sticker>
               ) : null}
             </div>
-            {/* In the side's top corner, beside the seal: inside the tags row it wrapped onto a line of its own. */}
-            <span className="result-hero__help">
-              <ScoreHelp toolId={toolId} />
-            </span>
           </>
         ) : phone ? null : (
           // The header already carries this tile; on a phone the big one would push the work itself off the first screen.
@@ -760,7 +862,10 @@ function ResultHero({
                       <ScoreBar key={bar.label} label={bar.label} value={bar.value} max={bar.max} valueLabel={bar.valueLabel} tone="ink" />
                     ))
                   : null}
-                {facts.length > 0 ? <KeyValue labelWidth="8.5rem" items={facts} /> : null}
+                {/* 8rem fits the longest fact label, Job Match's "Keywords missing" (about 121px at 14px semibold), on
+                    one line; the values are short numbers or phrases, so the value column still has room. A longer
+                    label added to a summary's facts in resultDefinitions.tsx needs this width revisited. */}
+                {facts.length > 0 ? <KeyValue labelWidth="8rem" items={facts} /> : null}
               </Stack>
             </PanelBody>
           </Panel>
@@ -778,13 +883,17 @@ function ResultHero({
 function ResultLoading({ toolId }: { toolId: ToolId }) {
   const tool = tools[toolId]
   const scored = toolId === 'resume' || toolId === 'job-match' || toolId === 'career'
+  // The Resume hero shows its verdict and issues as stickers and has no facts panel; every other hero has one.
+  const hasFacts = toolId !== 'resume'
   return (
     <Page>
       <PageHeader
         mark={<ToolTile tone={tool.tone} icon={tool.icon} size="lg" />}
         title={tool.label}
         meta={[<Skeleton key="date" size="meta" width="4rem" />]}
-        actions={<Skeleton variant="block" width="28rem" className="result-loading__actions" />}
+        // In the actions slot (result-actions), as wide as the loaded cluster, so the header's :has(.result-actions)
+        // rules place it the same way: the title keeps one line and the actions drop under it when they must.
+        actions={<Skeleton variant="block" width="36rem" className="result-actions result-loading__actions" />}
       />
       <div className="kit-jump-nav result-loading__jump" aria-hidden="true">
         <Skeleton variant="block" width="min(26rem, 100%)" height={40} />
@@ -797,11 +906,13 @@ function ResultLoading({ toolId }: { toolId: ToolId }) {
             ) : (
               <Skeleton variant="block" width={120} height={120} className="result-tile-skeleton" />
             )}
-            <Panel className="result-hero__facts">
-              <PanelBody>
-                <Skeleton lines={3} width="100%" />
-              </PanelBody>
-            </Panel>
+            {hasFacts ? (
+              <Panel className="result-hero__facts">
+                <PanelBody>
+                  <Skeleton lines={3} width="100%" />
+                </PanelBody>
+              </Panel>
+            ) : null}
           </div>
           <div className="result-hero__lead">
             <Skeleton label="Fetching saved output" lines={2} size="title" />

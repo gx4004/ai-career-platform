@@ -151,15 +151,20 @@
   }
 }
 
+/*
+ * The ring grows by outline-offset (17.5% of the seal each side = the old scale(1.35)), never by a transform: a
+ * transform counts toward scrollable overflow, so a seal near a phone's right edge widened the page (F29). An outline
+ * is ink overflow only, it paints past the edge without moving it.
+ */
 @keyframes kit-ring {
   0% {
     opacity: 0.55;
-    transform: scale(1);
+    outline-offset: 0;
   }
 
   100% {
     opacity: 0;
-    transform: scale(1.35);
+    outline-offset: 17.5cqw;
   }
 }
 

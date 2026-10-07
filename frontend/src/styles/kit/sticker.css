@@ -23,7 +23,8 @@
   border-radius: inherit;
   background: var(--tone, var(--surface));
   box-shadow: var(--kit-sticker-shadow);
-  transform: rotate(var(--kit-tilt, 0deg));
+  /* --kit-tilt-scale (inherited, default 1) lets a layout level its stickers where they stack full width (0 = level). */
+  transform: rotate(calc(var(--kit-tilt, 0deg) * var(--kit-tilt-scale, 1)));
 }
 
 .kit-sticker p,
@@ -50,11 +51,14 @@
 .kit-sticker .kit-stretched:focus-visible::after {
   outline-offset: -10px;
   border-radius: calc(var(--r-lg) - 10px);
+  /* A tilted plate turns its ring with it, so the gap to the outline is even all round (not closing at two corners). */
+  transform: rotate(calc(var(--kit-tilt, 0deg) * var(--kit-tilt-scale, 1)));
 }
 
+/* Small stickers: the 3px ring sits 7px in, leaving a 2px band of tone between it and the 2px outline. */
 .kit-sticker--sm .kit-stretched:focus-visible::after {
-  outline-offset: -5px;
-  border-radius: calc(var(--r-md) - 5px);
+  outline-offset: -7px;
+  border-radius: calc(var(--r-md) - 7px);
 }
 
 .kit-sticker--xl .kit-stretched:focus-visible::after {

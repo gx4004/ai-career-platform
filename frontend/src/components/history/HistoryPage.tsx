@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Clock, Search, Star, TriangleAlert } from 'lucide-react'
@@ -6,18 +6,15 @@ import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
 import { HistoryRow, runLabel } from '#/components/history/HistoryRow'
 import {
   Button,
-  Cluster,
   EmptyState,
   ErrorState,
   Input,
   List,
+  ListHeading,
   Notice,
   Page,
   PageHeader,
   Pagination,
-  Row,
-  RowBody,
-  RowTitle,
   Segmented,
   Select,
   Skeleton,
@@ -45,7 +42,8 @@ export type HistorySearchState = {
   page_size?: number
 }
 
-// Keeps the header's meta line when there is no count to show (nothing saved yet, or the list failed), so the toolbar does not jump.
+// Keeps the header's meta line when the toolbar shows but there is no count (the list failed), so the toolbar does not jump.
+// A first-run History has no toolbar and no meta line at all.
 const META_PLACEHOLDER = <span key="placeholder" aria-hidden>{'\u00a0'}</span>
 
 // Each option carries the tool's colour as a dot, the same colour its tile has in the list below.
@@ -103,6 +101,30 @@ function useCompact() {
   )
 }
 
+// The six-option segmented control needs about 64rem beside the search and Favorites (66 keeps a margin for a slower
+// font swap). A narrower toolbar (a tablet,
+// a laptop with the sidebar open) gets the Select instead: the segmented control would stack the filters three rows deep.
+const SEGMENTED_MIN_REM = 66
+function useToolbarFitsSegmented() {
+  const [node, setNode] = useState<HTMLDivElement | null>(null)
+  const [fits, setFits] = useState(true)
+  useLayoutEffect(() => {
+    if (!node) return
+    const update = () => {
+      // The toolbar stretches to its column, so its width never depends on which control it holds.
+      const width = node.getBoundingClientRect().width
+      if (!width) return
+      const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      setFits(width >= SEGMENTED_MIN_REM * rem)
+    }
+    update()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(node)
+    return () => observer?.disconnect()
+  }, [node])
+  return [setNode, fits] as const
+}
+
 export function HistoryPage({
   search,
   onSearchChange,
@@ -112,7 +134,9 @@ export function HistoryPage({
   onSearchChange: (next: Partial<HistorySearchState>, options?: { replace?: boolean }) => void
 }) {
   const navigate = useNavigate()
-  const compact = useCompact()
+  const [toolbarRef, toolbarFitsSegmented] = useToolbarFitsSegmented()
+  const phone = useCompact()
+  const compact = phone || !toolbarFitsSegmented
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
   // The list loads once signed in, and also while /auth/me is still answering in a browser that was signed
@@ -159,6 +183,10 @@ export function HistoryPage({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const deleteTrigger = useRef<HTMLElement | null>(null)
   const deleted = useRef(false)
+  // The run that takes the deleted one's place (the next one, else the one before): it gets focus (history-profile-F32).
+  // Kept by id, not position: the dialog closes before the list refetches, so the deleted row may still be there.
+  const deleteNeighbour = useRef<string | null>(null)
+  const headerRef = useRef<HTMLElement | null>(null)
 
   const deleteMutation = useMutation({
     mutationFn: deleteHistoryItem,
@@ -249,15 +277,9 @@ export function HistoryPage({
         <EmptyState
           icon={<Clock />}
           title="Pick up where you left off"
-          description="Your saved runs and favorites live here — sign in to unlock your full history."
-          action={
-            <Cluster gap={2}>
-              <Button onClick={() => openAuthDialog({ to: '/history', reason: 'history' })}>Sign in</Button>
-              <Button asChild variant="secondary">
-                <Link to="/resume">Start with Resume</Link>
-              </Button>
-            </Cluster>
-          }
+          description="Your saved runs and starred results live here — sign in to unlock your full history."
+          // One action, as every signed-in-only page's guest gate (STICKER 4.O, consistency-F25).
+          action={<Button onClick={() => openAuthDialog({ to: '/history', reason: 'history' })}>Sign in</Button>}
         />
       </Page>
     )
@@ -268,7 +290,7 @@ export function HistoryPage({
   const errorMessage = actionError ?? (favoriteToggle.error
     ? favoriteToggle.error instanceof Error
       ? favoriteToggle.error.message
-      : 'Failed to update favorite.'
+      : "The star couldn't be updated."
     : null)
   // With a search or filter the total counts matches, not the user's history: say so.
   const runCount = !listQuery.data
@@ -279,17 +301,35 @@ export function HistoryPage({
         ? `${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`
         : null
 
+  // Clear filters lives in the header line beside the match count ("2 matches · Clear filters"): in the toolbar it
+  // wrapped onto a line of its own beside the six-option Segmented control and pushed the list down when a filter
+  // was chosen. On a phone the Filters sheet carries it too.
+  const clearFiltersLink = activeFilters > 0 ? (
+    <Button key="clear" type="button" variant="link" size="sm" onClick={clearFilters}>
+      Clear filters
+    </Button>
+  ) : null
+
+  // Nothing to search or filter yet: the first-run empty state stands alone, with no toolbar.
+  const firstRun = Boolean(listQuery.data && listQuery.data.total === 0 && !hasFilters)
+
   return (
     <Page>
       <PageHeader
+        ref={headerRef}
         title="History"
-        meta={listQuery.isPending ? [<Skeleton key="count" size="meta" width="3.5rem" />] : [runCount ?? META_PLACEHOLDER]}
+        // The placeholder only keeps the toolbar from jumping; with no toolbar there is no header line at all, so the
+        // empty state starts where it does on every other empty page (consistency-F19).
+        meta={listQuery.isPending
+          ? [<Skeleton key="count" size="meta" width="3.5rem" />]
+          : firstRun ? undefined : [runCount ?? META_PLACEHOLDER, clearFiltersLink]}
       />
 
       <Stack gap={3}>
-        {/* Nothing to search or filter yet: the first-run empty state stands alone. */}
-        {listQuery.data && listQuery.data.total === 0 && !hasFilters ? null : (
+        {firstRun ? null : (
           <Toolbar
+            ref={toolbarRef}
+            filtersDescription="Show runs from one tool, or only starred ones."
             search={
               <Input
                 ref={searchRef}
@@ -345,12 +385,12 @@ export function HistoryPage({
                   onClick={() => onSearchChange({ favorite: search.favorite ? undefined : true, page: 1 })}
                 >
                   <Star fill={search.favorite ? 'currentColor' : 'none'} aria-hidden />
-                  Favorites
+                  Starred
                 </Button>
               </>
             }
             activeFilters={activeFilters}
-            onClearFilters={clearFilters}
+            onClearFilters={phone ? clearFilters : undefined}
           />
         )}
 
@@ -372,15 +412,14 @@ export function HistoryPage({
               Loading saved runs
             </p>
             <List aria-busy aria-label="Saved runs">
-              <Skeleton variant="row" as="li" count={6} leading="tile" />
+              <Skeleton variant="row" as="li" heading count={6} leading="tile" lines={2} narrowLines={4} />
             </List>
           </>
         ) : listQuery.isError ? (
           <ErrorState
             icon={<TriangleAlert />}
-            title="We couldn't load your history"
+            title="We couldn’t load your history"
             description="Something went wrong on our side. Try again in a moment."
-            retryLabel="Retry"
             onRetry={() => void listQuery.refetch()}
             retrying={listQuery.isFetching}
           />
@@ -388,11 +427,7 @@ export function HistoryPage({
           <List aria-label="Saved runs">
             {groupByDay(items).map((group) => (
               <Fragment key={group.heading}>
-                <Row className="history-day">
-                  <RowBody>
-                    <RowTitle headingLevel={3}>{group.heading}</RowTitle>
-                  </RowBody>
-                </Row>
+                <ListHeading>{group.heading}</ListHeading>
                 {group.items.map((item) => (
                   <HistoryRow
                     key={item.id}
@@ -422,6 +457,8 @@ export function HistoryPage({
                     onContinue={() => void continueRun(item)}
                     onDelete={(trigger) => {
                       deleted.current = false
+                      const at = items.indexOf(item)
+                      deleteNeighbour.current = (items[at + 1] ?? items[at - 1])?.id ?? null
                       setDeleteError(null)
                       deleteTrigger.current = trigger
                       setDeleteCandidate({ id: item.id, label: runLabel(item) })
@@ -432,26 +469,33 @@ export function HistoryPage({
             ))}
           </List>
         ) : hasFilters ? (
-          <EmptyState
-            icon={<Search />}
-            title="No runs match these filters"
-            description="Try a different tool or search, or clear the filters."
-            action={
-              // Where the toolbar shows its own "Clear filters" link the empty state does not repeat it.
-              compact || activeFilters === 0 ? (
-                <Button variant="secondary" size="sm" onClick={clearFilters}>
-                  Clear filters
+          activeFilters === 0 ? (
+            // Only words were typed: talk about the search (no filter is set to clear).
+            <EmptyState
+              icon={<Search />}
+              title={`No runs match “${search.q ?? ''}”`}
+              description="Try another word, or clear the search."
+              action={
+                <Button variant="secondary" onClick={clearFilters}>
+                  Clear search
                 </Button>
-              ) : undefined
-            }
-          />
+              }
+            />
+          ) : (
+            // The header line beside the count already offers Clear filters; the empty state does not repeat it.
+            <EmptyState
+              icon={<Search />}
+              title="No runs match these filters"
+              description="Try a different tool or search, or clear the filters."
+            />
+          )
         ) : total === 0 ? (
           <EmptyState
             icon={<Clock />}
             title="No runs yet"
             description="Run a tool and your saved results will show up here."
             action={
-              <Button asChild size="sm">
+              <Button asChild>
                 <Link to="/resume">Start with Resume</Link>
               </Button>
             }
@@ -472,7 +516,7 @@ export function HistoryPage({
         title="Delete this saved run?"
         description={
           deleteCandidate
-            ? `"${deleteCandidate.label}" will be permanently removed from your history. This cannot be undone.`
+            ? `“${deleteCandidate.label}” will be permanently removed from your history. This cannot be undone.`
             : 'This run will be permanently removed.'
         }
         confirmLabel="Delete run"
@@ -489,8 +533,30 @@ export function HistoryPage({
           // The row that opened the dialog is gone once it was deleted; otherwise focus goes back to its button.
           event.preventDefault()
           const trigger = deleteTrigger.current
-          if (!deleted.current && trigger?.isConnected) trigger.focus()
-          else searchRef.current?.focus()
+          if (!deleted.current && trigger?.isConnected) {
+            trigger.focus()
+            return
+          }
+          // Never the search field: on a phone or tablet it raises the keyboard over the list that just changed.
+          // The run that took the deleted one's place (its title link), else the page title.
+          window.requestAnimationFrame(() => {
+            const id = deleteNeighbour.current
+            const row = id
+              ? Array.from(document.querySelectorAll<HTMLElement>('.history-row')).find((node) => node.dataset.runId === id)
+              : null
+            // A run with no result page (an older draft) has no title link: its first visible action instead.
+            const link =
+              row?.querySelector<HTMLElement>('a.kit-row__title') ??
+              Array.from(row?.querySelectorAll<HTMLElement>('.kit-row__actions button') ?? []).find((node) => node.offsetParent !== null)
+            if (link) {
+              link.focus()
+              return
+            }
+            const heading = headerRef.current?.querySelector('h1')
+            if (!heading) return
+            heading.setAttribute('tabindex', '-1')
+            heading.focus({ preventScroll: true })
+          })
         }}
       >
         {deleteError ? <Notice tone="danger">{deleteError}</Notice> : null}

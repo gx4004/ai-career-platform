@@ -29,6 +29,7 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('#/hooks/useSession', () => ({ useSession: () => session.value }))
 vi.mock('#/components/applications/ApplicationDetailsCard', () => ({
   ApplicationDetailsCard: () => <div>details card</div>,
+  ApplicationDetailsSkeleton: () => <div aria-hidden="true">details skeleton</div>,
 }))
 
 function renderPage(overrides: Record<string, unknown>, client = new QueryClient()) {
@@ -50,13 +51,14 @@ function renderPage(overrides: Record<string, unknown>, client = new QueryClient
 }
 
 describe('Account page', () => {
-  it('titles the page Account, with the name and email in the Identity panel and a member-since sticker', () => {
+  it('titles the page Account, with the name and email in the Identity section and a quiet member-since line', () => {
     renderPage({})
     expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeTruthy()
     const identity = within(screen.getByRole('region', { name: 'Identity' }))
     expect(identity.getByText('Ada Lovelace')).toBeTruthy()
     expect(identity.getByText('ada@example.com')).toBeTruthy()
-    expect(identity.getByText(/^Member since /)).toBeTruthy()
+    // A date is meta, not an object: no (tilted) sticker (account-admin-F08, STICKER 1.15).
+    expect(identity.getByText(/^Member since /).closest('.kit-sticker, [data-tilt]')).toBeNull()
   })
 
   it('omits the member-since chip when the date is missing', () => {
@@ -65,15 +67,13 @@ describe('Account page', () => {
     expect(screen.queryByText('Unavailable')).toBeNull()
   })
 
-  it('hides the sign-in options card unless Google sign-in is enabled', () => {
-    renderPage({ providers: [{ provider: 'google', label: 'Google', enabled: false }] })
-    expect(screen.queryByText('Sign-in options')).toBeNull()
-  })
-
-  it('shows neutral copy when Google sign-in is enabled', () => {
+  // account-admin-AAG-F11: the session never knows which providers this account has linked (providers is always
+  // empty), and a deployment-level list would draw a bare heading with nothing under it. The section is gone until a
+  // per-user linked-provider field gives it a real row.
+  it('draws no empty Sign-in options heading, even when the deployment offers Google', () => {
     renderPage({ providers: [{ provider: 'google', label: 'Google', enabled: true }] })
-    expect(screen.getByText('Sign-in options')).toBeTruthy()
-    expect(screen.getByText('Google sign-in is available.')).toBeTruthy()
+    expect(screen.queryByText('Sign-in options')).toBeNull()
+    expect(screen.queryByText('Google sign-in is available.')).toBeNull()
   })
 
   it('keeps the page header for a signed-out visitor, with the sign-in prompt under it', () => {
@@ -81,6 +81,8 @@ describe('Account page', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: 'Your workspace, your way' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    // consistency-F25: one action, as every signed-in-only page's guest gate (STICKER 4.O).
+    expect(screen.queryByRole('link', { name: 'Explore tools' })).toBeNull()
     expect(screen.queryByText('details card')).toBeNull()
   })
 
@@ -88,7 +90,13 @@ describe('Account page', () => {
     renderPage({ status, user: null })
     expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeTruthy()
     expect(screen.getByRole('status', { name: 'Loading your account' })).toBeTruthy()
+    // The loaded page's group headings are there from the first frame (account-admin-F10), so nothing jumps.
+    expect(screen.getByRole('heading', { level: 2, name: 'Identity' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Details for applications' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    // The avatar placeholder is round like the avatar it stands for, so the shape does not snap on load (account-admin-F20).
+    const identity = screen.getByRole('status', { name: 'Loading your account' })
+    expect(identity.querySelector('.kit-skeleton--block')?.getAttribute('data-shape')).toBe('circle')
   })
 
   it('shows the member-since date with its year', () => {
@@ -155,7 +163,14 @@ describe('Account page', () => {
     fireEvent.change(dialog.getByLabelText('Current password'), { target: { value: current } })
     fireEvent.change(dialog.getByLabelText('New password'), { target: { value: next } })
     fireEvent.change(dialog.getByLabelText('Confirm new password'), { target: { value: confirm } })
-    fireEvent.click(dialog.getByRole('button', { name: 'Change password' }))
+    submitPasswords(dialog)
+  }
+
+  /** A real click leaves focus on the submit button (fireEvent.click alone does not move it). */
+  function submitPasswords(dialog: ReturnType<typeof within>) {
+    const submit = dialog.getByRole('button', { name: 'Change password' })
+    submit.focus()
+    fireEvent.click(submit)
   }
 
   it('changes the password in the app and says the other sessions were signed out', async () => {
@@ -165,7 +180,9 @@ describe('Account page', () => {
     await waitFor(() =>
       expect(changePasswordMock).toHaveBeenCalledWith({ current_password: 'old-password', new_password: 'new-password-1' }),
     )
-    expect((await screen.findAllByText('Password changed. Other sessions were signed out.')).length).toBeGreaterThan(0)
+    // Toast titles are short and unpunctuated; the consequence is the description (account-admin-F12).
+    expect((await screen.findAllByText('Password changed')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Other devices were signed out').length).toBeGreaterThan(0)
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
@@ -173,6 +190,8 @@ describe('Account page', () => {
     changePasswordMock.mockReset()
     renderPage({})
     const dialog = await openPasswordDialog()
+    // The same rule, in the same words, as the sign-up and reset forms.
+    expect(dialog.getByText('At least 8 characters.')).toBeTruthy()
     fillPasswords(dialog, 'old-password', 'short')
     expect(await dialog.findByText('Use at least 8 characters.')).toBeTruthy()
     fillPasswords(dialog, 'old-password', 'new-password-1', 'new-password-2')
@@ -187,6 +206,21 @@ describe('Account page', () => {
     fillPasswords(dialog, 'wrong-password', 'new-password-1')
     expect(await dialog.findByText("That isn't your current password. Check it and try again.")).toBeTruthy()
     expect(dialog.getByLabelText('Current password').getAttribute('aria-invalid')).toBe('true')
+    // account-admin-AAG-F04: focus goes to the field to fix, not left on the submit button.
+    await waitFor(() => expect(document.activeElement).toBe(dialog.getByLabelText('Current password')))
+  })
+
+  it('moves focus to the first field with a problem after a submit that does not pass the checks', async () => {
+    changePasswordMock.mockReset()
+    renderPage({})
+    const dialog = await openPasswordDialog()
+    submitPasswords(dialog)
+    expect(document.activeElement).toBe(dialog.getByLabelText('Current password'))
+    fillPasswords(dialog, 'old-password', 'short')
+    expect(document.activeElement).toBe(dialog.getByLabelText('New password'))
+    fillPasswords(dialog, 'old-password', 'new-password-1', 'new-password-2')
+    expect(document.activeElement).toBe(dialog.getByLabelText('Confirm new password'))
+    expect(changePasswordMock).not.toHaveBeenCalled()
   })
 
   it('tells a Google-only account it has no password yet and offers the emailed link', async () => {

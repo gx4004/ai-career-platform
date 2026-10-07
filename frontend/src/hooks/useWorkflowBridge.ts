@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ToolDraftState, WorkflowContextState } from '#/lib/tools/drafts'
 import { readWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolId } from '#/lib/tools/registry'
-import { getWorkflowTargetRole } from '#/lib/tools/workflowContext'
+import { getWorkflowTargetRole, roleFromRegeneratedRun } from '#/lib/tools/workflowContext'
 
 export function useWorkflowBridge(
   toolId: ToolId,
@@ -66,10 +66,21 @@ export function useWorkflowBridge(
   const seededDirection = Boolean(context?.recommendedDirectionRole)
   const seededGaps = Boolean(context?.strongestMissingSkills?.length)
 
+  // An application handed its job here ("Prep for the round"): the run is filed under it, so the note names it.
+  const application = context?.workspaceId ? context.workspaceLabel?.trim() || undefined : undefined
+  // Read with the context (after mount): the server render has no query string.
+  const parentRunId = context && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('parent_run_id') : null
+
   return {
     /** The values that were carried in, so a "carried in" note can stop once the user replaces them. */
     carriedJobDescription: context?.jobDescription ?? '',
     carriedTargetRole: getWorkflowTargetRole(context) ?? '',
+    /** The application the carried job description came from, when it came from one. */
+    jobApplicationLabel: context?.jobOrigin === 'application' ? application : undefined,
+    /** The application the carried target role came from, when it came from one. */
+    roleApplicationLabel: context?.roleOrigin === 'application' ? application : undefined,
+    /** On a Re-generate, whether the role is the earlier run's (its input, or what it recommended): the field note says so. */
+    roleFromRun: roleFromRegeneratedRun(toolId, context, parentRunId),
     seededResume,
     resumePendingReview,
     seededJob,

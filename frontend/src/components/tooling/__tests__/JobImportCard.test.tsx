@@ -89,7 +89,7 @@ const application = {
 }
 
 function typeUrl(value = 'https://jobs.example.com/backend') {
-  fireEvent.change(screen.getByPlaceholderText('Job posting URL'), { target: { value } })
+  fireEvent.change(screen.getByLabelText(/Import from job URL/), { target: { value } })
 }
 
 describe('JobImportCard', () => {
@@ -110,6 +110,15 @@ describe('JobImportCard', () => {
       expect(screen.queryByText("Couldn't read that page")).toBeNull()
     })
 
+    // F21/F06: on touch a 44px button inside the 44px input frame doubled its border. The button sits beside the input.
+    it('puts the Import button beside the URL input, not inside its frame', () => {
+      renderCard()
+      const input = screen.getByLabelText(/Import from job URL/)
+      const button = screen.getByRole('button', { name: 'Import' })
+      expect(input.closest('.kit-input')?.contains(button)).toBe(false)
+      expect(button.closest('.kit-cluster')?.contains(input)).toBe(true)
+    })
+
     it.each([
       // B13: a blocked board or a page that is not a job ad (https://example.com/) answers readable:false.
       ['a page the importer marks unreadable', { readable: false, job_description: '' }],
@@ -124,6 +133,8 @@ describe('JobImportCard', () => {
       expect(await screen.findByText("Couldn't read that page")).toBeTruthy()
       expect(screen.getByText(/Paste the job description below instead/)).toBeTruthy()
       expect(onImported).not.toHaveBeenCalled()
+      // Outside the stone import panel: three nested paddings left a phone a 150px text column.
+      expect(screen.getByText("Couldn't read that page").closest('.tool-import')).toBeNull()
     })
 
     it('does not overwrite a typed description without asking', async () => {
@@ -140,7 +151,8 @@ describe('JobImportCard', () => {
       expect(field().value).toBe('My own notes about this role')
 
       fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-      fireEvent.click(await screen.findByRole('button', { name: 'Replace my description' }))
+      // The notice asks "Replace it with the posting, or keep yours?": "Replace my description" wrapped onto two lines at 320px.
+      fireEvent.click(await screen.findByRole('button', { name: 'Replace' }))
       expect(field().value).toBe('The imported posting text, long enough to read.')
       expect(screen.getByText('Job description filled from jobs.example.com.')).toBeTruthy()
     })
@@ -161,7 +173,7 @@ describe('JobImportCard', () => {
       importJobUrlMock.mockResolvedValue({ job_description: 'A real posting with plenty of detail about the role.' })
       const { onImported, onSubmit } = renderCard()
       typeUrl()
-      fireEvent.keyDown(screen.getByPlaceholderText('Job posting URL'), { key: 'Enter' })
+      fireEvent.keyDown(screen.getByLabelText(/Import from job URL/), { key: 'Enter' })
       await waitFor(() => expect(importJobUrlMock).toHaveBeenCalled())
       await waitFor(() => expect(onImported).toHaveBeenCalled())
       expect(onSubmit).not.toHaveBeenCalled()
@@ -176,25 +188,76 @@ describe('JobImportCard', () => {
       expect(listApplicationsMock).not.toHaveBeenCalled()
     })
 
-    it('lists real applications by title and company, not run labels (D17), and confirms the attach', async () => {
+    it('lists real applications by title and company, not run labels (D17), and attaches the description on the form', async () => {
       listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
       importJobTextMock.mockResolvedValue({ job_description: 'A sufficiently detailed pasted listing description.' })
-      const { onImported } = renderCard()
+      const { onImported } = renderWithField('A sufficiently detailed pasted listing description.')
       expect(listApplicationsMock).not.toHaveBeenCalled()
       fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
       expect(await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })).toBeTruthy()
       expect(screen.queryByRole('option', { name: /Run label/ })).toBeNull()
       fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
+      // One place to paste the posting: the form's own job description. Title and company start from the application.
+      expect(screen.queryByLabelText('Pasted listing text')).toBeNull()
+      expect((screen.getByLabelText('Job title') as HTMLInputElement).value).toBe('Senior Backend Engineer')
+      expect((screen.getByLabelText('Company') as HTMLInputElement).value).toBe('Northwind Labs')
       fireEvent.change(screen.getByLabelText('Job title'), { target: { value: 'Engineer' } })
-      fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Example Corp' } })
-      fireEvent.change(screen.getByLabelText('Pasted listing text'), { target: { value: 'A sufficiently detailed pasted listing description.' } })
-      fireEvent.click(screen.getByRole('button', { name: 'Attach pasted listing' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Attach job description' }))
       await waitFor(() => expect(importJobTextMock).toHaveBeenCalledWith({
-        campaign_id: 'app-1', job_title: 'Engineer', company_name: 'Example Corp',
+        campaign_id: 'app-1', job_title: 'Engineer', company_name: 'Northwind Labs',
         job_description: 'A sufficiently detailed pasted listing description.',
       }, expect.anything()))
       expect(await screen.findByText('Listing attached to Senior Backend Engineer at Northwind Labs.')).toBeTruthy()
-      expect(onImported).toHaveBeenCalled()
+      // The description came from the form: nothing is written back into it.
+      expect(onImported).not.toHaveBeenCalled()
+    })
+
+    // Sign-off tool-inputs-F32: an import with an application picked saves the posting there at once. When the form already
+    // had text, "Keep mine" only decides the field below: the page says first what the application now holds.
+    it('says the imported posting was saved to the application, before asking about the form field', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
+      importJobUrlMock.mockResolvedValue({ job_description: 'The imported posting text, long enough to read.' })
+      renderWithField('My own notes about this role')
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
+      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
+      typeUrl()
+      fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+      const saved = await screen.findByText('The imported posting was saved to Senior Backend Engineer at Northwind Labs.')
+      const question = screen.getByText(/Replace it with the posting, or keep yours\?/)
+      expect(saved.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.queryByText(/^Listing attached to/)).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Keep mine' }))
+      expect(screen.getByText('The imported posting was saved to Senior Backend Engineer at Northwind Labs.')).toBeTruthy()
+    })
+
+    it('waits for a job description on the form before it can attach one', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
+      renderWithField('')
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
+      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
+      const attach = screen.getByRole('button', { name: 'Attach job description' }) as HTMLButtonElement
+      expect(attach.disabled).toBe(true)
+      expect(screen.getByText(/Paste the job description below first/)).toBeTruthy()
+      // Review F6: the button is described by the Field's help through the kit, not by a copy of its id scheme.
+      const described = (attach.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent)
+      expect(described).toContain('Paste the job description below first.')
+    })
+
+    it('says why Import waits while an application is still to be picked', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
+      renderCard()
+      typeUrl()
+      expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(false)
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
+      expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true)
+      const picker = screen.getByLabelText('Application')
+      const help = document.getElementById(picker.getAttribute('aria-describedby')?.split(' ')[0] ?? '')
+      expect(help?.textContent).toBe('Pick the application this posting belongs to, then Import.')
+      fireEvent.change(picker, { target: { value: 'app-1' } })
+      expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(false)
     })
 
     it('points to Discover instead of a dead-end picker when there are no applications yet', async () => {
@@ -203,7 +266,7 @@ describe('JobImportCard', () => {
       const { onImported } = renderCard()
       fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
       expect(await screen.findByText(/You have no applications yet/)).toBeTruthy()
-      expect(screen.getByRole('link', { name: 'Find jobs' }).getAttribute('href')).toBe('/discovery')
+      expect(screen.getByRole('link', { name: 'Discover jobs' }).getAttribute('href')).toBe('/discovery')
       expect(screen.queryByLabelText('Application')).toBeNull()
       expect(screen.queryByLabelText('Pasted listing text')).toBeNull()
       // The import itself is not held back by a pick that cannot be made.
@@ -212,14 +275,26 @@ describe('JobImportCard', () => {
       await waitFor(() => expect(onImported).toHaveBeenCalled())
     })
 
-    it('offers the pasted listing only once an application is picked', async () => {
+    it('offers to attach the description only once an application is picked', async () => {
       listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
       renderCard()
       fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
       await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
-      expect(screen.queryByLabelText('Pasted listing text')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Attach job description' })).toBeNull()
       fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
-      expect(screen.getByLabelText('Pasted listing text')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Attach job description' })).toBeTruthy()
+    })
+
+    // The sub-option is a quiet lead sentence under the field labels, not a heading louder than them (sign-off F33).
+    it('leads the attach sub-option with a plain sentence, not a heading', async () => {
+      listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
+      renderCard()
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
+      await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
+      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
+      const group = screen.getByRole('group', { name: 'No posting URL? Attach the job description below to this application.' })
+      expect(group.contains(screen.getByRole('button', { name: 'Attach job description' }))).toBe(true)
+      expect(screen.queryByRole('heading', { name: /attach the job description/i })).toBeNull()
     })
 
     it('keeps applied applications out of reach: listed last, disabled and marked Applied', async () => {
@@ -248,14 +323,11 @@ describe('JobImportCard', () => {
     it('shows the reason an attach failed, not a generic line', async () => {
       listApplicationsMock.mockResolvedValue({ items: [application], total: 1 })
       importJobTextMock.mockRejectedValue(new Error('Application not found'))
-      renderCard()
+      renderWithField('A sufficiently detailed pasted listing description.')
       fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
       await screen.findByRole('option', { name: 'Senior Backend Engineer at Northwind Labs' })
       fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'app-1' } })
-      fireEvent.change(screen.getByLabelText('Job title'), { target: { value: 'Engineer' } })
-      fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Example Corp' } })
-      fireEvent.change(screen.getByLabelText('Pasted listing text'), { target: { value: 'A sufficiently detailed pasted listing description.' } })
-      fireEvent.click(screen.getByRole('button', { name: 'Attach pasted listing' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Attach job description' }))
       expect(await screen.findByText('Application not found')).toBeTruthy()
     })
   })

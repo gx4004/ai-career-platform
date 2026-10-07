@@ -36,6 +36,7 @@ export {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  focusFieldOnOpen,
 } from './dialog'
 export type { ConfirmDialogProps, DialogContentProps, DialogSize } from './dialog'
 export { Disclosure } from './disclosure'
@@ -99,8 +100,8 @@ export { StretchedLink } from './stretched-link'
 export type { StretchedLinkProps } from './stretched-link'
 export { Card, CardActions, CardHeader, CardTitle } from './card'
 export type { CardActionsProps, CardProps, CardTitleProps } from './card'
-export { List, Row, RowActions, RowBody, RowLeading, RowMeta, RowReveal, RowSubtitle, RowTitle } from './row'
-export type { ListProps, RowActionsProps, RowDensity, RowOverflow, RowProps, RowTitleProps } from './row'
+export { List, ListHeading, Row, RowActions, RowBody, RowLeading, RowMeta, RowReveal, RowSubtitle, RowTitle } from './row'
+export type { ListHeadingProps, ListProps, RowActionsProps, RowDensity, RowMetaProps, RowOverflow, RowProps, RowSubtitleProps, RowTitleProps } from './row'
 export { Table } from './table'
 export type { TableColumn, TableProps, TableSort } from './table'
 export { Toolbar } from './toolbar'
@@ -110,7 +111,7 @@ export type { PaginationProps } from './pagination'
 export { EmptyState, ErrorState } from './empty-state'
 export type { EmptyStateProps, ErrorStateProps, StateSize } from './empty-state'
 export { Skeleton } from './skeleton'
-export type { SkeletonProps, SkeletonVariant } from './skeleton'
+export type { SkeletonProps, SkeletonShape, SkeletonVariant } from './skeleton'
 export { TONES } from './tone'
 export type { Tone } from './tone'
 export { Sticker, clampTilt } from './sticker'

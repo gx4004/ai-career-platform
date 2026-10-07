@@ -36,11 +36,14 @@ export function isSampleResume(text: string) {
   return text.trim() === SAMPLE_RESUME_TEXT.trim()
 }
 
-/** Keep a resume the user supplied for the rest of this tab (Evidence Profile import, other tools). Sample text is never kept. */
-export function rememberResume(text: string, filename?: string) {
+/**
+ * Keep a resume the user supplied for the rest of this tab (Evidence Profile import, other tools). Sample text is never
+ * kept. `origin` is the tool it was supplied on; text the tab already carries keeps the origin it had.
+ */
+export function rememberResume(text: string, filename?: string, origin?: string) {
   if (!text.trim() || isSampleResume(text)) return
   try {
-    setResumeCarry(text, filename)
+    setResumeCarry(text, filename, origin)
   } catch {
     // sessionStorage unavailable (private mode, sandboxed): the draft and workflow context still carry it.
   }

@@ -122,6 +122,42 @@
   border-top: var(--bw) solid var(--ink);
 }
 
+/*
+ * A dialog with no body (a short confirm, onboarding step 1): the header's bottom rule already separates it from the
+ * footer, so the footer drops its own top rule instead of drawing a 4px double line.
+ */
+.kit-panel__header + .kit-panel__footer {
+  border-top: 0;
+}
+
+/*
+ * Phones: a footer of buttons stacks them full width in DOM order: Cancel on top, the primary (last in the DOM) at the
+ * bottom, nearest the thumb, and last as in every page header (sign-off consistency-F21; the reversed stack put Save
+ * above Cancel while Tab went Cancel, then Save, WCAG 1.3.2 / 2.4.3). Wrapping let two right-aligned buttons of
+ * different widths stack raggedly, with the label broken onto two lines. A footer that also holds a field (the CV
+ * tailor dialog) keeps its own layout.
+ */
+@media (max-width: 479px) {
+  .kit-panel__footer:not([data-phone-layout='row']):not(:has(> :not(.kit-button))) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .kit-panel__footer:not([data-phone-layout='row']):not(:has(> :not(.kit-button))) > .kit-button {
+    inline-size: 100%;
+  }
+
+  /* phoneLayout="row": a stepper's Back and Continue share one row, each grown from its own label width, the primary last (right). */
+  .kit-panel__footer[data-phone-layout='row'] {
+    flex-wrap: nowrap;
+  }
+
+  /* Each grows from its own label's width (never shrinks below it), so "Get started" stays on one line. */
+  .kit-panel__footer[data-phone-layout='row'] > .kit-button {
+    flex: 1 0 auto;
+  }
+}
+
 .kit-panel__form {
   display: flex;
   flex: 1 1 auto;

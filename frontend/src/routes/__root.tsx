@@ -1,12 +1,13 @@
 // i18n is not initialised: the app is English only (V1) and nothing calls t(). To re-enable it, add `import '#/lib/i18n'` here.
 import { type ReactNode, useEffect } from 'react'
-import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Outlet, ScriptOnce, Scripts, createRootRoute } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AppNotFound } from '#/components/app/AppNotFound'
 import { AppRouteError } from '#/components/app/AppRouteError'
 import { AppShell } from '#/components/app/AppShell'
 import { CookieConsent } from '#/components/app/CookieConsent'
 import { SessionProvider } from '#/lib/auth/session'
+import { SESSION_HINT_SCRIPT } from '#/lib/auth/sessionHint'
 import { queryClient } from '#/lib/query/queryClient'
 import { ARTICLE_PATHS, INDEXABLE_PATHS, siteOrigin, siteUrl } from '#/lib/site-url'
 import appCss from '#/styles.css?url'
@@ -124,9 +125,12 @@ function RootDocument({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <html lang="en">
+    // The session-hint script marks <html> before hydration; React must not report that attribute.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* Before the body is parsed, so a returning browser's first paint is already its own skeleton. */}
+        <ScriptOnce>{SESSION_HINT_SCRIPT}</ScriptOnce>
       </head>
       <body>
         <QueryClientProvider client={queryClient}>

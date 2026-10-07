@@ -65,6 +65,14 @@
   }
 }
 
+/* The narrowest phones (320): one step down, so a three-word title and its count pill share one line
+   ("Suggestions to review 10" at 20px needs 254px of a 244px header). */
+@media (max-width: 359px) {
+  .kit-panel-surface__title {
+    font-size: var(--fs-title-sm);
+  }
+}
+
 .kit-panel-surface__body {
   padding: var(--s5);
 }

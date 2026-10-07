@@ -56,7 +56,7 @@ export function LandingExperimentPage() {
         }
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {landingExperimentSectionOrder.map((sectionId) => (
           <Fragment key={sectionId}>{sections[sectionId]}</Fragment>
         ))}

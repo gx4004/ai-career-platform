@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { ChunkBoundary } from '#/components/app/ChunkBoundary'
 
 /** Event the sidebar's search button dispatches to open the palette. */
@@ -12,6 +12,12 @@ const loadDialog = () => import('#/components/app/CommandPaletteDialog')
 // A fresh lazy() per attempt: React keeps a rejected import, so retrying needs a new one.
 const lazyDialog = () => lazy(() => loadDialog().then((module) => ({ default: module.CommandPaletteDialog })))
 
+/** Renders nothing; its effect runs once the lazy dialog beside it in the Suspense boundary has rendered. */
+function Loaded({ onLoaded }: { onLoaded: () => void }) {
+  useEffect(onLoaded, [onLoaded])
+  return null
+}
+
 /**
  * ⌘K / Ctrl+K palette. This mount is all every page carries: the shortcut, the open event and the open
  * state. The dialog itself (its lists, queries and icons) is a separate chunk, fetched when the browser is
@@ -22,10 +28,16 @@ export function CommandPalette() {
   const [mounted, setMounted] = useState(false)
   const [CommandPaletteDialog, setDialog] = useState(() => lazyDialog())
   if (open && !mounted) setMounted(true)
+  // Until the dialog's chunk has arrived nothing on the page listens for Esc: this mount closes it then.
+  const loaded = useRef(false)
+  const [onLoaded] = useState(() => () => {
+    loaded.current = true
+  })
 
   // The dialog's chunk failed to load: close quietly, the page stays, and the next ⌘K asks for the file
   // again (Chromium answers from its record of the failed fetch until the page is reloaded).
   const onLoadError = () => {
+    loaded.current = false
     setOpen(false)
     setMounted(false)
     setDialog(() => lazyDialog())
@@ -36,6 +48,9 @@ export function CommandPalette() {
       if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
         setOpen((value) => !value)
+      } else if (event.key === 'Escape' && !loaded.current) {
+        // ⌘K then Esc before the chunk came: the palette stays shut instead of opening a moment later.
+        setOpen(false)
       }
     }
     const onOpen = () => setOpen(true)
@@ -62,6 +77,7 @@ export function CommandPalette() {
     <ChunkBoundary onError={onLoadError}>
       <Suspense fallback={null}>
         <CommandPaletteDialog open={open} onOpenChange={setOpen} />
+        <Loaded onLoaded={onLoaded} />
       </Suspense>
     </ChunkBoundary>
   )

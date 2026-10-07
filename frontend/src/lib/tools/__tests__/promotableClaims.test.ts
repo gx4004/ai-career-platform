@@ -12,7 +12,10 @@ describe('getPromotableClaims', () => {
     expect(claims).toHaveLength(2)
     expect(claims[0]).toMatchObject({
       kind: 'interview-evidence',
-      label: 'Q: Tell me about a hard bug. · I traced a race condition…',
+      // The row shows the question as its title and the answer under it (was one "Q: … · …" line, cut mid-word).
+      label: 'Tell me about a hard bug.',
+      title: 'Tell me about a hard bug.',
+      detail: 'I traced a race condition…',
       content: { question: 'Tell me about a hard bug.', answer: 'I traced a race condition…', focus_area: 'debugging' },
     })
     // focus_area is optional — omitted when absent rather than stored empty.
@@ -53,6 +56,20 @@ describe('getPromotableClaims', () => {
     expect(claim.label.length).toBeLessThanOrEqual(90)
     expect(claim.label.endsWith('…')).toBe(true)
     expect(claim.content.text).toBe(long)
+  })
+
+  it('cuts long text on a word boundary, never mid-word', () => {
+    const text =
+      'Cut p95 checkout latency by 38% by moving PostgreSQL writes behind an event queue, then scaled the consumers to four regions with zero downtime, and wrote the runbook the on-call rotation still uses for every incident review.'
+    const [claim] = getPromotableClaims('interview', { questions: [{ question: 'Tell me about latency.', answer: text }] })
+    // 'PostgreSQL' and every other word stays whole; the ellipsis follows a complete word.
+    const kept = claim.detail!.slice(0, -1)
+    expect(claim.detail!.endsWith('…')).toBe(true)
+    expect(text.startsWith(kept)).toBe(true)
+    expect(text[kept.length]).toMatch(/[\s,;:.]/)
+    const [letter] = getPromotableClaims('cover-letter', { body_points: [{ text }] })
+    expect(text.startsWith(letter.label.slice(0, -1))).toBe(true)
+    expect(text[letter.label.length - 1]).toMatch(/[\s,;:.]/)
   })
 
   it('returns nothing for tools without reusable claims or malformed payloads', () => {

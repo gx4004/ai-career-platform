@@ -35,13 +35,30 @@
   padding-block-start: 10px;
 }
 
+/* The smaller three-digit numeral sits lower, so "100%" centres on the tile as the two-digit figures do (measured
+   glyph clearance: 15.5px above and 18.7px below at the 12px start padding, 17 and 17 at 13.5px). */
 .kit-fit-stamp[data-digits='3'] {
+  padding-block-start: 13.5px;
   font-size: 1.25rem;
   letter-spacing: -0.04em;
 }
 
+/* The % never drops under the 12px floor. */
 .kit-fit-stamp[data-digits='3'] small {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
+}
+
+/* The phone stamp (48px inside): "100%" at the 60px stamp's size fills it edge to edge, so it steps down and
+   keeps clear of the outline on both sides (STICKER 5.7.7). */
+.kit-fit-stamp[data-size='sm'][data-digits='3'] {
+  /* 12px above and 21px below the glyphs at the 10px start padding; 16 and 17 at 14px. */
+  padding-block-start: 14px;
+  font-size: 1rem;
+  letter-spacing: -0.05em;
+}
+
+.kit-fit-stamp[data-size='sm'][data-digits='3'] small {
+  margin-inline-start: 0;
 }
 
 .kit-skill-pips[data-mode='pips'] {

@@ -53,4 +53,14 @@ describe('DashboardCv', () => {
     expect(screen.getByText(/^Edited /)).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Open CV Studio' }).getAttribute('href')).toBe('/cv-studio')
   })
+
+  // Sign-off r4 chrome-F12: at 320px the button took most of the row and the CV name broke over two lines. Below
+  // 360px the button reads "Open" (dashboard.css hides the rest), and its name stays "Open CV Studio".
+  it('can shorten the button to "Open" on a narrow phone without changing its name', () => {
+    cv.latest = { name: 'Alex Morgan', updated_at: new Date().toISOString() }
+    render(<DashboardCv />)
+
+    const link = screen.getByRole('link', { name: 'Open CV Studio' })
+    expect(link.querySelector('.dash-cv__more')?.textContent).toBe('CV Studio')
+  })
 })

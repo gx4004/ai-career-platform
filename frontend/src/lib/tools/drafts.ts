@@ -23,6 +23,12 @@ export type ToolDraftState = {
   targetRole: string
 }
 
+/**
+ * Where a carried value was supplied: the tool whose form the user typed, pasted or uploaded it on, or the place outside
+ * the tools that filled it in. The hand-off banner and the resume row name it ("Resume from Resume Analyzer").
+ */
+export type CarryOrigin = ToolId | 'cv-studio' | 'application' | 'discover' | 'dashboard'
+
 export type WorkflowContextState = {
   resumeText?: string
   resumePendingReview?: boolean
@@ -48,6 +54,10 @@ export type WorkflowContextState = {
   /** Where a Re-generate found the resume / job text when the tab carried none ("your CV Studio CV “…”"). */
   resumeSource?: string
   jobSource?: string
+  /** Where `resumeText`, `jobDescription` and the target role were first supplied (not merely where they were last run). */
+  resumeOrigin?: CarryOrigin
+  jobOrigin?: CarryOrigin
+  roleOrigin?: CarryOrigin
   /** "Staff Engineer at Northwind", from the re-generated run's application, for the "still needed" line. */
   jobLabel?: string
   /**
@@ -104,7 +114,18 @@ export function clearToolDraft(toolId: ToolId): void {
  * prefix clears exactly what the app wrote — no more, no less.
  */
 export function clearAllToolDrafts(): void {
+  draftsCleared += 1
   removeSessionValuesByPrefix(DRAFT_PREFIX)
+}
+
+let draftsCleared = 0
+
+/**
+ * Counts `clearAllToolDrafts` calls. A tool page that still holds an unsaved edit compares it before writing, so a
+ * write that was waiting when the user logged out never brings a cleared draft back.
+ */
+export function draftClearCount(): number {
+  return draftsCleared
 }
 
 const WORKFLOW_CONTEXT_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours

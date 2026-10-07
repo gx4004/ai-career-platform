@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Button, Highlight, Sticker, StretchedLink, TONES, type Tone } from '#/components/kit'
 import { GallerySection, Group, Row } from './gallery-parts'
 
@@ -89,6 +89,19 @@ export function StickerSection() {
               </Sticker>
             </Room>
           ))}
+        </Row>
+      </Group>
+
+      <Group title="Levelled by layout: --kit-tilt-scale: 0 on a container (stacked, full-width stickers)">
+        <Row top>
+          <Room>
+            <div style={{ '--kit-tilt-scale': 0 } as CSSProperties} data-testid="tilt-scale-0">
+              <Sticker tone="lemon" tilt={-2} style={{ inlineSize: '16rem' }}>
+                <strong>Asked for -2deg</strong>
+                <p>The container levels it: a full-width plate would dip at the far edge.</p>
+              </Sticker>
+            </div>
+          </Room>
         </Row>
       </Group>
 

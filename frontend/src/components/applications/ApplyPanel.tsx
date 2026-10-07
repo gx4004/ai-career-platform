@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, Cluster, Disclosure, Field, KeyValue, Lead, MetaRow, Notice, ScoreSeal, Stack, Textarea } from '#/components/kit'
+import { Badge, Button, Cluster, Disclosure, Field, KeyValue, Lead, MetaRow, Notice, ScoreSeal, Section, Stack, Textarea } from '#/components/kit'
 import {
   autofillApplication,
   cancelAutofill,
@@ -19,7 +19,8 @@ import { ApiError } from '#/lib/api/errors'
 import { isAutopilotExperimentEnabled } from '#/lib/flags/featureFlags'
 import { APPLICATION_DETAILS_QUERY_KEY, applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { ApplicationPanel } from './ApplicationPanel'
-import { applyLink, formatDate, roleOnly, applicationTitle } from './stages'
+import { carryApplicationToInterview } from './interviewHandoff'
+import { STATUS_LABELS, applyLink, formatDate, roleOnly, applicationTitle, sentRecordedLate, stageOf } from './stages'
 
 function errorMessage(error: unknown, fallback: string) {
   // The server's 409 details are written for the owner ("Answer the open questions…").
@@ -59,8 +60,11 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
   const prepared = application.drafts !== null
 
   if (application.applied_at) {
+    // Recorded after the card had moved on: the date is when it was recorded, not when the owner applied.
+    const late = sentRecordedLate(application)
+    const sentDate = formatDate(application.applied_at)
     return (
-      <ApplicationPanel title={`You applied on ${formatDate(application.applied_at)}`} tone="mint" className="camp-applied">
+      <ApplicationPanel title={late ? `What you sent, recorded ${sentDate}` : `You applied on ${sentDate}`} tone="mint" className="camp-applied">
         <div className="camp-applied__layout">
           {/* The big moment of the loop: the seal stamps in once, right after "Mark as applied", never on a revisit. */}
           <ScoreSeal
@@ -73,7 +77,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
             reveal={applied.isSuccess ? 'stamp' : 'none'}
           />
           <Stack gap={3}>
-            <Lead>What you sent is saved below, exactly as it was when you marked it applied.</Lead>
+            <Lead>What you sent is saved, exactly as it was when you {late ? 'recorded it' : 'marked it applied'}.</Lead>
             {application.snapshot ? <SentSummary content={application.snapshot.content} /> : null}
             {application.no_reply_suggested ? (
               <Notice
@@ -91,6 +95,36 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
             {application.snapshot ? <SentApplication content={application.snapshot.content} /> : null}
           </Stack>
         </div>
+      </ApplicationPanel>
+    )
+  }
+
+  // Moved past Saved through the stage menu without "Mark as applied" (the backend allows it): asking to prepare and
+  // apply would contradict the stage badge, so the panel says what is missing and keeps the stage's next step.
+  if (stageOf(application.status) !== 'saved') {
+    const label = STATUS_LABELS[application.status]
+    const closed = stageOf(application.status) === 'closed'
+    return (
+      <ApplicationPanel title="Not marked applied">
+        <Stack gap={4}>
+          <Lead>
+            {closed
+              ? `This one is closed (${label}) and was never marked applied. If you did apply, record what you sent.`
+              : `This one is in ${label}, but what you sent was never recorded.`}
+          </Lead>
+          <Stack gap={2}>
+            <Cluster gap={2}>
+              <Button variant="secondary" onClick={() => applied.mutate()} loading={applied.isPending} disabled={applied.isPending}>
+                <Check aria-hidden="true" /> Record what I sent
+              </Button>
+            </Cluster>
+            <p className="camp-note">
+              It keeps the CV, cover letter and answers picked on this page as what you sent. The stage stays {label}.
+            </p>
+          </Stack>
+          {failed ? <Notice tone="danger">{errorMessage(failed.error, "That didn't save. Try again.")}</Notice> : null}
+          <NextSteps application={application} />
+        </Stack>
       </ApplicationPanel>
     )
   }
@@ -378,65 +412,105 @@ function SentSummary({ content }: { content: Record<string, unknown> }) {
 
 const WEEK_MS = 7 * 86_400_000
 
-/** After applying: the two moves that matter next, a follow-up in a week and interview prep. */
+/**
+ * The moves that matter next for the stage, all secondary. Waiting on a reply (Applied, No reply): a follow-up in a
+ * week and interview prep (until one is chosen). Interviewing: interview prep, or the chosen one. Offer: a task to
+ * reply by the offer date.
+ */
 function NextSteps({ application }: { application: ApplicationDetail }) {
   const queryClient = useQueryClient()
-  const waiting = application.status === 'applied' || application.status === 'no_reply'
+  const { status } = application
+  const waiting = status === 'applied' || status === 'no_reply'
   const role = roleOnly(applicationTitle(application), application.company)
   const followUp = application.tasks.find((task) => /follow.?up/i.test(task.title) && !task.completed)
+  const replyTask = application.tasks.find((task) => /reply to the offer/i.test(task.title) && !task.completed)
   const dueDate = new Date(Date.now() + WEEK_MS)
   dueDate.setHours(12, 0, 0, 0)
   const add = useMutation({
     mutationFn: () => createApplicationTask(application.id, { title: `Follow up on ${role}`, deadline: dueDate.toISOString() }),
     onSuccess: () => invalidateApplications(queryClient),
   })
-  if (!waiting) return null
+  const addReply = useMutation({
+    mutationFn: () =>
+      createApplicationTask(application.id, {
+        title: application.company ? `Reply to the offer from ${application.company}` : `Reply to the offer for ${role}`,
+        ...(application.deadline ? { deadline: application.deadline } : {}),
+      }),
+    onSuccess: () => invalidateApplications(queryClient),
+  })
+  if (!waiting && status !== 'interviewing' && status !== 'offer') return null
   const interview = application.selected_materials.interview
+  const prepLink = (
+    <Button asChild size="sm" variant="secondary">
+      <Link to="/interview" onClick={() => carryApplicationToInterview(application)}>Prepare for interviews</Link>
+    </Button>
+  )
   return (
     <Stack gap={2}>
       <p className="camp-note"><strong>What next</strong></p>
-      <Cluster gap={2}>
-        {followUp ? (
-          <p className="camp-note">
-            Follow-up task added{followUp.deadline ? ` for ${formatDate(followUp.deadline)}` : ''}.
-          </p>
-        ) : (
-          <Button type="button" size="sm" variant="secondary" loading={add.isPending} onClick={() => add.mutate()}>
-            Follow up in a week ({formatDate(dueDate.toISOString())})
-          </Button>
-        )}
-        {interview ? (
-          <Button asChild size="sm" variant="secondary">
-            <Link to="/interview/result/$historyId" params={{ historyId: interview.id }}>Open your interview prep</Link>
-          </Button>
-        ) : (
-          <Button asChild size="sm" variant="secondary">
-            <Link to="/interview">Prepare for interviews</Link>
-          </Button>
-        )}
+      {/* Stacked full width on phones, like the apply actions above, so a dated label never wraps in a short button. */}
+      <Cluster gap={2} className="camp-apply__actions">
+        {waiting ? (
+          followUp ? (
+            <p className="camp-note">
+              Follow-up task added{followUp.deadline ? ` for ${formatDate(followUp.deadline)}` : ''}.
+            </p>
+          ) : (
+            <Button type="button" size="sm" variant="secondary" loading={add.isPending} onClick={() => add.mutate()}>
+              {/* The date says "in a week"; the old "Follow up in a week (Oct 14, 2026)" wrapped onto two lines at 320. */}
+              Follow up on {formatDate(dueDate.toISOString())}
+            </Button>
+          )
+        ) : null}
+        {/* Waiting: a chosen prep already has its Open beside it under Your documents. Interviewing: prep is the move. */}
+        {waiting && !interview ? prepLink : null}
+        {status === 'interviewing' ? (
+          interview ? (
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/interview/result/$historyId" params={{ historyId: interview.id }}>Open your interview prep</Link>
+            </Button>
+          ) : (
+            prepLink
+          )
+        ) : null}
+        {status === 'offer' ? (
+          replyTask ? (
+            <p className="camp-note">Reply task added{replyTask.deadline ? ` for ${formatDate(replyTask.deadline)}` : ''}.</p>
+          ) : (
+            <Button type="button" size="sm" variant="secondary" loading={addReply.isPending} onClick={() => addReply.mutate()}>
+              Add a task to reply to the offer{application.deadline ? ` by ${formatDate(application.deadline)}` : ''}
+            </Button>
+          )
+        ) : null}
       </Cluster>
-      {add.isError ? <Notice tone="danger">The follow-up couldn't be added. Try again.</Notice> : null}
+      {add.isError || addReply.isError ? <Notice tone="danger">The task couldn't be added. Try again.</Notice> : null}
     </Stack>
   )
 }
 
-/** What was sent, frozen when the application was marked applied. */
+/**
+ * What was sent, frozen when the application was marked applied: the words themselves (the cover letter and the
+ * answers), which the summary line above only names. Nothing to show when neither was sent.
+ */
 function SentApplication({ content }: { content: Record<string, unknown> }) {
-  const listing = content.listing as { title?: string; company?: string } | null
-  const cv = content.cv_variant as { name?: string } | null
-  const cover = content.cover_letter as { source?: string } | null
+  const cover = content.cover_letter as { source?: string; text?: string } | null
   const answers = (content.answers as Array<{ question: string; answer: string }> | undefined) ?? []
+  const letter = typeof cover?.text === 'string' ? cover.text.trim() : ''
+  if (!letter && !answers.length) return null
   return (
     <Disclosure variant="inline" title="See what you sent">
-      <KeyValue
-        layout="stacked"
-        items={[
-          { label: 'Job', value: listing ? [listing.title, listing.company].filter(Boolean).join(' · ') : 'No job posting attached' },
-          { label: 'CV', value: cv?.name || 'No CV chosen' },
-          { label: 'Cover letter', value: cover ? (cover.source === 'prepared' ? 'The prepared draft' : 'Your chosen cover letter') : 'None' },
-          ...answers.map((item) => ({ key: item.question, label: item.question, value: item.answer })),
-        ]}
-      />
+      <Stack gap={4}>
+        {letter ? (
+          <Section headingLevel={3} size="sm" rule={false} title={cover?.source === 'prepared' ? 'Cover letter (the prepared draft)' : 'Cover letter'}>
+            <p className="camp-prose">{letter}</p>
+          </Section>
+        ) : null}
+        {answers.length ? (
+          <Section headingLevel={3} size="sm" rule={false} title={answers.length === 1 ? 'Your answer' : 'Your answers'}>
+            <KeyValue layout="stacked" items={answers.map((item) => ({ key: item.question, label: item.question, value: item.answer }))} />
+          </Section>
+        ) : null}
+      </Stack>
     </Disclosure>
   )
 }

@@ -18,7 +18,9 @@ import { workflowConfigs } from '#/lib/tools/workflowConfigs'
 import {
   buildWorkspaceRequestContext,
   deriveWorkflowUpdateFromResult,
+  originsAfterRun,
 } from '#/lib/tools/workflowContext'
+import { getResumeCarryOrigin, getResumeCarryText } from '#/lib/tools/resumeCarryStore'
 // Note: `authRequiredToRun` on ToolDefinition is retained for future premium
 // gating but currently `false` for every registered tool; the runtime gate
 // that used to live here has been removed as unreachable.
@@ -139,7 +141,8 @@ export function useToolMutation(tool: ToolDefinition) {
       // Only the fields this tool has: Career Path (no job description) must not wipe the one Job Match carried.
       // A field the tool has but was left empty is cleared on purpose.
       const has = (name: keyof ToolDraftState) => workflowConfigs[tool.id].fields.some((field) => field.name === name)
-      writeWorkflowContext({
+      const previous = readWorkflowContext()
+      const update = {
         historyId,
         lastToolId: tool.id,
         ...(has('resumeText') ? { resumeText: draft.resumeText || undefined } : {}),
@@ -148,12 +151,15 @@ export function useToolMutation(tool: ToolDefinition) {
           ? { targetRole: draft.targetRole || undefined, selectedTargetRole: draft.targetRole || undefined }
           : {}),
         linkedContextIds: [],
-        // The run used what the form held: a Re-generate's "found in your account" labels no longer describe it.
-        resumeSource: undefined,
-        jobSource: undefined,
         regenFeedback: undefined,
         ...deriveWorkflowUpdateFromResult(tool.id, result),
         updatedAt: Date.now(),
+      }
+      writeWorkflowContext({
+        ...update,
+        // Where each value was supplied, not just where it was last run: the next tool's banner credits the right place.
+        // A Re-generate's "found in your account" label is kept only while the run used that same text.
+        ...originsAfterRun(tool.id, previous, update, { text: getResumeCarryText(), origin: getResumeCarryOrigin() }),
       })
 
       if (feedback) {

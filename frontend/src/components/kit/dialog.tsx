@@ -10,6 +10,7 @@ import {
   PanelForm,
   PanelHeader,
   PanelTitle,
+  focusFieldOnOpen,
   isToastInteraction,
   usePanelFocus,
 } from './panel'
@@ -27,6 +28,7 @@ export const DialogDescription = PanelDescription
 export const DialogBody = PanelBody
 export const DialogFooter = PanelFooter
 export const DialogForm = PanelForm
+export { focusFieldOnOpen }
 
 export type DialogContentProps = ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   /** Width: sm 400px (confirms), md 512px (forms), lg 720px (previews, long forms). Never wider than the viewport minus 16px gutters. */
@@ -36,6 +38,11 @@ export type DialogContentProps = ComponentPropsWithoutRef<typeof DialogPrimitive
   closeLabel?: string
   /** false blocks Esc, outside click and the X, e.g. while a delete is in flight. */
   dismissible?: boolean
+  /**
+   * center (default) or top: anchored min(12vh, 6rem) from the top, for a dialog whose body changes height while
+   * it is open (a stepper, a filtered list): its top and its buttons stay put instead of re-centring each time.
+   */
+  placement?: 'center' | 'top'
 }
 
 /**
@@ -51,6 +58,7 @@ export const DialogContent = forwardRef<ElementRef<typeof DialogPrimitive.Conten
       showClose = true,
       closeLabel,
       dismissible = true,
+      placement = 'center',
       className,
       children,
       onEscapeKeyDown,
@@ -70,6 +78,7 @@ export const DialogContent = forwardRef<ElementRef<typeof DialogPrimitive.Conten
           className={cn('kit-dialog', className)}
           data-size={size}
           data-closable={showClose && dismissible ? 'true' : undefined}
+          data-placement={placement === 'top' ? 'top' : undefined}
           onEscapeKeyDown={(event) => {
             onEscapeKeyDown?.(event)
             if (!dismissible) event.preventDefault()

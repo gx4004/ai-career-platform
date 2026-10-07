@@ -115,6 +115,14 @@ export function FloatingSection() {
         </Row>
       </Group>
 
+      <Group title="Tooltip on a status a script focuses (openOnFocusVisibleOnly: Tab or hover opens it, a tap or a scripted focus after a click does not)">
+        <Row>
+          <Tooltip content="Last saved 10:52. Checked for newer versions when you opened it." side="bottom" align="start" openOnFocusVisibleOnly>
+            <span tabIndex={0} className="kit-gallery__wrap">Saved just now</span>
+          </Tooltip>
+        </Row>
+      </Group>
+
       <Group title="Popover (click or tap)">
         <Row>
           <ScorePopover />

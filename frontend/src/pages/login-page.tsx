@@ -1,11 +1,12 @@
-import { Link, useRouter } from '@tanstack/react-router'
+import { Link, useCanGoBack, useRouter } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowRight, UserCheck } from 'lucide-react'
 import { authCopy } from '#/components/auth/auth-copy'
 import { AuthIntentNotice } from '#/components/auth/AuthIntentNotice'
 import { AuthSurface } from '#/components/auth/AuthSurface'
 import { AuthShell } from '#/components/auth/AuthShell'
 import { AuthStamp } from '#/components/auth/AuthStamp'
+import { SiteBackAction } from '#/components/legal/SiteHeader'
 import { Button, EmptyState, Notice, PageHeader } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { readPendingIntent } from '#/lib/auth/pendingIntent'
@@ -14,9 +15,15 @@ import { safeInternalPath } from '#/lib/navigation/redirect'
 /** How long a new account's welcome stays before the page moves on by itself. */
 const WELCOME_MS = 2400
 
+/** Google's first-time visitor is not a failure: the page has already switched to the form they need. */
+const OAUTH_NEXT_STEP: Record<string, { title: string; text: string }> = {
+  signup_via_email_required: {
+    title: 'Create your account first',
+    text: "Make it here with email (that's where you accept the Terms). After that, Sign in with Google works.",
+  },
+}
+
 const OAUTH_ERROR_COPY: Record<string, string> = {
-  signup_via_email_required:
-    'To create your first account with Google, please first sign up using the email form below — it includes our Terms of Service. After your account exists you can sign in with Google as usual.',
   unverified_email:
     'Google reported your email as unverified. Verify your address with Google and try again.',
   no_userinfo: 'Google did not return profile details. Please try again.',
@@ -28,6 +35,7 @@ const OAUTH_ERROR_COPY: Record<string, string> = {
 export function LoginPage() {
   const { status, logout } = useSession()
   const router = useRouter()
+  const canGoBack = useCanGoBack()
   // Set the moment an account is being created, so the page can celebrate it instead of reading "already signed in".
   const [welcome, setWelcome] = useState(false)
   // Read inside the submit handlers, which close over an earlier render.
@@ -44,6 +52,7 @@ export function LoginPage() {
   const [view, setView] = useState<'login' | 'register'>('login')
   const [resetting, setResetting] = useState(false)
   const [oauthErrorMessage, setOauthErrorMessage] = useState<string | null>(null)
+  const [oauthNextStep, setOauthNextStep] = useState<{ title: string; text: string } | null>(null)
 
   // Pull `?oauth_error=...` out of the URL once on mount and translate the
   // error code into a human-friendly message. Default the auth surface to
@@ -55,10 +64,13 @@ export function LoginPage() {
     destination.current =
       safeInternalPath(params.get('returnTo')) ?? safeInternalPath(readPendingIntent()?.to) ?? '/dashboard'
     if (params.get('view') === 'register') setView('register')
+    // A dead reset link sends the visitor here for a fresh one: open straight on the reset form.
+    if (params.get('view') === 'reset') setResetting(true)
     const code = params.get('oauth_error')
     if (!code) return
-    const copy = OAUTH_ERROR_COPY[code] ?? 'Sign-in failed. Please try again.'
-    setOauthErrorMessage(copy)
+    const nextStep = OAUTH_NEXT_STEP[code]
+    if (nextStep) setOauthNextStep(nextStep)
+    else setOauthErrorMessage(OAUTH_ERROR_COPY[code] ?? 'Sign-in failed. Please try again.')
     if (code === 'signup_via_email_required') setView('register')
   }, [])
 
@@ -80,11 +92,15 @@ export function LoginPage() {
     return (
       <AuthShell aside={false}>
         <AuthStamp word="Hi!">
+          {/* An outcome, not an empty box: the open anatomy the reset outcomes use. */}
           <EmptyState
-            size="page"
+            variant="open"
             headingLevel={1}
+            // It replaces the form whose button had focus and moves on by itself: the heading takes focus, so a
+            // screen reader says it before the dashboard loads.
+            focusTitle
             title="Your account is ready"
-            description="Your runs, favorites and CV drafts now stay with you."
+            description="Your runs, starred results and CV drafts now stay with you."
             action={
               <Button type="button" onClick={moveOn}>
                 Continue
@@ -112,6 +128,7 @@ export function LoginPage() {
       <EmptyState
         size="page"
         headingLevel={1}
+        icon={<UserCheck />}
         title="You're already signed in"
         description="Head back to your dashboard to keep going."
         action={
@@ -131,24 +148,11 @@ export function LoginPage() {
 
   const copy = authCopy(view, resetting)
 
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      router.history.back()
-    } else {
-      router.navigate({ to: '/' })
-    }
-  }
-
+  // Back returns only to a page of this app (as on the legal pages and the 404); a visitor who arrived from
+  // elsewhere, or in a fresh tab, goes home instead of leaving the app.
   return (
-    <AuthShell
-      actions={
-        <Button variant="ghost" size="sm" onClick={handleBack}>
-          <ArrowLeft aria-hidden />
-          Back
-        </Button>
-      }
-    >
-      <PageHeader title={copy.title} lead={copy.intro} />
+    <AuthShell actions={canGoBack ? <SiteBackAction onClick={() => router.history.back()} /> : <SiteBackAction to="/" />}>
+      <PageHeader title={copy.title} lead={copy.intro} leadSize="lg" />
       <AuthSurface
         view={view}
         onViewChange={setView}
@@ -163,6 +167,7 @@ export function LoginPage() {
           resetting ? null : (
             <>
               {oauthErrorMessage ? <Notice tone="danger">{oauthErrorMessage}</Notice> : null}
+              {oauthNextStep ? <Notice title={oauthNextStep.title}>{oauthNextStep.text}</Notice> : null}
               <AuthIntentNotice view={view} />
             </>
           )

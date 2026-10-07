@@ -12,7 +12,7 @@ export function HeroCollage() {
   const example = landingExampleResult
   return (
     <div className="lp-hero-image-card lp-collage" aria-hidden="true">
-      <div className="lp-collage__stage">
+      <div className="lp-collage__stage" data-cookie-keep-clear="">
         <Sticker as="span" size="sm" tilt={-3} className="lp-collage__tab">
           Example result
         </Sticker>

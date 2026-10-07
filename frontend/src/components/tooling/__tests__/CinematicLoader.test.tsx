@@ -219,4 +219,21 @@ describe('CinematicLoader', () => {
     const { container } = render(<CinematicLoader toolId="job-match" mutationDone={false} />)
     expect(container.querySelector('.cinematic-tile')?.getAttribute('data-tone')).toBe('mint')
   })
+
+  // The way out ends the panel in DOM (and one-column) order, after the steps, so it does not interrupt the progress story
+  // (sign-off F20). Two columns place it under the track by grid placement in tooling.css, so it no longer lives in
+  // .cinematic-main as the earlier version of this test asserted.
+  it('puts an action after the progress track and the steps, outside the status column', () => {
+    const { container } = render(
+      <CinematicLoader toolId="resume" mutationDone={false} action={<button type="button">Cancel</button>} />,
+    )
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    const track = screen.getByRole('progressbar')
+    const steps = container.querySelector('.cinematic-steps') as HTMLElement
+    expect(track.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(steps.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(steps.contains(cancel)).toBe(false)
+    expect(container.querySelector('.cinematic-main')?.contains(cancel)).toBe(false)
+    expect(cancel.closest('.cinematic-action')?.parentElement).toBe(container.querySelector('.cinematic-loader'))
+  })
 })

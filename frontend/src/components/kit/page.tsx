@@ -40,6 +40,8 @@ export type PageHeaderProps = Omit<ComponentPropsWithoutRef<'header'>, 'title'> 
   title: ReactNode
   /** One line saying what the page is for, only when that teaches something. */
   lead?: ReactNode
+  /** md: the 15px body line (default). lg: the 19px large lead, for a shell-less page whose title is the whole fold (sign in, reset password). */
+  leadSize?: 'md' | 'lg'
   /** Quiet facts under the title, separated by dots: an array or several children. Missing items are skipped. */
   meta?: ReactNode
   /** Page actions, right-aligned; they wrap under the title on narrow screens. One primary Button at most. */
@@ -52,18 +54,29 @@ export type PageHeaderProps = Omit<ComponentPropsWithoutRef<'header'>, 'title'> 
   mark?: ReactNode
   /** Level of the title heading. Default 1 (a page has one h1); 2 or 3 where a header sits inside another page, as in the gallery. */
   headingLevel?: 1 | 2 | 3
+  /**
+   * Edits the title in place (a rename field with its Cancel and Save buttons). When set, it takes the visible title's
+   * place beside the heading, never inside it, so its controls take neither the display type nor the heading's
+   * semantics; the heading stays, visually hidden, so the page keeps its h1. Leave it empty when not editing.
+   */
+  titleEditor?: ReactNode
 }
 
 /** Title row of a page. Replaces PageHero, PageHeader, .page-header, .admin-page-title, .state-page__title. */
 export const PageHeader = forwardRef<HTMLElement, PageHeaderProps>(function PageHeader(
-  { title, lead, meta, actions, back, tabs, mark, headingLevel = 1, className, ...rest },
+  { title, lead, leadSize = 'md', meta, actions, back, tabs, mark, headingLevel = 1, titleEditor, className, ...rest },
   ref,
 ) {
   const Heading = `h${headingLevel}` as 'h1'
   const text = (
     <div className="kit-page-header__text">
-      <Heading className="kit-page-header__title">{title}</Heading>
-      {lead ? <div className="kit-page-header__lead">{lead}</div> : null}
+      <Heading className={titleEditor ? 'kit-sr-only' : 'kit-page-header__title'}>{title}</Heading>
+      {titleEditor ? <div className="kit-page-header__title-editor">{titleEditor}</div> : null}
+      {lead ? (
+        <div className="kit-page-header__lead" data-size={leadSize === 'lg' ? 'lg' : undefined}>
+          {lead}
+        </div>
+      ) : null}
       {meta ? <MetaRow className="kit-page-header__meta">{meta}</MetaRow> : null}
     </div>
   )
@@ -107,16 +120,21 @@ export type SplitProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & {
   stickyRail?: boolean
   /** When stacked (narrow), show the rail above the main column instead of below it. */
   railFirst?: boolean
+  /**
+   * Where the two columns go side by side. default: from 56rem. compact: from 52rem, for a main column that still reads
+   * well at about 35rem (a tool form): at 1024 with the sidebar collapsed to its rail the content is 55.4rem wide.
+   */
+  breakpoint?: 'default' | 'compact'
   children: ReactNode
 }
 
 /**
- * Main column plus a ~280px rail. Side by side when the container is at least 56rem wide (it asks
- * its own width, not the viewport's, so it behaves with the sidebar open or closed); otherwise
- * the rail stacks under the main column.
+ * Main column plus a ~280px rail. Side by side when the container is at least 56rem wide (52rem with
+ * breakpoint="compact"; it asks its own width, not the viewport's, so it behaves with the sidebar open
+ * or closed); otherwise the rail stacks under the main column.
  */
 export const Split = forwardRef<HTMLDivElement, SplitProps>(function Split(
-  { rail, railLabel, stickyRail = false, railFirst = false, className, children, ...rest },
+  { rail, railLabel, stickyRail = false, railFirst = false, breakpoint = 'default', className, children, ...rest },
   ref,
 ) {
   return (
@@ -125,6 +143,7 @@ export const Split = forwardRef<HTMLDivElement, SplitProps>(function Split(
       className={cn('kit-split', className)}
       data-sticky={stickyRail ? 'true' : undefined}
       data-rail-first={railFirst ? 'true' : undefined}
+      data-breakpoint={breakpoint === 'compact' ? 'compact' : undefined}
       {...rest}
     >
       <div className="kit-split__layout">

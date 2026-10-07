@@ -132,3 +132,15 @@
     animation: none;
   }
 }
+
+/*
+ * Phones: while toasts are up, a bottom sheet stops below them (the toasts move to the top edge while it is open;
+ * toast.tsx publishes their height as --kit-toast-stack), so a toast never covers the sheet's title, close or first
+ * rows. Without toasts the sheet keeps its 85%.
+ */
+@media (max-width: 767px) {
+  :root:has(.kit-toast-region .kit-toast) .kit-sheet:is([data-side='bottom'], [data-side='responsive']) {
+    max-height: min(85vh, 100vh - var(--kit-toast-stack, 0px) - var(--s4) * 2);
+    max-height: min(85dvh, 100dvh - var(--kit-toast-stack, 0px) - var(--s4) * 2 - env(safe-area-inset-top, 0px));
+  }
+}

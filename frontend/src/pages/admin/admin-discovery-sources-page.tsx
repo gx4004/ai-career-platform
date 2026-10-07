@@ -6,9 +6,8 @@ import {
   Button,
   Disclosure,
   EmptyState,
-  ErrorState,
+  KeyValue,
   MetaRow,
-  Notice,
   Page,
   PageHeader,
   Stack,
@@ -24,6 +23,7 @@ import { retrySourceFetch } from '#/lib/api/client'
 import type { DiscoverySource } from '#/lib/api/discoverySchemas'
 import { describeFailure } from '#/lib/api/errors'
 import { adminDate, adminDateTime } from './toolLabel'
+import { AdminLoadError } from './admin-load-error'
 
 /** A URL breaks after its slashes, never in the middle of a word. */
 function BreakableUrl({ value }: { value: string }) {
@@ -47,6 +47,19 @@ function sharedValue(sources: DiscoverySource[], pick: (source: DiscoverySource)
 }
 
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
+
+/** What a source may do, in words (the server's allowed_behavior enum). */
+const ALLOWED_BEHAVIOR: Record<string, string> = {
+  api: 'Reads the provider’s licensed API',
+  feed: 'Reads the provider’s licensed job feed',
+  ats_integration: 'Reads the employer’s public job-board API',
+  public_page: 'Reads public job pages',
+  user_url: 'Opens a job link a user gives',
+  paste: 'Uses job text a user pastes',
+}
+
+/** A value the map does not know yet still reads as words: "new_kind" is "New kind". */
+const allowedBehavior = (value: string) => ALLOWED_BEHAVIOR[value] ?? capitalize(value.replace(/_/g, ' '))
 
 /** Fetched at least once, and the last fetch did not work. */
 const lastFetchFailed = (source: DiscoverySource) => Boolean(source.last_fetched_at) && source.last_outcome !== 'ok'
@@ -74,6 +87,15 @@ export function AdminDiscoverySourcesPage() {
         title: tripped ? `Kill switch tripped for ${source.display_name}` : `Kill switch cleared for ${source.display_name}`,
       })
     },
+    // Said where the click happened: a notice at the top of the page is off-screen from a lower row (AAG-F03). The
+    // reason is the server's own (a refused clear names the terms review), never a guess that fits only one direction.
+    onError: (error, { tripped }) => {
+      toast({
+        tone: 'danger',
+        title: tripped ? 'The kill switch was not tripped' : 'The kill switch was not cleared',
+        description: describeFailure(error, 'Nothing was changed. Try again in a moment.').message,
+      })
+    },
   })
 
   const retry = useMutation({
@@ -98,15 +120,18 @@ export function AdminDiscoverySourcesPage() {
         })
       }
     },
+    onError: (error) => {
+      toast({
+        tone: 'danger',
+        title: 'The fetch did not run',
+        description: describeFailure(error, 'Try again in a moment.').message,
+      })
+    },
   })
 
   const pendingId =
     killSwitch.isPending && killSwitch.variables ? killSwitch.variables.sourceId : null
-  // One change at a time, and a new one starts from a clean slate: no stale failure notice from the last click.
-  const change = (sourceId: string, tripped: boolean) => {
-    killSwitch.reset()
-    killSwitch.mutate({ sourceId, tripped })
-  }
+  const change = (sourceId: string, tripped: boolean) => killSwitch.mutate({ sourceId, tripped })
 
   const sources = data?.items ?? []
   const sharedOwner = sharedValue(sources, (source) => source.owner)
@@ -130,8 +155,14 @@ export function AdminDiscoverySourcesPage() {
             {source.endpoint_url ? <BreakableUrl value={source.endpoint_url} /> : 'Endpoint not configured'}
           </span>
           <Disclosure variant="inline" title="Policy">
-            <p className="admin-subline">{source.allowed_behavior}</p>
-            <p className="admin-subline">{source.attribution_rule}</p>
+            <KeyValue
+              layout="stacked"
+              divided={false}
+              items={[
+                { label: 'Allowed', value: allowedBehavior(source.allowed_behavior) },
+                { label: 'Attribution', value: source.attribution_rule },
+              ]}
+            />
           </Disclosure>
         </>
       ),
@@ -186,10 +217,7 @@ export function AdminDiscoverySourcesPage() {
               variant="secondary"
               loading={retry.isPending && retry.variables === source.id}
               disabled={retry.isPending}
-              onClick={() => {
-                retry.reset()
-                retry.mutate(source.id)
-              }}
+              onClick={() => retry.mutate(source.id)}
             >
               {lastFetchFailed(source) ? 'Retry fetch' : 'Fetch now'}
             </Button>
@@ -201,6 +229,9 @@ export function AdminDiscoverySourcesPage() {
       id: 'kill-switch',
       header: 'Kill switch',
       hideHeader: true,
+      // Stacked on a phone, the control takes its own line, so the source (slug, URL and the Policy disclosure) keeps
+      // the full width instead of wrapping beside the button (account-admin-AA-F15).
+      stackActions: 'below',
       align: 'end',
       stackLabel: false,
       cell: (source) => (
@@ -233,29 +264,16 @@ export function AdminDiscoverySourcesPage() {
       />
 
       <Stack gap={3}>
-        {killSwitch.isError ? (
-          <Notice tone="danger" onDismiss={() => killSwitch.reset()}>
-            Kill-switch change failed. A source cannot be cleared before its terms review is accepted.
-          </Notice>
-        ) : null}
-
-        {retry.isError ? (
-          <Notice tone="danger" title="The fetch did not run" onDismiss={() => retry.reset()}>
-            {describeFailure(retry.error, 'Try again in a moment.').message}
-          </Notice>
-        ) : null}
-
         {isError ? (
-          <ErrorState
-            title="Couldn't load discovery sources"
-            onRetry={() => void refetch()}
-            retrying={isFetching}
-          />
+          <AdminLoadError what="discovery sources" onRetry={() => void refetch()} retrying={isFetching} />
         ) : (
           <Table
             caption="Discovery sources"
             density="compact"
             cellAlign="top"
+            // Six columns, a long slug and URL, a labelled action: under 56rem (a tablet) the rows stack instead of
+            // breaking the slug mid-word and pushing "Trip kill switch" off the right edge.
+            stackBelow={56}
             columns={columns}
             rows={sources}
             getRowId={(source) => source.id}

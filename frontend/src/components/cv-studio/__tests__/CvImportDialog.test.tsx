@@ -77,6 +77,9 @@ describe('import review step', () => {
     expect((within(first).getByRole('button', { name: 'Merge into previous' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(within(second).getByRole('button', { name: 'Merge into previous' }))
     expect(screen.queryByRole('article', { name: 'Mentoring' })).toBeNull()
+    // The card it joined keeps its place and takes focus (the button that was used went with the folded card).
+    await waitFor(() => expect(document.activeElement).toBe(within(first).getByLabelText('Job title')))
+    expect(within(first).getByLabelText('Highlights')).toHaveProperty('value', 'Led the platform move.\nMentoring\nMentored four engineers.')
 
     fireEvent.click(screen.getByRole('button', { name: 'Create my CV' }))
     await waitFor(() => expect(api.acceptCvImport).toHaveBeenCalledTimes(1))
@@ -90,15 +93,32 @@ describe('import review step', () => {
     await waitFor(() => expect(onImported).toHaveBeenCalled())
   })
 
-  it('moves an entry to another section from its menu', async () => {
+  it('moves an entry to a section of the same shape from its menu, and focus follows the card (cv-studio-G08)', async () => {
+    // A role can go to Projects (title, organisation, dates) but not to Skills, which could not show or edit them.
+    const projects = { id: 'proj', kind: 'projects' as const, title: 'Projects', visible: true, position: 2, entries: [] }
+    api.proposeCvImport.mockResolvedValue({ ...proposal, sections: [...proposal.sections, projects] })
     open()
     fireEvent.click(screen.getByRole('radio', { name: 'Paste text' }))
     fireEvent.change(screen.getByLabelText('Your CV as text'), { target: { value: 'x'.repeat(40) } })
     fireEvent.click(screen.getByRole('button', { name: 'Read my CV' }))
     const second = await screen.findByRole('article', { name: 'Mentoring' })
     fireEvent.keyDown(within(second).getByRole('button', { name: 'Move to section' }), { key: 'Enter' })
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Skills' }))
-    await waitFor(() => expect(screen.getByRole('article', { name: 'Mentoring' }).closest('section')?.querySelector('h3')?.textContent).toMatch(/^Skills/))
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).queryByRole('menuitem', { name: 'Skills' })).toBeNull()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Projects' }))
+    await waitFor(() => expect(screen.getByRole('article', { name: 'Mentoring' }).closest('section')?.querySelector('h3')?.textContent).toMatch(/^Projects/))
+    const moved = screen.getByRole('article', { name: 'Mentoring' })
+    await waitFor(() => expect(window.document.activeElement).toBe(within(moved).getByLabelText('Project name')))
+  })
+
+  it('offers no move for an entry no other section can take (cv-studio-G08)', async () => {
+    open()
+    fireEvent.click(screen.getByRole('radio', { name: 'Paste text' }))
+    fireEvent.change(screen.getByLabelText('Your CV as text'), { target: { value: 'x'.repeat(40) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Read my CV' }))
+    await screen.findByRole('article', { name: 'Mentoring' })
+    // Experience's roles have no other structured section here, and Skills has no other freeform one.
+    expect(screen.queryByRole('button', { name: 'Move to section' })).toBeNull()
   })
 })
 

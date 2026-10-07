@@ -112,6 +112,16 @@
   flex-basis: 0;
 }
 
+/*
+ * Phones: the title wraps and the lead runs three or four lines in a narrow column, so a centred mark would float halfway
+ * down beside the lead. It marks the title instead: top-aligned with the title's first line.
+ */
+@media (max-width: 479px) {
+  .kit-page-header__identity {
+    align-items: flex-start;
+  }
+}
+
 .kit-page-header__title {
   margin: 0;
   color: var(--ink);
@@ -124,12 +134,24 @@
   text-wrap: balance;
 }
 
+/* The title edited in place (titleEditor): body type, beside the visually hidden heading, never inside it. */
+.kit-page-header__title-editor {
+  min-width: 0;
+}
+
 .kit-page-header__lead {
   max-width: 44rem;
   margin: 0;
   color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+}
+
+.kit-page-header__lead[data-size='lg'] {
+  max-width: 34rem;
+  margin-block-start: var(--s2);
+  font-size: var(--fs-body-l);
+  line-height: var(--lh-body-l);
 }
 
 .kit-page-header__meta {
@@ -245,6 +267,27 @@
   }
 
   .kit-split[data-sticky] .kit-split__rail {
+    position: sticky;
+    top: var(--space-6);
+    align-self: start;
+  }
+}
+
+/*
+ * breakpoint="compact": side by side from 52rem, for a main column that still works at about 35rem (a tool form). At 1024
+ * with the sidebar collapsed to its rail the content is 55.4rem: the default 56rem threshold just misses it.
+ */
+@container kit-split (min-width: 52rem) {
+  .kit-split[data-breakpoint='compact'] .kit-split__layout {
+    grid-template-columns: minmax(0, 1fr) var(--kit-rail-w);
+    gap: var(--space-12);
+  }
+
+  .kit-split[data-breakpoint='compact'][data-rail-first] .kit-split__rail {
+    order: 0;
+  }
+
+  .kit-split[data-breakpoint='compact'][data-sticky] .kit-split__rail {
     position: sticky;
     top: var(--space-6);
     align-self: start;

@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
 import { KeyRound, LogOut, UserRound } from 'lucide-react'
 import { ChangePasswordDialog } from '#/components/account/ChangePasswordDialog'
 import { EditNameDialog } from '#/components/account/EditNameDialog'
-import { ApplicationDetailsCard } from '#/components/applications/ApplicationDetailsCard'
+import { ApplicationDetailsCard, ApplicationDetailsSkeleton } from '#/components/applications/ApplicationDetailsCard'
 import {
   Avatar,
   Button,
@@ -17,7 +16,6 @@ import {
   PageHeader,
   Panel,
   PanelBody,
-  PanelHeader,
   Row,
   RowActions,
   RowBody,
@@ -27,7 +25,6 @@ import {
   Section,
   Skeleton,
   Stack,
-  Sticker,
 } from '#/components/kit'
 import { DataControls } from '#/components/profile/DataControls'
 import { useSession } from '#/hooks/useSession'
@@ -35,7 +32,7 @@ import { requestPasswordReset } from '#/lib/api/client'
 import { describeFailure } from '#/lib/api/errors'
 
 export function AccountPage() {
-  const { status, user, openAuthDialog, providers, logout } = useSession()
+  const { status, user, openAuthDialog, logout } = useSession()
   const resetLink = useMutation({ mutationFn: (email: string) => requestPasswordReset({ email }) })
   const [resetSent, setResetSent] = useState<{ email: string; devUrl?: string } | null>(null)
   const [editingName, setEditingName] = useState(false)
@@ -47,17 +44,41 @@ export function AccountPage() {
     return (
       <Page width="narrow">
         <PageHeader title="Account" />
-        {/* The two panels the page opens with, framed from the first frame. */}
-        <Panel>
-          <PanelBody>
-            <Skeleton lines={3} label="Loading your account" />
-          </PanelBody>
-        </Panel>
-        <Panel aria-hidden>
-          <PanelBody>
-            <Skeleton lines={4} />
-          </PanelBody>
-        </Panel>
+        {/* The two groups the page opens with, in their loaded frames (heading, panel, rows), so nothing jumps when
+            the session answers. */}
+        <Section title="Identity" description={<Skeleton width="11rem" />}>
+          {/* The loaded block itself (avatar, the Name and Email facts, the Edit name button) with bars for the values,
+              so the facts stack and wrap exactly as they will at every width. */}
+          <Panel>
+            <PanelBody>
+              <div className="account-identity" role="status" aria-label="Loading your account" aria-busy="true">
+                <Skeleton variant="block" shape="circle" width={36} height={36} />
+                <KeyValue
+                  items={[
+                    {
+                      label: 'Name',
+                      value: (
+                        <Cluster gap={3} justify="between">
+                          <Skeleton width="8rem" />
+                          <Skeleton variant="block" width="6.5rem" height="var(--kit-h-sm)" />
+                        </Cluster>
+                      ),
+                    },
+                    { label: 'Email', value: <Skeleton width="min(16rem, 100%)" /> },
+                  ]}
+                />
+                <span className="kit-sr-only">Loading your account</span>
+              </div>
+            </PanelBody>
+          </Panel>
+        </Section>
+        <Section title="Details for applications">
+          <Panel aria-hidden>
+            <PanelBody>
+              <ApplicationDetailsSkeleton />
+            </PanelBody>
+          </Panel>
+        </Section>
       </Page>
     )
   }
@@ -71,14 +92,8 @@ export function AccountPage() {
           icon={<UserRound />}
           title="Your workspace, your way"
           description="Sign in to manage your details and session."
-          action={
-            <Cluster gap={2}>
-              <Button onClick={() => openAuthDialog({ to: '/account', reason: 'account' })}>Sign in</Button>
-              <Button asChild variant="secondary">
-                <Link to="/resume">Explore tools</Link>
-              </Button>
-            </Cluster>
-          }
+          // One action, as every signed-in-only page's guest gate (STICKER 4.O, consistency-F25).
+          action={<Button onClick={() => openAuthDialog({ to: '/account', reason: 'account' })}>Sign in</Button>}
         />
       </Page>
     )
@@ -89,7 +104,6 @@ export function AccountPage() {
     memberSince && !Number.isNaN(memberSince.getTime())
       ? `Member since ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(memberSince)}`
       : null
-  const googleEnabled = providers.some((p) => p.provider === 'google' && p.enabled)
   const displayName = user.full_name || user.email
   const emailResetLink = () => {
     setResetSent(null)
@@ -102,49 +116,42 @@ export function AccountPage() {
     <Page width="narrow">
       <PageHeader title="Account" />
 
-      <Panel as="section" aria-labelledby="account-identity-title">
-        <PanelHeader
-          title={<span id="account-identity-title">Identity</span>}
-          actions={
-            memberSinceText ? (
-              <Sticker as="span" size="sm" tone="lemon" tilt={-2} className="account-since">
-                {memberSinceText}
-              </Sticker>
-            ) : undefined
-          }
-        />
-        <PanelBody>
-          <div className="account-identity">
-            <Avatar name={displayName} size="lg" decorative />
-            <KeyValue
-              aria-label="Your sign-in identity"
-              items={[
-                {
-                  label: 'Name',
-                  value: (
-                    <Cluster gap={3} justify="between">
-                      {user.full_name ? <span>{user.full_name}</span> : <span className="kit-kv__empty">Not set</span>}
-                      <Button variant="secondary" size="sm" onClick={() => setEditingName(true)}>
-                        {user.full_name ? 'Edit name' : 'Add name'}
-                      </Button>
-                    </Cluster>
-                  ),
-                },
-                { label: 'Email', value: user.email },
-              ]}
-            />
-          </div>
-        </PanelBody>
-      </Panel>
+      {/* Every group is a Section heading over its framed content, as on /settings. The join date is the
+          section's quiet meta line (it is not an object, so not a sticker). */}
+      <Section title="Identity" landmark description={memberSinceText ?? undefined}>
+        <Panel>
+          <PanelBody>
+            <div className="account-identity">
+              <Avatar name={displayName} size="lg" decorative />
+              <KeyValue
+                aria-label="Your sign-in identity"
+                items={[
+                  {
+                    label: 'Name',
+                    value: (
+                      <Cluster gap={3} justify="between">
+                        {user.full_name ? <span>{user.full_name}</span> : <span className="kit-kv__empty">Not set</span>}
+                        <Button variant="secondary" size="sm" onClick={() => setEditingName(true)}>
+                          {user.full_name ? 'Edit name' : 'Add name'}
+                        </Button>
+                      </Cluster>
+                    ),
+                  },
+                  { label: 'Email', value: user.email },
+                ]}
+              />
+            </div>
+          </PanelBody>
+        </Panel>
+      </Section>
 
-      <Panel as="section" aria-labelledby="account-details-title">
-        <PanelHeader title={<span id="account-details-title">Details for applications</span>} />
-        <PanelBody>
-          <ApplicationDetailsCard />
-        </PanelBody>
-      </Panel>
-
-      {googleEnabled ? <Section title="Sign-in options" description="Google sign-in is available." /> : null}
+      <Section title="Details for applications" landmark>
+        <Panel>
+          <PanelBody>
+            <ApplicationDetailsCard accountName={user.full_name} />
+          </PanelBody>
+        </Panel>
+      </Section>
 
       <Section title="Session and password">
         <Stack gap={3}>

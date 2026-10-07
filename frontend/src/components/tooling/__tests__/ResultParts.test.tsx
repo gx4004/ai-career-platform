@@ -59,6 +59,14 @@ describe('ResultParts', () => {
     expect(container.querySelector('.kit-row__leading [data-tone="mint"]')).toBeTruthy()
   })
 
+  it('can sit unframed and flush under a heading inside a Panel', () => {
+    render(<ResultList label="Tips" framed={false} flush boxed="end" items={[{ key: 'a', title: 'Tip' }]} />)
+    const list = screen.getByRole('list', { name: 'Tips' })
+    expect(list.hasAttribute('data-framed')).toBe(false)
+    expect(list.getAttribute('data-flush')).toBe('true')
+    expect(list.getAttribute('data-boxed')).toBe('end')
+  })
+
   it('gives a section an id from its title so the contents list can find it', () => {
     render(
       <ReportSection title="Score breakdown">

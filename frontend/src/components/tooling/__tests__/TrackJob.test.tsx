@@ -64,6 +64,23 @@ describe('TrackJobRow', () => {
     expect(screen.queryByRole('button', { name: 'Track job' })).toBeNull()
   })
 
+  it('keeps Track job enabled and says what is missing on submit, like Add a job, focusing the first empty field', async () => {
+    renderRow(run(null))
+    fireEvent.click(screen.getByRole('button', { name: 'Track job' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Track this job' })
+    const submit = Array.from(dialog.querySelectorAll('button[type="submit"]'))[0] as HTMLButtonElement
+    expect(submit.disabled).toBe(false)
+    fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Acme' } })
+    fireEvent.submit(dialog.querySelector('form')!)
+    expect(await screen.findByText('Enter the role, for example “Backend Engineer”.')).toBeTruthy()
+    expect(screen.queryByText('Enter the company you are applying to.')).toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Role')))
+    expect(requestMock).not.toHaveBeenCalled()
+    // Typing clears that field's message.
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'Platform Lead' } })
+    expect(screen.queryByText('Enter the role, for example “Backend Engineer”.')).toBeNull()
+  })
+
   it('keeps the dialog open with a readable message when the request fails', async () => {
     requestMock.mockRejectedValue(Object.assign(new Error('Something went wrong on our side. Try again in a moment.'), { status: 500 }))
     renderRow(run(null))
@@ -108,4 +125,26 @@ describe('TrackJobRow prefill', () => {
     expect((screen.getByLabelText('Role') as HTMLInputElement).value).toBe('Senior Backend Engineer, Platform')
     expect((screen.getByLabelText('Company') as HTMLInputElement).value).toBe('Northwind Labs')
   })
+
+  it('focuses the first required field still empty: Company, when the run named only the role', async () => {
+    renderRow({ id: 'run-3', workspace: null, result_payload: { job_title: 'Platform Engineer' } } as unknown as ToolRunDetail)
+    fireEvent.click(screen.getByRole('button', { name: 'Track job' }))
+    await screen.findByRole('dialog', { name: 'Track this job' })
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Company')))
+  })
+
+  // consistency-F24: as "Add a job" (kit usePanelFocus), a touch screen opens the dialog focused, not the field, so the
+  // keyboard does not cover the title and footer before they are read.
+  it('opens on a phone with the dialog focused, not the field', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: /pointer:\s*coarse/.test(query), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    try {
+      renderRow({ id: 'run-3', workspace: null, result_payload: { job_title: 'Platform Engineer' } } as unknown as ToolRunDetail)
+      fireEvent.click(screen.getByRole('button', { name: 'Track job' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Track this job' })
+      await waitFor(() => expect(document.activeElement).toBe(dialog))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
+

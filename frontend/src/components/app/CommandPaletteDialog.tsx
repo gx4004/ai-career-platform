@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -10,6 +10,7 @@ import {
   LogOut,
   PanelLeft,
   Search,
+  SearchX,
   Settings,
   ShieldCheck,
   UserRound,
@@ -26,17 +27,19 @@ import {
   RowBody,
   RowLeading,
   RowMeta,
+  RowSubtitle,
   RowTitle,
   ToolTile,
 } from '#/components/kit'
 import type { Tone } from '#/components/kit'
 import { useOptionalSidebar } from '#/components/ui/sidebar'
 import { useKnownBreakpoint } from '#/hooks/use-breakpoint'
+import { shortcutLabel, useModKey } from '#/hooks/use-mod-key'
 import { useSession } from '#/hooks/useSession'
 import { getHistory, listApplications } from '#/lib/api/client'
 import { dashboardDestination, navGroups } from '#/lib/navigation/navGroups'
 import { APPLICATION_BOARD_QUERY_KEY } from '#/lib/query/applicationCaches'
-import { formatRunDate } from '#/lib/tools/runLabel'
+import { formatRunDay } from '#/lib/tools/runLabel'
 import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
 import { toolList } from '#/lib/tools/registry'
 
@@ -46,6 +49,8 @@ type PaletteItem = {
   group: string
   label: string
   hint?: string
+  /** A keyboard shortcut ("⌘B"), shown after the hint and hidden on touch screens (styles/shell.css). */
+  shortcut?: string
   icon: LucideIcon
   /** Tools show their colour tile instead of a bare icon. */
   tone?: Tone
@@ -55,6 +60,15 @@ type PaletteItem = {
 }
 
 const RECENT_RUNS_QUERY_KEY = ['command-palette', 'recent-runs'] as const
+
+/** What each destination holds, in the words people search with ("runs" is History, "pipeline" is Applications). */
+const DESTINATION_KEYWORDS: Record<string, string> = {
+  '/discovery': 'jobs openings listings matches find',
+  '/campaigns': 'jobs pipeline campaigns applied interviews',
+  '/cv-studio': 'resume cv editor document templates',
+  '/profile': 'evidence facts skills experience',
+  '/history': 'runs results saved past',
+}
 
 const wordsOf = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
 
@@ -112,6 +126,7 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
   const { user, logout, openAuthDialog } = useSession()
   const sidebar = useOptionalSidebar()
   const listId = useId()
+  const searchRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (!open) {
@@ -139,6 +154,7 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
   const phone = useKnownBreakpoint() === 'mobile'
   const toggleSidebar = phone ? undefined : sidebar?.toggleSidebar
   const sidebarCollapsed = sidebar?.state === 'collapsed'
+  const modKey = useModKey()
   const items = useMemo<PaletteItem[]>(() => {
     const pages: PaletteItem[] = [
       {
@@ -159,6 +175,7 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
           label: destination.label,
           icon: destination.icon,
           to: destination.route,
+          keywords: DESTINATION_KEYWORDS[destination.route],
         })
       }
     }
@@ -194,7 +211,7 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
         id: 'toggle-sidebar',
         group: 'Actions',
         label: sidebarCollapsed ? 'Expand the sidebar' : 'Collapse the sidebar',
-        hint: '⌘B',
+        shortcut: shortcutLabel(modKey, 'B'),
         icon: PanelLeft,
         run: toggleSidebar,
         keywords: 'navigation menu rail',
@@ -218,14 +235,15 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
         id: `run-${run.id}`,
         group: 'Recent runs',
         label: run.label?.trim() || run.metadata?.summary_headline?.trim() || display.label,
-        hint: `${display.label} · ${formatRunDate(run.created_at)}`,
+        hint: `${display.label} · ${formatRunDay(run.created_at)}`,
         icon: display.icon,
         to: href,
-        keywords: display.label,
+        // Not "result": every run would then match "res", the start of Resume (History answers "results").
+        keywords: `${display.label} run runs`,
       })
     }
     return [...pages, ...tools, ...actions, ...apps, ...saved]
-  }, [applications.data, runs.data, user, logout, openAuthDialog, toggleSidebar, sidebarCollapsed])
+  }, [applications.data, runs.data, user, logout, openAuthDialog, toggleSidebar, sidebarCollapsed, modKey])
 
   const visible = useMemo(() => rank(items, query.trim()), [items, query])
 
@@ -282,13 +300,26 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent size="md" showClose={false} className="app-palette">
+      <DialogContent
+        size="md"
+        showClose={false}
+        placement="top"
+        className="app-palette"
+        // The palette is a search the person opened to type into: its field takes focus on a touch screen too (the kit
+        // otherwise opens a dialog on its panel there, so a keyboard does not cover a form before it is read).
+        onOpenAutoFocus={(event) => {
+          if (!searchRef.current) return
+          event.preventDefault()
+          searchRef.current.focus({ preventScroll: true })
+        }}
+      >
         <DialogTitle visuallyHidden>Search</DialogTitle>
         <DialogDescription visuallyHidden>
           Jump to a page, tool, application or saved run, or run an action. Use the arrow keys and Enter.
         </DialogDescription>
         <div className="app-palette__search">
           <Input
+            ref={searchRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
@@ -309,6 +340,7 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
           {visible.length === 0 ? (
             <EmptyState
               role="status"
+              icon={<SearchX />}
               title={`No results for “${query}”`}
               description="Try a page, tool, application or run name."
             />
@@ -343,11 +375,16 @@ export function CommandPaletteDialog({ open, onOpenChange: setOpen }: { open: bo
                       </RowLeading>
                       <RowBody>
                         <RowTitle>{item.label}</RowTitle>
+                        {/* Phones: the hint goes under the label, not onto a line of its own at the far right. */}
+                        {phone && item.hint ? <RowSubtitle className="app-palette__sub">{item.hint}</RowSubtitle> : null}
                       </RowBody>
-                      <RowMeta className="app-palette__meta">
-                        {item.hint}
-                        {index === active ? <CornerDownLeft aria-hidden /> : null}
-                      </RowMeta>
+                      {phone ? null : (
+                        <RowMeta className="app-palette__meta">
+                          {item.hint}
+                          {item.shortcut ? <span className="app-palette__shortcut">{item.shortcut}</span> : null}
+                          {index === active ? <CornerDownLeft aria-hidden /> : null}
+                        </RowMeta>
+                      )}
                     </Row>
                   ))}
                 </div>

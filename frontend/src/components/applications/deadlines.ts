@@ -26,7 +26,10 @@ export function dueText(days: number, subject?: string): string {
   return subject ? `${subject} ${rest}` : rest.charAt(0).toUpperCase() + rest.slice(1)
 }
 
-export type CardUrgency = { days: number; text: string }
+/** Which date the chip is about: the apply-by date, an offer's reply date, or the next task's date. */
+export type UrgencySource = 'apply' | 'reply' | 'task'
+
+export type CardUrgency = { days: number; text: string; source: UrgencySource }
 
 /**
  * The most pressing date on a card, or null: an apply-by date while it is still Saved, a reply
@@ -37,14 +40,16 @@ export function cardUrgency(
   card: Pick<ApplicationCard, 'status' | 'deadline' | 'next_task'>,
   now = Date.now(),
 ): CardUrgency | null {
-  const candidates: Array<{ days: number; subject?: string }> = []
-  if (card.deadline && card.status === 'saved') candidates.push({ days: daysUntil(card.deadline, now) })
-  if (card.deadline && card.status === 'offer') candidates.push({ days: daysUntil(card.deadline, now), subject: 'Reply' })
+  const candidates: Array<{ days: number; subject?: string; source: UrgencySource }> = []
+  if (card.deadline && card.status === 'saved') candidates.push({ days: daysUntil(card.deadline, now), source: 'apply' })
+  if (card.deadline && card.status === 'offer') {
+    candidates.push({ days: daysUntil(card.deadline, now), subject: 'Reply', source: 'reply' })
+  }
   if (card.next_task?.deadline && stageOf(card.status) !== 'closed') {
-    candidates.push({ days: daysUntil(card.next_task.deadline, now), subject: 'Task' })
+    candidates.push({ days: daysUntil(card.next_task.deadline, now), subject: 'Task', source: 'task' })
   }
   const urgent = candidates.filter((candidate) => candidate.days <= SOON_DAYS).sort((a, b) => a.days - b.days)[0]
-  return urgent ? { days: urgent.days, text: dueText(urgent.days, urgent.subject) } : null
+  return urgent ? { days: urgent.days, text: dueText(urgent.days, urgent.subject), source: urgent.source } : null
 }
 
 // Dated work first (soonest on top), then what waits on the owner, then the rest; closed last.

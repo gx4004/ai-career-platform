@@ -33,3 +33,17 @@ export async function requireUser({ location, preload }: GuardContext) {
   }
   if (!user) throw redirectToSignIn(location, preload)
 }
+
+/**
+ * Waits for the session check (the shell's one /auth/me) before a signed-in-only page renders, so the page knows at
+ * once whether it shows the person's data or its in-page sign-in gate, with no signed-in skeleton flashing for a
+ * guest and no account requests sent without a session. Never redirects (consistency-F25: every signed-in-only page
+ * gates a guest in place); an outage renders the page, whose own requests show the problem.
+ */
+export async function resolveSession() {
+  try {
+    await queryClient.fetchQuery({ queryKey: CURRENT_USER_QUERY_KEY, queryFn: fetchSessionUser })
+  } catch {
+    // The page renders and says what went wrong.
+  }
+}

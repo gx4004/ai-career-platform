@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { hydrateRoot } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolResultScreen } from '#/components/tooling/ToolResultScreen'
 import { ApiError } from '#/lib/api/errors'
 import { clearTransientResults, setTransientResult } from '#/lib/tools/demoRuns'
@@ -90,6 +92,19 @@ describe('ToolResultScreen states', () => {
     expect(screen.getByRole('status').textContent).toContain('Fetching saved output')
   })
 
+  // The skeleton is the loaded frame: a facts panel under the seal only where the loaded hero has one (the Resume
+  // hero has none, so the page used to lose a card when the run landed), and the actions placeholder takes the
+  // header's actions slot (result-actions), so it wraps under the title exactly as the real cluster does.
+  it('draws the facts placeholder only for tools whose hero has facts, and the actions in the actions slot', () => {
+    getHistoryItemMock.mockReturnValue(new Promise(() => {}))
+    const { unmount } = renderScreen('run-1', 'resume')
+    expect(document.querySelector('.result-hero__facts')).toBeNull()
+    expect(document.querySelector('.kit-page-header .result-actions')).not.toBeNull()
+    unmount()
+    renderScreen('run-1', 'job-match')
+    expect(document.querySelector('.result-hero__facts')).not.toBeNull()
+  })
+
   it('says a deleted run is gone and offers the way back', async () => {
     getHistoryItemMock.mockRejectedValue(new ApiError('Not found', 404))
     renderScreen('run-1')
@@ -108,6 +123,41 @@ describe('ToolResultScreen states', () => {
     getHistoryItemMock.mockResolvedValueOnce(savedRun)
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('A clear headline.')).toBeTruthy()
+  })
+
+  // Sign-off tool-results-F52: a reloaded guest result (or Back to it) lives only in this tab's storage. The server
+  // cannot see it, so the first client render must draw what the server drew (the loading frame), not the report;
+  // React used to throw the whole tree away with a hydration error.
+  it('hydrates a reloaded guest demo without a mismatch, then shows it', async () => {
+    sessionStatus = 'guest'
+    const item = setTransientResult('resume', { summary: { headline: 'Guest headline' }, overall_score: 64 })
+    const stored = window.sessionStorage.getItem(`cw:demo-result:${item.id}`)
+    clearTransientResults() // the server: no tab storage, no in-memory run
+    const tree = () => (
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ToolResultScreen toolId="resume" historyId={item.id} />
+      </QueryClientProvider>
+    )
+    const html = renderToString(tree())
+    expect(html).not.toContain('This guest demo is no longer available')
+    window.sessionStorage.setItem(`cw:demo-result:${item.id}`, stored!) // the reloaded tab still holds it
+    const container = document.createElement('div')
+    container.innerHTML = html
+    document.body.appendChild(container)
+    const recoverable: unknown[] = []
+    let root: ReturnType<typeof hydrateRoot> | undefined
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, tree(), { onRecoverableError: (error) => recoverable.push(error) })
+      })
+      expect(recoverable).toEqual([])
+      await waitFor(() => expect(container.textContent).toContain('Guest headline'))
+      expect(getHistoryItemMock).not.toHaveBeenCalled()
+    } finally {
+      act(() => root?.unmount())
+      container.remove()
+    }
   })
 
   it('shows the expired state for a guest demo that is gone, without a retry', async () => {
@@ -129,8 +179,15 @@ describe('ToolResultScreen states', () => {
     expect(regenerate.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(regenerate)
     expect(regenerate.getAttribute('aria-expanded')).toBe('true')
+    // The open panel says what it is for, and its action is the view's one primary: the header button steps back to
+    // secondary (its open look) while the panel is open.
+    expect(screen.getByRole('heading', { name: 'Re-generate with feedback' })).toBeTruthy()
+    expect(regenerate.className).toContain('kit-button--secondary')
     fireEvent.change(screen.getByLabelText('Re-generate feedback'), { target: { value: 'More numbers' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    // "Continue", not "Submit": this opens the tool's form, where the run is started.
+    const proceed = screen.getByRole('button', { name: 'Continue' })
+    expect(proceed.className).toContain('kit-button--primary')
+    fireEvent.click(proceed)
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/resume?parent_run_id=run-1' }))
     // Free text stays out of the URL: it waits in this tab for the run it re-generates.
     expect(JSON.parse(window.sessionStorage.getItem('career-workbench:workflow-context') ?? '{}').regenFeedback).toEqual({
@@ -146,7 +203,8 @@ describe('ToolResultScreen states', () => {
     seedRegenerateMock.mockClear()
     renderScreen('run-1')
     fireEvent.click(await screen.findByRole('link', { name: 'Open Job Match' }))
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/job-match' }))
+    // ?from= names the result it was opened from, so the next tool can say why a field is empty (F48).
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/job-match?from=resume' }))
     expect(seedRegenerateMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'run-1' }), 'job-match')
   })
 
@@ -165,14 +223,16 @@ describe('ToolResultScreen states', () => {
   it('exposes the favorite toggle with a pressed state, and a sign-in prompt for guests', async () => {
     getHistoryItemMock.mockResolvedValue({ ...savedRun, is_favorite: true })
     const { unmount } = renderScreen('run-1')
-    const star = await screen.findByRole('button', { name: 'Remove from favorites' })
+    // consistency-F28: one name in both states; aria-pressed carries whether it is starred, and the visible word stays.
+    const star = await screen.findByRole('button', { name: 'Star this result' })
     expect(star.getAttribute('aria-pressed')).toBe('true')
+    expect(star.textContent).toBe('Star')
     unmount()
 
     sessionStatus = 'guest'
     const item = setTransientResult('resume', { summary: { headline: 'Guest headline' } })
     renderScreen(item.id)
-    const guestStar = await screen.findByRole('button', { name: 'Sign in to favorite this result' })
+    const guestStar = await screen.findByRole('button', { name: 'Star this result: sign in first' })
     expect(guestStar.getAttribute('aria-disabled')).toBeNull()
     fireEvent.click(guestStar)
     expect(openAuthDialogMock).toHaveBeenCalledWith(expect.objectContaining({ reason: 'save-demo-result' }))
@@ -183,20 +243,20 @@ describe('ToolResultScreen states', () => {
     getHistoryItemMock.mockResolvedValue(savedRun)
     setFavoriteMock.mockResolvedValue({})
     renderScreen('run-1')
-    const star = await screen.findByRole('button', { name: 'Add to favorites' })
+    const star = await screen.findByRole('button', { name: 'Star this result' })
     expect(star.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(star)
-    expect(screen.getByRole('button', { name: 'Remove from favorites' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Star this result' }).getAttribute('aria-pressed')).toBe('true')
     await waitFor(() => expect(setFavoriteMock).toHaveBeenCalledWith('run-1', true))
-    expect(screen.getByRole('button', { name: 'Remove from favorites' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Star this result' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('puts the star back when the server refuses', async () => {
     getHistoryItemMock.mockResolvedValue(savedRun)
     setFavoriteMock.mockRejectedValue(new Error('nope'))
     renderScreen('run-1')
-    fireEvent.click(await screen.findByRole('button', { name: 'Add to favorites' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Add to favorites' }).getAttribute('aria-pressed')).toBe('false'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Star this result' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Star this result' }).getAttribute('aria-pressed')).toBe('false'))
   })
 
   it('puts the actions in the header, before the report, in reading order', async () => {
@@ -214,10 +274,105 @@ describe('ToolResultScreen states', () => {
     const regenerate = await screen.findByRole('button', { name: 'Re-generate' })
     expect(regenerate.className).toContain('kit-button--primary')
     const actions = regenerate.closest('.result-actions')
-    expect(actions?.querySelector('[aria-label="Add to favorites"]')).toBeTruthy()
+    expect(actions?.querySelector('[aria-label="Star this result"]')).toBeTruthy()
     expect(actions?.textContent).toContain('Copy')
     expect(actions?.textContent).toContain('Export')
     expect(actions?.querySelectorAll('.kit-button--primary')).toHaveLength(1)
+  })
+
+  describe('header actions by width', () => {
+    const realMatchMedia = window.matchMedia
+    function viewport(width: number) {
+      window.matchMedia = ((query: string) => {
+        const max = /max-width:\s*(\d+)px/.exec(query)
+        return {
+          matches: max ? width <= Number(max[1]) : /prefers-reduced-motion/.test(query),
+          media: query,
+          onchange: null,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+          addListener: () => undefined,
+          removeListener: () => undefined,
+          dispatchEvent: () => false,
+        }
+      }) as typeof window.matchMedia
+    }
+    const names = () =>
+      Array.from(document.querySelectorAll('.result-actions .kit-button')).map(
+        (b) => b.getAttribute('aria-label') ?? b.textContent?.trim(),
+      )
+    afterEach(() => {
+      window.matchMedia = realMatchMedia
+    })
+
+    it('side by side: star, copy, export, new input, then the one primary', async () => {
+      viewport(1440)
+      getHistoryItemMock.mockResolvedValue(withExportable)
+      renderScreen('run-1')
+      await screen.findByRole('button', { name: 'Re-generate' })
+      expect(names()).toEqual(['Star this result', 'Copy result to clipboard', 'Export result', 'New input', 'Re-generate'])
+    })
+
+    // consistency-F13: one order at every width, the order of every page header (Applications and Profile keep their
+    // primary last on a phone too). Was primary-first below 860px. The DOM order is the order on screen (WCAG 2.4.3).
+    it('stacked (<= 860px): the same order, the one primary last, in the DOM as on screen', async () => {
+      viewport(768)
+      getHistoryItemMock.mockResolvedValue(withExportable)
+      renderScreen('run-1')
+      await screen.findByRole('button', { name: 'Re-generate' })
+      expect(names()).toEqual(['Star this result', 'Copy result to clipboard', 'Export result', 'New input', 'Re-generate'])
+    })
+
+    it('below 360px Star, Copy and Export are icon-only (named by their labels) so they share one row', async () => {
+      viewport(320)
+      getHistoryItemMock.mockResolvedValue(withExportable)
+      renderScreen('run-1')
+      await screen.findByRole('button', { name: 'Re-generate' })
+      for (const name of ['Star this result', 'Copy result to clipboard', 'Export result']) {
+        const button = screen.getByRole('button', { name })
+        expect(button.className).toContain('kit-button--icon')
+        expect(button.textContent?.trim()).toBe('')
+      }
+      expect(screen.getByRole('button', { name: 'Re-generate' }).className).not.toContain('kit-button--icon')
+    })
+
+    it('Undo after a re-generate is an icon-only ghost, so six actions still fit beside the title', async () => {
+      viewport(1440)
+      getHistoryItemMock.mockImplementation(async (id: string) =>
+        id === 'run-2' ? { ...withExportable, id: 'run-2', parent_run_id: 'run-1' } : withExportable,
+      )
+      renderScreen('run-2')
+      const undo = await screen.findByRole('button', { name: 'Undo: restore previous result' })
+      expect(undo.className).toContain('kit-button--icon')
+      expect(undo.className).toContain('kit-button--ghost')
+      expect(names()).toEqual([
+        'Star this result',
+        'Copy result to clipboard',
+        'Export result',
+        'Undo: restore previous result',
+        'New input',
+        'Re-generate',
+      ])
+    })
+
+    // Sign-off tool-results-F62: on a stacked header or on touch the tooltip never shows, so Undo says its word.
+    // tool-results-F68: the worded Undo (86px) pushed Re-generate onto a row of its own, and the whole report jumped up
+    // when Undo hid after 30s. It now sits in the header's meta line as a link that keeps the line's height, so the
+    // action rows are the same with and without it. (Was: a worded ghost button in the action cluster.)
+    it('Undo carries its word on a stacked header, in the meta line, outside the action rows', async () => {
+      viewport(768)
+      getHistoryItemMock.mockImplementation(async (id: string) =>
+        id === 'run-2' ? { ...withExportable, id: 'run-2', parent_run_id: 'run-1' } : withExportable,
+      )
+      renderScreen('run-2')
+      const undo = await screen.findByRole('button', { name: 'Undo: restore previous result' })
+      expect(undo.className).not.toContain('kit-button--icon')
+      expect(undo.className).toContain('kit-button--link')
+      expect(undo.textContent?.trim()).toBe('Undo')
+      expect(undo.closest('.kit-page-header__meta')).not.toBeNull()
+      expect(undo.closest('.result-actions')).toBeNull()
+      expect(names()).toEqual(['Star this result', 'Copy result to clipboard', 'Export result', 'New input', 'Re-generate'])
+    })
   })
 
   it('offers plain text, Markdown and (for letters and interviews) PDF in the export menu', async () => {
@@ -268,9 +423,16 @@ describe('ToolResultScreen states', () => {
     expect(alert.textContent).toContain('did not let us copy')
     expect(alert.textContent).not.toContain('Document is not focused')
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByRole('button', { name: 'Copied to clipboard' })).toBeTruthy()
+    const copied = await screen.findByRole('button', { name: 'Copied to clipboard' })
     expect(screen.queryByRole('alert')).toBeNull()
     expect(writeText).toHaveBeenCalledTimes(2)
+    // Sign-off tool-results-F64: both words (and both icons) stay laid out, one of them hidden, so the button keeps
+    // one width and its neighbours do not jump while it says "Copied".
+    const shown = (state: string) =>
+      Array.from(copied.querySelectorAll(`[data-shown="${state}"]`)).map((el) => el.textContent || el.tagName.toLowerCase())
+    expect(shown('true')).toContain('Copied')
+    expect(shown('false')).toContain('Copy')
+    expect(copied.querySelectorAll('[data-shown]')).toHaveLength(4)
   })
 
   it('says so on the page when the PDF cannot be made, and tries again', async () => {

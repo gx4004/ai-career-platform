@@ -31,7 +31,8 @@ describe('admin requests read failures the same way as every other request', () 
 
     const error = await failureOf(() => setAdminStatus('u1', true))
 
-    expect(error.message).toBe('Is admin: Input should be a valid boolean')
+    // Server wording now ends as a sentence, with a full stop (public-F24).
+    expect(error.message).toBe('Is admin: Input should be a valid boolean.')
   })
 
   it('hides an HTML gateway page', async () => {

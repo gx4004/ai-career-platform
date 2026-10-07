@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import {
   Button, Checkbox, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogForm,
   DialogHeader, DialogTitle, EmptyState, Field, Input, Notice, Section, Skeleton, Stack,
@@ -112,6 +113,8 @@ export function CreateCvDocumentDialog({
                 headingLevel={3}
                 size="sm"
                 title="Facts from your profile"
+                // "Select all" / "Clear" belongs to the heading: at 320 it wrapped onto a line of its own (F38).
+                actionsWrap={false}
                 actions={confirmedItems.length > 1 ? (
                   <Button
                     type="button"
@@ -131,7 +134,11 @@ export function CreateCvDocumentDialog({
                     We couldn’t load your profile. You can still start a blank CV.
                   </Notice>
                 ) : confirmedItems.length === 0 ? (
-                  <EmptyState size="inline" title="You haven’t saved any facts on your profile yet, so this CV will start blank." />
+                  // The profile is where facts are added: lead there instead of ending on a blank CV (cv-studio-F12).
+                  <EmptyState
+                    size="inline" title="You haven’t saved any facts on your profile yet, so this CV will start blank."
+                    action={<Button asChild size="sm" variant="secondary"><Link to="/profile">Add facts on your profile</Link></Button>}
+                  />
                 ) : (
                   <Stack gap={3}>
                     {confirmedItems.map((item) => (

@@ -51,6 +51,12 @@ describe('cardUrgency', () => {
     expect(urgent?.text).toBe('Task due tomorrow')
   })
 
+  it('says which date it is about, so a card does not print that date a second time', () => {
+    expect(cardUrgency(card({ deadline: at('2026-10-07') }), NOW)?.source).toBe('apply')
+    expect(cardUrgency(card({ status: 'offer', deadline: at('2026-10-08') }), NOW)?.source).toBe('reply')
+    expect(cardUrgency(card({ next_task: { title: 'Call', deadline: at('2026-10-06') } }), NOW)?.source).toBe('task')
+  })
+
   it('leaves closed applications alone', () => {
     expect(cardUrgency(card({ status: 'rejected', next_task: { title: 'x', deadline: at('2026-10-04') } }), NOW)).toBeNull()
   })

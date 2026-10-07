@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PASSWORD_COPY } from '#/lib/api/errors'
 import {
   developmentItemSchema,
   developmentResponseKindSchema,
@@ -963,7 +964,7 @@ function codePointBoundedString({ min, max, minMessage }: { min?: number; max?: 
 
 function validateUtf8(value: string, ctx: z.RefinementCtx): void {
   if (utf8Size(value) === null) {
-    ctx.addIssue({ code: 'custom', message: 'Password must be valid UTF-8' })
+    ctx.addIssue({ code: 'custom', message: PASSWORD_COPY.encoding })
   }
 }
 
@@ -972,9 +973,9 @@ export const newPasswordSchema = codePointBoundedString({ min: 8, minMessage: 'P
   (value, ctx) => {
     const size = utf8Size(value)
     if (size === null) {
-      ctx.addIssue({ code: 'custom', message: 'Password must be valid UTF-8' })
+      ctx.addIssue({ code: 'custom', message: PASSWORD_COPY.encoding })
     } else if (size > 72) {
-      ctx.addIssue({ code: 'custom', message: 'Password must be at most 72 UTF-8 bytes' })
+      ctx.addIssue({ code: 'custom', message: PASSWORD_COPY.tooLong })
     }
   },
 )
@@ -1172,7 +1173,12 @@ export const applicationReviewFindingSchema = z.object({
   id: z.string(), category: z.enum(['unsupported_claim', 'missed_requirement', 'contradiction', 'generic_language', 'repetition', 'document_defect']),
   severity: z.enum(['high', 'medium', 'low']), message: z.string(), locations: z.array(z.string()), trace: z.array(z.string()),
 })
-export const applicationReviewResponseSchema = sharedResultEnvelopeSchema.extend({ findings: z.array(applicationReviewFindingSchema) })
+/** Which documents the checks read (a CV version chosen; a cover letter with text). Older results lack it: both. */
+export const applicationReviewDocumentsSchema = z.object({ cv: z.boolean().default(true), cover_letter: z.boolean().default(true) })
+export const applicationReviewResponseSchema = sharedResultEnvelopeSchema.extend({
+  documents: applicationReviewDocumentsSchema.default({ cv: true, cover_letter: true }),
+  findings: z.array(applicationReviewFindingSchema),
+})
 
 export const resumeResultSchema = sharedResultEnvelopeSchema
   .extend({

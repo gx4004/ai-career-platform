@@ -6,8 +6,8 @@ import type {
   ToolRunDetail,
 } from '#/lib/api/schemas'
 import { workspaceContextInputSchema } from '#/lib/api/schemas'
-import type { WorkflowContextState } from '#/lib/tools/drafts'
-import { getToolByHistoryName, type ToolId } from '#/lib/tools/registry'
+import type { CarryOrigin, WorkflowContextState } from '#/lib/tools/drafts'
+import { getToolByHistoryName, tools, type ToolId } from '#/lib/tools/registry'
 
 type AnyObject = Record<string, unknown>
 
@@ -25,7 +25,7 @@ export function deriveWorkflowUpdateFromResult(
       topActionTitles,
       strongestMissingSkills: readStringArray(asObject(result.evidence).missing_keywords),
       // No role read from the resume: keep the target role an earlier tool carried.
-      ...(roleFitLabel ? { targetRole: roleFitLabel } : {}),
+      ...(roleFitLabel ? { targetRole: roleFitLabel, roleOrigin: 'resume' as const } : {}),
     }
   }
 
@@ -45,6 +45,7 @@ export function deriveWorkflowUpdateFromResult(
     return {
       resumePendingReview: false,
       careerResult: result as CareerResult,
+      ...(toString(direction.role_title) ? { roleOrigin: 'career' as const } : {}),
       targetRole: toString(direction.role_title) || undefined,
       selectedTargetRole: toString(direction.role_title) || undefined,
       recommendedDirectionRole: toString(direction.role_title) || undefined,
@@ -59,6 +60,7 @@ export function deriveWorkflowUpdateFromResult(
     return {
       resumePendingReview: false,
       portfolioResult: result as PortfolioResult,
+      ...(toString(result.target_role) ? { roleOrigin: 'portfolio' as const } : {}),
       targetRole: toString(result.target_role) || undefined,
       selectedTargetRole: toString(result.target_role) || undefined,
       recommendedProjectTitle: toString(result.recommended_start_project) || undefined,
@@ -113,6 +115,78 @@ export function buildWorkspaceRequestContext(
       linked_history_ids: linkedHistoryIds,
     }),
   }
+}
+
+const PLACE_LABEL: Record<Exclude<CarryOrigin, ToolId>, string> = {
+  'cv-studio': 'CV Studio',
+  application: 'your application',
+  discover: 'Discover',
+  dashboard: 'Dashboard',
+}
+
+/** "Resume Analyzer", "CV Studio", "your application": where a carried value came from, for "Resume from …". */
+export function carryOriginLabel(origin: CarryOrigin | string | null | undefined): string {
+  if (!origin) return ''
+  if (Object.prototype.hasOwnProperty.call(tools, origin)) return tools[origin as ToolId].label
+  return PLACE_LABEL[origin as keyof typeof PLACE_LABEL] ?? ''
+}
+
+type RunOrigins = Pick<WorkflowContextState, 'resumeOrigin' | 'jobOrigin' | 'roleOrigin' | 'resumeSource' | 'jobSource'>
+
+/**
+ * Where each carried value came from after a run of `toolId`. `update` is what the run writes (only the fields this tool
+ * has, plus what its result derives). A value the run did not change keeps its origin (and its "found in your account"
+ * label): running a carried resume on Job Match does not make Job Match its source. A new value is from this tool, or
+ * from wherever the tab's resume carry says the user supplied it (`carried`).
+ */
+export function originsAfterRun(
+  toolId: ToolId,
+  previous: WorkflowContextState | null,
+  update: Partial<WorkflowContextState>,
+  carried: { text: string; origin: string } = { text: '', origin: '' },
+): RunOrigins {
+  const out: RunOrigins = {}
+  if ('resumeText' in update) {
+    const text = update.resumeText ?? ''
+    const same = Boolean(text) && text === (previous?.resumeText ?? '')
+    out.resumeSource = same ? previous?.resumeSource : undefined
+    out.resumeOrigin = !text
+      ? undefined
+      : carried.origin && carried.text === text
+        ? (carried.origin as CarryOrigin)
+        : same && previous?.resumeOrigin
+          ? previous.resumeOrigin
+          : toolId
+  }
+  if ('jobDescription' in update) {
+    const text = update.jobDescription ?? ''
+    const same = Boolean(text) && text === (previous?.jobDescription ?? '')
+    out.jobSource = same ? previous?.jobSource : undefined
+    out.jobOrigin = !text ? undefined : same && previous?.jobOrigin ? previous.jobOrigin : toolId
+  }
+  const before = getWorkflowTargetRole(previous)
+  const after = getWorkflowTargetRole({ ...(previous ?? {}), ...update, updatedAt: 0 })
+  out.roleOrigin = !after
+    ? undefined
+    : after === before
+      ? (previous?.roleOrigin ?? update.roleOrigin)
+      : (update.roleOrigin ?? toolId)
+  return out
+}
+
+/**
+ * Whether the target role in the tab is the one of the run being re-generated: opening a result writes its role into the
+ * tab (ToolResultScreen), so after a Re-generate from it the role field holds that run's input role (Portfolio) or the
+ * role it recommended (Career Path), not something the user carried in.
+ */
+export function roleFromRegeneratedRun(
+  toolId: ToolId,
+  context: Pick<WorkflowContextState, 'historyId' | 'roleOrigin'> | null,
+  parentRunId: string | null | undefined,
+): 'target' | 'recommended' | undefined {
+  if (!parentRunId || !context || context.historyId !== parentRunId || context.roleOrigin !== toolId) return undefined
+  if (toolId === 'career') return 'recommended'
+  return toolId === 'portfolio' ? 'target' : undefined
 }
 
 export function getWorkflowTargetRole(

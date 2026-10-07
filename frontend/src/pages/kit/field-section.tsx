@@ -74,6 +74,15 @@ export function FieldSection() {
               <Input type="tel" placeholder="+49 30 1234567" />
             </Field>
           </Specimen>
+          <Specimen label="long help: the last line is balanced, never one orphan word">
+            <Field
+              label="Job description"
+              optional
+              help="Paste the posting so the fit, the tailored CV and the letter use it, and so we can check your documents against it."
+            >
+              <Textarea rows={3} />
+            </Field>
+          </Specimen>
           <Specimen label="required">
             <Field label="Email" required>
               <Input type="email" placeholder="you@example.com" />
@@ -92,6 +101,12 @@ export function FieldSection() {
           <Specimen label="disabled">
             <Field label="Account email" help="Change it from account settings." disabled>
               <Input defaultValue="demo@example.com" />
+            </Field>
+          </Specimen>
+          <Specimen label="group: one label over controls that name themselves (a list of highlights)">
+            <Field group label="Highlights" help="One result per line.">
+              <Textarea aria-label="Highlight 1" rows={1} defaultValue="Cut onboarding time by 30%." />
+              <Textarea aria-label="Highlight 2" rows={1} defaultValue="Led the platform move to Postgres 15." />
             </Field>
           </Specimen>
           <Specimen label="visually hidden label">
@@ -255,6 +270,15 @@ export function FieldSection() {
               defaultValue={'one\ntwo\nthree\nfour\nfive\nsix'}
             />
           </Specimen>
+          <Specimen label="prose (autosize): reading-length text at 17/1.6, as the cover letter's paragraphs">
+            <Textarea
+              aria-label="Letter paragraph"
+              autosize
+              prose
+              rows={1}
+              defaultValue="I have spent six years building payment platforms, most recently cutting p95 checkout latency by 38% at Brightline, and I would like to bring that to Northwind Labs."
+            />
+          </Specimen>
           <Specimen label="in a Field, with error">
             <Field label="Job description" error="Paste at least 200 characters.">
               <Textarea placeholder="Paste the posting here" />
@@ -272,7 +296,7 @@ export function FieldSection() {
       <Group title="FileInput (pick a file to see its name and size; the real input stays in the tab order)">
         <Grid>
           <Specimen label="inline, with hint">
-            <FileInput aria-label="Resume file" accept=".pdf,.docx" hint="PDF or DOCX, up to 5 MB" />
+            <FileInput aria-label="Resume file" accept=".pdf,.docx" hint={'PDF or DOCX, up to 5\u00a0MB'} />
           </Specimen>
           <Specimen label="in a Field, optional">
             <Field label="Resume" optional help="We read it once to pre-fill your profile.">
@@ -280,20 +304,20 @@ export function FieldSection() {
             </Field>
           </Specimen>
           <Specimen label="in a Field, with error">
-            <Field label="Resume" error="That file is larger than 5 MB.">
+            <Field label="Resume" error={'That file is larger than 5\u00a0MB.'}>
               <FileInput accept=".pdf,.docx" />
             </Field>
           </Specimen>
-          <Specimen label="dropzone (drag a file onto it)">
+          <Specimen label="dropzone (drag a file onto it, or click anywhere on it)">
             <FileInput variant="dropzone" aria-label="Drop a resume" accept=".pdf,.docx" label="Choose a file" hint="Drop a PDF or DOCX here, or choose one." />
           </Specimen>
-          <Specimen label="dropzone with an icon (compact target: disc, hint, trigger)">
+          <Specimen label="dropzone with an icon (compact target: disc, hint, trigger; the whole area opens the picker, so the hint names the file, not a gesture phones lack)">
             <FileInput
               variant="dropzone"
               icon={<Upload />}
               aria-label="Drop a resume (compact)"
               accept=".pdf,.docx"
-              hint="Drop a PDF or DOCX here (up to 10 MB)"
+              hint={'PDF or DOCX, up to 10\u00a0MB'}
             />
           </Specimen>
           <Specimen label="primary, lg, multiple">

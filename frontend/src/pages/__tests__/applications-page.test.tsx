@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import { ApiError } from '#/lib/api/errors'
 import { ApplicationsPage } from '../applications-page'
 
@@ -13,8 +14,8 @@ const api = vi.hoisted(() => ({
   prepareApplicationsForMe: vi.fn(),
 }))
 vi.mock('#/lib/api/client', () => api)
-const session = vi.hoisted(() => ({ status: 'authenticated' as string }))
-vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status }) }))
+const session = vi.hoisted(() => ({ status: 'authenticated' as string, openAuthDialog: vi.fn() }))
+vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status, openAuthDialog: session.openAuthDialog }) }))
 const createApi = vi.hoisted(() => ({ createApplication: vi.fn(), listApplicationEvents: vi.fn() }))
 vi.mock('#/components/applications/applicationsApi', () => createApi)
 vi.mock('@tanstack/react-router', () => ({
@@ -39,7 +40,8 @@ const prefs = { keywords: ['backend'], locations: [], remote: true, max_per_run:
 
 function renderBoard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(<QueryClientProvider client={client}><ApplicationsPage /></QueryClientProvider>)
+  // The app shell mounts the ToastProvider; a move is confirmed with a toast.
+  return render(<QueryClientProvider client={client}><ToastProvider><ApplicationsPage /></ToastProvider></QueryClientProvider>)
 }
 const column = (name: string) => screen.getByRole('heading', { name: new RegExp(`^${name}\\b`), level: 2 }).closest('section') as HTMLElement
 async function moveTo(title: string, target: string) {
@@ -54,6 +56,19 @@ describe('ApplicationsPage', () => {
     api.listApplications.mockResolvedValue({ items, total: items.length })
     api.getApplicationPreferences.mockResolvedValue(prefs)
     api.getApplicationInsights.mockResolvedValue(noInsights)
+  })
+
+  // consistency-F25: a guest gets the in-page sign-in gate every signed-in-only page uses (one action), not /login.
+  it('shows a guest the in-page sign-in gate with one action, and asks for nothing', () => {
+    session.status = 'guest'
+    renderBoard()
+    expect(screen.getByRole('heading', { name: 'Your applications', level: 1 })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Sign in to see your applications' })).toBeTruthy()
+    const empty = document.querySelector('.kit-empty') as HTMLElement
+    expect([...empty.querySelectorAll('button, a')].map((control) => control.textContent)).toEqual(['Sign in'])
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(session.openAuthDialog).toHaveBeenCalledWith({ to: '/campaigns', reason: 'protected-route' })
+    expect(api.listApplications).not.toHaveBeenCalled()
   })
 
   it('groups applications into stage columns with what each one needs next', async () => {
@@ -139,7 +154,8 @@ describe('ApplicationsPage', () => {
     await waitFor(() => expect(api.listApplications).toHaveBeenCalled())
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(screen.getByText('Loading applications')).toBeTruthy()
-    expect(screen.queryByRole('alert')).toBeNull()
+    // No alert of the page's own (the ToastProvider's empty announcer is an alert region too).
+    expect(screen.queryAllByRole('alert').filter((alert) => !alert.hasAttribute('data-kit-toast-announcer'))).toHaveLength(0)
     expect(screen.queryByText(/couldn't be loaded/)).toBeNull()
     expect(screen.queryByRole('button', { name: "What's working" })).toBeNull()
   })
@@ -225,7 +241,10 @@ describe('ApplicationsPage', () => {
     api.updateApplication.mockRejectedValueOnce(new ApiError('Answer the open questions before marking this applied.', 409))
     renderBoard()
     await moveTo('Python Developer', 'Applied')
-    expect((await screen.findByRole('alert')).textContent).toContain('Answer the open questions before marking this applied.')
+    // The page's own danger notice (the toast region is an empty alert too).
+    await waitFor(() =>
+      expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('Answer the open questions before marking this applied.'))).toBe(true),
+    )
     expect(within(column('Saved')).getByText('Python Developer')).toBeTruthy()
   })
 
@@ -236,14 +255,182 @@ describe('ApplicationsPage', () => {
     expect(screen.getByRole('heading', { name: 'Prepare applications for me' })).toBeTruthy()
   })
 
-  it('walks a first-time owner into their first job with a lemon card', async () => {
+  it('walks a first-time owner into their first job with the kit die-cut empty state', async () => {
     api.listApplications.mockResolvedValue({ items: [], total: 0 })
     renderBoard()
-    expect(await screen.findByRole('heading', { name: 'Add your first job' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Find a job in Discover/ }).getAttribute('href')).toBe('/discovery')
-    expect(screen.getByRole('button', { name: 'Add a job by hand' })).toBeTruthy()
-    // One filled button for the view: the card's, not the header's.
-    expect(screen.getByRole('link', { name: 'Find jobs' }).className).not.toContain('kit-button--primary')
+    // consistency-F01: the same first-run pattern as History, CV Studio and the dashboard (was a page-styled lemon sticker).
+    const heading = await screen.findByRole('heading', { name: 'Add your first job' })
+    expect(heading.closest('.kit-empty')).not.toBeNull()
+    // "Add a job" stays in the header, where it already sat (disabled) while the board loaded: the header row keeps its
+    // height when an empty board arrives, and the card no longer repeats it.
+    const add = screen.getByRole('button', { name: 'Add a job by hand' })
+    expect(add.closest('.kit-page-header')).not.toBeNull()
+    expect(add.hasAttribute('disabled')).toBe(false)
+    // One way to Discover for the view: the card's. The header's "Discover jobs" repeated it and is left out here.
+    // (Both now carry the one label the app uses for Discover, so the card's link is the only one.)
+    const discover = screen.getAllByRole('link', { name: 'Discover jobs' })
+    expect(discover).toHaveLength(1)
+    expect(discover[0].getAttribute('href')).toBe('/discovery')
+    expect(discover[0].closest('.kit-page-header')).toBeNull()
+    // consistency-F03: the empty state's one next step is a primary md button, no icon (as on the dashboard).
+    expect(discover[0].className).toContain('kit-button--primary')
+    expect(discover[0].className).toContain('kit-button--md')
+    expect(discover[0].querySelector('svg')).toBeNull()
+  })
+
+  it('orders each column like the list: pinned first, then the soonest date, nothing due last', async () => {
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString()
+    const saved = [
+      { ...base, id: 's-1', title: 'Data Engineer', company: 'Fjord', status: 'saved' },
+      { ...base, id: 's-2', title: 'Backend Engineer', company: 'Acme', status: 'saved', deadline: day(2) },
+      { ...base, id: 's-3', title: 'Staff Engineer', company: 'Pinecrest', status: 'saved', deadline: day(-1) },
+      { ...base, id: 's-4', title: 'API Engineer', company: 'Quill', status: 'saved', is_pinned: true },
+    ]
+    api.listApplications.mockResolvedValue({ items: saved, total: saved.length })
+    renderBoard()
+    await screen.findByText('Data Engineer')
+    const titles = within(column('Saved')).getAllByRole('link').map((link) => link.textContent)
+    expect(titles).toEqual(['API Engineer', 'Staff Engineer', 'Backend Engineer', 'Data Engineer'])
+  })
+
+  it('says where a moved card went', async () => {
+    api.updateApplication.mockResolvedValue({ ...items[0], status: 'interviewing', applied_at: '2026-09-24T10:00:00Z' })
+    renderBoard()
+    await moveTo('Backend Engineer', 'Interviewing')
+    expect(await screen.findByText('Moved “Backend Engineer” to Interviewing.', { selector: '.kit-toast__title' })).toBeTruthy()
+  })
+
+  // F32: the moved card re-renders in its new column and its old Move button is gone; focus followed it to <body>.
+  it('puts focus back on the moved card\'s Move button in its new column', async () => {
+    api.updateApplication.mockResolvedValue({ ...items[0], status: 'interviewing', applied_at: '2026-09-24T10:00:00Z' })
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    // The refetch after the move sees the card where it went.
+    api.listApplications.mockResolvedValue({ items: [{ ...items[0], status: 'interviewing' }, ...items.slice(1)], total: items.length })
+    await moveTo('Backend Engineer', 'Interviewing')
+    await screen.findByText('Moved “Backend Engineer” to Interviewing.', { selector: '.kit-toast__title' })
+    await waitFor(() => expect(document.activeElement).toBe(within(column('Interviewing')).getByRole('button', { name: 'Move Backend Engineer' })))
+  })
+
+  // F32 on a phone: the card leaves the stage on screen, so focus lands on the stage switcher instead of <body>.
+  it('on a phone, focuses the stage switcher when the moved card leaves the stage on screen', async () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('max-width: 767px'),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia
+    try {
+      api.updateApplication.mockResolvedValue({ ...items[0], status: 'interviewing', applied_at: '2026-09-24T10:00:00Z' })
+      renderBoard()
+      await screen.findByText('Backend Engineer')
+      api.listApplications.mockResolvedValue({ items: [{ ...items[0], status: 'interviewing' }, ...items.slice(1)], total: items.length })
+      await moveTo('Backend Engineer', 'Interviewing')
+      expect(await screen.findByRole('button', { name: 'Show Interviewing' })).toBeTruthy()
+      const stages = screen.getByRole('radiogroup', { name: 'Stage' })
+      await waitFor(() => expect(document.activeElement).toBe(within(stages).getByRole('radio', { name: /^Saved/ })))
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  // F39: a tablet shows about two and a half columns; a card moved to one scrolled out of view got no way to follow it.
+  // F44: when focus follows the card to its new column (it fell to <body> with the old Move button), the browser
+  // scrolls the board there itself, so a "Show Offer" on the toast would do nothing visible: it is offered only when
+  // the person has gone elsewhere and the board stays where it was.
+  function offerColumnOffscreen() {
+    const rect = Element.prototype.getBoundingClientRect
+    const box = (left: number, right: number) => ({ left, right, top: 0, bottom: 100, width: right - left, height: 100, x: left, y: 0, toJSON: () => ({}) })
+    const scrolled = vi.fn()
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.classList.contains('camp-board')) return box(0, 700)
+      const stage = this.getAttribute('data-stage')
+      if (stage) return stage === 'offer' || stage === 'closed' ? box(780, 980) : box(0, 200)
+      return rect.call(this)
+    }
+    const scrollIntoView = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element, arg?: boolean | ScrollIntoViewOptions) {
+      if (this.getAttribute('data-stage') === 'offer') scrolled(arg)
+    }
+    return {
+      scrolled,
+      restore: () => {
+        Element.prototype.getBoundingClientRect = rect
+        Element.prototype.scrollIntoView = scrollIntoView
+      },
+    }
+  }
+
+  it('follows a card moved to an off-screen column with focus, and then offers no redundant Show', async () => {
+    api.updateApplication.mockResolvedValue({ ...items[0], status: 'offer', applied_at: '2026-09-24T10:00:00Z' })
+    const board = offerColumnOffscreen()
+    try {
+      renderBoard()
+      await screen.findByText('Backend Engineer')
+      // The refetch after the move sees the card where it went.
+      api.listApplications.mockResolvedValue({ items: [{ ...items[0], status: 'offer' }, ...items.slice(1)], total: items.length })
+      await moveTo('Backend Engineer', 'Offer')
+      await screen.findByText('Moved “Backend Engineer” to Offer.', { selector: '.kit-toast__title' })
+      await waitFor(() => expect(document.activeElement).toBe(within(column('Offer')).getByRole('button', { name: 'Move Backend Engineer' })))
+      expect(screen.queryByRole('button', { name: /^Show / })).toBeNull()
+    } finally {
+      board.restore()
+    }
+  })
+
+  it('offers to show the target column when focus has gone elsewhere and the board stays scrolled away', async () => {
+    let land: (value: unknown) => void = () => undefined
+    api.updateApplication.mockReturnValue(new Promise((resolve) => { land = resolve }))
+    const board = offerColumnOffscreen()
+    try {
+      renderBoard()
+      await moveTo('Backend Engineer', 'Offer')
+      // While the move is saving, the person tabs on to another card.
+      const elsewhere = screen.getByRole('button', { name: 'Move Python Developer' })
+      elsewhere.focus()
+      land({ ...items[0], status: 'offer', applied_at: '2026-09-24T10:00:00Z' })
+      fireEvent.click(await screen.findByRole('button', { name: 'Show Offer' }))
+      expect(board.scrolled).toHaveBeenCalledWith(expect.objectContaining({ inline: 'nearest' }))
+      // The toast and its button go away: focus follows the card instead of falling to <body>.
+      await waitFor(() => expect(document.activeElement?.getAttribute('aria-label')).toBe('Move Backend Engineer'))
+    } finally {
+      board.restore()
+    }
+  })
+
+  it('offers no Show action when the target column is already in view', async () => {
+    api.updateApplication.mockResolvedValue({ ...items[0], status: 'interviewing', applied_at: '2026-09-24T10:00:00Z' })
+    renderBoard()
+    await moveTo('Backend Engineer', 'Interviewing')
+    await screen.findByText('Moved “Backend Engineer” to Interviewing.', { selector: '.kit-toast__title' })
+    expect(screen.queryByRole('button', { name: /^Show / })).toBeNull()
+  })
+
+  it('colours each Move to item with its stage dot', async () => {
+    renderBoard()
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Move Backend Engineer' }), { key: 'Enter' })
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Applied' }).querySelector('.kit-tone-dot')?.getAttribute('data-tone')).toBe('lilac')
+    expect(within(menu).getByRole('menuitem', { name: 'Offer' }).querySelector('.kit-tone-dot')?.getAttribute('data-tone')).toBe('mint')
+  })
+
+  it('asks before moving an applied application back to Saved, which deletes what was sent', async () => {
+    api.updateApplication.mockResolvedValue({ ...items[3], status: 'saved', applied_at: null })
+    renderBoard()
+    await moveTo('SRE', 'Saved')
+    const dialog = await screen.findByRole('alertdialog', { name: 'Move it back to Saved?' })
+    expect(api.updateApplication).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move to Saved' }))
+    await waitFor(() => expect(api.updateApplication).toHaveBeenCalledWith('a-4', { status: 'saved' }))
+  })
+
+  it('moves a never-applied card back to Saved without asking', async () => {
+    api.updateApplication.mockResolvedValue({ ...items[4], status: 'saved' })
+    renderBoard()
+    await moveTo('ML Engineer', 'Saved')
+    await waitFor(() => expect(api.updateApplication).toHaveBeenCalledWith('a-5', { status: 'saved' }))
+    expect(screen.queryByText('Move it back to Saved?')).toBeNull()
   })
 
   it('marks a date inside a week, or past, with a rose chip on the card', async () => {
@@ -261,6 +448,53 @@ describe('ApplicationsPage', () => {
     expect(within(late).getByText('Overdue')).toBeTruthy()
     const far = screen.getByText('Backend Engineer').closest('article') as HTMLElement
     expect(within(far).queryByText(/^Due/)).toBeNull()
+  })
+
+  it('says a date once: an urgent chip replaces the date in the next-step line, on the board and in the list', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString()
+    const dated = [
+      { ...items[0], id: 'u-1', title: 'Soon Task Role', next_task: { title: 'Tailor CV', deadline: day(2) } },
+      { ...items[0], id: 'u-2', title: 'Far Task Role', next_task: { title: 'Read the blog', deadline: day(30) } },
+      { ...base, id: 'u-3', title: 'Soon Apply Role', company: 'Es', status: 'saved', deadline: day(3) },
+    ]
+    api.listApplications.mockResolvedValue({ items: dated, total: dated.length })
+    renderBoard()
+    const soon = (await screen.findByText('Soon Task Role')).closest('article') as HTMLElement
+    expect(within(soon).getByText('Next: Tailor CV')).toBeTruthy()
+    expect(within(soon).queryByText(/^due /)).toBeNull()
+    expect(within(soon).getByText('Task due in 2 days')).toBeTruthy()
+    // Nothing urgent: the date stays in the line.
+    const far = screen.getByText('Far Task Role').closest('article') as HTMLElement
+    expect(within(far).getByText(/^due /)).toBeTruthy()
+    const apply = screen.getByText('Soon Apply Role').closest('article') as HTMLElement
+    expect(within(apply).queryByText(/^Apply by/)).toBeNull()
+    expect(within(apply).getByText('Due in 3 days')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }))
+    const row = within(screen.getByRole('table')).getByText('Soon Task Role').closest('tr') as HTMLElement
+    expect(within(row).getByText('Tailor CV')).toBeTruthy()
+    expect(within(row).getByText('Task due in 2 days')).toBeTruthy()
+  })
+
+  it('says a date once on an Offer whose reply task falls on the reply-by date', async () => {
+    // "Add a task to reply to the offer" gives the task the offer's reply date: the chip ("Reply due in 3
+    // days") already states that day, so the next-step line drops its own "due <date>".
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString()
+    const offer = {
+      ...base, id: 'o-1', title: 'Offer Role', company: 'Lumen', status: 'offer', applied_at: day(-20),
+      deadline: day(3), next_task: { title: 'Reply to the offer', deadline: day(3) },
+    }
+    api.listApplications.mockResolvedValue({ items: [offer], total: 1 })
+    renderBoard()
+    const card = (await screen.findByText('Offer Role')).closest('article') as HTMLElement
+    expect(within(card).getByText('Next: Reply to the offer')).toBeTruthy()
+    expect(within(card).getByText('Reply due in 3 days')).toBeTruthy()
+    expect(within(card).queryByText(/^due /)).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }))
+    const row = within(screen.getByRole('table')).getByText('Offer Role').closest('tr') as HTMLElement
+    expect(within(row).getByText('Reply to the offer')).toBeTruthy()
+    expect(within(row).getByText('Reply due in 3 days')).toBeTruthy()
   })
 
   it('opens the list on what to do next, soonest date first with closed ones last, and sorts by any column', async () => {
@@ -290,6 +524,25 @@ describe('Add a job by hand', () => {
     api.listApplications.mockResolvedValue({ items, total: items.length })
     api.getApplicationPreferences.mockResolvedValue(prefs)
     api.getApplicationInsights.mockResolvedValue(noInsights)
+  })
+
+  it('focuses the Role field with a mouse, and the dialog itself on a phone so the keyboard stays down (consistency-F09)', async () => {
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    fireEvent.click(screen.getByRole('button', { name: 'Add a job by hand' }))
+    await screen.findByRole('dialog', { name: 'Add a job by hand' })
+    await waitFor(() => expect(document.activeElement?.id).toBe('add-application-role'))
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add a job by hand' })).toBeNull())
+
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: /pointer:\s*coarse/.test(query), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Add a job by hand' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Add a job by hand' })
+      await waitFor(() => expect(document.activeElement).toBe(dialog))
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   const created = {
@@ -400,6 +653,29 @@ describe('Prepare applications for me', () => {
     expect(button.hasAttribute('disabled')).toBe(false)
   })
 
+  it('says once that a keyword is missing: the refusal replaces the standing hint', async () => {
+    api.getApplicationPreferences.mockResolvedValue({ ...prefs, keywords: [] })
+    api.prepareApplicationsForMe.mockResolvedValue({ prepared: [], matched_count: 0, skipped_existing_count: 0, max_per_run: 5, reason: 'no_preferences' })
+    renderBoard()
+    await screen.findByText('Add at least one keyword so we know which jobs to prepare.')
+    fireEvent.click(screen.getByRole('button', { name: /Prepare applications$/ }))
+    await screen.findByText(/Add at least one keyword above/)
+    expect(screen.getAllByText(/Add at least one keyword/)).toHaveLength(1)
+  })
+
+  it('picks how many to prepare per click from a list, beside a framed remote checkbox', async () => {
+    api.saveApplicationPreferences.mockResolvedValue({ ...prefs, max_per_run: 3 })
+    renderBoard()
+    const cap = (await screen.findByRole('combobox', { name: 'Most per click' })) as HTMLSelectElement
+    expect(cap.value).toBe('5')
+    expect([...cap.options].map((option) => option.value)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+    fireEvent.change(cap, { target: { value: '3' } })
+    await waitFor(() => expect(api.saveApplicationPreferences).toHaveBeenCalledWith({
+      keywords: ['backend'], locations: [], remote: true, max_per_run: 3,
+    }))
+    expect(screen.getByRole('checkbox', { name: 'Include remote jobs' }).closest('[data-framed]')).not.toBeNull()
+  })
+
   it('asks for keywords when none are saved', async () => {
     await prepare({ reason: 'no_preferences' })
     expect(await screen.findByText(/Add at least one keyword/)).toBeTruthy()
@@ -455,7 +731,10 @@ describe('Prepare applications for me', () => {
     })
     renderBoard()
     expect(await screen.findByText('3 of 8 applications got a reply')).toBeTruthy()
-    const group = within(screen.getByRole('region', { name: 'Remote or on-site' }))
+    const region = screen.getByRole('region', { name: 'Remote or on-site' })
+    // consistency-F29: the groups take row-title type (Section xs), a step under the panel's "What's working" title.
+    expect(region.getAttribute('data-size')).toBe('xs')
+    const group = within(region)
     expect(group.getByText('Remote')).toBeTruthy()
     expect(group.getByText('60%')).toBeTruthy()
     expect(group.getByLabelText('60%, 3 of 5 applications')).toBeTruthy()

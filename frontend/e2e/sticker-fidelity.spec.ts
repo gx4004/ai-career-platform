@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { devices, expect, test, type Locator, type Page } from '@playwright/test'
 import {
   FONT,
   HEX,
@@ -725,8 +725,9 @@ test.describe('score seal (1.9)', () => {
   const SIZES: Array<[string, number]> = [
     ['Resume score (hero)', 300],
     ['Example score sm', 170],
-    ['Example score md', 230],
-    ['Example score lg', 220],
+    // Sign-off r2 (account-admin-F17): the named ladder only grows now, md 220 (phones, 404) < lg 230 (closer).
+    ['Example score md', 220],
+    ['Example score lg', 230],
   ]
 
   test('geometry: viewBox 220, 18 lobes at R 93 +/- 5 sampled 361 times, tangerine fill, ink 2.6 stroke', async ({ page }) => {
@@ -789,7 +790,8 @@ test.describe('score seal (1.9)', () => {
     await gallery(page)
     const fills: Array<[string, string]> = [
       ['Example score sm', RGB.tangerine],
-      ['Example score md', RGB.lemon],
+      // The lemon closer seal is the lg specimen since the size ladder was reordered (account-admin-F17).
+      ['Example score lg', RGB.lemon],
       ['Mint score', RGB.mint],
       ['Lilac score', RGB.lilac],
       ['Missing score', RGB.stone],
@@ -961,12 +963,13 @@ test.describe('bars and fit marks (1.12)', () => {
     const count = await autoFills.count()
     expect(count).toBeGreaterThan(0)
     for (let i = 0; i < count; i++) await expectStyles(autoFills.nth(i), { 'background-color': RGB.ink })
-    // Explicit tones: accent tangerine, success mint, warning lemon, danger rose, ink.
+    // Explicit tones: accent tangerine, success mint, warning lemon, danger ink, ink. Danger was rose until sign-off
+    // account-admin-AAG-F10: 5.4 says rose is never a bar colour, even when a page forces the tone.
     for (const [tone, fill] of [
       ['accent', RGB.tangerine],
       ['success', RGB.mint],
       ['warning', RGB.lemon],
-      ['danger', RGB.rose],
+      ['danger', RGB.ink],
       ['ink', RGB.ink],
     ] as const) {
       await expectStyles(page.locator(`#data .kit-score__fill[data-tone="${tone}"]:not([data-auto])`).first(), { 'background-color': fill })
@@ -1040,6 +1043,18 @@ test.describe('bars and fit marks (1.12)', () => {
     // The small stamp is 52 x 48; 100 (small) is still readable.
     const small = page.locator('#tiles .kit-fit-stamp[data-size="sm"]').first()
     await expectStyles(small, { width: '52px', height: '48px' })
+    // "100%" in the phone stamp steps down to 16px and keeps clear of the outline on both sides (5.7.7).
+    expect((await styles(small, ['font-size']))['font-size']).toBe('16px')
+    const room = await small.evaluate((el) => el.clientWidth - el.scrollWidth)
+    expect(room).toBeGreaterThanOrEqual(0)
+    const inner = await small.evaluate((el) => {
+      const box = el.getBoundingClientRect()
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      const text = range.getBoundingClientRect()
+      return { left: text.left - box.left - 2, right: box.right - 2 - text.right }
+    })
+    expect(Math.min(inner.left, inner.right)).toBeGreaterThanOrEqual(4)
     // No fit renders an en dash on white, with an accessible name.
     await expect(page.locator('#tiles .kit-fit-stamp[aria-label="Fit not available"]')).toHaveCount(1)
   })
@@ -1581,6 +1596,11 @@ test.describe('login (/login)', () => {
 })
 
 test.describe('not found (404)', () => {
+  // The shortcut hints follow the viewer's OS (hooks/use-mod-key: "⌘K" on a Mac, "Ctrl K" elsewhere), and the
+  // project's "Desktop Chrome" device reports Windows (Playwright derives navigator.platform "Win32" from its user
+  // agent) whatever the host. The mockup's sidebar shows "⌘K", so this block browses as Chrome on a Mac.
+  test.use({ userAgent: devices['Desktop Chrome'].userAgent.replace(/\(Windows NT [^)]*\)/, '(Macintosh; Intel Mac OS X 10_15_7)') })
+
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await open(page, '/this-page-does-not-exist', '.kit-error')
@@ -1788,7 +1808,11 @@ test.describe('guest Resume result (the signature screen)', () => {
       const cx = sr.x + sr.width / 2
       const cy = sr.y + sr.height / 2
       const circle = { left: cx - radius, top: cy - radius, right: cx + radius + shadow, bottom: cy + radius + shadow }
-      const others = [...side.children].filter((child) => !child.contains(sealEl) && !sealEl.contains(child))
+      // The score's "?" now lives in the seal's own box (so it follows the seal when the hero stacks): measure it
+      // explicitly, as it was measured when it was a direct child of the side.
+      const others = [...side.children, ...side.querySelectorAll('.result-hero__help')].filter(
+        (child) => !child.contains(sealEl) && !sealEl.contains(child),
+      )
       const out: Array<[string, number]> = []
       for (const el of others) {
         const r = el.getBoundingClientRect()

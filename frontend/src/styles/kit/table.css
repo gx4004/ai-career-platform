@@ -1,13 +1,19 @@
 /*
  * Table (Sticker, calm). Dense data gets the quiet end of the language: a framed wrapper (white, 2px ink,
  * radius 16, no shadow), a stone-soft header over a 2px ink rule, 2px --line row dividers, lemon-soft hover.
- * Under ~640px of table width every row stacks into a "label: value" list, so nothing scrolls sideways on
+ * Under ~640px of table width (or the table's stackBelow) every row stacks into a "label: value" list, so nothing scrolls sideways on
  * a phone. Cells carry data-label; the pseudo-element draws it. The table roles are explicit in the markup
  * so the semantics survive the display changes below.
  */
 
 .kit-table-wrap {
+  /* The stacked sort strip's overflow fade (the width Segmented's edge uses). */
+  --kit-table-fade: 2.25rem;
+
   container: kit-table / inline-size;
+  /* The stacking threshold below is in em of this wrap: 1em = 1rem by default (40rem), and Table stackBelow scales
+     it (stackBelow={56} gives 56rem). The wrap draws no text of its own; .kit-table resets the type size. */
+  font-size: calc(1rem * var(--kit-table-stack-below, 40) / 40);
   /* The visually hidden caption and hidden headers are absolutely positioned: without a positioned wrapper they escape its scroll clipping and widen the page. */
   position: relative;
   min-width: 0;
@@ -150,6 +156,12 @@
   vertical-align: top;
 }
 
+/* roomy: a stamp or tile with a hard shadow (a FitStamp) keeps 12px from the row rules instead of 4px. Stacked rows
+   reset every cell's padding to 0 with a heavier rule, so this only applies to the table layout. */
+.kit-table__cell[data-roomy] {
+  padding-block: var(--s3);
+}
+
 .kit-table__body > .kit-table__row:first-child > .kit-table__cell {
   border-top: 0;
 }
@@ -165,6 +177,8 @@
 .kit-table__cell[data-numeric] {
   color: var(--ink);
   font-weight: var(--fw-semibold);
+  /* Tabular (STICKER 1.4): a numeric column is the place digits must line up, tens under tens. Running text
+     (pagination, meta, a lone Count) stays proportional. */
   font-variant-numeric: var(--numeric-tabular);
   white-space: nowrap;
 }
@@ -246,7 +260,9 @@
 
 /* ── Stacked: each row becomes a label/value list ───────────────────── */
 
-@container kit-table (max-width: 39.9375rem) {
+/* em, not rem: relative units in a container query resolve against the container (the wrap), whose font-size
+   carries the table's own threshold (default 40rem, see .kit-table-wrap). */
+@container kit-table (max-width: 39.9375em) {
   .kit-table-wrap[data-stack] .kit-table,
   .kit-table-wrap[data-stack] .kit-table__body {
     display: block;
@@ -261,15 +277,93 @@
     display: block;
   }
 
-  /* Same 8px inset as the card text below it, so the sort buttons and a select-all box line up with the rows. */
+  /* Same 8px inset as the card text below it, so the sort buttons and a select-all box line up with the rows.
+     One line that scrolls sideways (the button cut at the edge says there is more): five sort buttons wrapped onto
+     two 44px lines made a 110px stone band before the first row on a phone. */
   .kit-table-wrap[data-stack] .kit-table__head-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: var(--space-1) var(--space-3);
     padding: var(--s2) var(--s4);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
     border-bottom: var(--bw) solid var(--ink);
     background: var(--stone-soft);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__head-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  /*
+   * Overflow edges, as Segmented and JumpNav draw them (consistency-F26: the strip hard-clipped "Next st" mid-word with
+   * no sign there was more). The gradients are a functional overflow cue, not decoration (allow-listed in
+   * kit-css.test). Two sticky flex items pinned to the strip's edges take no room (their negative margin also gives
+   * back the row's 12px gap) and paint above the sort buttons: a fade plus a chevron pointing at what is scrolled off.
+   * Table sets data-overflow ("start", "end" or both) on the row only while there is more on that side.
+   */
+  .kit-table-wrap[data-stack] .kit-table__head-row::before,
+  .kit-table-wrap[data-stack] .kit-table__head-row::after {
+    position: sticky;
+    z-index: 1;
+    display: flex;
+    box-sizing: border-box;
+    flex: 0 0 var(--kit-table-fade);
+    align-items: center;
+    align-self: stretch;
+    padding-inline: var(--s1);
+    color: var(--ink);
+    font-size: var(--fs-title);
+    font-weight: var(--fw-black);
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-1) var(--ease-out);
+  }
+
+  /* The chevron says which way the rest is; "/ ''" keeps it out of what a screen reader announces. */
+  .kit-table-wrap[data-stack] .kit-table__head-row::before {
+    content: '‹';
+    content: '‹' / '';
+    justify-content: flex-start;
+    /* Sticky offsets count from inside the strip's 16px padding: pull the cue out to the strip's own edge. */
+    inset-inline-start: calc(var(--s4) * -1);
+    margin-inline-end: calc((var(--kit-table-fade) + var(--space-3)) * -1);
+    background: linear-gradient(to right, var(--stone-soft) 45%, transparent);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__head-row::after {
+    content: '›';
+    content: '›' / '';
+    justify-content: flex-end;
+    inset-inline-end: calc(var(--s4) * -1);
+    margin-inline-start: calc((var(--kit-table-fade) + var(--space-3)) * -1);
+    background: linear-gradient(to left, var(--stone-soft) 45%, transparent);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__head-row:dir(rtl)::before {
+    content: '›';
+    content: '›' / '';
+    background: linear-gradient(to left, var(--stone-soft) 45%, transparent);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__head-row:dir(rtl)::after {
+    content: '‹';
+    content: '‹' / '';
+    background: linear-gradient(to right, var(--stone-soft) 45%, transparent);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__head-row[data-overflow~='start']::before,
+  .kit-table-wrap[data-stack] .kit-table__head-row[data-overflow~='end']::after {
+    opacity: 1;
+  }
+
+  /* Static: the strip scrolls sideways itself, so a sticky header cell would only paint over the strip's edge cue. */
+  .kit-table-wrap[data-stack] .kit-table__head-row > .kit-table__th {
+    position: static;
+    flex: none;
   }
 
   .kit-table-wrap[data-stack] .kit-table__head-row:not(:has([data-sortable], [data-selection])) {
@@ -354,6 +448,12 @@
     display: block;
   }
 
+  /* stackWide: a long value (a rationale) takes the full width under its label, not a 60% ribbon beside it. */
+  .kit-table-wrap[data-stack] .kit-table__cell[data-stack-wide] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
   /* The actions cell shares the title line instead of taking a whole line of its own. */
   .kit-table-wrap[data-stack] .kit-table__cell[data-actions] {
     display: flex;
@@ -362,6 +462,20 @@
     align-self: start;
     justify-content: flex-end;
     padding-inline-start: var(--space-3);
+  }
+
+  /* stackActions="below": the actions take their own line after the others, at the start, and the title keeps the
+     full width (a long email wrapped beside a button into 3-4 broken lines). */
+  .kit-table-wrap[data-stack] .kit-table__cell[data-actions][data-stack-actions='below'] {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-content: flex-start;
+    padding-block-start: var(--space-2);
+    padding-inline-start: 0;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__row:has(> [data-stack-actions='below']) > .kit-table__cell[data-primary] {
+    grid-column: 1 / -1;
   }
 
   /* A selection column's checkbox takes the start of the title line; the title and actions move over one column. */
@@ -400,6 +514,16 @@
   .kit-table-wrap[data-stack] .kit-table__cell > .kit-skeleton {
     inline-size: 100%;
     justify-self: stretch;
+  }
+
+  /* Stacked, a cell other than the title is one "label: value" line: its sub-line placeholder (loadingLines) goes. */
+  .kit-table-wrap[data-stack] .kit-table__cell:not([data-primary]) > .kit-skeleton + .kit-skeleton {
+    display: none;
+  }
+
+  /* An actions cell's button placeholder keeps the button's width (set inline) and the start edge when stacked. */
+  .kit-table-wrap[data-stack] .kit-table__cell[data-actions] > .kit-skeleton--block {
+    justify-self: start;
   }
 
   .kit-table-wrap[data-stack] .kit-table__cell:not([data-label])::before {

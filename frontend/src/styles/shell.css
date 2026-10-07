@@ -20,6 +20,11 @@
   background: var(--ground);
 }
 
+/*
+ * overflow-x: clip here, not only on body: body's clip is handed to the viewport, and a phone's layout viewport still
+ * grows to fit anything passing beyond the edge (the ScoreSeal flying in at 1.9x), then stays zoomed out. Clip makes
+ * no scroll container, so the sticky top bar keeps working (as .landing-page does for the public pages).
+ */
 .app-main {
   position: relative;
   display: flex;
@@ -27,6 +32,7 @@
   width: 100%;
   min-width: 0;
   min-height: 100svh;
+  overflow-x: clip;
   background: var(--ground);
 }
 
@@ -65,8 +71,9 @@
   transform: none;
 }
 
-/* The skip link moves focus to whichever element is the page's main landmark. */
-.app-content :is(main, [role='main']):focus-visible {
+/* The skip link moves focus to whichever element is the page's main landmark (the public pages' too). */
+.app-content :is(main, [role='main']):focus-visible,
+main#main-content:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
@@ -108,8 +115,11 @@
 
 /* Phones: the top bar is the sticky one; the banner scrolls away under it. */
 @media (max-width: 639px) {
+  /* z-index auto: a flex item of .app-main keeps a z-index even when static, and coming after the top bar it
+     would paint over it on scroll. */
   .app-service-banner {
     position: static;
+    z-index: auto;
     align-items: flex-start;
     padding-inline: var(--s4);
   }
@@ -265,6 +275,37 @@
   display: none;
 }
 
+/*
+ * The scroll cue (the list has no scrollbar): the edge that still has items out of view fades out, so a cut-off
+ * row reads as "more this way". SidebarContent sets data-overflow ("start", "end" or both) only while there is
+ * more on that side. A mask, not a painted gradient: it fades whatever is under it (an active item's shadow too).
+ */
+.app-sidebar__content {
+  --app-sidebar-fade-start: 0px;
+  --app-sidebar-fade-end: 0px;
+
+  /* Focus scrolls an item clear of the fade, so its focus ring is never faded out at the edge. */
+  scroll-padding-block: var(--s7);
+}
+
+.app-sidebar__content[data-overflow~='start'] {
+  --app-sidebar-fade-start: var(--s7);
+}
+
+.app-sidebar__content[data-overflow~='end'] {
+  --app-sidebar-fade-end: var(--s7);
+}
+
+.app-sidebar__content[data-overflow] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--ink) var(--app-sidebar-fade-start),
+    var(--ink) calc(100% - var(--app-sidebar-fade-end)),
+    transparent
+  );
+}
+
 .app-sidebar__group + .app-sidebar__group {
   margin-block-start: 2px;
 }
@@ -399,6 +440,18 @@
   background: var(--lemon-soft);
 }
 
+/* On Account and Settings (both live in this menu) the account button is the active item: lemon, as in 1.6. */
+.app-sidebar__button.app-sidebar__account[data-active='true'],
+.app-sidebar__button.app-sidebar__account[data-active='true'][aria-expanded='true'] {
+  background: var(--lemon);
+}
+
+@media (hover: hover) {
+  .app-sidebar__button.app-sidebar__account[data-active='true']:hover {
+    background: var(--lemon);
+  }
+}
+
 .app-sidebar__account .kit-avatar {
   --kit-avatar-size: 2rem;
 }
@@ -445,7 +498,22 @@
 
 .app-sidebar__legal a:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: 0;
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* A tablet with the sidebar expanded: each link is a 44px target (STICKER 5.7.10). */
+@media (pointer: coarse) {
+  .app-sidebar__legal {
+    gap: 0 var(--s1);
+  }
+
+  .app-sidebar__legal a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+    padding-block: 0;
+    padding-inline: var(--s1);
+  }
 }
 
 /* Account menu: it opens upward from the footer and is exactly as wide as the button, so a long email is clipped
@@ -453,6 +521,11 @@
 .kit-menu.app-account-menu {
   width: max(11rem, var(--radix-dropdown-menu-trigger-width));
   min-width: 0;
+}
+
+/* From the icon rail it opens beside the rail, wide enough for a name and an email. */
+.kit-menu.app-account-menu--rail {
+  width: 15rem;
 }
 
 .app-account__who {
@@ -536,6 +609,13 @@
   content: '';
 }
 
+/* Expanded, the same rule shows whenever the list above it scrolls (a short screen), full width there. */
+.app-sidebar[data-state='expanded']:has(> .app-sidebar__content[data-overflow]) .app-sidebar__footer::before {
+  display: block;
+  border-block-start: var(--bw) solid var(--line);
+  content: '';
+}
+
 /* 48px square targets, no labels (they stay in the accessibility tree: the link is named by its text). */
 .app-sidebar[data-state='collapsed'] .app-sidebar__button {
   justify-content: center;
@@ -543,6 +623,13 @@
   min-height: 3rem;
   margin-inline: auto;
   padding: 0;
+}
+
+/* The owner-only rows' placeholders hold the same 48px squares as the rail items around them. */
+.app-sidebar[data-state='collapsed'] .app-sidebar__placeholder {
+  inline-size: 3rem;
+  min-height: 3rem;
+  margin-inline: auto;
 }
 
 .app-sidebar[data-state='collapsed'] .app-sidebar__button > span:not(.kit-avatar):not(.kit-tool-tile),
@@ -582,8 +669,13 @@
   justify-content: center;
 }
 
-/* The account is just the avatar, 44px, at the bottom of the rail. */
+/*
+ * The account is just the avatar, 44px, at the bottom of the rail, in a 48px square that keeps its size when the
+ * avatar shrinks into its lemon square (hover, open, active): without it the short-screen rows (44 / 40px) let the
+ * button shrink with the avatar and the footer jumped by 4-8px under the pointer.
+ */
 .app-sidebar[data-state='collapsed'] .app-sidebar__button.app-sidebar__account {
+  min-height: 3rem;
   border-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -593,8 +685,96 @@
   --kit-avatar-size: 2.75rem;
 }
 
+/*
+ * Hovered, or its menu open: the lemon-soft square of every rail item (the rule above outranked the footer's). The
+ * avatar shrinks to 36px inside it, as it does when active, so the square reads as a square; at 44px only a 2px rim
+ * showed, a faint yellow glow around the circle (r5 chrome-F07).
+ */
+@media (hover: hover) {
+  .app-sidebar[data-state='collapsed'] .app-sidebar__button.app-sidebar__account:hover {
+    background: var(--lemon-soft);
+  }
+
+  .app-sidebar[data-state='collapsed'] .app-sidebar__account:hover .kit-avatar {
+    --kit-avatar-size: 2.25rem;
+  }
+}
+
+.app-sidebar[data-state='collapsed'] .app-sidebar__button.app-sidebar__account[aria-expanded='true'] {
+  background: var(--lemon-soft);
+}
+
+.app-sidebar[data-state='collapsed'] .app-sidebar__account[aria-expanded='true'] .kit-avatar {
+  --kit-avatar-size: 2.25rem;
+}
+
+/* Active in the rail: the lemon square of every active rail item, the avatar inside it. */
+.app-sidebar[data-state='collapsed'] .app-sidebar__button.app-sidebar__account[data-active='true'] {
+  border-color: var(--ink);
+  background: var(--lemon);
+  box-shadow: var(--sh-1);
+}
+
+.app-sidebar[data-state='collapsed'] .app-sidebar__account[data-active='true'] .kit-avatar {
+  --kit-avatar-size: 2.25rem;
+}
+
 .app-sidebar[data-state='collapsed'] .app-sidebar__account-placeholder {
   inline-size: 3rem;
+}
+
+/*
+ * A short screen with a mouse (a 900px-tall laptop): the rail's 48px rows become 44px with no gaps and the header
+ * tightens, so the whole rail (13 items, collapse, account) fits without scrolling. Touch keeps 48px.
+ */
+@media (pointer: fine) and (max-height: 920px) {
+  .app-sidebar[data-state='collapsed'] .app-sidebar__header {
+    gap: var(--s3);
+  }
+
+  .app-sidebar[data-state='collapsed'] .app-sidebar__menu {
+    gap: 0;
+  }
+
+  .app-sidebar[data-state='collapsed'] .app-sidebar__button,
+  .app-sidebar[data-state='collapsed'] .app-sidebar__placeholder {
+    min-height: 2.75rem;
+  }
+
+  .app-sidebar[data-state='collapsed'] .kit-button.app-sidebar__search {
+    --kit-button-h: 2.75rem;
+  }
+}
+
+/* A 768px-tall screen with a mouse (a 1024x768 laptop): one step further, 40px rows, tighter rules and a smaller
+   brand mark, so the rail still fits whole (it scrolled 88px there and hid Dashboard and Discover, or History). */
+@media (pointer: fine) and (max-height: 800px) {
+  .app-sidebar[data-state='collapsed'] .app-sidebar__header {
+    gap: var(--s2);
+    padding-block: var(--s4) var(--s3);
+  }
+
+  .app-sidebar[data-state='collapsed'] .app-sidebar__footer {
+    gap: var(--s2);
+    padding-block-end: var(--s4);
+  }
+
+  .app-sidebar[data-state='collapsed'] .cw-brand-lockup {
+    --cw-brand-mark-size: 1.75rem;
+  }
+
+  .app-sidebar[data-state='collapsed'] .app-sidebar__button,
+  .app-sidebar[data-state='collapsed'] .app-sidebar__placeholder {
+    min-height: 2.5rem;
+  }
+
+  .app-sidebar[data-state='collapsed'] .kit-button.app-sidebar__search {
+    --kit-button-h: 2.5rem;
+  }
+
+  .app-sidebar[data-state='collapsed'] .app-sidebar__group + .app-sidebar__group::before {
+    margin-block: var(--s1);
+  }
 }
 
 /* Every rail control stays a touch target on touch. */
@@ -654,6 +834,28 @@
   margin-inline-end: calc(var(--s1) * -1);
 }
 
+/* While the session resolves, the avatar's 44px place is held, so Search never shifts when it arrives. */
+.app-topbar__account-placeholder {
+  display: block;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
+  margin-inline-end: calc(var(--s1) * -1);
+  padding: var(--s1);
+  border-radius: var(--r-pill);
+  background: var(--stone-soft);
+  background-clip: content-box;
+}
+
+/* On Account and Settings the avatar is the "you are here": the lemon fill and ink outline of an active item. */
+.kit-button.app-topbar__account[data-active='true'] {
+  --kit-button-bg: var(--lemon);
+  --kit-button-border: var(--ink);
+  --kit-button-hover-bg: var(--lemon);
+  --kit-button-shadow: var(--sh-1);
+}
+
 /* 320px: five things do not fit; the wordmark gives way, the mark and the link name stay. */
 @media (max-width: 359px) {
   .app-topbar .cw-brand-wordmark {
@@ -663,10 +865,15 @@
 
 /* ── Phone tab tray ────────────────────────────────────────────────── */
 
-/* Toasts and other floating notices clear the tray while it is on screen (read by kit/toast.css). */
+/*
+ * Toasts and other floating notices clear the tray while it is on screen (read by kit/toast.css), and so does what
+ * takes focus: Tab stops with the control above the tray, not under it (a toast, when one is up, adds its stack).
+ */
 @media (max-width: 639px) {
   :root:has(.app-tabbar) {
     --kit-toast-clearance: calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + var(--s3));
+
+    scroll-padding-block-end: calc(var(--kit-toast-clearance) + var(--s2));
   }
 }
 
@@ -842,8 +1049,54 @@
 .app-more__tile--tool .app-more__tile-label {
   overflow: visible;
   overflow-wrap: break-word;
+  hyphens: manual;
   white-space: normal;
   line-height: 1.15;
+}
+
+/*
+ * The page you are on (the tray shows More as active): the tile is pressed in, its shadow gone and the plate
+ * set down by the shadow's offset, and its disc turns lemon, the active-item colour. White tiles turn lemon whole.
+ */
+.app-more .app-more__tile:has(> .kit-stretched[aria-current='page']) {
+  --kit-sticker-shadow: none;
+  transform: translate(2px, 2px);
+}
+
+.app-more .app-more__tile:not(.app-more__tile--tool):has(> .kit-stretched[aria-current='page']) {
+  --tone: var(--lemon);
+}
+
+.app-more .app-more__tile--tool > .kit-stretched[aria-current='page'] .kit-tool-tile {
+  --tone: var(--lemon);
+}
+
+/*
+ * 320px: a tool tile is about 136px wide. A smaller disc, tighter padding and 14px labels leave each word room
+ * to stand whole ("Resume / Analyzer", not "Analyze/r"); the white tiles go one to a row so names fit.
+ */
+@media (max-width: 359px) {
+  .app-more .app-more__tile--tool {
+    padding-inline: var(--s2);
+  }
+
+  .app-more .app-more__tile--tool > .kit-stretched {
+    gap: var(--s2);
+  }
+
+  .app-more .app-more__tile--tool .kit-tool-tile {
+    --kit-tile-size: 1.75rem;
+    --kit-tile-radius: var(--r-xs);
+    --kit-tile-icon: 1rem;
+  }
+
+  .app-more__tile--tool .app-more__tile-label {
+    font-size: 0.875rem;
+  }
+
+  .app-more__links {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* The group headings name the lists for assistive tech; the tiles themselves are the visible grouping. */
@@ -861,10 +1114,8 @@
 
 /* ── ⌘K palette ────────────────────────────────────────────────────── */
 
+/* Anchored near the top by the kit (placement="top"): the panel stays put while the results filter. */
 .kit-dialog.app-palette {
-  inset-block: min(12vh, 6rem) auto;
-  margin-block: 0;
-  max-height: calc(100dvh - min(12vh, 6rem) - var(--s4));
   overflow: hidden;
 }
 
@@ -920,8 +1171,11 @@
   box-shadow: var(--sh-1);
 }
 
+/* Keyboard-only hints (Esc, the highlighted row's Enter glyph, ⌘B) mean nothing on a touch screen. */
 @media (pointer: coarse) {
-  .app-palette .app-palette__esc {
+  .app-palette .app-palette__esc,
+  .app-palette .app-palette__meta > svg,
+  .app-palette .app-palette__shortcut {
     display: none;
   }
 }
@@ -934,10 +1188,21 @@
   font-size: var(--fs-meta);
 }
 
+/* Phones: the hint sits under the label; ink-2 like the meta, also on the lemon highlighted row. */
+.app-palette .app-palette__sub {
+  color: var(--ink-2);
+}
+
 .app-palette__meta > svg {
   width: 1rem;
   height: 1rem;
   color: var(--ink);
+}
+
+/* Every leading item sits in the sm ToolTile's 28px slot, so labels start at one x across all groups. */
+.app-palette__results .kit-row__leading {
+  justify-content: center;
+  width: 1.75rem;
 }
 
 .app-palette__results .kit-row__leading > svg {
@@ -946,22 +1211,28 @@
   color: var(--ink);
 }
 
-/* ── Cookie notice: a slim one-row corner sticker (text left, two equal-weight choices right); the page reserves room under it ── */
+/* ── Cookie notice (STICKER 4.O): a 22rem card in the bottom-right corner, the sentence above the two
+   equal-weight choices; on phones a full-width card above the tab tray, the short sentence on one line and
+   "Learn more" beside the choices. The page reserves room under it. ── */
 
 .cookie-banner {
   position: fixed;
   right: var(--s4);
   bottom: var(--s4);
   z-index: var(--z-banner);
-  width: min(calc(100% - var(--s8)), 46rem);
+  width: min(22rem, calc(100% - var(--s8)));
+}
+
+/* Laid out (so it can be measured) but unseen while it would cover something marked to keep clear. */
+.cookie-banner[data-waiting='true'] {
+  visibility: hidden;
 }
 
 .cookie-banner__inner {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--s4);
-  padding: var(--s2) var(--s4);
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -969,8 +1240,6 @@
 }
 
 .cookie-banner__text {
-  flex: 1 1 auto;
-  min-width: 0;
   margin: 0;
   color: var(--ink);
   font-size: var(--fs-meta);
@@ -981,31 +1250,37 @@
   display: none;
 }
 
-/* "Learn more" is an inline link in the sentence (exempt from the 44px target): a 44px line box would make the sticker tall. */
+/* "Learn more" is an inline link in the sentence (exempt from the 44px target): a 44px line box would make the card tall.
+   It takes the sentence's type and line height, so the line it sits on keeps the sentence's spacing. */
 .cookie-banner__text .kit-button--link {
   display: inline;
   min-height: 0;
   padding: 0;
+  font-size: inherit;
+  line-height: inherit;
   vertical-align: baseline;
 }
 
 .cookie-banner__actions {
   display: flex;
-  flex: none;
+  justify-content: flex-end;
   gap: var(--s2);
 }
 
-/* The notice never sits on a page's last rows or on the footer links: the page gets room under it. */
+/* The notice never sits on a page's last rows or on the footer links: the page gets room under it (the card
+   is about 146px tall and 16px off the edge). Shell-less pages (landing, sign in, legal) get it on the body. */
 html:has(.cookie-banner) .app-main {
-  padding-bottom: 5.5rem;
+  padding-bottom: 10.5rem;
 }
 
 html:has(.cookie-banner):not(:has(.app-main)) body {
-  padding-bottom: 5.5rem;
+  padding-bottom: 10.5rem;
 }
 
-/* Phones: one slim sticker above the tab tray, full width, the short wording, buttons beside the text. */
-@media (max-width: 639px) {
+/* Phones and single-column touch tablets: full width (above the tab tray on phones). The short sentence takes the first row on its own; "Learn more" and
+   the two choices share the second (the paragraph's box steps aside so its parts can sit in the grid), which
+   keeps the card under 96px at 320 so it never hides the first screen's call to action. */
+@media (max-width: 639px), (max-width: 1023px) and (pointer: coarse) {
   .cookie-banner {
     right: var(--s2);
     bottom: var(--s2);
@@ -1018,16 +1293,19 @@ html:has(.cookie-banner):not(:has(.app-main)) body {
   }
 
   .cookie-banner__inner {
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'text text'
+      'more actions';
     align-items: center;
-    gap: var(--s3);
+    gap: var(--s2) var(--s3);
     padding: var(--s2) var(--s3);
     box-shadow: var(--sh-2);
   }
 
   .cookie-banner__text {
-    flex: 1 1 auto;
-    min-width: 0;
+    display: contents;
   }
 
   .cookie-banner__long {
@@ -1035,31 +1313,38 @@ html:has(.cookie-banner):not(:has(.app-main)) body {
   }
 
   .cookie-banner__short {
-    display: inline;
+    display: block;
+    grid-area: text;
+    color: var(--ink);
+    font-size: var(--fs-meta);
+    line-height: 1.5;
   }
 
-  html:has(.cookie-banner) .app-main {
-    padding-bottom: 5rem;
+  /* Out of the sentence, the link is a control in the button row again: full 44px target on touch. */
+  .cookie-banner__text .kit-button--link {
+    display: inline-flex;
+    align-items: center;
+    grid-area: more;
+    justify-self: start;
+    font-size: var(--fs-meta);
   }
 
-  html:has(.cookie-banner):not(:has(.app-main)) body {
-    padding-bottom: 6rem;
-  }
-}
-
-/* Very narrow phones: the sentence takes the full width and the two choices sit under it, right-aligned. */
-@media (max-width: 360px) {
-  .cookie-banner__inner {
-    flex-wrap: wrap;
-    row-gap: var(--s2);
-  }
-
-  .cookie-banner__text {
-    flex-basis: 100%;
+  @media (pointer: coarse) {
+    .cookie-banner__text .kit-button--link {
+      min-height: var(--touch-target);
+    }
   }
 
   .cookie-banner__actions {
-    margin-inline-start: auto;
+    grid-area: actions;
+  }
+
+  html:has(.cookie-banner) .app-main {
+    padding-bottom: 6rem;
+  }
+
+  html:has(.cookie-banner):not(:has(.app-main)) body {
+    padding-bottom: 7rem;
   }
 }
 

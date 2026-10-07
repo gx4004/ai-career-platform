@@ -19,6 +19,7 @@ import {
   runPortfolio,
   logout,
   exportCvDocuments,
+  adoptDiscoveryRecommendation,
   API_URL,
   __resetRefreshState,
 } from '#/lib/api/client'
@@ -556,5 +557,32 @@ describe('API client', () => {
       expect(url).toBe(`${API_URL}/job-posts/import-url`)
       expect(result.job_description).toBe('role description')
     })
+  })
+})
+
+// Review F3: Undo after an Add deletes the application, so the client must say whether this Add created it. The
+// adopt endpoint is idempotent: 201 for the first adoption, 200 with the application that already existed.
+describe('adoptDiscoveryRecommendation', () => {
+  const application = {
+    id: 'app-1', label: null, title: 'Engineer', company: 'Example Corp', status: 'saved', deadline: null,
+    applied_at: null, match_score: 74, prepared: false, ready: false, open_question_count: 0, next_task: null,
+    last_activity_at: '2026-09-20T10:00:00Z', is_pinned: false, updated_at: '2026-09-20T10:00:00Z',
+    created_at: '2026-09-20T10:00:00Z',
+    selected_materials: { cv_variant: null, cover_letter: null, interview: null },
+    available_materials: { cv_variants: [], cover_letters: [], interviews: [] },
+  }
+
+  it('reports a first adoption (201) as created', async () => {
+    mockFetch.mockResolvedValueOnce(mockJsonResponse(application, 201))
+    const result = await adoptDiscoveryRecommendation('listing-1')
+    expect(result.created).toBe(true)
+    expect(result.application.id).toBe('app-1')
+  })
+
+  it('reports an application that already existed (200) as not created, whatever its age', async () => {
+    mockFetch.mockResolvedValueOnce(mockJsonResponse({ ...application, created_at: new Date().toISOString() }, 200))
+    const result = await adoptDiscoveryRecommendation('listing-1')
+    expect(result.created).toBe(false)
+    expect(result.application.id).toBe('app-1')
   })
 })

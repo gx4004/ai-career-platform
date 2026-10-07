@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Trash2 } from 'lucide-react'
+import { ChevronDown, CircleAlert, LogIn, SearchX, Trash2 } from 'lucide-react'
 import {
   Button,
   ConfirmDialog,
+  EmptyState,
   ErrorState,
   Notice,
   Page,
+  Panel,
+  PanelBody,
+  PanelHeader,
   Skeleton,
   Split,
   Stack,
@@ -64,13 +68,15 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   if (!authenticated) {
     return (
       <Page className="camp-state">
-        <ErrorState
+        {/* An empty state (lemon disc), not an ErrorState: being signed out is neither a problem nor time pressure. */}
+        <EmptyState
           size="page"
           role="status"
           headingLevel={1}
           title="Sign in to open this application"
+          icon={<LogIn aria-hidden="true" />}
           description="Your applications are private to your account."
-          backAction={
+          action={
             <Button onClick={() => openAuthDialog({ to: `/campaigns/${applicationId}`, reason: 'campaign' })}>Sign in</Button>
           }
         />
@@ -95,7 +101,9 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
           }
           onRetry={missing ? undefined : () => void query.refetch()}
           retrying={query.isFetching}
-          backAction={<Button asChild variant="secondary"><Link to="/campaigns">All applications</Link></Button>}
+          icon={missing ? <SearchX aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}
+          // Not exact, /campaigns would count as the current page here (aria-current="page" on a way back).
+          backAction={<Button asChild variant="secondary"><Link to="/campaigns" activeOptions={{ exact: true }}>All applications</Link></Button>}
         />
       </Page>
     )
@@ -112,7 +120,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
         application={application}
         onError={setIdentityError}
         stageControl={
-          <StageMenu status={application.status} onMove={(next) => stage.mutate(next)} disabled={stage.isPending}>
+          <StageMenu status={application.status} sent={application.applied_at !== null} onMove={(next) => stage.mutate(next)} disabled={stage.isPending}>
             <Button variant="ghost" size="sm" aria-label={`Change stage, currently ${STATUS_LABELS[application.status]}`}>
               <StageMark stage={stageOf(application.status)} label={STATUS_LABELS[application.status]} /> <ChevronDown aria-hidden="true" />
             </Button>
@@ -152,7 +160,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
         <NotesPanel application={application} />
         <ActivityPanel application={application} />
         <div>
-          <Button type="button" variant="ghost" size="sm" className="camp-flush" onClick={() => setDeleteOpen(true)}>
+          <Button type="button" variant="ghost" size="sm" flush="start" onClick={() => setDeleteOpen(true)}>
             <Trash2 aria-hidden="true" /> Delete this application
           </Button>
         </div>
@@ -164,7 +172,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
         pending={remove.isPending}
         title="Delete this application?"
         description={deleteSummary(application)}
-        confirmLabel={remove.isPending ? 'Deleting…' : 'Delete'}
+        confirmLabel={remove.isPending ? 'Deleting…' : 'Delete application'}
         icon={<Trash2 aria-hidden="true" />}
         onConfirm={() => remove.mutate()}
       >
@@ -190,6 +198,11 @@ function deleteSummary(application: ApplicationDetail) {
   return `“${name}” leaves your board${taken ? ` with ${taken}` : ''}. Cover letters and interview prep you made in the tools stay in History. Nothing you already sent to the employer is withdrawn.`
 }
 
+/**
+ * The loading page in the loaded page's own frames (STICKER 4.O): the header lines, then the white panels of the
+ * apply block, the Details and Tasks rail and the document column, each with its header rule, bars pulsing inside.
+ * Loose bars on the ground jumped into white panels when the data arrived.
+ */
 function ApplicationSkeleton() {
   return (
     <Page aria-busy="true" className="camp-state">
@@ -198,43 +211,49 @@ function ApplicationSkeleton() {
         <Skeleton size="display" width="40%" label="Loading this application…" />
         <Skeleton size="meta" width="12rem" />
       </Stack>
-      <Stack gap={3}>
-        <Skeleton size="body" width="14rem" />
+      <SkeletonPanel title="16rem">
         <Skeleton size="title" lines={2} width="55%" />
-        <Skeleton variant="block" width="14rem" height={32} />
-      </Stack>
+        <Skeleton variant="block" width="14rem" height={44} />
+      </SkeletonPanel>
       <Split
         railFirst
         railLabel="Details and tasks"
         rail={
           <>
-            <Stack gap={3}>
-              <Skeleton size="body" width="5rem" />
+            <SkeletonPanel title="5rem">
               <Skeleton lines={4} />
-            </Stack>
-            <Stack gap={3}>
-              <Skeleton size="body" width="4rem" />
-              <Skeleton variant="block" width="100%" height={32} />
-              <Skeleton variant="row" count={2} />
-            </Stack>
+            </SkeletonPanel>
+            <SkeletonPanel title="4rem">
+              <Skeleton variant="block" width="100%" height={44} />
+              <Skeleton lines={2} />
+            </SkeletonPanel>
           </>
         }
       >
-        <Stack gap={3}>
-          <Skeleton size="body" width="10rem" />
-          <Skeleton variant="block" width="100%" height={32} />
-          <Skeleton variant="block" width="100%" height={32} />
-          <Skeleton variant="block" width="100%" height={32} />
-        </Stack>
-        <Stack gap={3}>
-          <Skeleton size="body" width="9rem" />
+        <SkeletonPanel title="10rem">
+          <Skeleton variant="block" width="100%" height={44} />
+          <Skeleton variant="block" width="100%" height={44} />
+          <Skeleton variant="block" width="100%" height={44} />
+        </SkeletonPanel>
+        <SkeletonPanel title="12rem">
+          <Skeleton lines={2} />
+        </SkeletonPanel>
+        <SkeletonPanel title="9rem">
           <Skeleton lines={4} />
-        </Stack>
-        <Stack gap={3}>
-          <Skeleton size="body" width="5rem" />
-          <Skeleton variant="block" width="100%" height={72} />
-        </Stack>
+        </SkeletonPanel>
       </Split>
     </Page>
+  )
+}
+
+/** A panel frame with a title bar in its header and placeholder lines in its body; hidden from assistive tech. */
+function SkeletonPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Panel aria-hidden="true" data-testid="application-skeleton-panel">
+      <PanelHeader title={<Skeleton size="title" width={title} />} />
+      <PanelBody>
+        <Stack gap={3}>{children}</Stack>
+      </PanelBody>
+    </Panel>
   )
 }

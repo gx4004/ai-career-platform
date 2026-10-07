@@ -46,6 +46,7 @@ export function ResumeToolPage() {
         >
           <ResumeSource
             id="resume-resumeText"
+            toolId="resume"
             label={resumeField.label}
             placeholder={resumeField.placeholder}
             rows={resumeField.rows}
@@ -72,9 +73,9 @@ export function ResumeToolPage() {
                     optional
                     id="resume-jobDescription"
                     help={
-                      getSeededFieldNote('jobDescription', bridge, draft.jobDescription)
-                        ? 'A recent job description was loaded. Replace or edit it if needed.'
-                        : 'Add one role for more specific keyword and fit feedback.'
+                      // The same carried-in line as Job Match, Cover Letter and Interview (it names the application).
+                      getSeededFieldNote('jobDescription', bridge, String(draft.jobDescription ?? '')) ||
+                      'Add one job posting for more specific keyword and fit feedback.'
                     }
                     error={errors.jobDescription}
                   >
@@ -85,6 +86,20 @@ export function ResumeToolPage() {
                       onChange={(event) => setField('jobDescription', event.target.value as never)}
                     />
                   </Field>
+                  {/* The way back to a resume-only review: clears the job and folds the section away again. */}
+                  <div>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="tool-link"
+                      onClick={() => {
+                        setField('jobDescription', '' as never)
+                        setShowOptionalJob(false)
+                      }}
+                    >
+                      Remove job description
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <div className="tool-optional__ask">

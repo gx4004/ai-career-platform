@@ -47,9 +47,12 @@ export function ReportSection({ title, ...props }: Omit<SectionProps, 'id' | 'ti
  * view's one primary button. `reveal` is true on the one mount that follows a run that just
  * finished: the seal stamps in and the Fix-first stickers slap on.
  */
-export const ResultChromeContext = createContext<{ setPracticing: (practicing: boolean) => void; reveal: boolean } | null>(
-  null,
-)
+export const ResultChromeContext = createContext<{
+  setPracticing: (practicing: boolean) => void
+  reveal: boolean
+  /** The signed-in person's full name: a letter without a sign-off is signed with it (never for a guest). */
+  signerName?: string | null
+} | null>(null)
 
 /** Tell the report page that the view is (or is no longer) in a focused task. */
 export function useReportPracticing(practicing: boolean) {
@@ -59,6 +62,12 @@ export function useReportPracticing(practicing: boolean) {
     setPracticing?.(practicing)
     return () => setPracticing?.(false)
   }, [practicing, setPracticing])
+}
+
+/** The name a letter is signed with: the signed-in person's full name, or null (a guest, or no name on the account). */
+export function useResultSignerName() {
+  const name = useContext(ResultChromeContext)?.signerName?.trim()
+  return name ? name : null
 }
 
 /** True while the signature reveal plays (never outside the report page, never on a revisit). */
@@ -131,6 +140,8 @@ export type ResultItem = {
   leading?: ReactNode
   /** lg: a 17px title, for a row that is a statement on its own (a strength). */
   titleSize?: 'md' | 'lg'
+  /** semibold for a statement (a strength); regular for a full sentence or a quote (a note, a tip). Default bold. */
+  titleWeight?: 'bold' | 'semibold' | 'regular'
 }
 
 /**
@@ -143,20 +154,28 @@ export function ResultList({
   label,
   density,
   framed,
+  flush,
+  boxed,
 }: {
   items: ResultItem[]
   numbered?: boolean
   label: string
   density?: 'compact' | 'comfortable'
   framed?: boolean
+  /** Rows start at the container's content edge; for an unframed list under a heading inside a Panel. */
+  flush?: boolean
+  /** 'end': the list sits right under its own heading, which rests on the first row; a rule closes the last row. */
+  boxed?: boolean | 'end'
 }) {
   return (
-    <List numbered={numbered} aria-label={label} framed={framed}>
+    <List numbered={numbered} aria-label={label} framed={framed} flush={flush} boxed={boxed}>
       {items.map((item) => (
         <Row key={item.key} density={density} className={item.body ? 'result-row--stacked' : undefined}>
           {item.leading ? <RowLeading>{item.leading}</RowLeading> : null}
           <RowBody>
-            <RowTitle size={item.titleSize}>{item.title}</RowTitle>
+            <RowTitle size={item.titleSize} weight={item.titleWeight}>
+              {item.title}
+            </RowTitle>
             {item.detail ? <RowSubtitle>{item.detail}</RowSubtitle> : null}
             {item.body}
           </RowBody>
@@ -226,7 +245,10 @@ export function WhatNext({
 }: {
   tool: ToolDefinition
   lead?: ReactNode
-  /** Runs before the next tool opens (a plain click only): fills in what a result opened cold cannot carry. */
+  /**
+   * Runs before the next tool opens (a plain click only): fills in what a result opened cold cannot carry. The
+   * next tool then opens with ?from=<this tool>, so it can say what is still missing and why.
+   */
   onOpen?: (to: ToolId) => Promise<void>
 }) {
   const navigate = useNavigate()
@@ -242,11 +264,12 @@ export function WhatNext({
           return (
             <Row key={action.to}>
               <RowLeading>
-                <ToolTile tone={target.tone} icon={target.icon} size="lg" />
+                {/* Flat: the tilted, shadowed lg tile is the page-title mark only (STICKER 1.15; mockup .next .tile-lg). */}
+                <ToolTile tone={target.tone} icon={target.icon} size="lg" flat />
               </RowLeading>
               <RowBody>
                 <RowTitle size="lg">{action.label}</RowTitle>
-                <RowSubtitle>{target.summary}</RowSubtitle>
+                <RowSubtitle size="lg">{target.summary}</RowSubtitle>
               </RowBody>
               <RowMeta>
                 <Button asChild variant="secondary" size="sm">
@@ -264,7 +287,7 @@ export function WhatNext({
                               .catch(() => {
                                 /* best effort: the form asks for anything missing */
                               })
-                              .finally(() => void navigate({ to: target.route }))
+                              .finally(() => void navigate({ to: `${target.route}?from=${tool.id}` }))
                           }
                         : undefined
                     }
@@ -284,7 +307,7 @@ export function WhatNext({
 /* ── Cover-letter edits ──
  * The letter is editable on the result page. Edits are saved as you type: to the run when the
  * backend accepts them, always to this tab's session storage (so a reload keeps them; a closed tab does not, as for every guest result).
- * Copy, Download and PDF read the last edited version from here.
+ * Copy and every export (text, Markdown, PDF) read the last edited version from here.
  */
 
 export type LetterDraft = { opening: string; body: string[]; closing: string }

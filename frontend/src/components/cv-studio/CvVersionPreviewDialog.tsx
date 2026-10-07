@@ -1,7 +1,9 @@
 import { Download, RotateCcw } from 'lucide-react'
 import {
-  Button, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, MetaRow, Notice,
+  Button, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, MetaRow, Notice,
 } from '#/components/kit'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
 import type { CvHeader, CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
 import { CvPaper } from './CvPaperPreview'
 import { describeDiff, diffVersion } from './versionDiff'
@@ -29,6 +31,13 @@ export function CvVersionPreviewDialog({ variant, documentName, header, style, c
   onRestore: (variant: CvVariant) => void
 }) {
   const building = (format: 'pdf' | 'docx') => Boolean(variant && exporting?.variantId === variant.id && exporting.format === format)
+  /**
+   * On a phone the preview is the point of the dialog (cv-studio-G13): the description is the date and the one rule,
+   * and PDF and DOCX share one Export menu (as on the version's card), so the footer holds two buttons, not three.
+   * They stack (the kit's phone footer): side by side, "Use as my CV" and "Export" need 295px and a 320 screen's
+   * dialog footer has 240.
+   */
+  const phone = useBreakpoint() === 'mobile'
   return (
     <Dialog open={variant !== null} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
@@ -42,7 +51,7 @@ export function CvVersionPreviewDialog({ variant, documentName, header, style, c
                     {dateFormat.format(new Date(variant.created_at))}
                     {variant.target_role ? `for ${variant.target_role}` : null}
                   </MetaRow>
-                  <span>{describeDiff(diffVersion(variant.sections, currentSections))}. Your CV changes only if you use this version.</span>
+                  <span>{phone ? '' : `${describeDiff(diffVersion(variant.sections, currentSections))}. `}Your CV changes only if you use this version.</span>
                 </>
               ) : null}
             </div>
@@ -60,7 +69,19 @@ export function CvVersionPreviewDialog({ variant, documentName, header, style, c
           <Button type="button" variant="secondary" disabled={!canRestore} onClick={() => variant && onRestore(variant)}>
             <RotateCcw aria-hidden="true" /> Use as my CV
           </Button>
-          {onExport ? (
+          {onExport && phone ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" loading={building('pdf') || building('docx')}>
+                  <Download aria-hidden="true" /> Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => variant && onExport(variant, 'pdf')}>PDF</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => variant && onExport(variant, 'docx')}>DOCX</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : onExport ? (
             <>
               <Button type="button" variant="secondary" loading={building('docx')} onClick={() => variant && onExport(variant, 'docx')}>
                 <Download aria-hidden="true" /> DOCX

@@ -27,6 +27,8 @@ export type ToastOptions = ToastContent & {
   duration?: number | null
   /** One quiet action ("Undo"). Running it dismisses the toast. */
   action?: { label: string; onClick: () => void }
+  /** A second quiet action after `action` ("View application · Undo"); only with `action`. Running it dismisses the toast. */
+  secondaryAction?: { label: string; onClick: () => void }
   /** Called once when the toast closes, however it closed. */
   onDismiss?: () => void
 }
@@ -155,6 +157,26 @@ export function ToastProvider({ children, max = 3 }: { children: ReactNode; /** 
 
   const api = useMemo<ToastApi>(() => ({ toast, dismiss }), [toast, dismiss])
 
+  // The region publishes its height as --kit-toast-stack on <html>: a bottom sheet open on a phone (toasts then sit at
+  // the top) stops below the toasts instead of under them (styles/kit/sheet.css).
+  const region = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const element = region.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const root = document.documentElement
+    const publish = () => {
+      root.style.setProperty('--kit-toast-stack', `${Math.ceil(element.getBoundingClientRect().height)}px`)
+      revealFocusUnderToasts(element)
+    }
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--kit-toast-stack')
+    }
+  }, [])
+
   return (
     <ToastContext.Provider value={api}>
       {children}
@@ -162,7 +184,7 @@ export function ToastProvider({ children, max = 3 }: { children: ReactNode; /** 
           tech while a modal dialog hides the rest of the page (aria-hidden skips [aria-live]). The announcing is done
           by the two persistent regions below: text rendered into a live region that already exists is spoken reliably,
           a toast that is inserted already carrying role=status is not. */}
-      <div className="kit-toast-region" data-kit-toast-region="" aria-live="off">
+      <div ref={region} className="kit-toast-region" data-kit-toast-region="" aria-live="off">
         <div className="kit-sr-only" role="status" aria-live="polite" aria-atomic="true" data-kit-toast-announcer="polite">
           {announced.polite ? <span key={announced.polite.key}>{announced.polite.content}</span> : null}
         </div>
@@ -177,10 +199,49 @@ export function ToastProvider({ children, max = 3 }: { children: ReactNode; /** 
   )
 }
 
+/**
+ * A page that moves focus in the render that opens a toast (the next row's Add after an add) scrolls with the stack
+ * height of the moment before: the region publishes its new height only after layout. Once it has, a keyboard-focused
+ * control that a toast covers is scrolled clear, with the root's scroll padding (toast.css) now counting the new
+ * toast (WCAG 2.4.11 Focus Not Obscured). Focus from a click or tap is left alone: the page never moves under a pointer.
+ */
+function revealFocusUnderToasts(region: HTMLElement) {
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || active === document.body || region.contains(active)) return
+  try {
+    if (!active.matches(':focus-visible')) return
+  } catch {
+    // A browser without :focus-visible: treat the focus as visible.
+  }
+  const box = active.getBoundingClientRect()
+  const covered = [...region.querySelectorAll<HTMLElement>('.kit-toast[data-state="open"]')].some((toast) => {
+    const area = toast.getBoundingClientRect()
+    return box.left < area.right && box.right > area.left && box.top < area.bottom && box.bottom > area.top
+  })
+  if (covered) active.scrollIntoView?.({ block: 'nearest' })
+}
+
 function toneIcon(tone: ToastTone) {
   if (tone === 'success') return <Check aria-hidden="true" />
   if (tone === 'danger') return <TriangleAlert aria-hidden="true" />
   return null
+}
+
+function ToastAction({ action, onDone }: { action: { label: string; onClick: () => void }; onDone: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="link"
+      size="sm"
+      className="kit-toast__action"
+      onClick={() => {
+        action.onClick()
+        onDone()
+      }}
+    >
+      {action.label}
+    </Button>
+  )
 }
 
 function ToastItem({ record, onDismiss }: { record: ToastRecord; onDismiss: (id: string) => void }) {
@@ -244,19 +305,13 @@ function ToastItem({ record, onDismiss }: { record: ToastRecord; onDismiss: (id:
         <p className="kit-toast__title">{primary}</p>
         {secondary ? <p className="kit-toast__description">{secondary}</p> : null}
       </div>
-      {options.action ? (
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="kit-toast__action"
-          onClick={() => {
-            options.action?.onClick()
-            onDismiss(id)
-          }}
-        >
-          {options.action.label}
-        </Button>
+      {options.action && options.secondaryAction ? (
+        <div className="kit-toast__actions">
+          <ToastAction action={options.action} onDone={() => onDismiss(id)} />
+          <ToastAction action={options.secondaryAction} onDone={() => onDismiss(id)} />
+        </div>
+      ) : options.action ? (
+        <ToastAction action={options.action} onDone={() => onDismiss(id)} />
       ) : null}
       <Button
         type="button"

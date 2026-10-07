@@ -1,4 +1,4 @@
-import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import { forwardRef, useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import { Button } from './button'
 import { cn } from '#/lib/utils'
 
@@ -15,6 +15,10 @@ type StateBaseProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & {
    *  carries its own art beside the copy (the 404 and error pages). slot: with size inline, the empty place a card
    *  would take (a board column with nothing in it): a 72px dashed die-cut box holding the quiet line. */
   variant?: 'framed' | 'open' | 'slot'
+  /** Moves focus to the title when the state appears (it gets tabindex -1, no tab stop). For an outcome that replaces
+   *  the form whose button had focus (a password reset, a refused link, a new account): focus would otherwise fall to
+   *  the page body and the outcome would go unannounced. Needs a headingLevel. */
+  focusTitle?: boolean
 }
 
 export type EmptyStateProps = StateBaseProps & {
@@ -22,7 +26,8 @@ export type EmptyStateProps = StateBaseProps & {
   title: ReactNode
   /** One sentence on what to do about it. */
   description?: ReactNode
-  /** At most one action: a Button (secondary, or primary on a page-level empty state). */
+  /** The next step: one Button, or a Cluster of two (the next step primary, the alternative secondary). Buttons are md
+   *  (the kit sets an sm one to md here); only size="inline" keeps sm. */
   action?: ReactNode
 }
 
@@ -34,9 +39,29 @@ function Icon({ icon }: { icon: ReactNode }) {
   ) : null
 }
 
-function Title({ headingLevel, className, children }: { headingLevel?: number; className: string; children: ReactNode }) {
+function Title({
+  headingLevel,
+  focusTitle = false,
+  className,
+  children,
+}: {
+  headingLevel?: number
+  focusTitle?: boolean
+  className: string
+  children: ReactNode
+}) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  // Once, when the state appears: the heading is where the reader now is.
+  useEffect(() => {
+    if (focusTitle) ref.current?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const Heading = (headingLevel ? `h${headingLevel}` : 'p') as 'p'
-  return <Heading className={className}>{children}</Heading>
+  return (
+    <Heading ref={ref} className={className} tabIndex={focusTitle ? -1 : undefined}>
+      {children}
+    </Heading>
+  )
 }
 
 /**
@@ -45,7 +70,7 @@ function Title({ headingLevel, className, children }: { headingLevel?: number; c
  * .cvs-empty-panel and the other empty-state variants.
  */
 export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(function EmptyState(
-  { title, description, action, size = 'compact', headingLevel, icon, variant = 'framed', className, ...rest },
+  { title, description, action, size = 'compact', headingLevel, icon, variant = 'framed', focusTitle, className, ...rest },
   ref,
 ) {
   return (
@@ -57,7 +82,7 @@ export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(function E
       {...rest}
     >
       <Icon icon={icon} />
-      <Title headingLevel={headingLevel} className="kit-empty__title">
+      <Title headingLevel={headingLevel} focusTitle={focusTitle} className="kit-empty__title">
         {title}
       </Title>
       {description ? <p className="kit-empty__text">{description}</p> : null}
@@ -104,6 +129,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(function E
     headingLevel,
     icon,
     variant = 'framed',
+    focusTitle,
     role = 'alert',
     className,
     ...rest
@@ -122,7 +148,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(function E
     >
       <Icon icon={icon} />
       {code ? <p className="kit-error__code">{code}</p> : null}
-      <Title headingLevel={headingLevel} className="kit-empty__title">
+      <Title headingLevel={headingLevel} focusTitle={focusTitle} className="kit-empty__title">
         {title}
       </Title>
       {description ? <p className="kit-empty__text">{description}</p> : null}

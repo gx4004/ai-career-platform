@@ -45,6 +45,8 @@
   font-size: var(--kit-button-fs);
   font-weight: var(--fw-bold);
   line-height: var(--kit-button-lh);
+  /* Like a control (control.css), a button never takes on the tracking of the heading it sits in (consistency-F31). */
+  letter-spacing: normal;
   text-align: center;
   text-decoration: none;
   /*
@@ -93,10 +95,23 @@
   --kit-button-icon: 1.25rem;
 }
 
+/* The narrowest phones (a 252px form column at 320): 20px sides instead of 32, so a page's one big label keeps one line. */
+@media (max-width: 359px) {
+  .kit-button--lg {
+    --kit-button-px: var(--s5);
+  }
+}
+
 .kit-button--icon {
   width: var(--kit-button-h);
   height: var(--kit-button-h);
   padding: 0;
+}
+
+/* flush="start": a ghost button that starts a block lines its label up with the content edge (its 12px side
+   padding and 2px border, less the icon's own inset); the tap area stays whole. */
+.kit-button[data-flush='start'] {
+  margin-inline-start: calc(var(--space-1) * -2.5 - 1px);
 }
 
 /* ── Variants ──────────────────────────────────────────────────────── */
@@ -237,6 +252,43 @@
   border-right-color: transparent;
   border-radius: var(--radius-pill);
   animation: kit-spin 0.7s linear infinite;
+}
+
+/* loadingLabel: the words ("Suggesting…") and the ring stacked over the hidden label in one grid cell, so the
+   button keeps the wider of the two; the words take the button's own colour (the button's text is transparent). */
+.kit-button__stack {
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+}
+
+.kit-button__stack > * {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Not visibility: hidden, which would drop the label from the button's accessible name. */
+.kit-button__label {
+  opacity: 0;
+}
+
+.kit-button__label > svg {
+  flex: none;
+  width: var(--kit-button-icon);
+  height: var(--kit-button-icon);
+}
+
+.kit-button__loading-label {
+  color: var(--kit-button-fg);
+  white-space: nowrap;
+}
+
+.kit-button__loading-label > .kit-button__spinner {
+  position: static;
+  flex: none;
+  margin: 0;
 }
 
 /*

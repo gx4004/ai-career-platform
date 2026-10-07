@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MoreHorizontal, Pin } from 'lucide-react'
+import { ArrowDown, ArrowUp, MoreHorizontal, Pin, Trash2 } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -21,6 +21,7 @@ import {
   RowTitle,
   ScoreBar,
   Section,
+  StageMark,
   StretchedLink,
 } from '#/components/kit'
 import { DemoLink, GallerySection, Group, Specimen } from './gallery-parts'
@@ -119,15 +120,94 @@ export function SurfaceSection() {
               <p className="kit-gallery__paragraph">Content under the description keeps a 16px gap.</p>
             </Section>
           </Specimen>
+          <Specimen label="description and an action: on a phone the action follows the description (heading, why, what to do)">
+            <Section
+              title="Saved facts"
+              description="What you confirmed. CV Studio and the tools draw on these."
+              actions={<Button size="sm" variant="secondary">Start a CV from these facts</Button>}
+            >
+              <SimpleRows count={2} />
+            </Section>
+          </Specimen>
           <Specimen label="rule: a 2px ink rule under the heading row">
             <Section title="Notes" rule>
               <p className="kit-gallery__paragraph">A heading without the rule (the default), for sections inside a card or a rail.</p>
             </Section>
           </Specimen>
+          <Specimen label="size=card: display 20/800 (h-card), a narrow column's heading beside its StageMark (the applications board)">
+            <div style={{ maxInlineSize: '13rem' }}>
+              <Section
+                headingLevel={3}
+                size="card"
+                title={
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--s3)' }}>
+                    <StageMark stage="interviewing" variant="count" count={2} />
+                    Interviewing
+                  </span>
+                }
+              >
+                <SimpleRows count={1} />
+              </Section>
+            </div>
+          </Specimen>
           <Specimen label="size=sm: a group inside a disclosure or another section">
             <Section headingLevel={3} size="sm" title="Kind of role">
               <SimpleRows count={2} />
             </Section>
+          </Specimen>
+          <Specimen label="actionsWrap={false}: one short control that belongs to its heading stays beside it in a narrow column (Start a new CV at 320); the title wraps instead">
+            <div style={{ maxInlineSize: '15rem' }} data-specimen="section-actions-nowrap">
+              <Section
+                headingLevel={3}
+                size="sm"
+                title="Facts from your profile"
+                actionsWrap={false}
+                actions={<Button type="button" size="sm" variant="ghost">Select all</Button>}
+              >
+                <SimpleRows count={2} />
+              </Section>
+            </div>
+          </Specimen>
+          <Specimen label="size=xs: an object's name in a narrow card (a CV entry), set as a row title; actions wrap under it by default">
+            <div style={{ maxInlineSize: '20rem' }}>
+              <Card padding="sm">
+                <Section
+                  headingLevel={3}
+                  size="xs"
+                  title="B.S. Computer Science, University of Texas"
+                  actions={
+                    <>
+                      <Button type="button" iconOnly variant="ghost" size="sm" aria-label="Move up"><ArrowUp aria-hidden="true" /></Button>
+                      <Button type="button" iconOnly variant="ghost" size="sm" aria-label="Move down"><ArrowDown aria-hidden="true" /></Button>
+                      <Button type="button" iconOnly variant="ghost" size="sm" aria-label="Delete"><Trash2 aria-hidden="true" /></Button>
+                    </>
+                  }
+                >
+                  <p className="kit-gallery__paragraph">15/700 UI type, the row title's size: under the 17px section row and over 14px field labels.</p>
+                </Section>
+              </Card>
+            </div>
+          </Specimen>
+          <Specimen label="size=xs + actionsWrap={false}: a CV entry card; the name wraps beside its tools, which stay at its first line (4px apart under a mouse)">
+            <div style={{ maxInlineSize: '20rem' }} data-specimen="section-xs-nowrap">
+              <Card padding="sm">
+                <Section
+                  headingLevel={3}
+                  size="xs"
+                  actionsWrap={false}
+                  title="B.S. Computer Science, University of Texas"
+                  actions={
+                    <>
+                      <Button type="button" iconOnly variant="ghost" size="sm" aria-label="Move up"><ArrowUp aria-hidden="true" /></Button>
+                      <Button type="button" iconOnly variant="ghost" size="sm" aria-label="Move down"><ArrowDown aria-hidden="true" /></Button>
+                      <Button type="button" iconOnly variant="ghost" size="sm" aria-label="Delete"><Trash2 aria-hidden="true" /></Button>
+                    </>
+                  }
+                >
+                  <p className="kit-gallery__paragraph">The CV Studio entry card heading.</p>
+                </Section>
+              </Card>
+            </div>
           </Specimen>
           <Specimen label="headingLevel=3, long title, several actions wrapping">
             <Section
@@ -168,6 +248,23 @@ export function SurfaceSection() {
             Sign in to keep this result and compare it with the next one.
           </Notice>
           <Dismissible />
+          {/* actionPlacement="below": a choice of two sits under the text, and spans the notice on a phone. */}
+          <Notice
+            title="Imported the posting from jobs.example.com"
+            actionPlacement="below"
+            action={
+              <>
+                <Button size="sm" variant="secondary">
+                  Replace
+                </Button>
+                <Button size="sm" variant="ghost">
+                  Keep mine
+                </Button>
+              </>
+            }
+          >
+            Your job description below already has text. Replace it with the posting, or keep yours?
+          </Notice>
           <Notice tone="danger">
             A very long message with a long unbroken address that must wrap and not widen the page:
             https://api.example.com/v1/discovery/listings/0b6d4f1e-0000-4000-8000-1234567890ab/deep-match

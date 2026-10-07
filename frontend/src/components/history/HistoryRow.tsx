@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, MoreHorizontal, Pencil, Star, Trash2 } from 'lucide-react'
 import {
@@ -50,7 +50,8 @@ type Rename = {
 /**
  * One saved run: the label opens it (the whole row is the link), the tool and the sentence it
  * produced sit underneath, the date is at the end. Star, rename, delete and "continue" appear on
- * hover and focus on a mouse, always on touch, and collapse into one menu on a phone.
+ * hover and focus on a mouse, always on touch, and collapse into one menu on a phone. On a tablet-width
+ * list "continue" stays in the row and only star, rename and delete go into the menu (history.css).
  */
 export function HistoryRow({
   item,
@@ -91,11 +92,17 @@ export function HistoryRow({
       : null
   // "Job Match (75%)" already says which tool made it; saying "Match" under it again is noise.
   const namesTool = label.toLowerCase().includes(display.label.toLowerCase())
-  const toolText = display.kind === 'cv-studio' ? 'Older CV Studio run' : namesTool ? null : display.label
-  const favoriteLabel = item.is_favorite ? 'Remove from favorites' : 'Add to favorites'
+  // The tool's full name, as the filter on the same page says it: "Match" alone did not say which tool it was.
+  const toolText = display.kind === 'cv-studio' ? 'Older CV Studio run' : namesTool ? null : (registryTool?.label ?? display.label)
+  // "Star", the one word for it app-wide (consistency-F11), with the run it acts on, as Rename and Delete name theirs.
+  // One name in both states: the toggle's aria-pressed says whether it is starred (consistency-F28), as on the result.
+  const favoriteLabel = `Star ${label}`
 
   const renameButton = useRef<HTMLButtonElement | null>(null)
   const moreButton = useRef<HTMLButtonElement | null>(null)
+  const continueButton = useRef<HTMLButtonElement | null>(null)
+  // The menu repeats "Continue" only where the row does not show it (a phone list); read when the menu opens.
+  const [continueInMenu, setContinueInMenu] = useState(true)
   const menuHandsFocusOn = useRef(false)
   const renaming = rename !== null
   const wasRenaming = useRef(false)
@@ -111,7 +118,7 @@ export function HistoryRow({
   const isRevision = Boolean(item.parent_run_id)
 
   return (
-    <Row className="history-row">
+    <Row className="history-row" data-run-id={item.id}>
       <RowLeading>
         <ToolTile size="md" tone={registryTool?.tone ?? 'stone'} icon={display.icon} />
       </RowLeading>
@@ -141,11 +148,13 @@ export function HistoryRow({
                 }}
               />
             </Field>
+            {/* Cancel (ghost) first, then the save action: the order of every dialog footer and inline confirm
+                (consistency-F22). Save stays filled: while renaming it is this list's one primary. */}
+            <Button type="button" size="sm" variant="ghost" onClick={rename.onCancel}>
+              Cancel
+            </Button>
             <Button type="submit" size="sm" loading={rename.pending} disabled={!rename.draft.trim()}>
               Save
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={rename.onCancel}>
-              Cancel
             </Button>
           </form>
         ) : (
@@ -187,7 +196,11 @@ export function HistoryRow({
         <RowActions
           reveal={false}
           collapse={
-            <DropdownMenu>
+            <DropdownMenu
+              onOpenChange={(open) => {
+                if (open) setContinueInMenu(!continueButton.current || continueButton.current.offsetParent === null)
+              }}
+            >
               <DropdownMenuTrigger asChild>
                 <Button ref={moreButton} iconOnly variant="ghost" size="sm" aria-label={`More actions for ${label}`}>
                   <MoreHorizontal aria-hidden />
@@ -201,13 +214,14 @@ export function HistoryRow({
                   menuHandsFocusOn.current = false
                 }}
               >
-                {nextTool ? (
+                {nextTool && continueInMenu ? (
                   <DropdownMenuItem icon={<ArrowRight />} disabled={continuing} onSelect={onContinue}>
                     {continuing ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuItem icon={<Star fill={item.is_favorite ? 'currentColor' : 'none'} />} onSelect={onToggleFavorite}>
-                  {favoriteLabel}
+                  {/* The menu belongs to this run already ("More actions for …"): the item is just the verb. */}
+                  {item.is_favorite ? 'Remove star' : 'Star'}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   icon={<Pencil />}
@@ -235,7 +249,7 @@ export function HistoryRow({
           }
         >
           {nextTool ? (
-            <Button className="history-row__continue" variant="ghost" size="sm" disabled={continuing} onClick={onContinue}>
+            <Button ref={continueButton} className="history-row__continue" variant="ghost" size="sm" disabled={continuing} onClick={onContinue}>
               {continuing ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
             </Button>
           ) : null}

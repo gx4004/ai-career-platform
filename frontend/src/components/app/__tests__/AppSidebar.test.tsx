@@ -282,4 +282,100 @@ describe('AppSidebar', () => {
     expect(resumeLink.getAttribute('data-active')).toBe('true')
     expect(getSidebarTrigger(container)).toBeTruthy()
   })
+  it('never shows a tooltip left over from the expanded sidebar once it collapses', async () => {
+    renderSidebar(true)
+
+    // Expanded: focus does not open a tooltip, and must not leave one armed for later.
+    fireEvent.focus(screen.getByRole('link', { name: 'Discover' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    await waitFor(() => expect(getSidebarState(document.body)).toBe('collapsed'))
+    expect(screen.queryByRole('tooltip')).toBeNull()
+
+    // Collapsed: the hovered or focused item names itself, and only that one.
+    fireEvent.focus(screen.getByRole('link', { name: 'Applications' }))
+    expect(await screen.findByRole('tooltip', { name: 'Applications' })).toBeTruthy()
+    expect(screen.queryByRole('tooltip', { name: 'Discover' })).toBeNull()
+  })
+
+  it('scrolls the active item into the rail when it sits below the fold', () => {
+    mockPathname.current = '/history'
+    const rect = (top: number, height: number) =>
+      ({ top, bottom: top + height, height, left: 0, right: 76, width: 76, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    const original = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.matches('[data-sidebar="content"]')) return rect(150, 500)
+      if (this.matches('[data-active="true"]')) return rect(700, 48)
+      return original.call(this)
+    }
+    try {
+      const { container } = renderSidebar(false)
+      const content = container.querySelector<HTMLElement>('[data-sidebar="content"]')!
+      // 700 + 48 - 650 = 98px down, plus the room of the edge fade so the item is not drawn under it.
+      expect(content.scrollTop).toBeGreaterThanOrEqual(98)
+    } finally {
+      Element.prototype.getBoundingClientRect = original
+    }
+  })
+
+  it('marks the account as where you are on Settings and Account', async () => {
+    mockPathname.current = '/settings'
+    renderSidebar(true)
+
+    const trigger = screen.getByRole('button', { name: 'Account menu for Test User' })
+    expect(trigger.getAttribute('data-active')).toBe('true')
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(trigger)
+    expect((await screen.findByRole('menuitem', { name: 'Settings' })).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('menuitem', { name: 'Account' }).getAttribute('aria-current')).toBeNull()
+  })
+
+  it('opens the account menu beside the icon rail, and upward from the expanded footer', async () => {
+    renderSidebar(false)
+
+    const trigger = screen.getByRole('button', { name: 'Account menu for Test User' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(trigger)
+    const menu = await screen.findByRole('menu')
+    expect(menu.getAttribute('data-side')).toBe('right')
+    expect(menu.classList.contains('app-account-menu--rail')).toBe(true)
+  })
+
+  // Sign-off r4 chrome-F03: closing the rail's account menu gave focus back to the avatar, whose name bubble then
+  // opened and stayed over the page (over the Account form after choosing Account) until focus moved.
+  it('in the rail, gives focus back to the avatar after Esc without opening its name bubble', async () => {
+    renderSidebar(false)
+
+    const trigger = screen.getByRole('button', { name: 'Account menu for Test User' })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    const menu = await screen.findByRole('menu')
+    fireEvent.keyDown(menu, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    expect(document.activeElement).toBe(trigger)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('in the rail, leaves focus to the new page when an item of the account menu is chosen', async () => {
+    renderSidebar(false)
+
+    const trigger = screen.getByRole('button', { name: 'Account menu for Test User' })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Account' }))
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    expect(document.activeElement).not.toBe(trigger)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('names the shortcut keys of the platform: Ctrl off a Mac', async () => {
+    const platform = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('Win32')
+    try {
+      const { container } = renderSidebar(true)
+      await waitFor(() => expect(container.querySelector('.app-sidebar__search-kbd')?.textContent).toBe('Ctrl K'))
+    } finally {
+      platform.mockRestore()
+    }
+  })
 })

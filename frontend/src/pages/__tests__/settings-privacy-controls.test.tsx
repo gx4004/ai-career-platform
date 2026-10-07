@@ -110,11 +110,17 @@ describe('Settings privacy controls', () => {
     await waitFor(() => expect(api.exportCareerData).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete all facts' }))
+    // The confirm names what the row offered (account-admin-F11); scoped to the dialog, the row button shares the name.
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Delete your profile?' })).getByRole('button', { name: 'Delete profile' }))
     await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledTimes(1))
     expect(client.getQueryData(EVIDENCE_QUERY_KEY)).toBeUndefined()
     expect(await screen.findAllByText('Profile deleted')).not.toHaveLength(0)
   }, 10_000)
+
+  it('says the profile erasure removes every fact, saved or suggested, and keeps the account', () => {
+    renderPage()
+    expect(screen.getByText(/Erase every fact on your profile, saved or suggested, without deleting your account/)).toBeTruthy()
+  })
 
   it('keeps an erasure failure visible inside the confirmation dialog', async () => {
     api.deleteEvidenceProfile.mockRejectedValueOnce(new Error('Erase failed safely.'))
@@ -122,9 +128,20 @@ describe('Settings privacy controls', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
     const dialog = screen.getByRole('alertdialog', { name: 'Delete your profile?' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete all facts' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete profile' }))
 
     expect((await within(dialog).findByRole('alert')).textContent).toContain('Erase failed safely.')
+  })
+
+  it('says what failed in plain words when the erasure error carries no message', async () => {
+    api.deleteEvidenceProfile.mockRejectedValueOnce(new Error(''))
+    renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete your profile?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete profile' }))
+
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('Could not delete your profile. Try again.')
   })
 
   it('refreshes warm evidence consumers after recovery-route profile erasure', async () => {
@@ -133,7 +150,8 @@ describe('Settings privacy controls', () => {
     await waitFor(() => expect(warmRecommendationsFetch).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete all facts' }))
+    // The confirm names what the row offered (account-admin-F11); scoped to the dialog, the row button shares the name.
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Delete your profile?' })).getByRole('button', { name: 'Delete profile' }))
 
     await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(warmDevelopmentFetch).toHaveBeenCalledTimes(2))
@@ -161,6 +179,14 @@ describe('Settings page structure', () => {
     api.getHealth.mockRejectedValueOnce(new Error('offline'))
     renderPage()
     expect(await within(screen.getByRole('list', { name: 'General' })).findByText("Can't reach the server")).toBeTruthy()
+  })
+
+  // account-admin-AAG-F02: beside the title the long outage badge squeezed 'Connection' to one letter per line at 320.
+  it('puts the connection badge under the title on a narrow list, so the title keeps its width', async () => {
+    api.getHealth.mockRejectedValueOnce(new Error('offline'))
+    renderPage()
+    const badge = await within(screen.getByRole('list', { name: 'General' })).findByText("Can't reach the server")
+    expect(badge.closest('.kit-row__meta')?.getAttribute('data-placement')).toBe('below')
   })
 
   it('calls a 5xx answer a server error, not an unreachable server', async () => {
@@ -208,7 +234,10 @@ describe('Settings page structure', () => {
     }
     const general = within(screen.getByRole('list', { name: 'General' }))
     expect(general.getByRole('button', { name: 'Replay tour' })).toBeTruthy()
-    expect(general.getByRole('link', { name: 'Open timeline' })).toBeTruthy()
+    // The row names the page it opens (History) and only the actions History has: star, rename, delete (no pin).
+    expect(general.getByRole('link', { name: 'Open history' })).toBeTruthy()
+    expect(general.getByText('Review, star, rename and delete your saved runs.')).toBeTruthy()
+    expect(general.queryByText(/timeline|pin/i)).toBeNull()
     expect(await general.findByText('Connected')).toBeTruthy()
   })
 
@@ -225,7 +254,8 @@ describe('Settings page structure', () => {
   it('confirms a local data clear with a toast and no inline status text', async () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Clear local drafts' }))
-    expect(await screen.findAllByText('Local drafts and demo state were cleared.')).not.toHaveLength(0)
+    expect(await screen.findAllByText('Local drafts cleared')).not.toHaveLength(0)
+    expect(screen.getAllByText('Drafts, demos and workflow context on this device').length).toBeGreaterThan(0)
   })
 
   it('keeps Delete account permanently disabled until the email is typed exactly, then deletes', async () => {
@@ -247,6 +277,28 @@ describe('Settings page structure', () => {
     // The landing page reads this once to say the deletion worked.
     expect(sessionStorage.getItem('cw-account-deleted')).toBe('1')
     sessionStorage.removeItem('cw-account-deleted')
+  })
+
+  it('puts the email field before the list of what is erased, so a short phone shows it first and focuses it', async () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete account' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete your account?' })
+    const input = within(dialog).getByRole('textbox')
+    const list = within(dialog).getByRole('list', { name: 'What is erased' })
+    expect(input.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(input))
+  })
+
+  it('opens on a phone with the dialog focused, not the field, so the keyboard does not cover it (consistency-F09)', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: /pointer:\s*coarse/.test(query), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    try {
+      renderPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Delete account' }))
+      const dialog = screen.getByRole('dialog', { name: 'Delete your account?' })
+      await waitFor(() => expect(document.activeElement).toBe(dialog))
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('shows an account deletion failure under the field it concerns', async () => {

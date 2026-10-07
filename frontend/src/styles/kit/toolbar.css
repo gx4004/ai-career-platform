@@ -14,9 +14,10 @@
   min-width: 0;
 }
 
+/* The search never collapses to a stub ("Searc…") beside inline filters: below 12rem the filters wrap instead. */
 .kit-toolbar__search {
   flex: 1 1 14rem;
-  min-width: 0;
+  min-width: min(100%, 12rem);
   max-width: 24rem;
 }
 
@@ -40,6 +41,17 @@
 
 .kit-toolbar__filters-button {
   display: none;
+}
+
+/* A link after a filter button: clear its 4px hard shadow by the same 12px the toolbar puts between controls. */
+.kit-toolbar__clear {
+  margin-inline-start: var(--s1);
+}
+
+/* Wrapped onto a line of its own (toolbar.tsx marks it): it starts at the search field's edge. The 4px moves to the
+   end, so the link keeps its width and the wrap does not flip back. */
+.kit-toolbar__clear[data-line-start] {
+  margin-inline: 0 var(--s1);
 }
 
 .kit-toolbar__actions {
@@ -88,8 +100,10 @@
 }
 
 @media (max-width: 767px) {
+  /* Phones: the filters are behind one button, and the search shares the row with it (no floor, or the button wraps). */
   .kit-toolbar__search {
     flex: 1 1 0;
+    min-width: 0;
     max-width: none;
   }
 
@@ -129,7 +143,9 @@
   color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
-  font-variant-numeric: var(--numeric-tabular);
+  /* Running text ("Page 1 of 18", "Showing 1–20"): proportional, or Onest's tabular "1" opens a gap ("1 8").
+     Only the page-number buttons keep tabular figures, so they stay one width. */
+  font-variant-numeric: proportional-nums;
 }
 
 .kit-pagination__status {
@@ -223,9 +239,15 @@
   }
 }
 
-/* At 320 "Previous", "Page 1 of 2" and "Next" fit on one line only without the chevrons (the words carry the meaning). */
+/* At 320 "Previous", "Page 1 of 2" and "Next" fit on one line only without the chevrons (the words carry the meaning).
+   The phone Filters button drops its word too (the sliders icon and the count stay; the aria-label keeps the name), so
+   the search beside it keeps room for its placeholder instead of clipping it mid-word (account-admin-F22). */
 @media (max-width: 359px) {
   .kit-pagination__chevron {
+    display: none;
+  }
+
+  .kit-toolbar__filters-word {
     display: none;
   }
 }

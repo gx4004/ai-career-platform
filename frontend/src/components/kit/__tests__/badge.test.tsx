@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { createRef } from 'react'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -14,6 +16,17 @@ describe('kit Badge', () => {
     expect(badge.getAttribute('data-tone')).toBe('success')
     expect(badge.classList.contains('kit-badge--sm')).toBe(true)
     expect(badge.classList.contains('extra')).toBe(true)
+  })
+
+  it('wraps a long label only when asked', () => {
+    render(
+      <>
+        <Badge>Short</Badge>
+        <Badge wrap>Job from Senior Backend Engineer, Platform at Northwind Labs</Badge>
+      </>,
+    )
+    expect(screen.getByText('Short').closest('.kit-badge')?.hasAttribute('data-wrap')).toBe(false)
+    expect(screen.getByText(/Northwind Labs/).closest('.kit-badge')?.getAttribute('data-wrap')).toBe('true')
   })
 
   it('defaults to a neutral medium badge without a dot', () => {
@@ -91,6 +104,19 @@ describe('kit Badge palette tones', () => {
     expect(screen.getByTestId('a').getAttribute('data-tone')).toBe('lilac')
     expect(screen.getByTestId('b').getAttribute('data-tone')).toBe('neutral')
     expect(screen.getByTestId('b').getAttribute('data-severity')).toBe('low')
+  })
+
+  // A severity badge on a lemon Fix-first sticker is white (STICKER 1.10). The severity fills used to be set
+  // after the data-tone rules and overrode tone="white", so the pixels were lilac / lemon-on-lemon / rose while
+  // the attribute said white. jsdom does not cascade the stylesheet, so the rule is checked in the CSS itself.
+  it('lets an explicit white tone win over the severity fill', () => {
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/badge.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const severityRules = [...css.matchAll(/([^{}]*\[data-severity=[^{}]*)\{([^}]*)\}/g)]
+    expect(severityRules).toHaveLength(3)
+    for (const [, selector, body] of severityRules) {
+      expect(body).toMatch(/--tone:/)
+      expect(selector).toContain(":not([data-tone='white'])")
+    }
   })
 })
 

@@ -4,11 +4,11 @@ export type AuthView = 'login' | 'register'
 export const AUTH_COPY: Record<AuthView, { title: string; intro: string }> = {
   login: {
     title: 'Sign in to your workspace',
-    intro: 'Keep your runs and favorites across every tool.',
+    intro: 'Keep your runs and starred results across every tool.',
   },
   register: {
     title: 'Create your workspace account',
-    intro: 'Keep your runs and favorites across every tool.',
+    intro: 'Keep your runs and starred results across every tool.',
   },
 }
 

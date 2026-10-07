@@ -154,9 +154,7 @@ export function AdminLayout() {
 
   return (
     <SidebarProvider defaultOpen={bp === 'desktop'}>
-      <Button asChild className="app-skip-link">
-        <a href="#main-content">Skip to main content</a>
-      </Button>
+      {/* The skip link is AppShell's: /admin renders through its shell-less branch, which already has one (consistency-F05). */}
       <AdminSidebar pathname={pathname} />
       <SidebarInset>
         <div className="app-main">

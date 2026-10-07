@@ -5,8 +5,8 @@ import { readStorageInventory, type StorageEntry } from '#/components/legal/stor
 import { subscribeConsent } from '#/lib/consent'
 
 const COLUMNS: TableColumn<StorageEntry>[] = [
-  { id: 'name', header: 'Name', primary: true, cell: (entry) => <code>{entry.name}</code> },
-  { id: 'kind', header: 'Where', cell: (entry) => entry.kind },
+  { id: 'name', header: 'Name', primary: true, nowrap: true, cell: (entry) => <code>{entry.name}</code> },
+  { id: 'kind', header: 'Where', nowrap: true, cell: (entry) => entry.kind },
   { id: 'purpose', header: 'What it is for', cell: (entry) => entry.purpose },
   { id: 'lifetime', header: 'Lifetime', cell: (entry) => entry.lifetime },
 ]

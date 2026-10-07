@@ -75,6 +75,48 @@ describe('OnboardingDialog', () => {
     expect(onSkip).toHaveBeenCalledTimes(1)
   })
 
+  it('offers no skip on the last step, where there is nothing left to skip: its corner X just closes', () => {
+    const { onSkip } = renderDialog()
+    for (let i = 0; i < 4; i += 1) next()
+
+    expect(screen.queryByRole('button', { name: 'Skip tour' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onSkip).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts closing it with Esc as a skip, so a replay never leaves the dashboard tour armed', () => {
+    const { onSkip } = renderDialog()
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+
+    expect(onSkip).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays anchored near the top while its steps change height, and says plainly what it accepts', () => {
+    renderDialog()
+    expect(screen.getByRole('dialog').getAttribute('data-placement')).toBe('top')
+    expect(screen.queryByText(/AI-powered|unlock/i)).toBeNull()
+    next()
+    expect(screen.getByText(/PDF or DOCX/)).toBeTruthy()
+    expect(screen.queryByText(/unlock/i)).toBeNull()
+    next()
+    next()
+    expect(screen.queryByText(/AI-powered/i)).toBeNull()
+  })
+
+  // Sign-off r4 chrome-F09: every step has one height on a phone (so Continue stays put); the welcome and the last
+  // step had no body and showed about 300px of empty white there. They now say what you get and where you start.
+  it('gives the welcome and the last step a body: what you get, and the tool you start with', () => {
+    renderDialog()
+    const welcome = screen.getByRole('list', { name: 'What you get' })
+    expect(welcome.querySelectorAll('li')).toHaveLength(3)
+    expect(welcome.textContent).toMatch(/resume/i)
+
+    for (let i = 0; i < 4; i += 1) next()
+    const start = screen.getByRole('list', { name: 'Where you start' })
+    expect(start.textContent).toContain('Resume Analyzer')
+    expect(screen.getByText(/replay this tour from Settings/i)).toBeTruthy()
+  })
+
   it('starts from the welcome again when it is replayed', () => {
     const { rerender, ui } = renderDialog()
     next()

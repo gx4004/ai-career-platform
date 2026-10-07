@@ -17,8 +17,8 @@ const MIN_DESCRIPTION = 20
 const FIELDS = ['role', 'company', 'source_url', 'description', 'deadline'] as const satisfies readonly FieldName[]
 const firstError = (errors: Errors) => FIELDS.find((name) => errors[name]) ?? null
 
-// One sentence per field, the same whether the browser or the server caught it.
-const MESSAGES: Record<FieldName, string> = {
+// One sentence per field, the same whether the browser or the server caught it. Track job (Job Match) uses the same.
+export const JOB_FIELD_MESSAGES: Record<FieldName, string> = {
   role: 'Enter the role, for example “Backend Engineer”.',
   company: 'Enter the company you are applying to.',
   source_url: 'Enter the full link, starting with https://, or leave it empty.',
@@ -28,12 +28,12 @@ const MESSAGES: Record<FieldName, string> = {
 
 function validate(values: typeof EMPTY): Errors {
   const errors: Errors = {}
-  if (!values.role.trim()) errors.role = MESSAGES.role
-  if (!values.company.trim()) errors.company = MESSAGES.company
+  if (!values.role.trim()) errors.role = JOB_FIELD_MESSAGES.role
+  if (!values.company.trim()) errors.company = JOB_FIELD_MESSAGES.company
   const link = values.source_url.trim()
-  if (link && !/^https?:\/\/\S+$/i.test(link)) errors.source_url = MESSAGES.source_url
+  if (link && !/^https?:\/\/\S+$/i.test(link)) errors.source_url = JOB_FIELD_MESSAGES.source_url
   const description = values.description.trim()
-  if (description && description.length < MIN_DESCRIPTION) errors.description = MESSAGES.description
+  if (description && description.length < MIN_DESCRIPTION) errors.description = JOB_FIELD_MESSAGES.description
   return errors
 }
 
@@ -71,7 +71,7 @@ export function AddApplicationDialog({
       const failure = describeFailure(error, "The job couldn't be added. Try again.")
       const fieldErrors: Errors = {}
       for (const name of FIELDS) {
-        if (failure.fields[name]) fieldErrors[name] = MESSAGES[name]
+        if (failure.fields[name]) fieldErrors[name] = JOB_FIELD_MESSAGES[name]
       }
       setErrors(fieldErrors)
       setFocusField(firstError(fieldErrors))
@@ -129,8 +129,10 @@ export function AddApplicationDialog({
           <DialogBody>
             <Stack gap={4}>
               <Field label="Role" required error={errors.role} id="add-application-role">
+                {/* No autoFocus: the kit dialog focuses this first field on a mouse and the dialog itself on a phone, so the
+                    keyboard does not come up over the form (consistency-F09). */}
                 <Input
-                  autoFocus value={values.role} maxLength={200} disabled={pending} placeholder="e.g. Backend Engineer"
+                  value={values.role} maxLength={200} disabled={pending} placeholder="e.g. Backend Engineer"
                   onChange={(event) => set('role')(event.target.value)}
                 />
               </Field>

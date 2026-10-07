@@ -36,7 +36,7 @@ export type ScoreBarProps = Omit<ComponentPropsWithoutRef<'div'>, 'children' | '
     max?: number
     /** The number shown at the end. Default: the rounded value. Pass "72%" or "3 of 4" to say more. */
     valueLabel?: ReactNode
-    /** auto (default) picks success / warning / danger from the thresholds but draws the fill ink (data-auto): bars are neutral data, the highlight is chosen on purpose with accent. The others force a tone. */
+    /** auto (default) picks success / warning / danger from the thresholds but draws the fill ink (data-auto): bars are neutral data, the highlight is chosen on purpose with accent. The others force a tone; danger draws ink too, since rose is never a bar colour. */
     tone?: ScoreTone | 'auto'
     thresholds?: ScoreThresholds
     /** What a low score looks like under auto: danger (default) or a quiet neutral. */

@@ -2,11 +2,12 @@ import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DashboardToday } from '#/components/dashboard/DashboardToday'
+import { DashboardToday, DashboardTodaySkeleton } from '#/components/dashboard/DashboardToday'
 import { ToastProvider } from '#/components/kit'
 
 const getToday = vi.hoisted(() => vi.fn())
 const adopt = vi.hoisted(() => vi.fn())
+const deleteApplication = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn())
 const getApplication = vi.hoisted(() => vi.fn())
 const writeWorkflowContext = vi.hoisted(() => vi.fn())
@@ -14,13 +15,14 @@ const writeWorkflowContext = vi.hoisted(() => vi.fn())
 vi.mock('#/lib/api/client', () => ({
   getToday,
   adoptDiscoveryRecommendation: adopt,
+  deleteApplication,
   getApplication,
 }))
 vi.mock('#/lib/tools/drafts', () => ({ writeWorkflowContext }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated' }) }))
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, params, ...props }: { children: ReactNode; to: string; params?: Record<string, string> } & Record<string, unknown>) => (
-    <a href={params ? to.replace('$campaignId', params.campaignId) : to} {...props}>{children}</a>
+  Link: ({ children, to, params, search, ...props }: { children: ReactNode; to: string; params?: Record<string, string>; search?: Record<string, string> } & Record<string, unknown>) => (
+    <a href={`${params ? to.replace('$campaignId', params.campaignId) : to}${search ? `?${new URLSearchParams(search)}` : ''}`} {...props}>{children}</a>
   ),
   useNavigate: () => navigate,
 }))
@@ -60,12 +62,14 @@ async function expectAlert(text: string) {
   await waitFor(() => expect(screen.getAllByRole('alert').some((el) => el.textContent?.includes(text))).toBe(true))
 }
 
-function renderToday() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function renderToday(
+  props: { firstSteps?: boolean; hasResume?: boolean; noApplications?: boolean } = {},
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <DashboardToday />
+        <DashboardToday {...props} />
       </ToastProvider>
     </QueryClientProvider>,
   )
@@ -75,6 +79,7 @@ describe('DashboardToday', () => {
   beforeEach(() => {
     getToday.mockReset()
     adopt.mockReset()
+    deleteApplication.mockReset()
     navigate.mockReset()
     getApplication.mockReset()
     writeWorkflowContext.mockReset()
@@ -82,7 +87,7 @@ describe('DashboardToday', () => {
 
   it('shows a match with its skills fit sample and adds it to applications', async () => {
     getToday.mockResolvedValueOnce(plan()).mockResolvedValue(plan({ best_matches: [] }))
-    adopt.mockResolvedValue({ id: 'app-1', title: 'Platform Engineer' })
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer' }, created: true })
     renderToday()
 
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
@@ -211,7 +216,7 @@ describe('DashboardToday', () => {
       }),
     )
     // This application has no saved listing description.
-    getApplication.mockResolvedValue({ id: 'a1', label: 'Backend Engineer at Globex', listing: null })
+    getApplication.mockResolvedValue({ application: { id: 'a1', label: 'Backend Engineer at Globex', listing: null }, created: true })
     renderToday()
 
     fireEvent.click(await screen.findByRole('link', { name: 'Prep for the round' }))
@@ -251,12 +256,160 @@ describe('DashboardToday', () => {
     expect(screen.getByText('Nothing needs you today')).toBeTruthy()
   })
 
-  it('asks to confirm evidence when there is none', async () => {
+  it('asks for skills in the profile when there are none, and opens the Add a fact dialog there', async () => {
     getToday.mockResolvedValue(plan({ has_evidence: false, best_matches: [] }))
     renderToday()
 
-    expect(await screen.findByText('Confirm your skills first')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Confirm evidence' }).getAttribute('href')).toBe('/profile')
+    expect(await screen.findByText('Add your skills to see matches')).toBeTruthy()
+    const link = screen.getByRole('link', { name: 'Add skills' })
+    expect(link.getAttribute('href')).toBe('/profile?add=fact')
+  })
+
+  it('before the resume is in, says matches come after it and offers no second "first" move', async () => {
+    getToday.mockResolvedValue(plan({ has_evidence: false, best_matches: [] }))
+    renderToday({ firstSteps: true, hasResume: false })
+
+    expect(await screen.findByText('Matches appear after your resume')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Add skills' })).toBeNull()
+    // Step 3 of the first steps already offers Discover jobs.
+    expect(screen.queryByRole('link', { name: 'Discover jobs' })).toBeNull()
+    // Nothing needs action and there are no applications: no "View all" into an empty page.
+    expect(screen.queryByRole('link', { name: 'View all' })).toBeNull()
+  })
+
+  it('hands focus to the next Add when an added row leaves the list, not back to the top of the page', async () => {
+    const second = { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer' }
+    getToday.mockResolvedValueOnce(plan({ best_matches: [LISTING, second] })).mockResolvedValue(plan({ best_matches: [second] }))
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer' }, created: true })
+    renderToday()
+
+    const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+    add.focus()
+    fireEvent.click(add)
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Add Platform Engineer to applications' })).toBeNull())
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add Data Engineer to applications' }))
+  })
+
+  // Sign-off chrome-F34: adding the last best match empties the list until the refetched plan brings the
+  // closest matches; focus used to land on the empty state's action, which then left, dropping focus to the page.
+  it('hands focus to the first closest match when adding the last best one brings them', async () => {
+    const closest = [
+      { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer', skills_fit: 40 },
+      { ...LISTING, listing_id: 'listing-3', title: 'Site Reliability Engineer', skills_fit: 35 },
+    ]
+    let refetched: (value: unknown) => void = () => {}
+    getToday
+      .mockResolvedValueOnce(plan({ best_matches: [LISTING], closest_matches: [] }))
+      .mockReturnValueOnce(new Promise((resolve) => { refetched = resolve }))
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer' }, created: true })
+    renderToday()
+
+    const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+    add.focus()
+    fireEvent.click(add)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Add Platform Engineer to applications' })).toBeNull())
+    // While the plan is refetched focus waits on the section, which stays, not on a control that may leave.
+    const section = screen.getByRole('heading', { level: 2, name: /matches to add/ }).closest('section')
+    expect(document.activeElement).toBe(section)
+
+    refetched(plan({ best_matches: [], closest_matches: closest }))
+    const first = await screen.findByRole('button', { name: 'Add Data Engineer to applications' })
+    await waitFor(() => expect(document.activeElement).toBe(first))
+  })
+
+  // Sign-off chrome-F34 (live): the refetch can start a render after the list empties. Focus used to go to the
+  // empty state's action at once ("settled"), which left when the closest matches arrived, dropping focus to the page.
+  it('still hands focus to the first closest match when the refetch starts a render after the list empties', async () => {
+    const closest = [{ ...LISTING, listing_id: 'listing-2', title: 'Data Engineer', skills_fit: 40 }]
+    getToday
+      .mockResolvedValueOnce(plan({ best_matches: [LISTING], closest_matches: [] }))
+      .mockResolvedValue(plan({ best_matches: [], closest_matches: closest }))
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer' }, created: true })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = client.invalidateQueries.bind(client)
+    client.invalidateQueries = ((...args: Parameters<typeof invalidate>) =>
+      new Promise<void>((resolve) => setTimeout(resolve, 30)).then(() => invalidate(...args))) as typeof invalidate
+    renderToday({}, client)
+
+    const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+    add.focus()
+    fireEvent.click(add)
+    const first = await screen.findByRole('button', { name: 'Add Data Engineer to applications' })
+    await waitFor(() => expect(document.activeElement).toBe(first))
+  })
+
+  it('leaves focus on the empty list\'s action once the refetched plan has no rows either', async () => {
+    getToday
+      .mockResolvedValueOnce(plan({ best_matches: [LISTING], closest_matches: [] }))
+      .mockResolvedValue(plan({ best_matches: [], closest_matches: [] }))
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer' }, created: true })
+    renderToday()
+
+    const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+    add.focus()
+    fireEvent.click(add)
+    await waitFor(() => expect(getToday).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Browse all jobs' })))
+  })
+
+  // Sign-off chrome-F08 (STICKER 4.D): the Add toast offers View application and Undo.
+  it('undoes an add: deletes the new application, puts the row back in its place and focuses its Add', async () => {
+    const second = { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer' }
+    getToday.mockResolvedValueOnce(plan({ best_matches: [LISTING, second] })).mockReturnValue(new Promise(() => {}))
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer', created_at: new Date().toISOString() }, created: true })
+    deleteApplication.mockResolvedValue({ deleted: 1 })
+    renderToday()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Platform Engineer to applications' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+
+    await waitFor(() => expect(deleteApplication).toHaveBeenCalledWith('app-1'))
+    const restored = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+    const rows = screen.getAllByRole('button', { name: /^Add .* to applications$/ })
+    expect(rows[0]).toBe(restored)
+    await waitFor(() => expect(document.activeElement).toBe(restored))
+    expect(await screen.findByText('Removed from your applications', { selector: '.kit-toast__title' })).toBeTruthy()
+  })
+
+  // Sign-off chrome-F41: the skeleton draws the sections in the order the plan will most likely use.
+  it('loads in the order the page will land: Best matches first for an account without applications', () => {
+    const headings = () => screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
+    const { unmount } = render(<DashboardTodaySkeleton />)
+    expect(headings()).toEqual(['Needs action', 'Best matches to add'])
+    unmount()
+
+    getToday.mockReturnValue(new Promise(() => {}))
+    renderToday({ noApplications: true })
+    expect(headings()).toEqual(['Best matches to add', 'Needs action'])
+  })
+
+  // Sign-off chrome-F44: when Undo fails the toast says where the job is and links straight to it.
+  it('links to the application when Undo cannot delete it', async () => {
+    getToday.mockResolvedValueOnce(plan()).mockReturnValue(new Promise(() => {}))
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer', created_at: new Date().toISOString() }, created: true })
+    deleteApplication.mockRejectedValue(new Error('500'))
+    renderToday()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Platform Engineer to applications' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+
+    expect(await screen.findByText('That job could not be removed', { selector: '.kit-toast__title' })).toBeTruthy()
+    expect(screen.getByText('It is still in your applications.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Open application' }))
+    expect(navigate).toHaveBeenCalledWith({ to: '/campaigns/$campaignId', params: { campaignId: 'app-1' } })
+  })
+
+  // Review F3: the adopt call is idempotent; an application that already existed comes back with 200 (created: false),
+  // and Undo would delete it with its tasks and notes. A recent created_at (added minutes ago elsewhere) is no licence.
+  it('offers no Undo when the add returned an application that already existed', async () => {
+    getToday.mockResolvedValueOnce(plan()).mockReturnValue(new Promise(() => {}))
+    adopt.mockResolvedValue({ application: { id: 'app-old', title: 'Platform Engineer', created_at: new Date().toISOString() }, created: false })
+    renderToday()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Platform Engineer to applications' }))
+    expect(await screen.findByRole('button', { name: 'View application' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 
   it('shows the server\'s best matches, and its closest ones under an honest title when none clears the floor', async () => {
@@ -287,13 +440,13 @@ describe('DashboardToday', () => {
 
   it('sends one add for a double click', async () => {
     getToday.mockResolvedValue(plan())
-    let resolve: (value: { id: string }) => void = () => {}
+    let resolve: (value: { application: { id: string }; created: boolean }) => void = () => {}
     adopt.mockReturnValue(new Promise((r) => { resolve = r }))
     renderToday()
     const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
     fireEvent.click(add)
     fireEvent.click(add)
-    resolve({ id: 'app-1' })
+    resolve({ application: { id: 'app-1' }, created: true })
     expect(await screen.findByText('Added to your applications', { selector: '.kit-toast__title' })).toBeTruthy()
     expect(adopt).toHaveBeenCalledTimes(1)
     expect(document.querySelectorAll('.kit-toast__title')).toHaveLength(1)
@@ -360,13 +513,81 @@ describe('DashboardToday', () => {
     getToday.mockReturnValue(new Promise((_, rej) => { reject = rej }))
     renderToday()
 
+    // Each section loads in its own shape: Needs action as sticker plates (a status), the matches as a busy list
+    // of rows led by the fit stamp (was two busy lists of plain rows, which jumped when the stickers arrived).
     const busy = screen.getAllByRole('list', { hidden: true }).filter((list) => list.getAttribute('aria-busy') === 'true')
-    expect(busy.length).toBe(2)
+    expect(busy.length).toBe(1)
+    expect(busy[0].querySelector('.kit-skeleton__leading--stamp')).toBeTruthy()
+    expect(screen.getByRole('status', { name: 'Loading what needs you' })).toBeTruthy()
 
     reject(new Error('down'))
     await expectAlert("couldn't be loaded")
     getToday.mockResolvedValue(plan())
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
+  })
+
+  // Sign-off r4 chrome-F01 (WCAG 2.4.11): the Add that takes focus sat under the toast stack. Focus moves without
+  // the browser's own jump, then the Add is scrolled only as far as needed, which honours the root's scroll padding
+  // (kit/toast.css keeps that padding clear of the toasts).
+  it('scrolls the Add it focuses clear of the toasts, after an add and after an undo', async () => {
+    const second = { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer' }
+    getToday.mockResolvedValueOnce(plan({ best_matches: [LISTING, second] })).mockReturnValue(new Promise(() => {}))
+    adopt.mockResolvedValue({ application: { id: 'app-1', title: 'Platform Engineer', created_at: new Date().toISOString() }, created: true })
+    deleteApplication.mockResolvedValue({ deleted: 1 })
+    const scrolled: Array<{ element: Element; options: unknown }> = []
+    const hadScroll = Object.prototype.hasOwnProperty.call(Element.prototype, 'scrollIntoView')
+    const originalScroll = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function scrollIntoView(this: Element, options?: unknown) {
+      scrolled.push({ element: this, options })
+    } as typeof Element.prototype.scrollIntoView
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus')
+    const focusOptions = (element: Element) =>
+      focus.mock.contexts.flatMap((context, index) => (context === element ? [focus.mock.calls[index][0]] : []))
+    try {
+      renderToday()
+      const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+      add.focus()
+      fireEvent.click(add)
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Add Platform Engineer to applications' })).toBeNull())
+      const next = screen.getByRole('button', { name: 'Add Data Engineer to applications' })
+      expect(document.activeElement).toBe(next)
+      expect(focusOptions(next)).toContainEqual({ preventScroll: true })
+      expect(scrolled).toContainEqual({ element: next, options: { block: 'nearest' } })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      const restored = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+      await waitFor(() => expect(document.activeElement).toBe(restored))
+      expect(focusOptions(restored)).toContainEqual({ preventScroll: true })
+      expect(scrolled).toContainEqual({ element: restored, options: { block: 'nearest' } })
+    } finally {
+      focus.mockRestore()
+      if (hadScroll) Element.prototype.scrollIntoView = originalScroll
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    }
+  })
+
+  // Sign-off r4 chrome-F02: each Add opened its own toast and three stayed for 8s, covering the next rows' Add
+  // buttons on a phone. A run of adds keeps one toast: the latest add replaces it, and its Undo is for that add.
+  it('keeps one toast for a run of adds, and its Undo reverses the latest add', async () => {
+    const second = { ...LISTING, listing_id: 'listing-2', title: 'Data Engineer' }
+    const createdAt = new Date().toISOString()
+    getToday.mockResolvedValueOnce(plan({ best_matches: [LISTING, second] })).mockReturnValue(new Promise(() => {}))
+    adopt
+      .mockResolvedValueOnce({ application: { id: 'app-1', title: 'Platform Engineer', created_at: createdAt }, created: true })
+      .mockResolvedValueOnce({ application: { id: 'app-2', title: 'Data Engineer', created_at: createdAt }, created: true })
+    deleteApplication.mockResolvedValue({ deleted: 1 })
+    renderToday()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Platform Engineer to applications' }))
+    expect(await screen.findByText('Platform Engineer', { selector: '.kit-toast__description' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Data Engineer to applications' }))
+    expect(await screen.findByText('Data Engineer', { selector: '.kit-toast__description' })).toBeTruthy()
+    expect(document.querySelectorAll('.kit-toast')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(deleteApplication).toHaveBeenCalledWith('app-2'))
+    expect(await screen.findByText('Removed from your applications', { selector: '.kit-toast__title' })).toBeTruthy()
+    expect(document.querySelectorAll('.kit-toast')).toHaveLength(1)
   })
 })

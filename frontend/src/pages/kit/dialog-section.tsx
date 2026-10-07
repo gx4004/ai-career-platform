@@ -16,6 +16,7 @@ import {
   Field,
   Input,
   Textarea,
+  focusFieldOnOpen,
   type DialogSize,
 } from '#/components/kit'
 import { GallerySection, Grid, Group, Row, Specimen, Stage } from './gallery-parts'
@@ -175,6 +176,87 @@ function ConfirmDemo({ tone }: { tone: 'destructive' | 'default' }) {
   )
 }
 
+/** A stepper whose body changes height: anchored to the top, its buttons do not jump between steps. */
+function TopAnchoredDialog() {
+  const [step, setStep] = useState(0)
+  return (
+    <Dialog onOpenChange={(open) => (open ? undefined : setStep(0))}>
+      <DialogTrigger asChild>
+        <Button variant="secondary">Anchored to the top (stepper)</Button>
+      </DialogTrigger>
+      <DialogContent placement="top">
+        <DialogHeader>
+          <DialogTitle>Step {step + 1} of 3</DialogTitle>
+          <DialogDescription>placement="top": the body changes height, the panel's top and buttons stay put. Its footer is phoneLayout="row": Back and Next share one row on a phone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          {PARAGRAPHS.slice(0, step + 1).map((text, index) => (
+            <p key={index} className="kit-gallery__paragraph">
+              {text}
+            </p>
+          ))}
+        </DialogBody>
+        <DialogFooter phoneLayout="row">
+          <Button variant="secondary" disabled={step === 0} onClick={() => setStep(step - 1)}>
+            Back
+          </Button>
+          {step < 2 ? (
+            <Button onClick={() => setStep(step + 1)}>Continue</Button>
+          ) : (
+            <DialogClose asChild>
+              <Button>Done</Button>
+            </DialogClose>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** focusFieldOnOpen: the dialog opens on the first empty required field (here Company, once Role is filled in);
+    on a touch screen it opens on the panel instead, so the keyboard does not cover the title before it is read. */
+function FieldFirstDialog() {
+  const roleRef = useRef<HTMLInputElement>(null)
+  const companyRef = useRef<HTMLInputElement>(null)
+  const [role, setRole] = useState('Platform Engineer')
+  const [company, setCompany] = useState('')
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="secondary">Field-first dialog</Button>
+      </DialogTrigger>
+      <DialogContent
+        onOpenAutoFocus={(event) =>
+          focusFieldOnOpen(event, !role.trim() ? roleRef.current : !company.trim() ? companyRef.current : null)
+        }
+      >
+        <DialogHeader>
+          <DialogTitle>Track a job</DialogTitle>
+          <DialogDescription>Opens on the first empty field (Company), with a mouse; on a touch screen it opens on the panel.</DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <div className="kit-gallery__form">
+            <Field label="Role">
+              <Input ref={roleRef} value={role} onChange={(event) => setRole(event.target.value)} />
+            </Field>
+            <Field label="Company">
+              <Input ref={companyRef} value={company} onChange={(event) => setCompany(event.target.value)} />
+            </Field>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="secondary">Cancel</Button>
+          </DialogClose>
+          <DialogClose asChild>
+            <Button>Track job</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function SilentTitleDialog() {
   return (
     <Dialog>
@@ -248,11 +330,11 @@ export function DialogSection() {
     <GallerySection
       id="dialog"
       title="Dialog"
-      note="White modal panel with the 2px ink outline, radius 24 and the 7px hard shadow, on a flat plum scrim (no blur). Header and footer are ruled off with 2px ink lines; the destructive confirm has a rose-soft header band. Focus is trapped and returns to the trigger, Esc and an outside click close it, the page behind does not scroll. The previews are static copies; the buttons open the real thing."
+      note="White modal panel with the 2px ink outline, radius 24 and the 7px hard shadow, on a flat plum scrim (no blur). Header and footer are ruled off with 2px ink lines; the destructive confirm has a rose-soft header band. Focus is trapped and returns to the trigger, Esc and an outside click close it, the page behind does not scroll. It opens on its first control; on a touch screen, when that control is a field, it opens on the panel itself, so the keyboard or a picker does not cover the dialog before it is read. The previews are static copies; the buttons open the real thing."
     >
       <Group title="At rest (static previews)">
         <Grid wide>
-          <Specimen label="sm: destructive confirm">
+          <Specimen label="sm: destructive confirm (no body: one 2px rule; under 480px the buttons stack full width in DOM order, the action at the bottom)">
             <Stage label="Static preview of a small dialog">
               <StaticConfirm />
             </Stage>
@@ -283,6 +365,8 @@ export function DialogSection() {
           <FormDialog />
           <LongDialog />
           <SilentTitleDialog />
+          <TopAnchoredDialog />
+          <FieldFirstDialog />
         </Row>
       </Group>
 

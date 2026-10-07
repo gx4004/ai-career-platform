@@ -122,11 +122,15 @@ describe('two tabs never overwrite each other silently (cv-studio-d03)', () => {
     expect(api.updateCvDocument).not.toHaveBeenCalled()
     expect(saveStatus().textContent).toContain('Newer version')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reload newer version' }))
+    const reload = screen.getByRole('button', { name: 'Reload newer version' })
+    reload.focus()
+    fireEvent.click(reload)
     await waitFor(() => expect((screen.getByLabelText('Document name') as HTMLInputElement).value).toBe('Edited in the other tab'))
     expect(screen.queryByText('This CV was saved somewhere else')).toBeNull()
     expect(api.updateCvDocument).not.toHaveBeenCalled()
     expect(saveStatus().textContent).toContain('Saved')
+    // The notice that held focus is gone: focus lands on the save state, not on the page body.
+    await waitFor(() => expect(window.document.activeElement).toBe(saveStatus()))
   })
 
   it('a tab that is merely hidden checks for a newer copy before it saves, instead of overwriting it', async () => {
@@ -233,7 +237,9 @@ describe('the saved indicator', () => {
     const now = Date.parse('2026-07-12T12:00:00Z')
     expect(savedAgo(now - 10_000, now)).toBe('just now')
     expect(savedAgo(now - 2 * 60_000, now)).toBe('2 min ago')
-    expect(savedAgo(now - 3 * 3_600_000, now)).toBe('3 h ago')
+    // cv-studio-F14: hours in words, like every other unit in the app's copy (it used to read "3 h ago").
+    expect(savedAgo(now - 3 * 3_600_000, now)).toBe('3 hours ago')
+    expect(savedAgo(now - 3_600_000, now)).toBe('1 hour ago')
     expect(savedAgo(now - 3 * 86_400_000, now)).toMatch(/^on /)
   })
 
@@ -275,6 +281,52 @@ describe('export moment', () => {
     expect(within(moment).getByText('2 pages · 1 of 3 ATS checks pass')).toBeTruthy()
     fireEvent.click(within(moment).getByRole('button', { name: 'Download DOCX' }))
     await waitFor(() => expect(api.fetchCvArtifactBlob).toHaveBeenCalledWith('d1', 'docx'))
+  })
+})
+
+describe('export moment and the CV switcher (cv-studio-R3-02)', () => {
+  it('drops the moment when another CV is opened, so its file name and Download button never point at different CVs', async () => {
+    const other = { ...document, id: 'd2', name: 'Research CV' }
+    api.listCvDocuments.mockResolvedValue({ items: [document, other] })
+    api.getCvDocument.mockImplementation((id: string) => Promise.resolve(id === 'd2' ? other : document))
+    view()
+    await screen.findByLabelText('Document name')
+    fireEvent.click(screen.getByRole('button', { name: /^Export PDF/ }))
+    expect(within(await screen.findByTestId('export-moment')).getByText('Principal CV.pdf')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Your CVs'), { target: { value: 'd2' } })
+    await waitFor(() => expect((screen.getByLabelText('Document name') as HTMLInputElement).value).toBe('Research CV'))
+    expect(screen.queryByTestId('export-moment')).toBeNull()
+  })
+
+  // cv-studio-R2-01: the notice names a version of the CV it came from (and a tailored one carries buttons that act on
+  // that version), so it must not stay above another CV.
+  it('drops the version notice when another CV is opened', async () => {
+    const other = { ...document, id: 'd2', name: 'Research CV' }
+    api.listCvDocuments.mockResolvedValue({ items: [document, other] })
+    api.getCvDocument.mockImplementation((id: string) => Promise.resolve(id === 'd2' ? other : document))
+    view()
+    const versions = await openTool(/^Versions/)
+    fireEvent.change(within(versions).getByLabelText('Version name'), { target: { value: 'Before tailoring' } })
+    fireEvent.click(within(versions).getByRole('button', { name: /Save version/ }))
+    expect(await screen.findByText('Saved “Before tailoring” to your versions.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Your CVs'), { target: { value: 'd2' } })
+    await waitFor(() => expect((screen.getByLabelText('Document name') as HTMLInputElement).value).toBe('Research CV'))
+    expect(screen.queryByText('Saved “Before tailoring” to your versions.')).toBeNull()
+  })
+
+  it('drops an action error about the previous CV when another CV is opened', async () => {
+    const other = { ...document, id: 'd2', name: 'Research CV' }
+    api.listCvDocuments.mockResolvedValue({ items: [document, other] })
+    api.getCvDocument.mockImplementation((id: string) => Promise.resolve(id === 'd2' ? other : document))
+    api.snapshotCvVariant.mockRejectedValueOnce(new Error('The version could not be saved.'))
+    view()
+    const versions = await openTool(/^Versions/)
+    fireEvent.change(within(versions).getByLabelText('Version name'), { target: { value: 'Before tailoring' } })
+    fireEvent.click(within(versions).getByRole('button', { name: /Save version/ }))
+    expect((await screen.findByRole('alert')).textContent).toContain('The version could not be saved.')
+    fireEvent.change(screen.getByLabelText('Your CVs'), { target: { value: 'd2' } })
+    await waitFor(() => expect((screen.getByLabelText('Document name') as HTMLInputElement).value).toBe('Research CV'))
+    expect(screen.queryByText('The version could not be saved.')).toBeNull()
   })
 })
 
@@ -328,7 +380,7 @@ describe('versions without a file route', () => {
 })
 
 describe('tailored version next steps', () => {
-  it('offers Preview and Export PDF right after a tailored version is saved', async () => {
+  it('offers to preview and export the new version right after a tailored version is saved', async () => {
     api.tailorCvDocument.mockResolvedValue({
       schema_version: 'cv-tailoring/v1', job_title: 'Staff Engineer', skipped: [], remaining_regenerations: 9,
       request_id: '6b1f1d8e-4a4c-4c49-9b7e-3d5c1a2f0e11', proposal_token: 'a'.repeat(64), history_id: null, access_mode: 'authenticated',
@@ -346,8 +398,9 @@ describe('tailored version next steps', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Save version/ }))
     const notice = await screen.findByText('Saved “Platform roles” to your versions.')
     const strip = notice.closest('.kit-notice') as HTMLElement
-    expect(within(strip).getByRole('button', { name: 'Preview' })).toBeTruthy()
-    expect(within(strip).getByRole('button', { name: 'Export PDF' })).toBeTruthy()
+    // The labels name the version: the bar's own "Export PDF" exports the working CV (cv-studio-F10).
+    expect(within(strip).getByRole('button', { name: 'Preview version' })).toBeTruthy()
+    expect(within(strip).getByRole('button', { name: 'Export this version' })).toBeTruthy()
     cleanup()
   })
 })
@@ -386,5 +439,16 @@ describe('section rows', () => {
     fireEvent.drop(rows[0], { dataTransfer: transfer })
     expect(screen.getByText('Skills moved to position 1 of 2.')).toBeTruthy()
     await waitFor(() => expect(lastPatch()?.sections.map((section: { id: string }) => section.id)).toEqual(['s2', 's1']), { timeout: 2500 })
+  })
+})
+
+describe('entry cards (cv-studio-F05)', () => {
+  it('names an entry with a row title, not a display heading, so a long name wraps beside its tools in two lines', async () => {
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Experience' }))
+    const card = within(panel()).getByRole('article', { name: 'Lead Designer' })
+    const title = within(card).getByRole('heading', { level: 3, name: 'Lead Designer' })
+    expect(title.closest('.kit-section')?.getAttribute('data-size')).toBe('xs')
+    expect(within(card).getByRole('button', { name: 'Delete Lead Designer' })).toBeTruthy()
   })
 })

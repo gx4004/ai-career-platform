@@ -15,12 +15,14 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
     to,
+    search,
     ...props
   }: {
     children: ReactNode
     to: string
+    search?: Record<string, string>
   } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a href={to} {...props}>
+    <a href={search ? `${to}?${new URLSearchParams(search)}` : to} {...props}>
       {children}
     </a>
   ),
@@ -90,7 +92,8 @@ describe('ResetPasswordPage reset-link privacy', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
 
-    expect((await screen.findByRole('alert')).textContent).toContain('72 UTF-8 bytes')
+    // Said without bcrypt jargon (sign-off public-G02).
+    expect((await screen.findByRole('alert')).textContent).toBe('Use at most 72 characters (fewer with accents or emoji).')
     expect(confirmPasswordResetMock).not.toHaveBeenCalled()
   })
 })
@@ -101,18 +104,45 @@ describe('ResetPasswordPage states', () => {
     window.history.replaceState({}, '', '/reset-password')
   })
 
-  it('explains a missing link and offers the way back as the one action', () => {
+  it('shows no guest pitch beside any state: the visitor already has an account', async () => {
+    const { container, unmount } = render(<ResetPasswordPage />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Invalid reset link' })).toBeTruthy()
+    expect(container.querySelector('.auth-aside')).toBeNull()
+    unmount()
+    window.history.replaceState({}, '', '/reset-password#token=fragment-token')
+    const form = render(<ResetPasswordPage />)
+    expect(screen.getByRole('heading', { name: 'Set a new password' })).toBeTruthy()
+    expect(form.container.querySelector('.auth-aside')).toBeNull()
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-1' } })
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'new-password-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Password updated' })).toBeTruthy()
+    expect(form.container.querySelector('.auth-aside')).toBeNull()
+  })
+
+  it('explains a missing link and offers a fresh link as the one action', () => {
     render(<ResetPasswordPage />)
     expect(screen.getByRole('heading', { level: 1, name: 'Invalid reset link' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Back to sign in' }).getAttribute('href')).toBe('/login')
+    // The next step is a new link, one press away (public-F04); the header Back still leads to sign in.
+    expect(screen.getByRole('link', { name: 'Request a new link' }).getAttribute('href')).toBe('/login?view=reset')
     expect(screen.getByRole('link', { name: 'Career Workbench home' }).getAttribute('href')).toBe('/')
+    // The header keeps the way out every shell-less page has (consistency-F10), and the state is the 404's open
+    // anatomy, not a die-cut box (consistency-F09).
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/login')
+    expect(screen.getByRole('heading', { level: 1, name: 'Invalid reset link' }).closest('.kit-empty')?.getAttribute('data-variant')).toBe('open')
+    // The local demo may send no email at all, so the page promises a new link, not an email (sign-off public-G14).
+    expect(screen.getByText('This reset link is missing or has expired. Request a new link to set your password.')).toBeTruthy()
+    expect(screen.queryByText(/email it to you/)).toBeNull()
+    // Opened straight from a link, the page keeps the browser's own start (the skip link): nothing replaced a form.
+    expect(document.activeElement).toBe(document.body)
   })
 
   it('shows the form under the brand, with a way back and the password toggle', () => {
     window.history.replaceState({}, '', '/reset-password#token=fragment-token')
     render(<ResetPasswordPage />)
     expect(screen.getByRole('link', { name: 'Career Workbench home' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Back to sign in/ }).getAttribute('href')).toBe('/login')
+    // The header's way out reads "Back", as on the sign-in and legal pages (consistency-F10).
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/login')
     const toggle = screen.getByRole('button', { name: 'Show password' })
     fireEvent.click(toggle)
     expect((screen.getByLabelText('New password') as HTMLInputElement).type).toBe('text')
@@ -138,6 +168,10 @@ describe('ResetPasswordPage states', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Password updated' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login')
+    // Both outcomes of the flow share the open anatomy of the invalid-link state, not the die-cut empty box (public-F03).
+    expect(screen.getByRole('heading', { level: 1, name: 'Password updated' }).closest('.kit-empty')?.getAttribute('data-variant')).toBe('open')
+    // The outcome replaced the form whose button had focus: focus moves to its heading, not the page body (public-G05).
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Password updated' }))
   })
 
   it('turns a token the server rejects into the invalid-link state, with the way back to request a new one', async () => {
@@ -149,9 +183,9 @@ describe('ResetPasswordPage states', () => {
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'new-password-1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Invalid reset link' })).toBeTruthy()
-    expect(screen.getByText(/expired or was already used/)).toBeTruthy()
-    expect(screen.getByText(/Forgot password\?/)).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Back to sign in' }).getAttribute('href')).toBe('/login')
+    expect(screen.getByText('This reset link has expired or was already used. Request a new link to set your password.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Request a new link' }).getAttribute('href')).toBe('/login?view=reset')
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Invalid reset link' }))
   })
 
   it('explains a short password under its field and takes a fresh link opened in the same tab', async () => {

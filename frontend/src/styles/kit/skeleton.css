@@ -77,6 +77,11 @@
   min-block-size: 0.75rem;
 }
 
+/* shape="circle": a round block for a round thing (an Avatar), so the shape does not snap when it loads. */
+.kit-skeleton--block[data-shape='circle'] > .kit-skeleton__bar {
+  border-radius: var(--r-pill);
+}
+
 /* Rows: the same box as a Row, 2px divider between them. As li inside a framed List the List brings the frame. */
 .kit-skeleton--rows {
   display: flex;
@@ -121,6 +126,55 @@
   border-radius: var(--r-sm);
 }
 
+/* The 60x52 box of a FitStamp (match rows), 52x48 where the stamp is its phone size. */
+.kit-skeleton__row > .kit-skeleton__leading--stamp {
+  inline-size: 60px;
+  block-size: 52px;
+  border-radius: var(--r-md);
+}
+
+@media (max-width: 639px) {
+  .kit-skeleton__row > .kit-skeleton__leading--stamp {
+    inline-size: 52px;
+    block-size: 48px;
+  }
+}
+
+/* Sticker plates: the sticker's radius and about its height, framed as every other skeleton is (STICKER 4.O: the frame
+   appears at once, the fill pulses inside; consistency-F30: borderless stone blobs were the one outline-less shape, and
+   the loaded stickers' ink outline snapped on around them). The --line frame is the framed row skeletons'; the loaded
+   sticker's shadow stays off while it loads. */
+.kit-skeleton--stickers {
+  display: grid;
+  gap: var(--s5);
+  min-width: 0;
+}
+
+.kit-skeleton__sticker {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  block-size: 7.5rem;
+  overflow: hidden;
+  border: var(--bw) solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+/* The fill pulses; the frame around it stays still. */
+.kit-skeleton__sticker::before {
+  position: absolute;
+  inset: 0;
+  background: var(--stone-soft);
+  content: '';
+  animation: kit-skeleton-pulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-skeleton__sticker::before {
+    animation: none;
+  }
+}
+
 .kit-skeleton__text {
   display: flex;
   flex: 1 1 0;
@@ -133,6 +187,69 @@
   flex: none;
   inline-size: 3.5rem;
   block-size: 0.75rem;
+}
+
+/* trailing="button": the box of an sm Button (Add, Continue) at the row's end. */
+.kit-skeleton__row > .kit-skeleton__trail--button {
+  inline-size: 7rem;
+  block-size: var(--kit-h-sm);
+  border-radius: var(--r-sm);
+}
+
+/* trailing="pips": a SkillPips run (ten 8px pips, 3px apart, 14px tall). */
+.kit-skeleton__row > .kit-skeleton__trail--pips {
+  inline-size: calc(10 * 8px + 9 * 3px);
+  block-size: 14px;
+  border-radius: 3px;
+}
+
+/* Skeleton narrowLines: some subtitle bars belong to one width only (a phone's wrapped title and dropped meta). */
+.kit-skeleton__line[data-only='narrow'] {
+  display: none;
+}
+
+@container kit-list (max-width: 31.9375rem) {
+  .kit-skeleton__line[data-only='narrow'] {
+    display: flex;
+  }
+
+  .kit-skeleton__line[data-only='wide'] {
+    display: none;
+  }
+}
+
+/* A narrow List (a phone): the real row's labelled button takes a line of its own under the text, so the
+   placeholder's does too, 12px under it and lined up with the text's start edge. */
+@container kit-list (max-width: 31.9375rem) {
+  .kit-skeleton__row[data-trailing='button'] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--s3) var(--s4);
+  }
+
+  .kit-skeleton__row[data-trailing='button']:not(:has(> .kit-skeleton__leading)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kit-skeleton__row[data-trailing='button'] > .kit-skeleton__leading {
+    grid-row: 1 / span 2;
+    align-self: start;
+  }
+
+  .kit-skeleton__row[data-trailing='button'] > :is(.kit-skeleton__text, .kit-skeleton__trail) {
+    grid-column: -2;
+  }
+
+  .kit-skeleton__row[data-trailing='button'] > .kit-skeleton__trail {
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  /* A match row (FitStamp in front): on a narrow List the real rows (Discover, the dashboard) sit the text 12px from
+     the stamp, so the placeholder's text starts there too. */
+  .kit-skeleton__row:has(> .kit-skeleton__leading--stamp) {
+    column-gap: var(--s3);
+  }
 }
 
 /* Cards: the same box as a Card holding a title line and a meta line. */

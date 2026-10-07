@@ -29,17 +29,23 @@ export function SealSection() {
         </div>
       </Group>
 
-      <Group title="Sizes: sm 170 (landing example), md 230 (closer), lg 220 (phones, 404)">
+      <Group title="Sizes: sm 170 (landing example), md 220 (phones, 404), lg 230 (closer)">
         <Row top>
           <Specimen label="sm, tangerine">
             <ScoreSeal value={84} label="Example score sm" size="sm" />
           </Specimen>
-          <Specimen label="md, lemon">
-            <ScoreSeal value={84} label="Example score md" size="md" tone="lemon" />
+          <Specimen label="md, tangerine">
+            <ScoreSeal value={77} label="Example score md" size="md" />
           </Specimen>
-          <Specimen label="lg, tangerine">
-            <ScoreSeal value={77} label="Example score lg" size="lg" />
+          <Specimen label="lg, lemon">
+            <ScoreSeal value={84} label="Example score lg" size="lg" tone="lemon" />
           </Specimen>
+        </Row>
+      </Group>
+
+      <Group title="Small: 132 (the landing closer on phones). The /100 holds the 12px text floor instead of shrinking to 9.9px">
+        <Row top>
+          <ScoreSeal value={84} label="Example score 132" size={132} tone="lemon" />
         </Row>
       </Group>
 

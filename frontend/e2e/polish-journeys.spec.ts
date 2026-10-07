@@ -136,6 +136,8 @@ test.describe('Discovery hand-offs', () => {
     const jobTitle = (await firstCard.getByRole('heading').first().textContent())?.trim() ?? ''
 
     await firstCard.getByRole('button', { name: 'Add to applications' }).click()
+    // Add keeps you on Discover (consistency-F20, as on the dashboard): the row flips to "View application".
+    await firstCard.getByRole('link', { name: `View application for ${jobTitle}` }).click({ timeout: 15_000 })
     await page.waitForURL(/\/campaigns\/[^/]+$/, { timeout: 15_000 })
 
     // Prepare drafts through the shared pipeline (deterministic AI in E2E).

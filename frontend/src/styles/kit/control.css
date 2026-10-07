@@ -34,6 +34,8 @@
   font-size: var(--kit-control-fs);
   font-weight: var(--fw-medium);
   line-height: var(--kit-control-lh);
+  /* A control never takes on the tracking of the heading it sits in (the rename field inside a page title). */
+  letter-spacing: normal;
   transition: background-color var(--dur-1) var(--ease-out);
 }
 
@@ -297,6 +299,12 @@
   min-height: 0;
   resize: none;
   overflow-y: hidden;
+}
+
+/* Prose: reading-length text (a letter) at 17/1.6. Two classes' weight, so it also holds under the touch rule below. */
+.kit-textarea[data-prose] {
+  --kit-control-fs: 1.0625rem;
+  line-height: 1.6;
 }
 
 .kit-textarea[data-capped] {

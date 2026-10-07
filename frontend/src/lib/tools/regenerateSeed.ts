@@ -71,11 +71,13 @@ export async function seedRegenerate(item: ToolRunDetail, toolId: ToolId): Promi
   if (newest && resumeText.length >= 50) {
     update.resumeText = resumeText
     update.resumeSource = `your CV Studio CV “${newest.name}”`
+    update.resumeOrigin = 'cv-studio'
   }
   const listing = application?.listing
   if (listing?.description.trim()) {
     update.jobDescription = `${listing.title} at ${listing.company}\n\n${listing.description.trim()}`
     update.jobSource = 'the job description saved with its application'
+    update.jobOrigin = 'application'
   }
   try {
     writeWorkflowContext(update)

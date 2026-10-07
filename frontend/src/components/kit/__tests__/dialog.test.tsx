@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  focusFieldOnOpen,
 } from '#/components/kit'
 
 function Basic({ size, dismissible }: { size?: 'sm' | 'md' | 'lg'; dismissible?: boolean }) {
@@ -70,6 +71,45 @@ describe('kit Dialog', () => {
     expect(screen.getByRole('dialog').getAttribute('data-size')).toBe('md')
   })
 
+  it('is centred by default and can be anchored near the top, so a body that changes height never moves it', () => {
+    const { unmount } = render(<Basic />)
+    open()
+    expect(screen.getByRole('dialog').hasAttribute('data-placement')).toBe(false)
+    unmount()
+
+    render(
+      <Dialog defaultOpen>
+        <DialogContent placement="top" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Step 1 of 5</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>,
+    )
+    expect(screen.getByRole('dialog').getAttribute('data-placement')).toBe('top')
+  })
+
+  it('stacks footer buttons on phones by default, and keeps a stepper footer on one row with phoneLayout="row"', () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent placement="top" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Step 2 of 5</DialogTitle>
+          </DialogHeader>
+          <DialogFooter data-testid="default-footer">
+            <Button>Save</Button>
+          </DialogFooter>
+          <DialogFooter data-testid="row-footer" phoneLayout="row">
+            <Button variant="secondary">Back</Button>
+            <Button>Continue</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    )
+    expect(screen.getByTestId('default-footer').hasAttribute('data-phone-layout')).toBe(false)
+    expect(screen.getByTestId('row-footer').getAttribute('data-phone-layout')).toBe('row')
+  })
+
   it('portals to the body and locks page scroll while open', () => {
     const { container } = render(<Basic />)
     open()
@@ -108,6 +148,76 @@ describe('kit Dialog', () => {
     render(<Basic />)
     open()
     await waitFor(() => expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true))
+  })
+
+  it('starts on its first field with a mouse, but on the panel itself on a touch screen (no keyboard over the dialog)', async () => {
+    render(<Basic />)
+    open()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Name' })))
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    const coarse = (query: string) => ({
+      matches: /pointer:\s*coarse/.test(query),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })
+    vi.stubGlobal('matchMedia', coarse)
+    try {
+      open()
+      const dialog = screen.getByRole('dialog')
+      await waitFor(() => expect(document.activeElement).toBe(dialog))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('on a touch screen still starts on a first button (nothing raises a keyboard)', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: /pointer:\s*coarse/.test(query), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    try {
+      render(
+        <Dialog defaultOpen>
+          <DialogContent aria-describedby={undefined} showClose={false}>
+            <DialogTitle>Pick one</DialogTitle>
+            <DialogFooter>
+              <Button>Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>,
+      )
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Done' })))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  // consistency-F24: a dialog that picks its own starting field (the first empty one, a sign-in email) keeps the kit's
+  // touch rule through focusFieldOnOpen: that field with a mouse, the panel on a touch screen.
+  it('focusFieldOnOpen starts on the chosen field with a mouse and on the panel on a touch screen', async () => {
+    const Picked = () => (
+      <Dialog defaultOpen>
+        <DialogContent
+          aria-describedby={undefined}
+          onOpenAutoFocus={(event) => focusFieldOnOpen(event, (event.target as HTMLElement).querySelector<HTMLElement>('[name="second"]'))}
+        >
+          <DialogTitle>Two fields</DialogTitle>
+          <input aria-label="First" name="first" />
+          <input aria-label="Second" name="second" />
+        </DialogContent>
+      </Dialog>
+    )
+    const view = render(<Picked />)
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Second' })))
+    view.unmount()
+
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: /pointer:\s*coarse/.test(query), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    try {
+      render(<Picked />)
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('dialog')))
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('does not close on Escape, outside click or X when dismissible is false', async () => {

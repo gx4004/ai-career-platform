@@ -86,6 +86,7 @@ import type {
   CvDocumentUpdate,
   CvImportProposal,
   WorkspaceUpdate,
+  ApplicationDetail,
   ApplicationUpdate,
   ApplicationDetailsUpdate,
   ApplicationPreferencesUpdate,
@@ -171,8 +172,9 @@ export async function fetchCvArtifactBlob(documentId: string, format: 'docx' | '
   return blob
 }
 
-export function tailorCvDocument(documentId: string, payload: { job_title: string; job_description: string }) {
-  return request(`/cv-documents/${documentId}/tailoring`, { method: 'POST', body: payload, schema: cvTailoringProposalSchema })
+/** `signal`: the user closed the dialog while it worked (the server has already counted the run). */
+export function tailorCvDocument(documentId: string, payload: { job_title: string; job_description: string }, options: { signal?: AbortSignal } = {}) {
+  return request(`/cv-documents/${documentId}/tailoring`, { method: 'POST', body: payload, schema: cvTailoringProposalSchema, signal: options.signal })
 }
 
 export function applyCvTailoring(documentId: string, payload: unknown) {
@@ -351,6 +353,14 @@ export async function request<T>(
   path: string,
   options: RequestOptions<T> = {},
 ): Promise<T> {
+  return (await requestWithStatus(path, options)).data
+}
+
+/** `request`, plus the HTTP status of the success: for endpoints whose 200 and 201 mean different things. */
+async function requestWithStatus<T>(
+  path: string,
+  options: RequestOptions<T> = {},
+): Promise<{ data: T; status: number }> {
   const { schema, timeoutMs = DEFAULT_TIMEOUT_MS, ...init } = options
   const headers = new Headers(init.headers || {})
   const body = normalizeBody(init.body as RequestInit['body'])
@@ -378,14 +388,14 @@ export async function request<T>(
     // that no longer matches the schema is a backend/frontend contract drift,
     // not a 4xx; surface it as 502 so users see "service issue" not "bad input".
     try {
-      return schema.parse(parsed)
+      return { data: schema.parse(parsed), status: response.status }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid response shape'
       throw new ApiError('Server returned an unexpected response', 502, message)
     }
   }
 
-  return parsed as T
+  return { data: parsed as T, status: response.status }
 }
 
 /** A file the signed-in cookie unlocks (PDF, DOCX), with the name the server suggested for it. */
@@ -549,13 +559,18 @@ export function startDiscoveryDeepMatch(listingId: string) {
 }
 
 // One explicit user action turns a visible recommendation into a saved
-// application carrying the listing, its apply link and retrieval date.
-export function adoptDiscoveryRecommendation(listingId: string) {
-  return request(`/discovery/recommendations/${listingId}/adopt`, {
+// application carrying the listing, its apply link and retrieval date. The call
+// is idempotent: 201 when this request created the application, 200 with the one
+// that already existed. `created` is what licenses an Undo (which deletes it).
+export async function adoptDiscoveryRecommendation(
+  listingId: string,
+): Promise<{ application: ApplicationDetail; created: boolean }> {
+  const { data, status } = await requestWithStatus(`/discovery/recommendations/${listingId}/adopt`, {
     method: 'POST',
     body: {},
     schema: applicationDetailSchema,
   })
+  return { application: data, created: status === 201 }
 }
 
 // R14 #175 listing dismissals. Every write is owner-scoped server-side.

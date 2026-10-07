@@ -22,8 +22,8 @@ const SEAL_PATH = sealPath(110, 110, 93, 5, 18)
 export type SealSize = 'sm' | 'md' | 'lg' | 'xl'
 export type SealTone = 'tangerine' | 'lemon' | 'mint' | 'lilac' | 'rose' | 'stone'
 
-/** sm is the landing example card, md the landing closer, lg a phone or the 404 page, xl the result hero. */
-const SIZES: Record<SealSize, number> = { sm: 170, md: 230, lg: 220, xl: 300 }
+/** The ladder only grows: sm the landing example card, md a phone or the 404 page, lg the landing closer, xl the result hero. */
+const SIZES: Record<SealSize, number> = { sm: 170, md: 220, lg: 230, xl: 300 }
 
 export type ScoreSealProps = Omit<ComponentPropsWithoutRef<'dl'>, 'children'> & {
   /** A score 0..max, or a short text such as "404" or "!". null renders the "not available" seal. */

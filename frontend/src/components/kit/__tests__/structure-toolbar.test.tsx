@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { Checkbox, Input, Pagination, Select, Toolbar, pageItems } from '#/components/kit'
@@ -61,6 +61,9 @@ describe('kit Toolbar', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Remote only' }))
     const button = screen.getByRole('button', { name: 'Filters, 2 active' })
     expect(button.querySelector('.kit-count')?.textContent).toBe('2')
+    // The visible word is its own element so a 320px phone can drop it (icon + count stay; the name is the aria-label),
+    // giving the search beside it room for its placeholder (account-admin-F22).
+    expect(button.querySelector('.kit-toolbar__filters-word')?.textContent).toBe('Filters')
   })
 
   it('opens a Filters sheet holding the same controls, in the same state', async () => {
@@ -93,6 +96,46 @@ describe('kit Toolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(onClear).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+  })
+
+  it('marks Clear filters as starting a line when it wraps under the filters (it then drops its start margin)', () => {
+    const box = (top: number, height: number, width = 100) => ({ top, bottom: top + height, left: 0, right: width, width, height, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    const layout = { clearTop: 0 }
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('kit-toolbar__clear')) return box(layout.clearTop, 36)
+      if (this.classList.contains('kit-toolbar__filters')) return box(0, 44)
+      // Everything else (the phone-only Filters button among them) is not laid out.
+      return box(0, 0, 0)
+    })
+    try {
+      const { rerender } = render(<Toolbar filters={<Checkbox framed label="Remote only" checked onCheckedChange={() => {}} />} activeFilters={1} onClearFilters={() => {}} />)
+      const clear = screen.getByRole('button', { name: 'Clear filters' })
+      // Same line as the filters.
+      expect(clear.hasAttribute('data-line-start')).toBe(false)
+      layout.clearTop = 56
+      rerender(<Toolbar filters={<Checkbox framed label="Remote only" checked onCheckedChange={() => {}} />} activeFilters={2} onClearFilters={() => {}} />)
+      expect(clear.hasAttribute('data-line-start')).toBe(true)
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('describes the Filters sheet as narrowing, and as sorting only when it holds a sort (history-profile-F33)', async () => {
+    const describe = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+      const sheet = await screen.findByRole('dialog')
+      return document.getElementById(sheet.getAttribute('aria-describedby') as string)?.textContent
+    }
+    const { unmount } = render(<Toolbar filters={<Checkbox framed label="Remote only" checked={false} onCheckedChange={() => {}} />} />)
+    expect(await describe()).toBe('Narrow the list.')
+    unmount()
+    render(
+      <Toolbar
+        filters={<Checkbox framed label="Remote only" checked={false} onCheckedChange={() => {}} />}
+        sort={<Select aria-label="Sort"><option>Newest</option></Select>}
+      />,
+    )
+    expect(await describe()).toBe('Narrow and sort the list.')
   })
 
   it('has no Filters button when there are no filters or sort', () => {
@@ -173,6 +216,36 @@ describe('kit Pagination', () => {
     expect(screen.queryByRole('button', { name: /^Page \d/ })).toBeNull()
     expect(screen.getByText('Page 2 of 9')).toBeTruthy()
     expect(screen.getByText('Showing 21 to 40 of 134')).toBeTruthy()
+  })
+
+  it('brings the list it pages back into view when its top has scrolled away (scrollTarget, AA-F08)', () => {
+    function Paged() {
+      const list = useRef<HTMLDivElement>(null)
+      const [page, setPage] = useState(1)
+      return (
+        <>
+          <div ref={list} data-testid="list">
+            Page {page} rows
+          </div>
+          <Pagination variant="simple" page={page} pageCount={9} onPageChange={setPage} scrollTarget={list} />
+        </>
+      )
+    }
+    render(<Paged />)
+    const list = screen.getByTestId('list')
+    const scrollIntoView = vi.fn()
+    list.scrollIntoView = scrollIntoView
+    // Scrolled to the bottom of a long page: the list's top is above the viewport.
+    list.getBoundingClientRect = () => ({ top: -3200 }) as DOMRect
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }))
+    expect(list.textContent).toBe('Page 2 rows')
+    expect(scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: 'start' }))
+
+    // The top is already on screen (a short list on a desktop): nothing moves.
+    scrollIntoView.mockClear()
+    list.getBoundingClientRect = () => ({ top: 120 }) as DOMRect
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }))
+    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
   it('numbered variant also carries "Page x of y" (shown on phones in place of the numbers)', () => {

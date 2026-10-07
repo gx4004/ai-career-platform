@@ -19,9 +19,10 @@ import {
   RowLeading,
   RowSubtitle,
   RowTitle,
+  Stack,
   ToolTile,
 } from '#/components/kit'
-import { toolList } from '#/lib/tools/registry'
+import { toolList, tools, type ToolId } from '#/lib/tools/registry'
 
 type OnboardingGoal = 'job-search' | 'career-change' | 'interview-prep'
 
@@ -44,6 +45,13 @@ const goals: Array<{ id: OnboardingGoal; label: string; description: string }> =
 ]
 
 const TOTAL_STEPS = 5
+
+/** The welcome's body: the six tools as three things you get (the steps all share one height on a phone). */
+const welcomeLines = [
+  { title: 'Score your resume', detail: 'And see the fixes that move it most.' },
+  { title: 'Match it to a job', detail: 'Then write the cover letter and prepare for the interview.' },
+  { title: 'Plan what comes next', detail: 'A career path, and projects for the skills you are missing.' },
+]
 
 export function OnboardingDialog({
   open,
@@ -87,40 +95,45 @@ export function OnboardingDialog({
     if (step > 0) setStep(step - 1)
   }
 
+  const startTool: ToolId =
+    selectedGoal === 'interview-prep' ? 'interview' : selectedGoal === 'career-change' ? 'career' : 'resume'
   const recommendation =
     selectedGoal === 'interview-prep'
-      ? 'We recommend starting with Interview Q&A to practice structured answers.'
+      ? 'We suggest starting with Interview Q&A to practice structured answers.'
       : selectedGoal === 'career-change'
-        ? 'We recommend starting with Career Path to explore new directions.'
-        : 'We recommend starting with Resume Analyzer to build your workflow foundation.'
+        ? 'We suggest starting with Career Path to compare the directions open to you.'
+        : 'We suggest starting with Resume Analyzer: a score, and the fixes that move it most.'
 
   const copy = [
     {
       title: 'Welcome to Career Workbench',
-      description:
-        'Your AI-powered career suite that connects resume analysis, job matching, and application prep into one focused workflow.',
+      description: 'Six tools that work from your resume: score it, match it to a job, plan, write and prepare.',
     },
     {
       title: 'Start with your resume',
-      description:
-        'Upload your CV to unlock the full power of the workflow. Every tool builds on your resume data.',
+      description: 'Every tool reads your resume, so add it first.',
     },
     {
       title: 'Choose your goal',
-      description: 'Select your primary use case so we can recommend the best starting point.',
+      description: 'Pick what you are working on, and we suggest where to start.',
     },
     {
       title: 'Explore your tools',
-      description:
-        'Six AI-powered tools line up as one connected workflow, from resume foundation into application prep and planning.',
+      description: 'Each tool can start from your resume and from the last result, so the work carries from one to the next.',
     },
     { title: "You're all set!", description: recommendation },
   ][step]
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // Closing it any other way (Esc, the X, the scrim) is a skip: the tour is answered and never comes back by itself.
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : onSkip())}>
+      {/* Anchored to the top: the steps differ in height, and a re-centred dialog would move Continue every step.
+          The corner X is the skip (closing is a skip, see above); on the last step there is nothing left to skip. */}
       <DialogContent
         size="md"
+        placement="top"
+        className="onboarding-dialog"
+        closeLabel={step === TOTAL_STEPS - 1 ? 'Close' : 'Skip tour'}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           nextRef.current?.focus()
@@ -138,10 +151,28 @@ export function OnboardingDialog({
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
 
+        {step === 0 ? (
+          <DialogBody>
+            <List aria-label="What you get">
+              {welcomeLines.map((line, index) => (
+                <Row key={line.title}>
+                  <RowLeading>
+                    <NumberDisc n={index + 1} size="sm" />
+                  </RowLeading>
+                  <RowBody>
+                    <RowTitle>{line.title}</RowTitle>
+                    <RowSubtitle>{line.detail}</RowSubtitle>
+                  </RowBody>
+                </Row>
+              ))}
+            </List>
+          </DialogBody>
+        ) : null}
+
         {step === 1 ? (
           <DialogBody>
-            <Notice title="PDF or text" icon={false}>
-              Upload a PDF or paste your resume text in the Resume Analyzer.
+            <Notice title="PDF, DOCX or text" icon={false}>
+              Upload a PDF or DOCX, or paste the text, in the Resume Analyzer.
             </Notice>
           </DialogBody>
         ) : null}
@@ -179,10 +210,27 @@ export function OnboardingDialog({
           </DialogBody>
         ) : null}
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" className="onboarding__skip" onClick={onSkip}>
-            Skip tour
-          </Button>
+        {step === TOTAL_STEPS - 1 ? (
+          <DialogBody>
+            <Stack gap={4}>
+              <List aria-label="Where you start">
+                <Row>
+                  <RowLeading>
+                    <ToolTile tone={tools[startTool].tone} icon={tools[startTool].icon} size="md" />
+                  </RowLeading>
+                  <RowBody>
+                    <RowTitle>{tools[startTool].label}</RowTitle>
+                    <RowSubtitle>{tools[startTool].summary}</RowSubtitle>
+                  </RowBody>
+                </Row>
+              </List>
+              <Notice icon={false}>You can replay this tour from Settings.</Notice>
+            </Stack>
+          </DialogBody>
+        ) : null}
+
+        {/* Back and Continue only, side by side on a phone too: a third row of buttons took the room of the lists. */}
+        <DialogFooter phoneLayout="row">
           {step > 0 ? (
             <Button type="button" variant="secondary" onClick={back}>
               Back

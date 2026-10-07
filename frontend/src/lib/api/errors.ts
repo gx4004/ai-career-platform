@@ -91,6 +91,37 @@ function isReadable(text: string | undefined | null): text is string {
   return Boolean(trimmed) && trimmed.length <= 300 && !RAW_PATTERNS.some((pattern) => pattern.test(trimmed))
 }
 
+/**
+ * The server's words as a sentence: trimmed, with a full stop when they end without closing punctuation
+ * ("Invalid email or password" reads like every other message the forms write). A link or a path ending in
+ * "/" is left alone so it is never broken by a stray stop.
+ */
+function asSentence(text: string): string {
+  const trimmed = text.trim()
+  return /[\p{L}\p{N})"'\u201D\u2019]$/u.test(trimmed) ? `${trimmed}.` : trimmed
+}
+
+/** The password rules in plain words: bcrypt's 72-byte bound and the UTF-8 check (client schema and server alike). */
+export const PASSWORD_COPY = {
+  tooLong: 'Use at most 72 characters (fewer with accents or emoji).',
+  encoding: 'Use only standard characters.',
+} as const
+
+/** Pydantic's and our server's own wording for a rule, said the way the client's checks say it. */
+const SERVER_PHRASES: ReadonlyArray<readonly [RegExp, (match: RegExpExecArray) => string]> = [
+  [/^String should have at (least|most) (\d+) characters?$/i, (m) => `Use at ${m[1].toLowerCase()} ${m[2]} character${m[2] === '1' ? '' : 's'}.`],
+  [/^Password must be at most 72 UTF-8 bytes\.?$/i, () => PASSWORD_COPY.tooLong],
+  [/must be valid UTF-8\.?$/i, () => PASSWORD_COPY.encoding],
+]
+
+function plainServerPhrase(text: string): string {
+  for (const [pattern, say] of SERVER_PHRASES) {
+    const match = pattern.exec(text)
+    if (match) return say(match)
+  }
+  return text
+}
+
 const FIELD_MESSAGES: Record<string, string> = {
   email: 'Enter a valid email address.',
   url: 'Enter a full link starting with https://',
@@ -101,7 +132,11 @@ function fieldLabel(field: string): string {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : ''
 }
 
-/** FastAPI's 422 list, read as one sentence per field. Input values are never echoed back (main.py strips them). */
+/**
+ * FastAPI's 422 list, read as one sentence per field. Input values are never echoed back (main.py strips them).
+ * A field's own message shows under that field, so it does not repeat the field's name; the one-line summary
+ * (`message`, for a form that has no slot for the field) keeps it ("Full name: Use at most 200 characters.").
+ */
 function readValidationDetail(detail: unknown[]): { message: string; fields: Record<string, string> } {
   const fields: Record<string, string> = {}
   let first = ''
@@ -112,13 +147,20 @@ function readValidationDetail(detail: unknown[]): { message: string; fields: Rec
     const field = String(
       [...path].reverse().find((part) => typeof part === 'string' && !['body', 'query', 'path', 'header', 'cookie'].includes(part)) ?? '',
     )
-    const text = (typeof msg === 'string' ? msg : '').replace(/^(Value error|Assertion failed),\s*/i, '').trim()
-    let message: string
-    if (FIELD_MESSAGES[field] && /email|url/i.test(`${String(type ?? '')} ${text}`)) message = FIELD_MESSAGES[field]
-    else if (field && text) message = `${fieldLabel(field)}: ${text}`
-    else message = isReadable(text) ? text : COPY.validation
-    if (field && !fields[field]) fields[field] = message
-    first ||= message
+    const raw = (typeof msg === 'string' ? msg : '').replace(/^(Value error|Assertion failed),\s*/i, '').trim()
+    const text = plainServerPhrase(raw)
+    let fieldMessage: string
+    let summary: string
+    if (FIELD_MESSAGES[field] && /email|url/i.test(`${String(type ?? '')} ${raw}`)) {
+      fieldMessage = summary = FIELD_MESSAGES[field]
+    } else if (field && isReadable(text)) {
+      fieldMessage = asSentence(text)
+      summary = asSentence(`${fieldLabel(field)}: ${text}`)
+    } else {
+      fieldMessage = summary = isReadable(text) ? asSentence(text) : COPY.validation
+    }
+    if (field && !fields[field]) fields[field] = fieldMessage
+    first ||= summary
   }
   return { message: first || COPY.validation, fields }
 }
@@ -160,7 +202,7 @@ export function apiErrorFromResponse(status: number, parsed: unknown, headers?: 
   }
 
   if (!message) {
-    if (isReadable(serverText)) message = serverText
+    if (isReadable(serverText)) message = asSentence(serverText)
     else if (status === 502 || status === 503 || status === 504) message = COPY.unavailable
     else if (status >= 500) message = COPY.server
     else if (status === 422 || status === 400) message = COPY.validation
@@ -180,17 +222,29 @@ type ZodLikeIssue = {
   maximum?: unknown
 }
 
-/** Zod's own wording for a bound ("Too small: expected string to have >=8 characters"), said for a person. */
-function boundMessage(field: string, issue: ZodLikeIssue): string {
+/**
+ * Zod's own wording for a bound ("Too small: expected string to have >=8 characters"), said for a person: the
+ * summary names the field ("Full name must be at most 200 characters."); under the field itself a length reads
+ * like the server's ("Use at most 200 characters."), without repeating the field's name.
+ */
+function boundMessage(field: string, issue: ZodLikeIssue): { summary: string; field: string } {
   const label = fieldLabel(field)
-  const unit = issue.origin === 'string' ? ' characters' : ''
-  if (label && issue.code === 'too_small' && typeof issue.minimum === 'number') {
-    return `${label} must be at least ${issue.minimum}${unit}.`
+  const bound =
+    issue.code === 'too_small' && typeof issue.minimum === 'number'
+      ? (['least', issue.minimum] as const)
+      : issue.code === 'too_big' && typeof issue.maximum === 'number'
+        ? (['most', issue.maximum] as const)
+        : null
+  if (!label || !bound) return { summary: COPY.validation, field: COPY.validation }
+  const [side, limit] = bound
+  if (issue.origin !== 'string') {
+    const sentence = `${label} must be at ${side} ${limit}.`
+    return { summary: sentence, field: sentence }
   }
-  if (label && issue.code === 'too_big' && typeof issue.maximum === 'number') {
-    return `${label} must be at most ${issue.maximum}${unit}.`
+  return {
+    summary: `${label} must be at ${side} ${limit} characters.`,
+    field: `Use at ${side} ${limit} character${limit === 1 ? '' : 's'}.`,
   }
-  return COPY.validation
 }
 
 /** The client's own validation, read like a server 422 would be: one sentence, field messages. */
@@ -200,9 +254,13 @@ export function apiErrorFromZod(error: { issues: ZodLikeIssue[] }): ApiError {
   for (const issue of error.issues) {
     const field = String(issue.path[0] ?? '')
     const authored = !/^(Too (small|big): expected|Invalid (input|email|url|string|format))/i.test(issue.message)
-    const message = authored ? issue.message : (FIELD_MESSAGES[field] ?? boundMessage(field, issue))
-    if (field && !fields[field]) fields[field] = message
-    first ||= message
+    const said = authored
+      ? { summary: issue.message, field: issue.message }
+      : FIELD_MESSAGES[field]
+        ? { summary: FIELD_MESSAGES[field], field: FIELD_MESSAGES[field] }
+        : boundMessage(field, issue)
+    if (field && !fields[field]) fields[field] = said.field
+    first ||= said.summary
   }
   return new ApiError(first || COPY.validation, 422, undefined, { fields, cause: error })
 }

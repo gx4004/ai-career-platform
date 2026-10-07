@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, Check, EyeOff, FileText, MoreHorizontal, Plus, Search } from 'lucide-react'
+import { ArrowUpRight, Check, CircleAlert, Compass, EyeOff, FileText, MoreHorizontal, Plus, Search } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -53,10 +53,13 @@ import {
 } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
 import type { DiscoveryDeepMatch, DiscoveryListing } from '#/lib/api/schemas'
+import { SignInGate } from '#/components/auth/SignInGate'
 import { HiddenJobsSheet } from '#/components/discovery/HiddenJobsSheet'
 import { hiddenJobsQuery } from '#/components/discovery/hiddenJobs'
+import { useAddToApplicationsToast } from '#/components/discovery/useAddToApplications'
 import { FitReasons, JobMeta, SkillTally } from '#/components/discovery/JobParts'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
+import { useSession } from '#/hooks/useSession'
 import { invalidateApplications } from '#/lib/query/applicationCaches'
 import {
   DISCOVERY_LISTINGS_KEY as LISTINGS_KEY,
@@ -103,10 +106,28 @@ function useDebounced<T>(value: T, delay = 300): T {
   return debounced
 }
 
+/** Discover, for a signed-in person; a guest gets the same in-page sign-in gate as every signed-in-only page. */
 export function DiscoveryPage() {
+  const { status } = useSession()
+  if (status === 'guest') {
+    return (
+      <SignInGate
+        pageTitle="Discover jobs"
+        icon={<Compass aria-hidden="true" />}
+        title="Sign in to discover jobs"
+        description="Open jobs, scored against the skills in your profile. Add the ones you like to Applications."
+        to="/discovery"
+      />
+    )
+  }
+  return <DiscoveryWorkspace />
+}
+
+function DiscoveryWorkspace() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { toast, dismiss } = useToast()
+  const announceAdded = useAddToApplicationsToast('discovery-added')
   const resultsRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const pendingScroll = useRef(false)
@@ -177,10 +198,17 @@ export function DiscoveryPage() {
   })
   // The job the "Hid … Undo" toast is about: restoring that job (and only that one) from Hidden closes it.
   const hiddenToastListingId = useRef<string | null>(null)
+  // The row a hide removes takes focus with it (F33): once the list has refreshed without it, focus goes to the job
+  // that took its place (or the one before it, or the empty state's next step).
+  const refocusAfterHide = useRef<{ listingId: string; index: number } | null>(null)
   const hide = useMutation({
     mutationFn: (listing: DiscoveryListing) => dismissDiscoveryRecommendation(listing.listing_id),
     retry: false,
     onSuccess: (_result, listing) => {
+      refocusAfterHide.current = {
+        listingId: listing.listing_id,
+        index: Math.max(0, (listings.data?.items ?? []).findIndex((item) => item.listing_id === listing.listing_id)),
+      }
       if (openListing?.listing_id === listing.listing_id) setOpenListing(null)
       hiddenToastListingId.current = listing.listing_id
       toast({
@@ -194,17 +222,45 @@ export function DiscoveryPage() {
       refresh()
     },
   })
+  // After an add or its undo, the control that replaced the one used ("View application", or Add again) takes focus
+  // when focus fell with it (to the page, the drawer, or the toast that just closed); never when the person moved on.
+  const refocusAdopt = useRef<{ listingId: string; control: 'add' | 'view' } | null>(null)
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
     // A refused or failed request is shown, not repeated behind the person's back.
     retry: false,
-    onSuccess: (application, listingId) => {
+    // Stay here, like the dashboard's Add (consistency-F20): several jobs can be added in a row. The row (and the
+    // drawer) flip to "View application" at once, and the toast offers the application and Undo.
+    onSuccess: ({ application, created }, listingId) => {
       // The list remembers it: coming back shows "Added", never "Add" again.
       queryClient.setQueriesData({ queryKey: LISTINGS_KEY }, (current) => markAdded(current, listingId, application.id))
       void invalidateApplications(queryClient)
-      toast({ tone: 'success', title: 'Added to your applications', description: application.title ?? undefined })
-      navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } })
+      // The Add that was used is gone: focus follows to the "View application" that replaced it (when it was there).
+      const active = document.activeElement
+      if (!active || active === document.body || active.closest(`[data-adopt-listing="${listingId}"]`) || active.matches('[role="dialog"]')) {
+        refocusAdopt.current = { listingId, control: 'view' }
+      }
+      announceAdded(application, {
+        created,
+        onUndone: () => {
+          queryClient.setQueriesData({ queryKey: LISTINGS_KEY }, (current) => markAdded(current, listingId, null))
+          refocusAdopt.current = { listingId, control: 'add' }
+          refresh()
+        },
+      })
     },
+  })
+  useLayoutEffect(() => {
+    const pending = refocusAdopt.current
+    if (!pending) return
+    // The open drawer is where the add happened; otherwise the row in the list.
+    const scope = openListing ? document.querySelector<HTMLElement>('.disc-drawer') : listRef.current
+    const target = scope?.querySelector<HTMLElement>(`[data-adopt-listing="${pending.listingId}"][data-adopt-control="${pending.control}"]`)
+    if (!target) return
+    refocusAdopt.current = null
+    const active = document.activeElement
+    const free = !active || active === document.body || active.matches('[role="dialog"]') || Boolean(active.closest('.kit-toast'))
+    if (free) target.focus()
   })
   const openDeepMatch = (historyId: string) =>
     navigate({ to: '/job-match/result/$historyId', params: { historyId } })
@@ -246,6 +302,9 @@ export function DiscoveryPage() {
     writeWorkflowContext({
       targetRole: listing.title,
       jobDescription: `${listing.title} at ${listing.company}\n\n${description}`,
+      roleOrigin: 'discover',
+      jobOrigin: 'discover',
+      jobSource: undefined,
       // Tells CV Studio to open its tailor dialog prefilled on arrival (#324).
       tailorPending: true,
       updatedAt: Date.now(),
@@ -254,6 +313,21 @@ export function DiscoveryPage() {
   }
 
   const items = data?.items ?? []
+  useEffect(() => {
+    const pending = refocusAfterHide.current
+    if (!pending || listings.isPlaceholderData || items.some((item) => item.listing_id === pending.listingId)) return
+    refocusAfterHide.current = null
+    const frame = requestAnimationFrame(() => {
+      // Only when focus went with the row: never pull it from wherever the person has since gone.
+      if (document.activeElement && document.activeElement !== document.body) return
+      const next = items[Math.min(pending.index, items.length - 1)]
+      const target = next
+        ? [...(listRef.current?.querySelectorAll<HTMLElement>('[data-listing-id]') ?? [])].find((title) => title.dataset.listingId === next.listing_id)
+        : resultsRef.current?.querySelector<HTMLElement>('.kit-empty button') ?? listRef.current
+      target?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [items, listings.isPlaceholderData])
   const companies = firstPage.data?.companies ?? []
   const hasEvidence = data?.has_evidence ?? false
   const activeFilterCount = [
@@ -288,8 +362,11 @@ export function DiscoveryPage() {
   }
 
   const count = data
-    ? `${formatCount(data.total)} ${filtered ? (data.total === 1 ? 'match' : 'matches') : data.total === 1 ? 'open job' : 'open jobs'}`
-      + (data.total > 0 && !hasEvidence ? ' · newest first' : '')
+    ? data.total === 0 && !filtered && hiddenCount > 0
+      // Every job is hidden: they are still open, so "0 open jobs" would be false (F40).
+      ? `0 to show · ${formatCount(hiddenCount)} hidden`
+      : `${formatCount(data.total)} ${filtered ? (data.total === 1 ? 'match' : 'matches') : data.total === 1 ? 'open job' : 'open jobs'}`
+        + (data.total > 0 && !hasEvidence ? ' · newest first' : '')
     : listings.isPending ? 'Loading jobs…' : undefined
 
   const headerAction = (
@@ -308,7 +385,8 @@ export function DiscoveryPage() {
       <Button asChild size="sm" variant="secondary"><Link to="/campaigns">My applications</Link></Button>
     </Cluster>
   )
-  const showCallout = data !== undefined && !hasEvidence && !calloutDismissed
+  // Fit scores explained only over jobs to score: with no rows it pushed the empty state below a phone's fold (F40).
+  const showCallout = data !== undefined && items.length > 0 && !hasEvidence && !calloutDismissed
   const dismissCallout = () => {
     setCalloutDismissed(true)
     writeCalloutDismissed()
@@ -407,11 +485,12 @@ export function DiscoveryPage() {
           <>
             <p className="kit-sr-only" role="status">Loading jobs</p>
             <List aria-label="Jobs" aria-busy="true" boxed>
-              <Skeleton variant="row" as="li" count={PAGE_SIZE} />
+              <Skeleton variant="row" as="li" count={PAGE_SIZE} leading="stamp" lines={2} narrowLines={6} trailing="button" />
             </List>
           </>
         ) : listings.isError ? (
           <ErrorState
+            icon={<CircleAlert aria-hidden="true" />}
             title="Jobs could not be loaded"
             description="Something went wrong on our side. Your filters are kept."
             onRetry={() => listings.refetch()}
@@ -423,14 +502,14 @@ export function DiscoveryPage() {
               icon={<Search aria-hidden="true" />}
               title="No jobs match these filters"
               description={`Try fewer words, a wider location, or a longer time range.${hiddenCount > 0 ? ' Jobs you hid are not counted.' : ''}`}
-              action={<Button type="button" size="sm" variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Clear all filters</Button>}
+              action={<Button type="button" variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Clear all filters</Button>}
             />
           ) : hiddenCount > 0 ? (
             <EmptyState
               icon={<EyeOff aria-hidden="true" />}
               title="No jobs left to show"
               description={`You hid ${hiddenCount} ${hiddenCount === 1 ? 'job' : 'jobs'}. Restore ${hiddenCount === 1 ? 'it' : 'any'} to see ${hiddenCount === 1 ? 'it' : 'them'} again.`}
-              action={<Button type="button" size="sm" variant="secondary" onClick={() => setHiddenOpen(true)}>Review hidden jobs</Button>}
+              action={<Button type="button" variant="secondary" onClick={() => setHiddenOpen(true)}>Review hidden jobs</Button>}
             />
           ) : (
             <EmptyState
@@ -474,7 +553,7 @@ export function DiscoveryPage() {
       />
 
       <Sheet open={openListing !== null} onOpenChange={(open) => { if (!open) setOpenListing(null) }}>
-        <SheetContent size="lg">
+        <SheetContent size="lg" className="disc-drawer">
           {drawerListing ? <JobDetails listing={drawerListing} actions={actions} /> : null}
         </SheetContent>
       </Sheet>
@@ -513,8 +592,8 @@ function writeCalloutDismissed() {
   }
 }
 
-/** Stamps `application_id` onto the cached page(s) and detail of one listing. */
-function markAdded(current: unknown, listingId: string, applicationId: string): unknown {
+/** Stamps `application_id` onto the cached page(s) and detail of one listing (`null`: an undone add). */
+function markAdded(current: unknown, listingId: string, applicationId: string | null): unknown {
   if (!current || typeof current !== 'object') return current
   const data = current as { items?: DiscoveryListing[]; listing_id?: string }
   if (Array.isArray(data.items)) {
@@ -531,11 +610,13 @@ function OpenApplication({ listing }: { listing: DiscoveryListing }) {
       <Link
         to="/campaigns/$campaignId"
         params={{ campaignId: listing.application_id }}
-        aria-label={`Open application for ${listing.title}`}
-        // "Open" replaces "Add" the moment the add lands: the second click of a double click on Add must not follow it.
+        aria-label={`View application for ${listing.title}`}
+        data-adopt-listing={listing.listing_id}
+        data-adopt-control="view"
+        // This replaces "Add" the moment the add lands: the second click of a double click on Add must not follow it.
         onClick={(event) => { if (event.detail > 1) event.preventDefault() }}
       >
-        Open
+        View application
       </Link>
     </Button>
   )
@@ -554,6 +635,7 @@ function JobRow({
 }) {
   const isMobile = useBreakpoint() === 'mobile'
   const skills = <SkillTally listing={listing} />
+  const deepMatching = actions.deepMatchingId === listing.listing_id
   return (
     <Row className="disc-row" selected={selected} aria-current={selected ? 'true' : undefined}>
       {scored ? (
@@ -563,7 +645,7 @@ function JobRow({
       ) : null}
       <RowBody>
         <RowTitle size="lg" headingLevel={2} asChild>
-          <button type="button" onClick={() => actions.onOpen(listing)}>
+          <button type="button" data-listing-id={listing.listing_id} onClick={() => actions.onOpen(listing)}>
             {listing.title}
           </button>
         </RowTitle>
@@ -571,6 +653,8 @@ function JobRow({
           <JobMeta listing={listing} source />
         </RowSubtitle>
         <FitReasons listing={listing} />
+        {/* Started from the row's menu, which closes at once: the row itself says the match is running (F30). */}
+        {deepMatching ? <p className="disc-note" role="status">Running a deep match… this can take up to a minute.</p> : null}
       </RowBody>
       {skills ? <RowMeta>{skills}</RowMeta> : null}
       <RowActions reveal={false}>
@@ -584,13 +668,15 @@ function JobRow({
             onClick={() => actions.onAdopt(listing)}
             loading={actions.adoptingId === listing.listing_id}
             aria-label="Add to applications"
+            data-adopt-listing={listing.listing_id}
+            data-adopt-control="add"
           >
             <Plus aria-hidden="true" />
             Add
           </Button>
         )}
         <RowReveal>
-          <JobOverflowMenu listing={listing} actions={actions} withDeepMatch />
+          <JobOverflowMenu listing={listing} actions={actions} withDeepMatch loading={deepMatching} />
         </RowReveal>
       </RowActions>
     </Row>
@@ -604,9 +690,12 @@ function JobOverflowMenu({
   withDeepMatch = false,
   triggerVariant = 'ghost',
   triggerClassName,
+  loading = false,
 }: {
   listing: DiscoveryListing
   actions: JobActions
+  /** A job action started from this menu is running: the trigger shows the spinner (and stays in view). */
+  loading?: boolean
   /** Rows offer the deep match here; the drawer has its own button for it. */
   withDeepMatch?: boolean
   /** The drawer footer sits among bordered buttons, so its trigger is bordered too. */
@@ -622,6 +711,7 @@ function JobOverflowMenu({
           size={triggerVariant === 'ghost' ? 'sm' : 'md'}
           variant={triggerVariant}
           className={triggerClassName}
+          loading={loading}
           aria-label={`More actions for ${listing.title}`}
         >
           <MoreHorizontal aria-hidden="true" />
@@ -726,7 +816,13 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
         )}
         {applicationId ? (
           <Button asChild className="disc-footer__add">
-            <Link to="/campaigns/$campaignId" params={{ campaignId: applicationId }} onClick={(event) => { if (event.detail > 1) event.preventDefault() }}>
+            <Link
+              to="/campaigns/$campaignId"
+              params={{ campaignId: applicationId }}
+              data-adopt-listing={listing.listing_id}
+              data-adopt-control="view"
+              onClick={(event) => { if (event.detail > 1) event.preventDefault() }}
+            >
               <Check aria-hidden="true" /> View application
             </Link>
           </Button>
@@ -736,6 +832,8 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
             className="disc-footer__add"
             onClick={() => actions.onAdopt(current)}
             loading={actions.adoptingId === listing.listing_id}
+            data-adopt-listing={listing.listing_id}
+            data-adopt-control="add"
           >
             Add to applications
           </Button>

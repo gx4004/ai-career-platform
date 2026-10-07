@@ -86,6 +86,11 @@ describe('SkillsToBuildSection', () => {
 
     const reword = await screen.findByRole('list', { name: 'Reword existing content' })
     expect((within(reword).getByLabelText('Status') as HTMLSelectElement).value).toBe('planned')
+    // The status shares the row's actions with edit and delete, so on a phone the three form one line under the text.
+    const status = within(reword).getByLabelText('Status')
+    const actions = status.closest('.kit-row__actions') as HTMLElement
+    expect(actions.getAttribute('data-placement')).toBe('below')
+    expect(within(actions).getByRole('button', { name: /^Edit / })).toBeTruthy()
     const learn = screen.getByRole('list', { name: 'Learn a new skill' })
     expect(within(learn).getByText('Take a course')).toBeTruthy()
     expect(await within(learn).findByText('Added to your profile')).toBeTruthy()
@@ -108,7 +113,7 @@ describe('SkillsToBuildSection', () => {
     const learn = await screen.findByRole('list', { name: 'Learn a new skill' })
     const rows = [...learn.children] as HTMLElement[]
     expect(within(rows[0]).getByText('Kubernetes')).toBeTruthy()
-    expect(within(rows[0]).getByRole('button', { name: 'Edit: Kubernetes' })).toBeTruthy()
+    expect(within(rows[0]).getByRole('button', { name: 'Edit Kubernetes' })).toBeTruthy()
     expect(within(rows[0]).getByRole('link', { name: 'From an application: Kubernetes' }).getAttribute('href')).toBe('/campaigns/app-7')
     expect(await within(rows[0]).findByText('Added to your profile')).toBeTruthy()
     expect(within(rows[1]).getByText('Leadership')).toBeTruthy()
@@ -156,17 +161,68 @@ describe('SkillsToBuildSection', () => {
     expect(within(dialog).queryByRole('button', { name: /Show me/ })).toBeNull()
   })
 
-  it('an unchanged note already on the skill is saved as a fact, so the result follows the server', async () => {
-    getPlanMock.mockResolvedValue({ schema_version: 'development-plan/v1', items: [makeItem({ id: 'd1', notes: 'Rewrote the summary' })] })
-    updateItemMock.mockImplementation((id: string) => Promise.resolve(makeItem({ id, state: 'completed', evidence_item_id: 'e9' })))
+  // Replaces the old "an unchanged note already on the skill is saved as a fact" test: the notes are the PLAN
+  // ("What you plan to do to close this gap"), so saving them as "what you did" claimed work never done
+  // (sign-off history-profile-F01). The plan is shown, never pre-filled, never sent as the fact, and kept.
+  it('a plan on the skill is shown but not pre-filled, and marking done with nothing written adds no fact and keeps the plan', async () => {
+    const plan = 'Take the CKA course and run a small cluster at home.'
+    getPlanMock.mockResolvedValue({ schema_version: 'development-plan/v1', items: [makeItem({ id: 'd1', notes: plan })] })
+    updateItemMock.mockImplementation((id: string, body: { notes?: string | null }) =>
+      Promise.resolve(makeItem({ id, state: 'completed', notes: 'notes' in body ? body.notes : plan, evidence_item_id: null })))
     renderSection()
 
     const reword = await screen.findByRole('list', { name: 'Reword existing content' })
     fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
-    fireEvent.click(await screen.findByRole('button', { name: 'Mark complete' }))
 
-    await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'completed' }))
+    const dialog = await screen.findByRole('dialog', { name: 'What did you do?' })
+    expect((within(dialog).getByRole('textbox', { name: /What you did/ }) as HTMLTextAreaElement).value).toBe('')
+    expect(within(dialog).getByText('Your plan')).toBeTruthy()
+    expect(within(dialog).getByText(plan)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark complete' }))
+
+    // The completion carries no words (the server stages a fact only from the notes it holds), then the plan is put back.
+    await waitFor(() => expect(updateItemMock).toHaveBeenCalledTimes(2))
+    expect(updateItemMock).toHaveBeenNthCalledWith(1, 'd1', { state: 'completed', notes: null })
+    expect(updateItemMock).toHaveBeenNthCalledWith(2, 'd1', { notes: plan })
+    expect(await screen.findByRole('dialog', { name: 'Marked complete' })).toBeTruthy()
+  })
+
+  it('words written over a plan become the fact, and the plan is kept on the skill', async () => {
+    const plan = 'Take the CKA course.'
+    getPlanMock.mockResolvedValue({ schema_version: 'development-plan/v1', items: [makeItem({ id: 'd1', notes: plan })] })
+    updateItemMock
+      .mockImplementationOnce((id: string) => Promise.resolve(makeItem({ id, state: 'completed', notes: 'Passed the CKA', evidence_item_id: 'e9' })))
+      .mockImplementationOnce((id: string) => Promise.resolve(makeItem({ id, state: 'completed', notes: plan, evidence_item_id: 'e9' })))
+    renderSection()
+
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
+    const dialog = await screen.findByRole('dialog', { name: 'What did you do?' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /What you did/ }), { target: { value: 'Passed the CKA' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark complete' }))
+
+    await waitFor(() => expect(updateItemMock).toHaveBeenCalledTimes(2))
+    expect(updateItemMock).toHaveBeenNthCalledWith(1, 'd1', { state: 'completed', notes: 'Passed the CKA' })
+    expect(updateItemMock).toHaveBeenNthCalledWith(2, 'd1', { notes: plan })
     expect(await screen.findByRole('dialog', { name: 'Added to your profile' })).toBeTruthy()
+  })
+
+  it('if the plan cannot be put back, the completion still stands and the page says so', async () => {
+    const plan = 'Take the CKA course.'
+    getPlanMock.mockResolvedValue({ schema_version: 'development-plan/v1', items: [makeItem({ id: 'd1', notes: plan })] })
+    updateItemMock
+      .mockImplementationOnce((id: string) => Promise.resolve(makeItem({ id, state: 'completed', notes: 'Passed', evidence_item_id: 'e9' })))
+      .mockImplementationOnce(() => Promise.reject(new Error('Network down')))
+    renderSection()
+
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
+    const dialog = await screen.findByRole('dialog', { name: 'What did you do?' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /What you did/ }), { target: { value: 'Passed' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark complete' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Added to your profile' })).toBeTruthy()
+    expect(await screen.findByText(/your plan could not be kept/i)).toBeTruthy()
   })
 
   it('other status changes save at once', async () => {
@@ -182,14 +238,18 @@ describe('SkillsToBuildSection', () => {
     renderSection()
 
     const reword = await screen.findByRole('list', { name: 'Reword existing content' })
-    fireEvent.click(within(reword).getByRole('button', { name: 'Edit: Presentation weakness' }))
+    fireEvent.click(within(reword).getByRole('button', { name: 'Edit Presentation weakness' }))
+    // The dialog names the skill being edited, and its kind in sentence case.
+    const editor = await screen.findByRole('dialog')
+    expect(within(editor).getByRole('heading', { name: 'Edit Presentation weakness' })).toBeTruthy()
+    expect(editor.textContent).toContain('Reword existing content. Set a target date and notes; leave a field empty to clear it.')
     fireEvent.change(await screen.findByLabelText(/^Target date/), {
       target: { value: '2026-09-01' },
     })
     fireEvent.change(screen.getByLabelText(/^Notes/), {
       target: { value: 'Rewrite the summary' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /Save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
 
     await waitFor(() =>
       expect(updateItemMock).toHaveBeenCalledWith('d1', {
@@ -203,11 +263,40 @@ describe('SkillsToBuildSection', () => {
     renderSection()
 
     const reword = await screen.findByRole('list', { name: 'Reword existing content' })
-    fireEvent.click(within(reword).getByRole('button', { name: 'Delete: Presentation weakness' }))
+    fireEvent.click(within(reword).getByRole('button', { name: 'Delete Presentation weakness' }))
     const dialog = await screen.findByRole('alertdialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: /Delete item/i }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete skill' }))
 
     await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('d1'))
+  })
+
+  // history-profile-F30: the trash button that opened the dialog is gone after a delete; focus must not fall to BODY.
+  it('after a delete moves focus to the next skill in the same group', async () => {
+    const third = makeItem({ id: 'd3', gap_kind: 'missing_skill', label: 'Kubernetes' })
+    getPlanMock
+      .mockResolvedValueOnce({ schema_version: 'development-plan/v1', items: [items[0], third, items[1]] })
+      .mockResolvedValue({ schema_version: 'development-plan/v1', items: [third, items[1]] })
+    renderSection()
+
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.click(within(reword).getByRole('button', { name: 'Delete Presentation weakness' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete skill' }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement?.id).toBe('skill-d3'))
+  })
+
+  it('after deleting the last skill to build moves focus to the section heading', async () => {
+    getPlanMock
+      .mockResolvedValueOnce({ schema_version: 'development-plan/v1', items: [items[0]] })
+      .mockResolvedValue({ schema_version: 'development-plan/v1', items: [] })
+    renderSection()
+
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.click(within(reword).getByRole('button', { name: 'Delete Presentation weakness' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete skill' }))
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Skills to build' })))
   })
 
   it('shows an empty panel pointing to Campaigns when there is nothing to build', async () => {
@@ -216,5 +305,13 @@ describe('SkillsToBuildSection', () => {
 
     expect(await screen.findByText('Nothing to build yet')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Open applications' }).getAttribute('href')).toBe('/campaigns')
+  })
+
+  it('says the list is safe when it cannot load, like the profile error above it', async () => {
+    getPlanMock.mockRejectedValue(new Error('boom'))
+    renderSection()
+
+    expect(await screen.findByText('Your skills to build couldn’t be loaded')).toBeTruthy()
+    expect(screen.getByText('Your list is safe. Try again in a moment.')).toBeTruthy()
   })
 })

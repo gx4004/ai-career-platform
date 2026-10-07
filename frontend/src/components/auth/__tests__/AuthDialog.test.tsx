@@ -23,7 +23,9 @@ vi.mock('#/hooks/use-mobile', () => ({
   useIsMobile: () => false,
 }))
 
-vi.mock('#/lib/api/client', () => ({
+// The real module underneath: the dialog's intent note reads the tool registry, which imports the tool clients.
+vi.mock('#/lib/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/api/client')>()),
   API_URL: 'http://localhost/api/v1',
   getAuthProviders: getAuthProvidersMock,
   getCurrentUser: getCurrentUserMock,
@@ -333,6 +335,22 @@ describe('AuthDialog', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  // consistency-F24: on a touch screen the session-expired dialog opens focused itself, not on Email, so the keyboard
+  // does not cover "Your session ended" before it is read (the kit rule every other form dialog follows).
+  it('opens the session-expired dialog focused, not its Email field, on a touch screen', async () => {
+    const { queryClient } = renderAuthFlow()
+    await waitFor(() => expect(queryClient.getQueryData(['current-user'])).toBeTruthy())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: /pointer:\s*coarse/.test(query), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    try {
+      window.dispatchEvent(new CustomEvent('cw:session-expired'))
+      const dialog = await screen.findByRole('dialog')
+      await waitFor(() => expect(document.activeElement).toBe(dialog))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('writes a pendingIntent with the current path when cw:session-expired fires for a previously authed user', async () => {
     const { queryClient } = renderAuthFlow()
 
@@ -361,6 +379,8 @@ describe('AuthDialog', () => {
     })
 
     expect(screen.queryByRole('dialog')).not.toBeNull()
+    // The dialog says why it opened and where sign-in leads, not only "Sign in to your workspace" (sign-off public-G10).
+    expect((await screen.findByTestId('auth-intent')).textContent).toContain('Your session ended')
     expect(queryClient.getQueriesData({ queryKey: ['applications'] })).toEqual([])
     expect(clearSensitiveBrowserDataMock).toHaveBeenCalled()
     expect(screen.getByTestId('owner-local-state').textContent).toBe('')

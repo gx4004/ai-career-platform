@@ -3,6 +3,7 @@ import { Slot } from 'radix-ui'
 
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Tooltip } from '#/components/kit'
+import { useShortcutLabel } from '#/hooks/use-mod-key'
 import { cn } from '#/lib/utils'
 
 /*
@@ -152,12 +153,13 @@ function SidebarTrigger({ className, ...props }: Omit<React.ComponentProps<'butt
   const { state, toggleSidebar } = useSidebar()
   const collapsed = state === 'collapsed'
   const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar'
+  const shortcut = useShortcutLabel('B')
   return (
     <SidebarMenuButton
       type="button"
       data-slot="sidebar-trigger"
       tooltip={label}
-      shortcut="⌘B"
+      shortcut={shortcut}
       aria-label={collapsed ? label : undefined}
       aria-keyshortcuts="Meta+B Control+B"
       className={cn('app-sidebar__trigger', className)}
@@ -186,9 +188,41 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="sidebar-footer" data-sidebar="footer" className={cn('app-sidebar__footer', className)} {...props} />
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<'nav'>) {
+/**
+ * The scrolling nav list. On a short screen it scrolls (with no scrollbar), so it marks which ends still have
+ * items out of view (data-overflow="start end"); the CSS fades those edges as the cue. Written to the DOM
+ * directly: it changes on every scroll and is presentation only.
+ */
+function SidebarContent({ className, ref, ...props }: React.ComponentProps<'nav'>) {
+  const local = React.useRef<HTMLElement | null>(null)
+  React.useEffect(() => {
+    const element = local.current
+    if (!element) return
+    const update = () => {
+      const max = element.scrollHeight - element.clientHeight
+      const offset = element.scrollTop
+      const edges = [offset > 1 ? 'start' : '', max > 1 && offset < max - 1 ? 'end' : ''].filter(Boolean).join(' ')
+      if (edges) element.dataset.overflow = edges
+      else delete element.dataset.overflow
+    }
+    update()
+    element.addEventListener('scroll', update, { passive: true })
+    // The window's height, the rail/expanded switch and the session's rows arriving all change what fits.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(element)
+    for (const child of Array.from(element.children)) observer?.observe(child)
+    return () => {
+      element.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [])
   return (
     <nav
+      ref={(node) => {
+        local.current = node
+        if (typeof ref === 'function') ref(node)
+        else if (ref) ref.current = node
+      }}
       data-slot="sidebar-content"
       data-sidebar="content"
       aria-label="Main navigation"
@@ -232,16 +266,37 @@ function SidebarMenuItem(props: React.ComponentProps<'li'>) {
 function SidebarTooltip({
   tooltip,
   shortcut,
+  suppressed = false,
   children,
 }: {
   tooltip: string
   shortcut?: string
+  /**
+   * Ignore requests to open while true: a menu trigger whose menu is open, or has just closed and given focus back
+   * to it (the bubble would open on that focus and stay over the page until focus moved).
+   */
+  suppressed?: boolean
   children: React.ReactElement
 }) {
   const { state } = useSidebar()
+  const collapsed = state === 'collapsed'
   const [open, setOpen] = React.useState(false)
+  // Hover and focus while the labels show must not arm the bubble: it would appear the moment the sidebar
+  // collapses, with the pointer somewhere else. Expanding clears whatever was open.
+  React.useEffect(() => {
+    if (!collapsed) setOpen(false)
+  }, [collapsed])
+  React.useEffect(() => {
+    if (suppressed) setOpen(false)
+  }, [suppressed])
   return (
-    <Tooltip content={tooltip} shortcut={shortcut} side="right" open={state === 'collapsed' && open} onOpenChange={setOpen}>
+    <Tooltip
+      content={tooltip}
+      shortcut={shortcut}
+      side="right"
+      open={collapsed && open && !suppressed}
+      onOpenChange={(next) => setOpen(collapsed && !(next && suppressed) ? next : false)}
+    >
       {children}
     </Tooltip>
   )
@@ -256,6 +311,7 @@ function SidebarMenuButton({
   isActive = false,
   tooltip,
   shortcut,
+  tooltipSuppressed,
   className,
   ...props
 }: React.ComponentProps<'button'> & {
@@ -263,6 +319,8 @@ function SidebarMenuButton({
   isActive?: boolean
   tooltip?: string
   shortcut?: string
+  /** Keeps the rail's name bubble shut (see SidebarTooltip `suppressed`). */
+  tooltipSuppressed?: boolean
 }) {
   const Comp = asChild ? Slot.Root : 'button'
   const button = (
@@ -276,7 +334,7 @@ function SidebarMenuButton({
     />
   )
   return tooltip ? (
-    <SidebarTooltip tooltip={tooltip} shortcut={shortcut}>
+    <SidebarTooltip tooltip={tooltip} shortcut={shortcut} suppressed={tooltipSuppressed}>
       {button}
     </SidebarTooltip>
   ) : (

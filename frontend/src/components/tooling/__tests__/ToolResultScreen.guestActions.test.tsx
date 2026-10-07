@@ -88,7 +88,7 @@ describe('ToolResultScreen — guest banner and result actions', () => {
 
   it('opens the sign-in prompt when a guest clicks the star', () => {
     renderResumeResult()
-    const star = screen.getByRole('button', { name: 'Sign in to favorite this result' })
+    const star = screen.getByRole('button', { name: 'Star this result: sign in first' })
     expect(star.getAttribute('aria-disabled')).toBeNull()
     fireEvent.click(star)
     expect(openAuthDialogMock).toHaveBeenCalledWith(expect.objectContaining({ reason: 'save-demo-result', toolId: 'resume' }))

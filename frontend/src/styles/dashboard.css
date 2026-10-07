@@ -16,6 +16,18 @@
   margin-block-start: var(--s3);
 }
 
+/* ── Loading: the server cannot see the localStorage session hint, so its HTML (and the hydration render)
+   carries both skeletons; the <head> script's [data-session-hint] on <html> shows the right one from the
+   first paint. The wrappers add no box: the skeletons lay out as the page's own children. */
+.dash-loading {
+  display: contents;
+}
+
+:root:not([data-session-hint]) .dash-loading[data-when='session-hint'],
+:root[data-session-hint] .dash-loading[data-when='no-session-hint'] {
+  display: none;
+}
+
 /* ── Needs action: stickers of equal height, tilted a hair, then rows for the rest ───────── */
 
 .dash-needs {
@@ -137,7 +149,7 @@
 
   .dash-act__title {
     grid-column: 1 / -1;
-    font-size: 1.1875rem;
+    font-size: var(--fs-title);
   }
 
   .dash-act__company {
@@ -230,6 +242,8 @@
   .kit-row.dash-match > .kit-row__actions {
     grid-column: 3;
     grid-row: 2;
+    /* One grid row shared with the pips: centred on them (the kit top-aligns actions that span the text). */
+    align-self: center;
     margin-inline-start: 0;
   }
 }
@@ -265,9 +279,11 @@
   min-inline-size: max-content;
 }
 
+/* 112px in the rail; when the pipeline spans the page (stacked, 768 to 1100px) the bars grow with it, up to
+   240px, so they stay near their stage names and still read as proportions of one another. */
 .kit-row__meta.dash-bar-col {
   flex: none;
-  inline-size: 112px;
+  inline-size: clamp(112px, 30%, 240px);
   text-align: start;
 }
 
@@ -360,6 +376,32 @@
   gap: var(--s3);
 }
 
+/* Scrolled into view when a file cannot be read: it stops above a phone's tab tray, not under it. */
+.dash-upload__error {
+  scroll-margin-block-end: var(--kit-toast-clearance, var(--s4));
+}
+
+/*
+ * Under 360px the disc sits beside the title only, and the text, dropzone and buttons take the step's full width
+ * underneath: beside a 44px disc they had about 190px, and "Choose file" broke over two lines.
+ */
+@media (max-width: 359px) {
+  .dash-step {
+    row-gap: var(--s2);
+    column-gap: var(--s3);
+    align-items: center;
+    justify-items: start;
+  }
+
+  .dash-step__body {
+    display: contents;
+  }
+
+  .dash-step__body > :not(.dash-step__title) {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ── First-run tour: one spotlight ───────────────────────────────────────────────────────── */
 
 /* The ring is the spotlight: ink ring, lemon halo, and the rest of the page dimmed (it never takes a click). */
@@ -388,6 +430,14 @@
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+}
+
+/*
+ * The tour is not modal: ⌘K or a dialog can open while it shows. Its spotlight (a popover-level scrim) then dimmed
+ * the dialog and its card sat on top of the results; it steps aside until the dialog closes.
+ */
+:root:has(.kit-dialog[data-state='open']) :is(.app-tour__ring, .app-tour__card) {
+  visibility: hidden;
 }
 
 .app-tour__top {
@@ -427,6 +477,11 @@
   margin-block-start: var(--s3);
 }
 
+/* Next / Got it always sits at the right, also on the last step where Skip is gone. */
+.app-tour__footer > :last-child {
+  margin-inline-start: auto;
+}
+
 /* ── Welcome dialog (Settings replays it) ────────────────────────────────────────────────── */
 
 .onboarding__progress {
@@ -441,6 +496,37 @@
   line-height: var(--lh-meta);
 }
 
-.kit-button.onboarding__skip {
-  margin-inline-end: auto;
+/*
+ * One block size for every step at every width (as tall as the screen allows, up to 36rem), with the body as the only
+ * scroller, so Back and Continue stay in the same place from step to step and a mouse never chases Continue. A fixed
+ * size, not a minimum: the tools step is taller than 36rem, and with a minimum it grew and moved Continue down
+ * (r4 chrome-F09 on phones, r5 chrome-F15 on desktop).
+ */
+.kit-dialog.onboarding-dialog {
+  block-size: min(36rem, 100vh - min(12vh, 6rem) - var(--s4));
+  block-size: min(36rem, 100dvh - min(12vh, 6rem) - var(--s4));
+}
+
+/*
+ * Your CV under 360px: the button reads "Open" (the rest is visually hidden, so its name stays "Open CV Studio"), and
+ * the CV name keeps the row on one line instead of breaking beside a button that took most of it.
+ */
+@media (max-width: 359px) {
+  .dash-cv__more {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+}
+
+/* Best matches takes focus when the last added row leaves an empty list with no action to land on. */
+.dash-matches:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }

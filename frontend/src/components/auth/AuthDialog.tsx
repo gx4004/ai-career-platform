@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { authCopy } from '#/components/auth/auth-copy'
+import { AuthIntentNotice } from '#/components/auth/AuthIntentNotice'
 import { AuthSurface } from '#/components/auth/AuthSurface'
 import {
   Dialog,
@@ -8,6 +9,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  focusFieldOnOpen,
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 
@@ -32,14 +34,11 @@ export function AuthDialog() {
     <Dialog open={authDialogOpen} onOpenChange={(open) => !open && closeAuthDialog()}>
       <DialogContent
         size="sm"
-        onOpenAutoFocus={(event) => {
-          // The form is what the person came for: focus its first field, not the tab strip.
-          const field = (event.target as HTMLElement).querySelector<HTMLInputElement>('input:not([type="hidden"])')
-          if (field) {
-            event.preventDefault()
-            field.focus({ preventScroll: true })
-          }
-        }}
+        // The form is what the person came for: focus its first field, not the tab strip. On a touch screen the dialog
+        // takes focus instead, so the keyboard does not cover "Your session ended" before it is read (consistency-F24).
+        onOpenAutoFocus={(event) =>
+          focusFieldOnOpen(event, (event.target as HTMLElement).querySelector<HTMLInputElement>('input:not([type="hidden"])'))
+        }
       >
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
@@ -52,6 +51,9 @@ export function AuthDialog() {
             resetting={resetting}
             onResettingChange={setResetting}
             onSuccess={closeAuthDialog}
+            // The session-expired dialog opens over the page it interrupted: the note says the session ended and that
+            // sign-in returns here (the pending intent is written just before the dialog opens).
+            notice={resetting ? null : <AuthIntentNotice view={view} />}
           />
         </DialogBody>
       </DialogContent>

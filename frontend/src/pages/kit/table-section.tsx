@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import {
   Badge,
@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   EmptyState,
+  FitStamp,
   Pagination,
   Segmented,
   StretchedLink,
@@ -79,14 +80,42 @@ const APP_COLUMNS: Array<TableColumn<(typeof APPLICATIONS)[number]>> = [
   { id: 'stage', header: 'Stage', width: '8rem', cell: (app) => <Badge tone={app.tone}>{app.stage}</Badge> },
   { id: 'role', header: 'Role', primary: true, cell: (app) => app.role },
   { id: 'company', header: 'Company', cell: (app) => app.company },
-  { id: 'fit', header: 'Skills fit', numeric: true, cell: (app) => (app.fit === null ? '-' : `${app.fit}%`) },
-  { id: 'next', header: 'Next step', cell: (app) => app.next ?? '-' },
+  // A missing value is the em dash the app uses (KeyValue, admin tables), never a hyphen.
+  { id: 'fit', header: 'Skills fit', numeric: true, cell: (app) => (app.fit === null ? '—' : `${app.fit}%`) },
+  { id: 'next', header: 'Next step', cell: (app) => app.next ?? '—' },
 ]
+
+// The applications list view: the fit column holds a 48px FitStamp, so it is roomy (12px clear of the row rules).
+const FIT_COLUMNS: Array<TableColumn<(typeof APPLICATIONS)[number]>> = [
+  { id: 'role', header: 'Role', primary: true, cell: (app) => app.role },
+  { id: 'company', header: 'Company', cell: (app) => app.company },
+  { id: 'fit', header: 'Skills fit', roomy: true, cell: (app) => (app.fit === null ? '–' : <FitStamp value={app.fit} size="sm" />) },
+  { id: 'next', header: 'Next step', cell: (app) => app.next ?? '—' },
+]
+
+// A 288px column (a 320px phone): the stacked sort buttons scroll sideways, with the edge fade and chevron of a
+// Segmented, and the current sort ("Next step", the last button) scrolled into view (consistency-F26).
+function NarrowSortStrip() {
+  const [sort, setSort] = useState<TableSort | null>({ id: 'next', direction: 'asc' })
+  return (
+    <div style={{ maxWidth: 288 }}>
+      <Table
+        caption="Applications (stacked, sortable, 288px)"
+        columns={FIT_COLUMNS.map((column) => ({ ...column, sortable: true }))}
+        rows={APPLICATIONS.slice(0, 2)}
+        getRowId={(app) => app.id}
+        sort={sort}
+        onSortChange={setSort}
+      />
+    </div>
+  )
+}
 
 function SortableUsers() {
   const [sort, setSort] = useState<TableSort | null>({ id: 'runs', direction: 'desc' })
   const [page, setPage] = useState(2)
   const [selected, setSelected] = useState<string | null>(null)
+  const table = useRef<HTMLDivElement>(null)
   const rows = useMemo(() => {
     if (!sort) return USERS
     const sign = sort.direction === 'asc' ? 1 : -1
@@ -102,6 +131,7 @@ function SortableUsers() {
         Sorted by {sort ? `${sort.id} (${sort.direction === 'asc' ? 'ascending' : 'descending'})` : 'nothing'}
       </p>
       <Table
+        ref={table}
         caption="Users"
         columns={USER_COLUMNS}
         rows={rows}
@@ -111,7 +141,15 @@ function SortableUsers() {
         selectedRowId={selected}
         getRowProps={(user) => ({ onDoubleClick: () => setSelected(user.id) })}
       />
-      <Pagination variant="simple" page={page} pageCount={9} onPageChange={setPage} summary={`Showing ${(page - 1) * 4 + 1} to ${page * 4} of 34`} />
+      {/* scrollTarget: scrolled down past the table's top, Next brings it back into view. */}
+      <Pagination
+        variant="simple"
+        page={page}
+        pageCount={9}
+        onPageChange={setPage}
+        scrollTarget={table}
+        summary={`Showing ${(page - 1) * 4 + 1} to ${page * 4} of 34`}
+      />
     </div>
   )
 }
@@ -183,6 +221,26 @@ function States() {
   )
 }
 
+type PathRow = { id: string; path: string; fit: string; timeline: string; rationale: string }
+
+const PATHS: PathRow[] = [
+  {
+    id: 'p1',
+    path: 'Staff Platform Engineer',
+    fit: '78%',
+    timeline: '12-18 months',
+    rationale: 'You already run the deploy pipeline and own the on-call rotation; leading one cross-team migration would close the scope gap a staff title asks for.',
+  },
+  { id: 'p2', path: 'Engineering Manager', fit: '61%', timeline: '18-24 months', rationale: 'Mentoring shows up twice in your resume, but people management does not yet.' },
+]
+
+const PATH_COLUMNS: Array<TableColumn<PathRow>> = [
+  { id: 'path', header: 'Path', primary: true, cell: (row) => row.path },
+  { id: 'fit', header: 'Fit', numeric: true, cell: (row) => row.fit },
+  { id: 'timeline', header: 'Timeline', cell: (row) => row.timeline },
+  { id: 'rationale', header: 'Rationale', stackWide: true, cell: (row) => row.rationale },
+]
+
 export function TableSection() {
   return (
     <GallerySection
@@ -190,12 +248,16 @@ export function TableSection() {
       title="Table"
       note="Under about 640px of table width every row stacks into a labelled list, so nothing scrolls sideways on a phone. Resize the window or look at the narrow frame."
     >
-      <Group title="Sortable, with a whole-row link (the email), an actions column and a Pagination (click a header; double-click a row to select it)">
+      <Group title="Sortable, with a whole-row link (the email), an actions column and a Pagination that scrolls the table's top back into view (click a header; double-click a row to select it)">
         <SortableUsers />
       </Group>
 
-      <Group title="Eight numeric columns: right-aligned, tabular (scrolls inside its own box when wider than the page)">
+      <Group title="Eight numeric columns: right-aligned, tabular figures (tens under tens) (scrolls inside its own box when wider than the page)">
         <Table caption="Usage by user" columns={WIDE_COLUMNS} rows={USERS} getRowId={(user) => user.id} density="compact" />
+      </Group>
+
+      <Group title="roomy column: a FitStamp sm keeps 12px (and its hard shadow 10px) from the row rules (the applications list view)">
+        <Table caption="Applications with fit stamps" columns={FIT_COLUMNS} rows={APPLICATIONS} getRowId={(app) => app.id} />
       </Group>
 
       <Group title="Sticky header inside a 12rem scroll box (maxHeight)">
@@ -218,10 +280,41 @@ export function TableSection() {
             <Table caption="Users (stacked)" columns={USER_COLUMNS} rows={USERS.slice(0, 3)} getRowId={(user) => user.id} />
           </div>
         </Specimen>
+        <Specimen label="stackBelow={56} in a 54rem frame (a tablet's main column): a wide table stacks here, where the default 40rem would keep every column">
+          <div className="kit-gallery__frame kit-gallery__frame--split-compact">
+            <Table caption="Users (stackBelow 56)" stackBelow={56} columns={USER_COLUMNS} rows={USERS.slice(0, 2)} getRowId={(user) => user.id} />
+          </div>
+        </Specimen>
+        <Specimen label="stackActions=&quot;below&quot;, forced narrow container: the button sits under the row, so a long email keeps the full width">
+          <div className="kit-gallery__frame kit-gallery__frame--phone">
+            <Table
+              caption="Users (stacked, actions below)"
+              columns={USER_COLUMNS.map((column) => (column.id === 'actions' ? { ...column, stackActions: 'below' as const } : column))}
+              rows={USERS.slice(0, 2)}
+              getRowId={(user) => user.id}
+            />
+          </div>
+        </Specimen>
+        <Specimen label="stackWide column, forced narrow container: the Rationale label sits above its paragraph, short cells keep label beside value">
+          <div className="kit-gallery__frame kit-gallery__frame--phone">
+            <Table caption="Alternative paths (stacked)" columns={PATH_COLUMNS} rows={PATHS} getRowId={(row) => row.id} />
+          </div>
+        </Specimen>
+        <Specimen label="loadingLines={2}: a text cell's placeholder has a title bar and a shorter sub-line, so a loading row is as tall as a loaded two-line row (stacked, only the primary cell keeps the sub-line)">
+          <div className="kit-gallery__stack" data-specimen="table-loading-lines">
+            <Table caption="Applications (loading, two lines)" columns={APP_COLUMNS} rows={[]} getRowId={(app) => app.id} loading loadingRows={2} loadingLines={2} />
+            <div className="kit-gallery__frame kit-gallery__frame--phone">
+              <Table caption="Applications (loading, two lines, stacked)" columns={APP_COLUMNS} rows={[]} getRowId={(app) => app.id} loading loadingRows={2} loadingLines={2} />
+            </div>
+          </div>
+        </Specimen>
         <Specimen label="Loading, forced narrow container: the placeholder bars stay full width, the title bar first">
           <div className="kit-gallery__frame kit-gallery__frame--phone">
             <Table caption="Applications (loading, stacked)" columns={APP_COLUMNS} rows={[]} getRowId={(app) => app.id} loading loadingRows={2} />
           </div>
+        </Specimen>
+        <Specimen label="Sortable, stacked in a 288px column (a 320px phone): the sort strip scrolls sideways, its ends fade with a chevron while there is more, and the current sort is kept in view">
+          <NarrowSortStrip />
         </Specimen>
         <Specimen label="Selection column: a Checkbox per row and in the header; selectedRowId takes several ids">
           <SelectableUsers />

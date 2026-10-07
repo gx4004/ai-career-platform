@@ -30,6 +30,7 @@ export function CareerToolPage() {
         >
           <ResumeSource
             id="career-resumeText"
+            toolId="career"
             label={resumeField.label}
             placeholder={resumeField.placeholder}
             rows={resumeField.rows}

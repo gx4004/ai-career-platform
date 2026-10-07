@@ -78,6 +78,8 @@ describe('AdminUsersPage', () => {
     renderPage([user('u-1', { full_name: 'Ada Lovelace' })])
     fireEvent.click(await screen.findByRole('button', { name: 'Make admin' }))
     const dialog = within(await screen.findByRole('alertdialog', { name: 'Make Ada Lovelace an admin?' }))
+    // account-admin-AAG-F05: names are not unique, so the sentence under a name says which account it is.
+    expect(screen.getByRole('alertdialog').textContent).toContain('u-1@example.com will be able to see every user')
     expect(setAdminStatusMock).not.toHaveBeenCalled()
     fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
@@ -112,8 +114,19 @@ describe('AdminUsersPage', () => {
     renderPage([user('u-2', { is_admin: true })])
     fireEvent.click(await screen.findByRole('button', { name: 'Remove admin' }))
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove admin' }))
-    expect(await screen.findByText('That role change could not be saved.')).toBeTruthy()
+    // account-admin-AAG-F03: a toast, not a notice at the top of the page that is off-screen from a lower row.
+    const toast = (await screen.findByText('That role change was not saved')).closest('.kit-toast')
+    expect(toast?.getAttribute('data-tone')).toBe('danger')
+    expect(document.querySelector('.kit-notice')).toBeNull()
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  })
+
+  it('names the account by its email under the name in the role-change toast (AAG-F05)', async () => {
+    renderPage([user('u-1', { full_name: 'Dana Reyes' })])
+    fireEvent.click(await screen.findByRole('button', { name: 'Make admin' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Make admin' }))
+    const title = (await screen.findAllByText('Dana Reyes is now an admin')).find((node) => node.closest('.kit-toast'))
+    expect(title?.closest('.kit-toast')?.textContent).toContain('u-1@example.com')
   })
 
   it('asks the server for admins only, across every page, from page 1', async () => {
@@ -129,10 +142,34 @@ describe('AdminUsersPage', () => {
       expect(getAdminUsersMock).toHaveBeenLastCalledWith({ page: 1, page_size: 20, is_admin: true }),
     )
     expect(screen.getByRole('button', { name: 'Admins only' }).getAttribute('aria-pressed')).toBe('true')
+    // A filter: it lives in the toolbar's filters slot next to the search, not on a row of its own (account-admin-F14).
+    expect(screen.getByRole('button', { name: 'Admins only' }).closest('.kit-toolbar__filters')).toBeTruthy()
     expect(await screen.findByText('3 admins')).toBeTruthy()
     // Three admins fit on one page: the pager over the 45 users is gone.
     expect(screen.queryByRole('navigation', { name: 'Users pages' })).toBeNull()
     expect(screen.queryByText(/on this page/)).toBeNull()
+  })
+
+  it('brings the search and the rows back into view after Next, not the rows alone (account-admin-AA-F14)', async () => {
+    const scrolled: Element[] = []
+    // jsdom has no scrollIntoView: record which element the pager scrolls to.
+    const original = HTMLElement.prototype.scrollIntoView
+    HTMLElement.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this)
+    }
+    // The list's top has scrolled out of view (Next pressed at the bottom of a long phone page).
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top: -500 } as DOMRect)
+    try {
+      renderPage([user('u-1'), user('u-2')], 45)
+      await screen.findByText('u-1@example.com')
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      expect(scrolled).toHaveLength(1)
+      expect(scrolled[0].contains(screen.getByRole('search'))).toBe(true)
+      expect(scrolled[0].contains(screen.getByRole('table', { name: 'Users' }))).toBe(true)
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original
+      rect.mockRestore()
+    }
   })
 
   it('says there are no admins when the server finds none', async () => {
@@ -146,6 +183,9 @@ describe('AdminUsersPage', () => {
   it('searches by email on submit', async () => {
     renderPage([user('u-1')])
     await screen.findByText('u-1@example.com')
+    // A short placeholder, so it is not clipped mid-word beside the Filters button on a phone (account-admin-F22);
+    // the accessible name keeps the full purpose.
+    expect(screen.getByRole('searchbox', { name: 'Search users by email' }).getAttribute('placeholder')).toBe('Search email')
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search users by email' }), { target: { value: 'ada' } })
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     await waitFor(() =>
@@ -163,6 +203,11 @@ describe('AdminUsersPage', () => {
         </ToastProvider>
       </QueryClientProvider>,
     )
+    // The die-cut error: the rose icon disc and a sentence on what happened, not a bare title (STICKER 4.O).
+    const alert = (await screen.findByText("Couldn't load users")).closest('.kit-error') as HTMLElement
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(alert.textContent).toContain("The server didn't send the list. Nothing was changed.")
+    expect(alert.querySelector('.kit-empty__icon svg')).toBeTruthy()
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(getAdminUsersMock).toHaveBeenCalledTimes(2))
   })
