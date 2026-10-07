@@ -1,170 +1,204 @@
-"""Template gallery thumbnails: page 1 of the draft in every available template."""
+"""Template gallery thumbnails: page 1 of the built-in English sample CV in every template."""
 
 from __future__ import annotations
 
 import base64
 import io
+import re
 
+import fitz
 import pytest
 from PIL import Image
 
-from app.auth.security import hash_password
-from app.models.cv_document import CvDocument
-from app.models.user import User
+from app.schemas.cv_documents import CvStyle
 from app.services import cv_thumbnails
 from app.services.cv_chromium import ChromiumPool, ChromiumUnavailableError
-from app.services.cv_html import available_template_ids
-from tests import cv_fixtures
+from app.services.cv_html import available_template_ids, load_manifest
+from app.services.cv_sample import TRIM_ORDER, sample_cv, trimmed_sample
 
-PREFIX = "/api/v1/cv-documents"
+URL = "/api/v1/cv-documents/template-thumbnails"
 WEBP = "data:image/webp;base64,"
+MM = 72 / 25.4
+FONTS = ["inter", "source-sans-3", "ibm-plex-sans", "source-serif-4", "lora", "eb-garamond"]
 
 
-def _saved(db, user, fixture="maya", **overrides) -> CvDocument:
-    cv = cv_fixtures.ALL[fixture]()
-    fields = {"name": cv.name, "sections": cv.sections, "header": cv.header, **overrides}
-    document = CvDocument(user_id=user.id, **fields)
-    db.add(document)
-    db.commit()
-    db.refresh(document)
-    return document
+@pytest.fixture(autouse=True)
+def fresh_caches():
+    cv_thumbnails.clear_caches()
+    yield
+    cv_thumbnails.clear_caches()
 
 
-def _post(client, headers, document_id, body=None):
-    url = f"{PREFIX}/{document_id}/template-thumbnails"
-    if body is None:
-        return client.post(url, headers=headers)
-    return client.post(url, json=body, headers=headers)
+def _get(client, headers, **params):
+    return client.get(URL, params=params, headers=headers)
 
 
 def _image(thumbnail: dict) -> Image.Image:
     assert thumbnail["url"].startswith(WEBP)
-    return Image.open(io.BytesIO(base64.b64decode(thumbnail["url"][len(WEBP) :]))).convert("RGB")
+    data = base64.b64decode(thumbnail["url"][len(WEBP) :])
+    return Image.open(io.BytesIO(data)).convert("RGB")
 
 
 def _colour_count(image: Image.Image, rgb: tuple[int, int, int], tolerance: int = 24) -> int:
+    pixels = zip(*[iter(image.tobytes())] * 3, strict=True)
     return sum(
-        1
-        for pixel in zip(*[iter(image.tobytes())] * 3, strict=True)
-        if all(abs(channel - want) <= tolerance for channel, want in zip(pixel, rgb, strict=True))
+        1 for p in pixels if all(abs(c - w) <= tolerance for c, w in zip(p, rgb, strict=True))
     )
 
 
-@pytest.fixture
-def document(db, test_user):
-    return _saved(db, test_user)
+# -- the sample ----------------------------------------------------------------
 
 
-# -- shape ---------------------------------------------------------------------
+def _all_text(cv) -> str:
+    parts = [str(value) for value in cv.header.values() if isinstance(value, str)]
+    parts += cv.header["links"]
+    for section in cv.sections:
+        parts.append(section["title"])
+        for entry in section["entries"]:
+            parts += [str(entry.get(k) or "") for k in ("body", "heading", "subheading", "location")]
+            parts += entry["bullets"]
+    return " ".join(parts)
 
 
-def test_every_catalog_template_has_a_small_page_one_thumbnail(client, auth_headers, document):
-    response = _post(client, auth_headers, document.id)
+def test_the_sample_is_english_and_fictional():
+    cv = sample_cv()
+    text = _all_text(cv)
+    # Plain English only: printable ASCII plus the bullet; no Cyrillic or any other script.
+    assert re.fullmatch(r"[\x20-\x7e•]+", text)
+    assert cv.header["email"].endswith("@example.com")
+    assert all("example" in link for link in cv.header["links"])
+    kinds = [section["kind"] for section in cv.sections]
+    assert kinds == [
+        "summary", "experience", "projects", "education", "certifications", "skills", "custom",
+    ]
+    experience = cv.sections[1]["entries"]
+    assert len(experience) == 3 and all(3 <= len(e["bullets"]) <= 4 for e in experience)
+    skills = cv.sections[5]["entries"][0]["body"].split(" • ")
+    assert 14 <= len(skills) <= 18
+    assert len(cv.sections[6]["entries"][0]["body"].split(", ")) == 3
+
+
+def test_trimming_drops_lines_in_order_and_never_the_core():
+    full, most = trimmed_sample(0), trimmed_sample(len(TRIM_ORDER))
+    assert _all_text(full) == _all_text(sample_cv())
+    assert len(_all_text(most)) < len(_all_text(full))
+    # The header, summary, every role, skills and languages survive any trim.
+    assert most.header == full.header
+    assert [s["id"] for s in most.sections if s["entries"]] == [
+        "summary", "experience", "education", "certifications", "skills", "languages",
+    ]
+    assert len(most.sections[1]["entries"]) == 3
+
+
+@pytest.mark.parametrize("page_size", ["a4", "letter"])
+@pytest.mark.parametrize("template_id", available_template_ids())
+def test_the_sample_fills_one_page_in_every_template(template_id, page_size):
+    """Full but never over: page 1 is inked to near its bottom margin and there is no page 2."""
+    style = cv_thumbnails.gallery_style(CvStyle(page_size=page_size), template_id)
+    _drop, pdf = cv_thumbnails.sample_trim(template_id, style)
+    manifest = load_manifest(template_id)
+    with fitz.open(stream=pdf, filetype="pdf") as document:
+        assert len(document) == 1
+        page = document[0]
+        bottom = max(word[3] for word in page.get_text("words"))
+        top, foot = manifest.margin_top_mm * MM, manifest.margin_bottom_mm * MM
+        fill = (bottom - top) / (page.rect.height - top - foot)
+    assert fill >= 0.85, fill
+
+
+@pytest.mark.parametrize("font_id", FONTS)
+def test_the_sample_stays_on_one_page_with_every_typeface(font_id):
+    for template_id in available_template_ids():
+        style = cv_thumbnails.gallery_style(CvStyle(font_id=font_id), template_id)
+        _drop, pdf = cv_thumbnails.sample_trim(template_id, style)
+        with fitz.open(stream=pdf, filetype="pdf") as document:
+            assert len(document) == 1, (template_id, font_id)
+
+
+# -- the endpoint ----------------------------------------------------------------
+
+
+def test_every_catalog_template_has_a_page_one_thumbnail(client, auth_headers):
+    response = _get(client, auth_headers)
     assert response.status_code == 200
-    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["cache-control"] == "private, max-age=3600"
     body = response.json()
-    assert body["sample"] is False
-    ids = [t["template_id"] for t in body["thumbnails"]]
-    assert ids == list(available_template_ids())
+    assert [t["template_id"] for t in body["thumbnails"]] == list(available_template_ids())
     for thumbnail in body["thumbnails"]:
-        assert thumbnail["error"] is None and thumbnail["pages"] == 1
-        image = _image(thumbnail)
+        assert thumbnail["error"] is None
         # A4, 320 px wide.
-        assert image.size == (thumbnail["width"], thumbnail["height"]) == (320, 453)
+        assert _image(thumbnail).size == (thumbnail["width"], thumbnail["height"]) == (320, 453)
 
 
-@pytest.mark.parametrize("fixture", ["maya", "long"])
-def test_the_gallery_stays_within_the_mobile_budget(client, auth_headers, document, fixture):
+def test_letter_page_size_changes_the_thumbnail_shape(client, auth_headers):
+    body = _get(client, auth_headers, page_size="letter").json()
+    assert {(t["width"], t["height"]) for t in body["thumbnails"]} == {(320, 414)}
+
+
+@pytest.mark.parametrize(
+    "params", [{}, {"accent_color": "#9D174D", "font_id": "eb-garamond", "density": "spacious"}]
+)
+def test_the_gallery_stays_within_the_mobile_budget(client, auth_headers, params):
     """Owner budget: about 8 KB of WebP a thumbnail and 80 KB for the whole response."""
-    cv = cv_fixtures.ALL[fixture]()
-    response = _post(
-        client, auth_headers, document.id, {"sections": cv.sections, "header": cv.header}
-    )
+    response = _get(client, auth_headers, **params)
     assert len(response.content) <= 80 * 1024
     for thumbnail in response.json()["thumbnails"]:
         size = len(base64.b64decode(thumbnail["url"][len(WEBP) :]))
         assert size <= cv_thumbnails.THUMBNAIL_MAX_BYTES, (thumbnail["template_id"], size)
 
 
-def test_a_client_can_ask_for_some_templates_first(client, auth_headers, document):
-    url = f"{PREFIX}/{document.id}/template-thumbnails"
-    body = client.post(f"{url}?templates=lagoon,classic", headers=auth_headers).json()
+def test_the_accent_is_drawn(client, auth_headers):
+    plain = _get(client, auth_headers, templates="lagoon").json()["thumbnails"][0]
+    red = _get(client, auth_headers, templates="lagoon", accent_color="#B91C1C").json()
+    target = (0xB9, 0x1C, 0x1C)
+    assert _colour_count(_image(red["thumbnails"][0]), target) > 500
+    assert _colour_count(_image(plain), target) < 500
+
+
+def test_a_client_can_ask_for_some_templates_first(client, auth_headers):
+    body = _get(client, auth_headers, templates="lagoon,classic").json()
     # Catalog order, only those asked for.
     assert [t["template_id"] for t in body["thumbnails"]] == ["classic", "lagoon"]
     for bad in ("nope", "classic,nope", ","):
-        assert client.post(f"{url}?templates={bad}", headers=auth_headers).status_code == 422
+        assert _get(client, auth_headers, templates=bad).status_code == 422
 
 
-def test_the_draft_style_is_used_but_each_template_is_its_own(client, auth_headers, document):
-    plain = _post(client, auth_headers, document.id).json()["thumbnails"]
-    red = "#b91c1c"
-    styled = _post(
-        client,
-        auth_headers,
-        document.id,
-        {"style": {"accent_color": red, "template_id": "classic"}},
-    ).json()["thumbnails"]
-    # The chosen template does not limit the gallery.
-    assert [t["template_id"] for t in styled] == list(available_template_ids())
-    lagoon_plain = _image(next(t for t in plain if t["template_id"] == "lagoon"))
-    lagoon_red = _image(next(t for t in styled if t["template_id"] == "lagoon"))
-    target = (0xB9, 0x1C, 0x1C)
-    assert _colour_count(lagoon_red, target) > 500 > _colour_count(lagoon_plain, target)
+def test_a_second_request_is_served_from_the_cache_without_chromium(
+    client, auth_headers, monkeypatch
+):
+    first = _get(client, auth_headers, accent_color="#075985").json()
+    prints = []
+    monkeypatch.setattr(cv_thumbnails, "print_pdf", lambda *a, **k: prints.append(1))
+    second = _get(client, auth_headers, accent_color="#075985").json()
+    assert second == first and prints == []
 
 
-def test_letter_page_size_changes_the_thumbnail_shape(client, auth_headers, document):
-    body = _post(client, auth_headers, document.id, {"style": {"page_size": "letter"}}).json()
-    assert {(t["width"], t["height"]) for t in body["thumbnails"]} == {(320, 414)}
+def test_the_cache_is_bounded():
+    assert cv_thumbnails.CACHE_SIZE == 256
+    lru = cv_thumbnails._Lru(2)
+    for key in "abc":
+        lru.put(key, key)
+    assert len(lru) == 2 and lru.get("a") is None and lru.get("c") == "c"
 
 
-def test_the_draft_content_renders_not_the_saved_one(client, auth_headers, db, document):
-    before = (list(document.sections), dict(document.header), document.style, document.updated_at)
-    long = cv_fixtures.long_cv()
-    body = _post(
-        client, auth_headers, document.id, {"sections": long.sections, "header": long.header}
-    ).json()
-    assert all(t["pages"] >= 2 for t in body["thumbnails"])
-    db.expire_all()
-    fresh = db.get(CvDocument, document.id)
-    assert (list(fresh.sections), dict(fresh.header), fresh.style, fresh.updated_at) == before
+def test_a_new_accent_reuses_the_cached_trim(client, auth_headers, monkeypatch):
+    _get(client, auth_headers, templates="classic")
+    prints = []
+    original = cv_thumbnails.print_pdf
 
+    def counting(*args, **kwargs):
+        prints.append(1)
+        return original(*args, **kwargs)
 
-def test_cyrillic_content_renders(client, auth_headers, document):
-    cv = cv_fixtures.cyrillic()
-    body = _post(
-        client, auth_headers, document.id, {"sections": cv.sections, "header": cv.header}
-    ).json()
-    assert all(t["url"] for t in body["thumbnails"])
-
-
-def test_a_cv_without_entries_shows_the_sample_cv(client, auth_headers, db, test_user):
-    empty = _saved(db, test_user, sections=[], header={"name": "Only A Name"})
-    body = _post(client, auth_headers, empty.id).json()
-    assert body["sample"] is True
-    assert all(t["url"] and t["error"] is None for t in body["thumbnails"])
-    # An empty section is no content either.
-    draft = {
-        "sections": [
-            {"id": "a", "kind": "summary", "title": "Summary", "position": 0, "entries": []}
-        ]
-    }
-    assert _post(client, auth_headers, empty.id, draft).json()["sample"] is True
-
-
-def test_has_content_counts_only_visible_entries():
-    cv = cv_fixtures.maya()
-    assert cv_thumbnails.has_content(cv)
-    for section in cv.sections:
-        section["visible"] = False
-    assert not cv_thumbnails.has_content(cv)
+    monkeypatch.setattr(cv_thumbnails, "print_pdf", counting)
+    _get(client, auth_headers, templates="classic", accent_color="#166534")
+    assert prints == [1]
 
 
 # -- failure isolation ---------------------------------------------------------
 
 
-def test_one_failing_template_does_not_take_the_others_down(
-    client, auth_headers, document, monkeypatch
-):
+def test_one_failing_template_does_not_take_the_others_down(client, auth_headers, monkeypatch):
     original = cv_thumbnails.render_cv_html
 
     def broken_for_slate(model, **kwargs):
@@ -173,35 +207,36 @@ def test_one_failing_template_does_not_take_the_others_down(
         return original(model, **kwargs)
 
     monkeypatch.setattr(cv_thumbnails, "render_cv_html", broken_for_slate)
-    body = _post(client, auth_headers, document.id).json()
-    by_id = {t["template_id"]: t for t in body["thumbnails"]}
-    assert by_id["slate"]["url"] is None and by_id["slate"]["error"] == cv_thumbnails.FAILED_MESSAGE
+    by_id = {t["template_id"]: t for t in _get(client, auth_headers).json()["thumbnails"]}
+    assert by_id["slate"]["url"] is None
+    assert by_id["slate"]["error"] == cv_thumbnails.FAILED_MESSAGE
     assert all(t["url"] for tid, t in by_id.items() if tid != "slate")
+    # A failure is not cached: the next request draws it.
+    monkeypatch.setattr(cv_thumbnails, "render_cv_html", original)
+    assert all(t["url"] for t in _get(client, auth_headers).json()["thumbnails"])
 
 
 def test_the_budget_marks_late_templates_instead_of_waiting(monkeypatch):
     clock = iter(range(0, 1000, 10))
     monkeypatch.setattr(cv_thumbnails.time, "monotonic", lambda: next(clock))
-    monkeypatch.setattr(
-        cv_thumbnails,
-        "_render_one",
-        lambda document, style, template_id, timeout: cv_thumbnails.Thumbnail(template_id, "x"),
-    )
-    from app.schemas.cv_documents import CvStyle
 
-    result = cv_thumbnails.render_thumbnails(cv_fixtures.maya(), CvStyle(), budget=25)
-    errors = [t.error for t in result.thumbnails]
-    # Deadline 25: two templates start in time (t=10, 20), the rest are past it.
+    def render(template_id, style, remaining):
+        remaining()
+        return cv_thumbnails.Thumbnail(template_id, "x")
+
+    monkeypatch.setattr(cv_thumbnails, "_render_one", render)
+    errors = [t.error for t in cv_thumbnails.render_thumbnails(CvStyle(), budget=25)]
+    # Deadline 25 from t=0: two templates start in time (t=10, 20), the rest are past it.
     assert errors[:2] == [None, None]
     assert set(errors[2:]) == {cv_thumbnails.TIMEOUT_MESSAGE}
 
 
-def test_missing_chromium_is_a_503(client, auth_headers, document, monkeypatch):
+def test_missing_chromium_is_a_503(client, auth_headers, monkeypatch):
     async def unavailable(self):
         raise ChromiumUnavailableError()
 
     monkeypatch.setattr(ChromiumPool, "_get_browser", unavailable)
-    response = _post(client, auth_headers, document.id)
+    response = _get(client, auth_headers)
     assert response.status_code == 503
     assert response.json()["detail"] == ChromiumUnavailableError.message
 
@@ -209,40 +244,26 @@ def test_missing_chromium_is_a_503(client, auth_headers, document, monkeypatch):
 # -- access --------------------------------------------------------------------
 
 
-def test_requires_authentication(client, document):
-    assert client.post(f"{PREFIX}/{document.id}/template-thumbnails").status_code == 401
-
-
-def test_another_users_cv_is_a_404(client, auth_headers, db, document):
-    other = User(email="thumbs-other@example.com", hashed_password=hash_password("password123"))
-    db.add(other)
-    db.commit()
-    foreign = _saved(db, other)
-    assert _post(client, auth_headers, foreign.id).status_code == 404
-    assert _post(client, auth_headers, "does-not-exist").status_code == 404
+def test_requires_authentication(client):
+    assert client.get(URL).status_code == 401
 
 
 @pytest.mark.parametrize(
-    "body",
-    [
-        {"sections": "nope"},
-        {"style": {"template_id": "no-such-template"}},
-        {"style": {"accent_color": "red"}},
-        {"unknown": 1},
-    ],
+    "params",
+    [{"accent_color": "red"}, {"font_id": "comic-sans"}, {"density": "huge"}, {"page_size": "a3"}],
 )
-def test_invalid_drafts_are_422(client, auth_headers, document, body):
-    assert _post(client, auth_headers, document.id, body).status_code == 422
+def test_invalid_styles_are_422(client, auth_headers, params):
+    assert _get(client, auth_headers, **params).status_code == 422
 
 
-def test_rate_limit_is_20_per_minute(client, auth_headers, document, monkeypatch):
+def test_rate_limit_is_30_per_minute(client, auth_headers, monkeypatch):
     calls = []
 
-    def fake(source, style, **kwargs):
+    def fake(style, **kwargs):
         calls.append(1)
-        return cv_thumbnails.ThumbnailSet(thumbnails=[], sample=False)
+        return []
 
     monkeypatch.setattr("app.routers.cv_documents.render_thumbnails", fake)
-    statuses = [_post(client, auth_headers, document.id).status_code for _ in range(22)]
-    assert statuses[:20] == [200] * 20 and statuses[20:] == [429, 429]
-    assert len(calls) == 20
+    statuses = [_get(client, auth_headers).status_code for _ in range(32)]
+    assert statuses[:30] == [200] * 30 and statuses[30:] == [429, 429]
+    assert len(calls) == 30
