@@ -29,6 +29,7 @@
 }
 .sc-contact { font-size: 0.92em; line-height: 1.5; color: var(--scholar-ink-2); margin-top: var(--space-2); }
 .sc-contact .nw { white-space: nowrap; }
+.sc-contact a { text-decoration-color: var(--accent); text-decoration-thickness: 0.6pt; }
 .sc-sep { color: var(--scholar-muted); }
 
 /* -- sections ------------------------------------------------------------------------ */

@@ -32,7 +32,7 @@
 {%- if ns.ok %}{{ items|join("\x1f") }}{% endif -%}
 {%- endmacro %}
 {#- Skills, certifications and any other section that is only a short list go in a narrow
-    column beside the summary, at the top of the body; everything else then runs full width.
+    panel at the top right, under the summary; everything else wraps round it at full width.
     DOM order is the visual order (summary, lists, the rest), so every section extracts whole
     and in one piece on every page; only their order differs from the CV's when the lists are
     not already next to the summary. That is the "less ATS-safe" trade-off of this template. #}
@@ -115,19 +115,21 @@
 </header>
 {%- if sections %}
 <div class="sl-body">
-  {%- if split.summary or split.side %}
-  <div class="sl-intro{% if split.summary and split.side %} sl-intro--two{% elif split.side %} sl-intro--lists{% endif %}">
-    {%- if split.summary %}
-    <div class="sl-intro-main">{{ render_section(split.summary, false) }}</div>
-    {%- endif %}
-    {%- if split.side %}
-    <div class="sl-intro-side">
-      {%- for section in split.side %}{{ render_section(section, true) }}{% endfor %}
-    </div>
-    {%- endif %}
-  </div>
+  {%- if split.summary %}
+  <div class="sl-lead">{{ render_section(split.summary, false) }}</div>
   {%- endif %}
-  {%- for section in split.main %}{{ render_section(section, false) }}{% endfor %}
+  {#- The panel floats right, under the summary, and the next sections wrap round it: two
+      columns at the top, no hole under a short summary. A float paints (and so extracts)
+      before the in-flow text around it, so the lead and the flow are each isolated: the PDF
+      reads header, summary, panel, then the rest, each section whole. #}
+  <div class="sl-flow">
+    {%- if split.side %}
+    <aside class="sl-panel">
+      {%- for section in split.side %}{{ render_section(section, true) }}{% endfor %}
+    </aside>
+    {%- endif %}
+    {%- for section in split.main %}{{ render_section(section, false) }}{% endfor %}
+  </div>
 </div>
 {%- endif %}
 </body>
