@@ -1,0 +1,19 @@
+{
+  "id": "scholar",
+  "name": "Scholar",
+  "description": "A bookish single-column CV set in a serif: the name in the accent, small-caps section headings over hairline rules, bold roles with italic detail and dates on the right.",
+  "ats_safe": true,
+  "photo_slot": false,
+  "columns": 1,
+  "title_align": "left",
+  "typefaces": {"heading": "Source Serif 4", "body": "Source Serif 4"},
+  "accent_role": "name-and-headings",
+  "sidebar_kinds": [],
+  "page_margin_mm": {"top": 15, "right": 18, "bottom": 14, "left": 18},
+  "fonts": [
+    {"family": "Source Serif 4", "weight": 400, "style": "normal", "file": "source-serif-4/SourceSerif4-Regular.ttf"},
+    {"family": "Source Serif 4", "weight": 400, "style": "italic", "file": "source-serif-4/SourceSerif4-It.ttf"},
+    {"family": "Source Serif 4", "weight": 600, "style": "normal", "file": "source-serif-4/SourceSerif4-Semibold.ttf"},
+    {"family": "Source Serif 4", "weight": 700, "style": "normal", "file": "source-serif-4/SourceSerif4-Bold.ttf"}
+  ]
+}
