@@ -12,7 +12,7 @@
   --li-tint: color-mix(in srgb, var(--accent) 18%, white);
   --li-deep: color-mix(in srgb, var(--accent) 75%, black);
   --li-muted: #4d4d4d;   /* dates, location on white and on the tint: 8:1 / 6.5:1 */
-  font: 400 clamp(8.75pt, calc(9.3pt * var(--type)), 10.5pt) / 1.45 var(--font-body);
+  font: 400 clamp(var(--body-min, 8.75pt), calc(9.3pt * var(--type)), 10.5pt) / 1.45 var(--font-body);
   hyphens: manual;
   orphans: 2;
   widows: 2;

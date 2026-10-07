@@ -219,10 +219,17 @@ def _stack(family: Typeface) -> str:
     return f'"{family.name}", {_GENERIC[family.category]}'
 
 
-def _root_vars(plan: FontPlan, accent: str, type_scale: float, gap_scale: float) -> str:
+def _root_vars(
+    plan: FontPlan, accent: str, type_scale: float, gap_scale: float, fit_scale: float = 1.0
+) -> str:
+    """The :root custom properties. ``fit_scale`` (fit to one page, <= 1) multiplies the type
+    and gap scales; ``--body-min`` then holds the body at 9pt however far the scale drops."""
     tokens = accent_tokens(accent)
+    fit = f"--fit-scale: {fit_scale:g}; --body-min: 9pt; " if fit_scale < 1 else ""
+    type_scale, gap_scale = round(type_scale * fit_scale, 4), round(gap_scale * fit_scale, 4)
     return (
         ":root { "
+        f"{fit}"
         f"--font-body: {_stack(plan.body)}; --font-heading: {_stack(plan.heading)}; "
         f"--accent: {tokens['accent']}; --accent-tint: {tokens['accent_tint']}; "
         f"--on-accent: {tokens['on_accent']}; --type: {type_scale}; --gap: {gap_scale}; }}"
@@ -364,6 +371,7 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
                     accent,
                     int(tokens.get("type_scale_pct", 100)) / 100,
                     int(tokens.get("gap_scale_pct", 100)) / 100,
+                    int(tokens.get("fit_scale_pct", 100)) / 100,
                 )
             ),
             base_css=Markup(_base_css()),  # noqa: S704 - bundled file only

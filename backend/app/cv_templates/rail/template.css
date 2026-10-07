@@ -10,7 +10,7 @@
   --rl-ink-2: #333333;   /* organisation, contact: 12.6:1 */
   --rl-muted: #555555;   /* dates, location, levels: 7.5:1 */
   --rl-rule: #cfcfcf;
-  font: 400 clamp(8.75pt, calc(9.4pt * var(--type)), 10.25pt) / 1.45 var(--font-body);
+  font: 400 clamp(var(--body-min, 8.75pt), calc(9.4pt * var(--type)), 10.25pt) / 1.45 var(--font-body);
   hyphens: manual;
   orphans: 2;
   widows: 2;
