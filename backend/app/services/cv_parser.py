@@ -872,8 +872,8 @@ def _read_header(
         rest1, start1, end1 = _analyse(nxt.text)
         if start1 and len(nxt.text) <= 120:
             used = 2
-            fields = _split_org(text, kind) if _STRONG_SPLIT.search(text) else {"heading": text}
             rest1 = _clean_rest(rest1)
+            fields = _split_org(text, kind) if (_STRONG_SPLIT.search(text) or not rest1) else {"heading": text}
             if rest1:
                 if _place_like(rest1):
                     fields["location"] = rest1
