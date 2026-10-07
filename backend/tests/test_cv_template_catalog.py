@@ -5,13 +5,14 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
-from typing import get_args
+from typing import Literal, get_args
 
 import fitz
 import pytest
 import sqlalchemy as sa
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.cv_documents import LEGACY_CV_TEMPLATE_IDS, CvStyle, CvTemplateId
 from app.services.cv_html import TEMPLATES_DIR, available_template_ids, load_manifest
@@ -119,17 +120,33 @@ def _migration():
     return module
 
 
-def test_style_migration_rewrites_legacy_ids_and_reverses():
+# The pre-catalog CvStyle, frozen as it was before a8d4f1c7e3b9: a downgraded row must parse here.
+_LEGACY_PALETTE = {"#111827", "#7C2D12", "#075985", "#166534", "#6D28D9", "#B91C1C", "#0F766E"}
+
+
+class _LegacyCvStyle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    template_id: Literal[
+        "ats-essential", "professional-editorial", "technical-portfolio", "modern-two-column",
+        "minimal-serif",
+    ] = "ats-essential"
+    font_id: Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"] = "lato"
+    accent_color: str = Field(default="#111827", pattern=r"^#[0-9a-fA-F]{6}$")
+    density: Literal["compact", "normal", "spacious"] = "normal"
+    ats_mode: bool = False
+
+    @field_validator("accent_color")
+    @classmethod
+    def _accent_in_palette(cls, value: str) -> str:
+        if value.upper() not in _LEGACY_PALETTE:
+            raise ValueError("accent_color must be one of the curated palette colors")
+        return value
+
+
+def _run_migration(rows: dict) -> tuple[dict, dict]:
     module = _migration()
     engine = sa.create_engine("sqlite://")
-    legacy = {"template_id": "modern-two-column", "font_id": "lato", "density": "compact"}
-    rows = {
-        "a": legacy,
-        "b": {"template_id": "minimal-serif"},
-        "c": {"template_id": "classic", "page_size": "letter", "fit_one_page": True, "font_id": None},
-        "d": None,
-        "e": {"template_id": "technical-portfolio", "ats_mode": True},
-    }
     with engine.begin() as conn:
         conn.execute(sa.text("CREATE TABLE cv_documents (id TEXT PRIMARY KEY, style JSON)"))
         for row_id, style in rows.items():
@@ -149,17 +166,78 @@ def test_style_migration_rewrites_legacy_ids_and_reverses():
             upgraded = read()
             module.downgrade()
             downgraded = read()
+    return upgraded, downgraded
 
-    assert upgraded["a"] == {**legacy, "template_id": "lagoon"}
+
+def test_style_migration_rewrites_legacy_ids_and_reverses():
+    legacy = {"template_id": "modern-two-column", "font_id": "lato", "density": "compact"}
+    rows = {
+        "a": legacy,
+        "b": {"template_id": "minimal-serif"},
+        "c": {"template_id": "classic", "page_size": "letter", "fit_one_page": True, "font_id": None},
+        "d": None,
+        "e": {"template_id": "technical-portfolio", "ats_mode": True},
+        "f": {"template_id": "ats-essential", "font_id": "pt-serif", "accent_color": "#075985"},
+    }
+    upgraded, downgraded = _run_migration(rows)
+
+    # Upgrade: catalog ids, and the old always-persisted default typeface becomes "the template's own".
+    assert upgraded["a"] == {"template_id": "lagoon", "font_id": None, "density": "compact"}
     assert upgraded["b"] == {"template_id": "executive"}
     assert upgraded["c"] == rows["c"] and upgraded["d"] is None
     assert upgraded["e"] == {"template_id": "slate", "ats_mode": True}
-    assert downgraded["a"]["template_id"] == "modern-two-column"
-    assert downgraded["c"] == {"template_id": "ats-essential"}
-    assert downgraded["d"] is None
-    # Every stored style the downgrade leaves still parses under the pre-catalog schema's keys.
-    assert all(set(s) <= {"template_id", "font_id", "accent_color", "density", "ats_mode"}
-               for s in downgraded.values() if s)
+    assert upgraded["f"] == {"template_id": "classic", "font_id": "pt-serif", "accent_color": "#075985"}
     for style in upgraded.values():
         if style:
             CvStyle(**style)
+    assert CvStyle(**upgraded["a"]).font_id is None
+
+    # Downgrade: values, not just keys, are ones the old schema accepts.
+    assert downgraded["a"] == {"template_id": "modern-two-column", "font_id": "lato", "density": "compact"}
+    assert downgraded["b"] == {"template_id": "professional-editorial"}
+    assert downgraded["c"] == {"template_id": "ats-essential", "font_id": "lato"}
+    assert downgraded["d"] is None
+    assert downgraded["f"] == {"template_id": "ats-essential", "font_id": "pt-serif", "accent_color": "#075985"}
+    for style in downgraded.values():
+        if style:
+            _LegacyCvStyle.model_validate(style)
+
+
+def test_style_migration_downgrade_only_writes_values_the_old_schema_accepts():
+    """Rows written by the new code (null accent, new typefaces, new colours, new templates)."""
+    fonts = ["inter", "lora", "eb-garamond", "source-sans-3", "ibm-plex-sans", "source-serif-4", None] * 3
+    accents = [None, "#9D174D", "#334155", "#B45309", "#0f766e", "#111827", "#7C2D12"] * 3
+    rows = {
+        f"t-{template}": {"template_id": template, "font_id": font, "accent_color": accent,
+                          "density": "spacious", "ats_mode": False, "page_size": "letter",
+                          "fit_one_page": True}
+        for template, font, accent in zip(SPEC_IDS, fonts, accents, strict=False)
+    }
+    rows["empty"] = {}
+    _, downgraded = _run_migration(rows)
+    for row_id, style in downgraded.items():
+        parsed = _LegacyCvStyle.model_validate(style)
+        assert "page_size" not in style and "fit_one_page" not in style, row_id
+        if row_id != "empty":
+            assert parsed.density == "spacious"
+    assert downgraded["empty"] == {}
+    t = {template: downgraded[f"t-{template}"] for template in SPEC_IDS}
+    # Null accent and the new palette colours fall back to Ink; old colours stay.
+    assert t["classic"]["accent_color"] == "#111827"
+    assert t["scholar"]["accent_color"] == "#111827"  # Plum
+    assert t["academic"]["accent_color"] == "#111827"  # Slate
+    assert t["manuscript"]["accent_color"] == "#111827"  # Amber
+    assert t["executive"]["accent_color"] == "#0f766e"
+    assert t["lagoon"]["accent_color"] == "#7C2D12"
+    # Every new typeface and the null override fall back to the old default.
+    assert {style["font_id"] for style in t.values()} == {"lato"}
+    # Templates go back to the nearest of the five legacy ids.
+    assert {k: v["template_id"] for k, v in t.items()} == {
+        "classic": "ats-essential", "scholar": "minimal-serif", "academic": "minimal-serif",
+        "manuscript": "minimal-serif", "executive": "professional-editorial",
+        "frame": "professional-editorial", "lagoon": "modern-two-column",
+        "lilac": "modern-two-column", "meadow": "modern-two-column", "rail": "modern-two-column",
+        "almanac": "modern-two-column", "slate": "technical-portfolio",
+        "violet": "professional-editorial", "grotesk": "technical-portfolio",
+        "panel": "modern-two-column", "ledger": "modern-two-column",
+    }
