@@ -69,6 +69,16 @@ its letters read after the contact lines and never inside a section.
 ### 3.5 Frontend
 
 - Design tab: template gallery with thumbnails rendered server-side from the sample CV (cached by template and style), grouped "ATS-safe" and "More designs", with the less-safe warning on selection. Typeface, accent, density, page size and fit controls.
+- *Built (2026-10-08, #471):* the template section is a gallery of kit `RadioGroup variant="tile"` tiles (picture, name,
+  ATS badge, column count; ATS-safe group first; skeletons in the page's aspect ratio while loading; a text-only tile
+  when a picture fails). The pictures come from `GET /cv-documents/template-thumbnails` (style fields as query
+  parameters, no CV): page 1 of a built-in, fictional, English sample CV (`app/services/cv_sample.py`) in each template,
+  in the person's accent, typeface, spacing and page size, labelled "Sample content". The sample is trimmed per layout
+  (binary search over `TRIM_ORDER`) so it fills one page in every template without spilling. 320 px WebP, about 7 KB
+  each, under 50 KB for all seven; in-process LRU (256) keyed by template, accent, typeface, spacing, page size and
+  `SAMPLE_VERSION`, so repeat requests never touch Chromium; `private, max-age=3600`; 30/minute. Fetched only when the
+  Design panel opens, ATS-safe group first, aborted on close. The live preview asks for page images sized to its own
+  width times the pixel ratio (`?width=`, 320-1600 px), so phones get phone-sized pages.
 - Remove `.cvp-*` CSS and `CvPaperPreview` HTML rendering; replace with the page-image viewer plus section overlays. Update the three template-id lists (Zod schema, catalog schema, fixtures).
 
 ## 4. Templates
