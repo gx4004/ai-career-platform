@@ -173,9 +173,9 @@ def test_legacy_body_only_entry_still_renders_as_single_paragraph(db, test_user)
 
 
 def test_a_sidebar_template_without_a_template_dir_prints_as_classic(db, test_user):
-    # lagoon (T6) is a valid id before its template lands; it renders as classic, without error.
+    # meadow is a valid id whose template is not built (spec section 9); it renders as classic.
     document = _structured_document(db, test_user)
-    model = build_render_model(document, "lagoon", CvStyle(template_id="lagoon"))
+    model = build_render_model(document, "meadow", CvStyle(template_id="meadow"))
     assert model.template_id == "classic"
     assert model.tokens["two_column"] is False
     pdf = render_pdf(model)
