@@ -1,7 +1,8 @@
 /*
  * RadioGroup and RadioItem (Sticker): native radio inputs, restyled. Four looks share one markup:
  * plain (dot + text), framed (the Input frame), card (a 2px panel with a description),
- * swatch (a round colour chip). Selected is never colour alone: tangerine dot / lemon fill / ring + position.
+ * swatch (a round colour chip), tile (a card with a picture above the text, in a grid).
+ * Selected is never colour alone: tangerine dot / lemon fill / ring + position.
  */
 
 .kit-radiogroup {
@@ -23,6 +24,13 @@
 .kit-radiogroup[data-variant='framed'],
 .kit-radiogroup[data-variant='card'] {
   gap: var(--s2);
+}
+
+.kit-radiogroup[data-variant='tile'] {
+  display: grid;
+  /* As many columns as fit at about 136px each: two in a phone sheet, three in a wider panel. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr));
+  gap: var(--s3);
 }
 
 .kit-radiogroup[data-variant='swatch'] {
@@ -152,7 +160,7 @@
 
 /* ── Framed and card: the whole row is a 2px outlined control ──────── */
 
-.kit-radio:is([data-variant='framed'], [data-variant='card']) {
+.kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile']) {
   align-items: center;
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-sm);
@@ -161,7 +169,7 @@
 }
 
 @media (hover: hover) {
-  .kit-radio:is([data-variant='framed'], [data-variant='card']):hover:not([data-disabled], [data-checked]) {
+  .kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile']):hover:not([data-disabled], [data-checked]) {
     background: var(--lemon-soft);
   }
 }
@@ -171,32 +179,32 @@
   background: var(--lemon);
 }
 
-.kit-radio[data-variant='card'][data-checked] {
+.kit-radio:is([data-variant='card'], [data-variant='tile'])[data-checked] {
   background: var(--lemon-soft);
   box-shadow: var(--sh-1);
 }
 
-.kit-radio:is([data-variant='framed'], [data-variant='card'])[data-invalid]:not([data-checked]) {
+.kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile'])[data-invalid]:not([data-checked]) {
   background: var(--rose-soft);
 }
 
-.kit-radio:is([data-variant='framed'], [data-variant='card'])[data-disabled] {
+.kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile'])[data-disabled] {
   border-color: var(--ink-3);
   background: var(--stone);
   box-shadow: none;
 }
 
-.kit-radio:is([data-variant='framed'], [data-variant='card']) .kit-radio__input {
+.kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile']) .kit-radio__input {
   margin: 0;
 }
 
-.kit-radio:is([data-variant='framed'], [data-variant='card']):has(.kit-radio__input:focus-visible) {
+.kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile']):has(.kit-radio__input:focus-visible) {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
 
-.kit-radio:is([data-variant='framed'], [data-variant='card']) .kit-radio__input:focus-visible,
-.kit-radio:is([data-variant='framed'], [data-variant='card'])[data-invalid] .kit-radio__input:not(:checked) {
+.kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile']) .kit-radio__input:focus-visible,
+.kit-radio:is([data-variant='framed'], [data-variant='card'], [data-variant='tile'])[data-invalid] .kit-radio__input:not(:checked) {
   outline: none;
 }
 
@@ -220,6 +228,54 @@
 
 .kit-radio[data-variant='card'] .kit-radio__input {
   margin-top: calc((var(--lh-body) - var(--kit-radio-dot)) / 2);
+}
+
+/* ── Tile: the picture on top, then the dot and the text; the whole tile is the hit area ── */
+
+.kit-radio[data-variant='tile'] {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s2);
+  padding: var(--s2);
+  border-radius: var(--r-md);
+}
+
+.kit-radio__media {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: var(--kit-radio-media-ratio, auto);
+  border: var(--bw-thin) solid var(--ink-hairline);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+}
+
+.kit-radio__media > :is(img, svg) {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.kit-radio__media > .kit-skeleton {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.kit-radio[data-variant='tile'][data-disabled] .kit-radio__media {
+  opacity: 0.6;
+}
+
+.kit-radio[data-variant='tile'] .kit-radio__input {
+  margin-top: calc((var(--lh-body) - var(--kit-radio-dot)) / 2);
+}
+
+.kit-radio__body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-width: 0;
+  padding-inline: var(--s1);
 }
 
 /* ── Swatch: the input is the chip; selected = a white gap plus an ink ring (position, not colour) ── */
