@@ -11,18 +11,8 @@ with a fixed python-docx version.
 
 from __future__ import annotations
 
-import io
 import re
-import zipfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
-
-from docx import Document
-from docx.enum.text import WD_TAB_ALIGNMENT
-from docx.opc.constants import RELATIONSHIP_TYPE as RT
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.shared import Inches, Mm, Pt, RGBColor
 
 from app.schemas.cv_documents import (
     CV_ACCENT_NAMES,
@@ -39,13 +29,15 @@ from app.schemas.cv_documents import (
     CvStyleSizes,
 )
 from app.services.cv_chromium import print_pdf
-from app.services.cv_fonts import OVERRIDE_FONT_IDS, TYPEFACES, css_family, docx_font_name
+from app.services.cv_docx import docx_note_for, render_docx, render_txt  # noqa: F401
+from app.services.cv_fonts import OVERRIDE_FONT_IDS, TYPEFACES, css_family
 from app.services.cv_html import (
     DEFAULT_TEMPLATE_ID,
     URL_RE,
     TemplateManifest,
     available_template_ids,
     effective_families,
+    font_plan,
     html_template_id,
     load_manifest,
     missing_characters,
@@ -128,8 +120,6 @@ DENSITIES: dict[str, tuple[str, float, float]] = {
 
 # What ATS-friendly mode forces, whatever the saved style says.
 ATS_TEMPLATE_ID = DEFAULT_TEMPLATE_ID
-# The DOCX font when the person has not picked a typeface (T10 gives DOCX per-template fonts).
-DEFAULT_DOCX_FONT_ID = "lato"
 ATS_DENSITY = "normal"
 ATS_ACCENT = "#111827"
 ATS_CSS_FAMILY = "Helvetica, Arial, 'Liberation Sans', sans-serif"
@@ -159,6 +149,7 @@ def style_catalog() -> CvStyleCatalog:
                 title_align=template.title_align,
                 margin_mm=template.margin_mm,
                 sidebar_kinds=list(template.sidebar_kinds),
+                docx_note=docx_note_for(template.two_column),
                 sizes={density: template_sizes(template, density) for density in DENSITIES},
             )
             for template_id, template in TEMPLATES.items()
@@ -191,6 +182,7 @@ class EffectiveStyle:
     layout_template_id: str
     font_override: str
     font_docx_name: str
+    font_docx_heading_name: str
     accent: str
     density: str
     ats_mode: bool
@@ -207,9 +199,11 @@ def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
     layout_id = ATS_TEMPLATE_ID if ats else html_template_id(template_id)
     template = TEMPLATES[layout_id]
     if ats:
-        font_docx, accent = "Helvetica", ATS_ACCENT
+        font_docx = font_docx_heading = "Helvetica"
+        accent = ATS_ACCENT
     else:
-        font_docx = docx_font_name(style.font_id or DEFAULT_DOCX_FONT_ID)
+        plan = font_plan(layout_id, style.font_id or None)
+        font_docx, font_docx_heading = plan.body.name, plan.heading.name
         accent = style.accent_color
     density = ATS_DENSITY if ats else style.density
     sizes = template_sizes(template, density)
@@ -217,6 +211,7 @@ def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
         layout_template_id=layout_id,
         font_override="" if ats else (style.font_id or ""),
         font_docx_name=font_docx,
+        font_docx_heading_name=font_docx_heading,
         accent=accent,
         density=density,
         ats_mode=ats,
@@ -358,6 +353,8 @@ def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderMo
         unsupported_characters=unsupported,
         tokens={
             "font_docx": effective.font_docx_name,
+            "font_docx_heading": effective.font_docx_heading_name,
+            "ats_mode": effective.ats_mode,
             "font_override": effective.font_override,
             "accent": effective.accent,
             "body_size_pt": effective.body_size,
@@ -403,139 +400,6 @@ def render_pdf(model: CvRenderModel) -> bytes:
     there is no fallback renderer.
     """
     return normalize_pdf(print_pdf(render_cv_html(model, page_size=str(model.tokens.get("page_size", "a4")))))
-
-
-def render_docx(model: CvRenderModel) -> bytes:
-    tokens = model.tokens
-    font = str(tokens["font_docx"])
-    accent = RGBColor.from_string(str(tokens["accent"])[1:])
-    body_size = int(tokens["body_size_pt"])
-    heading_size = int(tokens["heading_size_pt"])
-    doc = Document()
-    section = doc.sections[0]
-    # python-docx's template is US Letter; the PDF and the margins below are A4.
-    section.page_width, section.page_height = Mm(210), Mm(297)
-    section.top_margin = section.bottom_margin = section.left_margin = section.right_margin = (
-        Inches(model.margin_mm / 25.4)
-    )
-    core = doc.core_properties
-    core.title = model.document_name
-    core.author = "Career Workbench"
-    core.created = core.modified = datetime(2000, 1, 1, tzinfo=UTC)
-    normal = doc.styles["Normal"]
-    normal.font.name = font
-    normal.font.size = Pt(body_size)
-    heading_style = doc.styles["Heading 1"]
-    heading_style.font.name = font
-    for theme_attribute in ("asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"):
-        # The template's theme fonts would otherwise win over the named font.
-        heading_style.element.rPr.rFonts.attrib.pop(qn(f"w:{theme_attribute}"), None)
-    heading_style.font.size = Pt(heading_size)
-    heading_style.font.bold = True
-    heading_style.font.color.rgb = accent
-    heading_style.paragraph_format.space_before = Pt(int(tokens["section_gap_pt"]) + 4)
-    heading_style.paragraph_format.space_after = Pt(3)
-    alignment = 1 if tokens["title_align"] == "center" else 0
-    title = doc.add_paragraph()
-    title.alignment = alignment
-    run = title.add_run(model.header.title)
-    run.bold = True
-    run.font.name = font
-    run.font.size = Pt(heading_size + 6)
-    run.font.color.rgb = accent
-    if model.header.headline:
-        headline = doc.add_paragraph()
-        headline.alignment = alignment
-        _add_run(headline, model.header.headline, font)
-    if model.header.contact:
-        contact = doc.add_paragraph()
-        contact.alignment = alignment
-        for index, item in enumerate(model.header.contact):
-            if index:
-                _add_run(contact, " | ", font)
-            _add_linked_text(contact, item, font)
-    # A4 width in inches minus margins, for the right-aligned date tab stop.
-    content_width_in = 210 / 25.4 - 2 * model.margin_mm / 25.4
-    for rendered_section in model.sections:
-        # A real Heading style, so Word's navigation pane and screen readers see sections.
-        p = doc.add_paragraph(style="Heading 1")
-        p.paragraph_format.keep_with_next = True
-        r = p.add_run(rendered_section.title)
-        r.bold = True
-        r.font.name = font
-        r.font.size = Pt(heading_size)
-        r.font.color.rgb = accent
-        for entry in rendered_section.entries:
-            _add_docx_entry(doc, entry, font, content_width_in)
-    raw = io.BytesIO()
-    doc.save(raw)
-    source = zipfile.ZipFile(io.BytesIO(raw.getvalue()))
-    final = io.BytesIO()
-    with zipfile.ZipFile(final, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as target:
-        for name in sorted(source.namelist()):
-            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o600 << 16
-            target.writestr(info, source.read(name))
-    source.close()
-    return final.getvalue()
-
-
-def _add_run(paragraph, text: str, font: str, *, bold=False, italic=False) -> None:
-    run = paragraph.add_run(text)
-    run.bold = bold or None
-    run.italic = italic or None
-    run.font.name = font
-
-
-def _add_docx_entry(doc, entry, font: str, content_width_in: float) -> None:
-    if entry.heading is not None:
-        heading_line = doc.add_paragraph()
-        heading_line.paragraph_format.keep_with_next = True
-        _add_run(heading_line, entry.heading, font, bold=True)
-        if entry.subheading:
-            _add_run(heading_line, f" — {entry.subheading}", font)
-        if entry.dates:
-            heading_line.paragraph_format.tab_stops.add_tab_stop(
-                Inches(content_width_in), WD_TAB_ALIGNMENT.RIGHT
-            )
-            _add_run(heading_line, f"\t{entry.dates}", font)
-        if entry.location:
-            _add_run(doc.add_paragraph(), entry.location, font, italic=True)
-        for bullet_text in entry.bullets:
-            _add_run(doc.add_paragraph(style="List Bullet"), bullet_text, font)
-    if entry.paragraph:
-        p = doc.add_paragraph()
-        p.paragraph_format.keep_together = True
-        _add_linked_text(p, entry.paragraph, font)
-
-
-def _add_linked_text(paragraph, text: str, font: str) -> None:
-    cursor = 0
-    for match in URL_RE.finditer(text):
-        _add_run(paragraph, text[cursor : match.start()], font)
-        _add_hyperlink(paragraph, match.group())
-        cursor = match.end()
-    _add_run(paragraph, text[cursor:], font)
-
-
-def _add_hyperlink(paragraph, url: str) -> None:
-    relationship_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
-    hyperlink = OxmlElement("w:hyperlink")
-    hyperlink.set(qn("r:id"), relationship_id)
-    run = OxmlElement("w:r")
-    properties = OxmlElement("w:rPr")
-    color = OxmlElement("w:color")
-    color.set(qn("w:val"), "0563C1")
-    properties.append(color)
-    underline = OxmlElement("w:u")
-    underline.set(qn("w:val"), "single")
-    properties.append(underline)
-    text = OxmlElement("w:t")
-    text.text = url
-    run.extend((properties, text))
-    hyperlink.append(run)
-    paragraph._p.append(hyperlink)
 
 
 def _normalize_text(value: str) -> str:

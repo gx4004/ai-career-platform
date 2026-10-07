@@ -326,6 +326,30 @@ class CvPreviewWarning(BaseModel):
     characters: list[str] = Field(default_factory=list)
 
 
+class CvFitResult(BaseModel):
+    """What fitting to one page did: whether it fits, the pages at the chosen scale (more than
+    one means it ran to that many at the smallest allowed scale), the scale and the body size."""
+
+    fits: bool
+    pages: int
+    scale: float
+    body_pt: float
+
+
+class CvLengthAdvice(BaseModel):
+    code: str
+    message: str
+    # "fit_one_page" when the advice offers a button that turns that style option on.
+    action: Literal["fit_one_page"] | None = None
+
+
+class CvLength(BaseModel):
+    pages: int
+    # How far down its printable area the last page is inked (0..1).
+    last_page_fill: float
+    advice: CvLengthAdvice | None = None
+
+
 class CvPreviewResponse(BaseModel):
     pages: list[CvPreviewPage]
     page_count: int
@@ -333,6 +357,8 @@ class CvPreviewResponse(BaseModel):
     warnings: list[CvPreviewWarning] = Field(default_factory=list)
     # True when the CV has more pages than were drawn (the first 8 are).
     truncated: bool = False
+    fit: CvFitResult | None = None
+    length: CvLength | None = None
 
 
 class CvVariantCreate(BaseModel):
@@ -655,6 +681,9 @@ class CvStyleCatalogTemplate(BaseModel):
     margin_mm: int
     # Section kinds placed in the sidebar; empty for single-column templates.
     sidebar_kinds: list[CvSectionKind]
+    # A plain sentence about the Word export when it differs from the PDF (two-column templates
+    # print one column in DOCX); None when the Word version matches.
+    docx_note: str | None = None
     sizes: dict[CvDensity, CvStyleSizes]
 
 
