@@ -29,6 +29,10 @@ from app.services.cv_html import html_template_id, load_manifest, render_cv_html
 from app.services.cv_length import LengthAdvice, last_page_fill, length_advice, years_of_experience
 
 PREVIEW_DPI = 110
+# A client may ask for page images of a given pixel width (its display width times its pixel ratio), so a phone is
+# not sent desktop-sized pages; within these bounds.
+MIN_PREVIEW_WIDTH = 240
+MAX_PREVIEW_WIDTH = 1600
 MAX_PREVIEW_PAGES = 8
 WEBP_QUALITY = 80
 
@@ -133,11 +137,18 @@ def rasterise(
     dpi: int = PREVIEW_DPI,
     quality: int = WEBP_QUALITY,
     page_limit: int = MAX_PREVIEW_PAGES,
+    width: int | None = None,
 ) -> PreviewResult:
+    """Page images at ``dpi``, or ``width`` pixels wide when it is given."""
     with fitz.open(stream=pdf, filetype="pdf") as document:
         pages = []
         for index in range(min(len(document), page_limit)):
-            pixmap = document[index].get_pixmap(dpi=dpi, alpha=False)
+            page = document[index]
+            if width:
+                zoom = min(max(width, MIN_PREVIEW_WIDTH), MAX_PREVIEW_WIDTH) / page.rect.width
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+            else:
+                pixmap = page.get_pixmap(dpi=dpi, alpha=False)
             encoded = base64.b64encode(encode_webp(pixmap, quality)).decode("ascii")
             pages.append(
                 PreviewPage(f"data:image/webp;base64,{encoded}", pixmap.width, pixmap.height)
@@ -151,9 +162,15 @@ def rasterise(
 
 
 def render_preview(
-    model: CvRenderModel, *, dpi: int = PREVIEW_DPI, quality: int = WEBP_QUALITY
+    model: CvRenderModel,
+    *,
+    dpi: int = PREVIEW_DPI,
+    quality: int = WEBP_QUALITY,
+    width: int | None = None,
 ) -> PreviewResult:
     """Print the draft with Chromium and return its page images and section rectangles.
+
+    ``width`` sizes the page images to the client's display (pixels); without it they are ``dpi``.
 
     Raises ``CvRenderUnavailableError`` (HTTP 503 in the API) when Chromium cannot run.
     """
@@ -164,7 +181,7 @@ def render_preview(
         html = render_cv_html(model, page_size=str(model.tokens.get("page_size", "a4")))
         pdf = print_pdf(html, MEASURE_SCRIPT)
     kinds = {"header": "header"} | {section.id: section.kind for section in model.sections}
-    result = rasterise(pdf, kinds, dpi=dpi, quality=quality)
+    result = rasterise(pdf, kinds, dpi=dpi, quality=quality, width=width)
     result.unsupported_characters = list(model.unsupported_characters)
     result.fit = fit
     manifest = load_manifest(html_template_id(model.template_id))

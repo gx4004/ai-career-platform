@@ -71,6 +71,33 @@ def test_one_page_cv_returns_a_webp_page_and_section_rectangles(client, auth_hea
     assert tops == sorted(tops)
 
 
+@pytest.mark.parametrize("width", [480, 768, 1600])
+def test_pages_can_be_sized_to_the_display(client, auth_headers, document, width):
+    """A phone asks for its own width (CSS width times pixel ratio), not 110 dpi."""
+    response = client.post(
+        f"{PREFIX}/{document.id}/preview?width={width}", json=_draft("maya"), headers=auth_headers
+    )
+    page = response.json()["pages"][0]
+    assert _image(page).size[0] == page["width"] == width
+    assert abs(page["height"] - width * 297 / 210) <= 3
+
+
+def test_a_phone_sized_preview_is_small(client, auth_headers, document):
+    small = client.post(
+        f"{PREFIX}/{document.id}/preview?width=640", json=_draft("long"), headers=auth_headers
+    )
+    default = _post(client, auth_headers, document.id, _draft("long"))
+    assert len(small.content) < len(default.content) * 0.7
+
+
+@pytest.mark.parametrize("width", [0, 100, 5000, "wide"])
+def test_an_out_of_range_width_is_422(client, auth_headers, document, width):
+    response = client.post(
+        f"{PREFIX}/{document.id}/preview?width={width}", json=_draft("maya"), headers=auth_headers
+    )
+    assert response.status_code == 422
+
+
 def test_the_draft_is_what_renders_and_nothing_is_saved(client, auth_headers, db, document):
     before = (list(document.sections), dict(document.header), document.style, document.updated_at)
     draft = _draft("cyrillic", style={"accent_color": "#075985"})
@@ -251,7 +278,7 @@ def test_missing_chromium_is_a_503(client, auth_headers, document, monkeypatch):
 def test_rate_limit_is_60_per_minute(client, auth_headers, document, monkeypatch):
     calls = []
 
-    def fake(model, **kwargs):
+    def fake(model, **kwargs):  # noqa: ARG001
         calls.append(1)
         return cv_preview.PreviewResult(pages=[], page_count=0, sections=[], truncated=False)
 

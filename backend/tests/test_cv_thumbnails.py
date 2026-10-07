@@ -69,10 +69,30 @@ def test_every_catalog_template_has_a_small_page_one_thumbnail(client, auth_head
     for thumbnail in body["thumbnails"]:
         assert thumbnail["error"] is None and thumbnail["pages"] == 1
         image = _image(thumbnail)
-        # A4 at 40 dpi.
-        assert image.size == (thumbnail["width"], thumbnail["height"]) == (331, 468)
-        # Small enough to send all of them in one response.
-        assert len(thumbnail["url"]) < 24_000
+        # A4, 320 px wide.
+        assert image.size == (thumbnail["width"], thumbnail["height"]) == (320, 453)
+
+
+@pytest.mark.parametrize("fixture", ["maya", "long"])
+def test_the_gallery_stays_within_the_mobile_budget(client, auth_headers, document, fixture):
+    """Owner budget: about 8 KB of WebP a thumbnail and 80 KB for the whole response."""
+    cv = cv_fixtures.ALL[fixture]()
+    response = _post(
+        client, auth_headers, document.id, {"sections": cv.sections, "header": cv.header}
+    )
+    assert len(response.content) <= 80 * 1024
+    for thumbnail in response.json()["thumbnails"]:
+        size = len(base64.b64decode(thumbnail["url"][len(WEBP) :]))
+        assert size <= cv_thumbnails.THUMBNAIL_MAX_BYTES, (thumbnail["template_id"], size)
+
+
+def test_a_client_can_ask_for_some_templates_first(client, auth_headers, document):
+    url = f"{PREFIX}/{document.id}/template-thumbnails"
+    body = client.post(f"{url}?templates=lagoon,classic", headers=auth_headers).json()
+    # Catalog order, only those asked for.
+    assert [t["template_id"] for t in body["thumbnails"]] == ["classic", "lagoon"]
+    for bad in ("nope", "classic,nope", ","):
+        assert client.post(f"{url}?templates={bad}", headers=auth_headers).status_code == 422
 
 
 def test_the_draft_style_is_used_but_each_template_is_its_own(client, auth_headers, document):
@@ -94,7 +114,7 @@ def test_the_draft_style_is_used_but_each_template_is_its_own(client, auth_heade
 
 def test_letter_page_size_changes_the_thumbnail_shape(client, auth_headers, document):
     body = _post(client, auth_headers, document.id, {"style": {"page_size": "letter"}}).json()
-    assert {(t["width"], t["height"]) for t in body["thumbnails"]} == {(340, 440)}
+    assert {(t["width"], t["height"]) for t in body["thumbnails"]} == {(320, 414)}
 
 
 def test_the_draft_content_renders_not_the_saved_one(client, auth_headers, db, document):
@@ -218,7 +238,7 @@ def test_invalid_drafts_are_422(client, auth_headers, document, body):
 def test_rate_limit_is_20_per_minute(client, auth_headers, document, monkeypatch):
     calls = []
 
-    def fake(source, style):
+    def fake(source, style, **kwargs):
         calls.append(1)
         return cv_thumbnails.ThumbnailSet(thumbnails=[], sample=False)
 
