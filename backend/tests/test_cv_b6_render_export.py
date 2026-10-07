@@ -170,11 +170,11 @@ def test_a_large_gap_at_the_bottom_of_a_non_final_page_fails_tidy_page_breaks(db
     assert validate_artifact(model, full).page_breaks == "pass"
 
 
-def test_legacy_two_column_template_prints_as_the_single_column_classic_for_now(
+def test_the_lagoon_sidebar_template_keeps_later_pages_in_the_main_column(
     client, auth_headers
 ):
-    # TODO(T2/T6): the sidebar templates return with T6; until then the legacy
-    # two-column id prints as `classic`, so no content is lost or moved into a sidebar.
+    # T6 (#466): lagoon prints its sidebar on page 1; later pages keep the main column in
+    # its column beside the colour strip, so nothing slides under the sidebar.
     document = _create(client, auth_headers, mid_cv_sections())
     client.patch(
         f"{PREFIX}/{document['id']}",
@@ -183,8 +183,8 @@ def test_legacy_two_column_template_prints_as_the_single_column_classic_for_now(
     )
     with fitz.open(stream=_pdf(client, auth_headers, document["id"]), filetype="pdf") as parsed:
         assert parsed.page_count > 1
-        # Single column: page two's text starts at the page margin, not right of a sidebar.
-        assert min(block[0] for block in parsed[1].get_text("blocks")) < 58 * 72 / 25.4
+        # Page two's text starts right of the 60mm strip.
+        assert min(block[0] for block in parsed[1].get_text("blocks")) > 60 * 72 / 25.4
 
 
 # ── d10: ATS check, imported CV ──
@@ -813,7 +813,7 @@ def test_sidebar_template_order_difference_is_explained_as_layout_not_missing_se
     )
     check = _quality(client, auth_headers, document["id"])["reads_back"]
     if not check["passed"]:
-        assert "single-column" in check["fix"]
+        assert "reads in a different order" in check["fix"] and "ATS-safe template" in check["fix"]
         assert "did not read back as written" not in check["fix"]
 
 

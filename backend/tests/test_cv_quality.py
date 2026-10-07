@@ -82,9 +82,11 @@ def test_cv_with_known_problems_fails_exactly_those_checks(client, auth_headers)
     )
 
     failed = {c["id"] for c in payload["checks"] if not c["passed"]}
-    # No Experience/Skills sections. lagoon (T6) has no template yet and prints as the
-    # ATS-safe `classic`, so the layout check passes and nothing reads out of order.
-    assert failed == {"sections"}
+    # No Experience section; lagoon (T6) is a sidebar layout, so Skills reads back before
+    # the Summary (every section whole, in another order) and the layout check flags it.
+    assert failed == {"sections", "reads_back", "layout"}
+    reads_back = next(c for c in payload["checks"] if c["id"] == "reads_back")
+    assert "reads in a different order" in reads_back["fix"]
     assert all(c["fix"] for c in payload["checks"] if not c["passed"])
 
 
