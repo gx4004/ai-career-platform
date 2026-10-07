@@ -1,0 +1,179 @@
+/* Lilac: colour blocks. The sidebar opens with a deep accent panel (monogram, name,
+   headline, contact) over a tinted column (skills, education, languages); the main column
+   opens with a tinted summary band that bleeds to the top and right edges.
+   The tinted column is a fixed strip, so it repeats edge to edge on every printed page;
+   the sidebar's content flows on page 1 only (docs/cv-templates-spec.md 3.3).
+   Colours: text on the accent panel is var(--on-accent) (4.5:1 or better on every palette
+   colour); on the tint, text is ink or --li-deep (the accent darkened by a quarter, which
+   keeps 4.5:1 on the tint for every palette colour; tests/test_cv_colour_templates.py). */
+.cv--lilac {
+  --li-side-w: 66mm;
+  --li-side-pad: 7mm;
+  --li-tint: color-mix(in srgb, var(--accent) 18%, white);
+  --li-deep: color-mix(in srgb, var(--accent) 75%, black);
+  --li-muted: #4d4d4d;   /* dates, location on white and on the tint: 8:1 / 6.5:1 */
+  font: 400 clamp(8.75pt, calc(9.3pt * var(--type)), 10.5pt) / 1.45 var(--font-body);
+  hyphens: manual;
+  orphans: 2;
+  widows: 2;
+}
+.cv--lilac a { color: inherit; text-decoration: none; }
+
+.li-strip {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--li-side-w);
+  background: var(--li-tint);
+  z-index: -1;
+}
+.li-page {
+  display: grid;
+  grid-template-columns: var(--li-side-w) minmax(0, 1fr);
+  grid-template-areas: "mono main" "head main" "side main";
+  grid-template-rows: auto auto 1fr;
+  padding: var(--li-top) 0 var(--li-bottom);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* -- the name panel: top of the sidebar, bleeding to the top and left edges ----------------- */
+.li-mono, .cv-header { background: var(--accent); color: var(--on-accent); }
+.li-mono {
+  grid-area: mono;
+  /* Pulls the panel up over the page's top inset so it starts at the paper's edge. */
+  margin-top: calc(-1 * var(--li-top));
+  padding: calc(var(--li-top) + var(--space-1)) var(--li-side-pad) var(--space-4);
+}
+.li-mono span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26mm;
+  height: 26mm;
+  border-radius: 1.5mm;
+  background: var(--li-tint);
+  color: var(--li-deep);
+  font: 600 23pt / 1 var(--font-heading);
+  letter-spacing: 0.02em;
+}
+.cv-header {
+  grid-area: head;
+  padding: 0 var(--li-side-pad) calc(var(--space-5) + var(--space-2));
+  min-width: 0;
+}
+.cv-header.li-top { margin-top: calc(-1 * var(--li-top)); padding-top: var(--li-top); }
+.cv-header h1 {
+  font: 600 2.1em / 1.12 var(--font-heading);
+  margin: 0;
+  text-wrap: balance;
+}
+.cv-header h1.li-name-long { font-size: 1.7em; }
+.cv-header h1.li-name-longer { font-size: 1.45em; overflow-wrap: normal; }
+.cv-headline { font-size: 1.04em; line-height: 1.35; margin-top: var(--space-2); text-wrap: balance; }
+.cv-contact { display: flex; flex-direction: column; gap: calc(var(--space-1) * 1.2); font-size: 0.9em; line-height: 1.35; }
+.cv-headline + .cv-contact, .cv-header h1 + .cv-contact { margin-top: var(--space-4); }
+.cv-contact + .cv-contact { margin-top: calc(var(--space-1) * 1.2); }
+.li-contact-item { display: flex; align-items: baseline; gap: 4pt; overflow-wrap: anywhere; }
+.li-icon { flex: none; width: 0.85em; height: 0.85em; fill: var(--on-accent); align-self: center; }
+
+/* -- tinted sidebar -------------------------------------------------------------------- */
+.li-side {
+  grid-area: side;
+  padding: var(--space-5) var(--li-side-pad) 0;
+  background: var(--li-tint); /* the strip's colour, so the column reads as one fill */
+  color: var(--ink);
+  font-size: 0.95em;
+  min-width: 0;
+}
+.li-side-section + .li-side-section { margin-top: var(--space-5); }
+.li-side-section > h2, .cv-section > h2 {
+  font: 600 1.3em / 1.15 var(--font-heading);
+  color: var(--li-deep);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-1);
+  border-bottom: 1pt solid var(--li-deep);
+  break-after: avoid;
+}
+.li-side-section > h2 + *, .cv-section > h2 + * { break-before: avoid; }
+.li-side-entry { break-inside: avoid; }
+.li-side-entry + .li-side-entry { margin-top: var(--space-4); }
+.li-side-role { font-weight: 600; line-height: 1.3; }
+.li-side-org { margin-top: var(--space-1); line-height: 1.35; }
+.li-side-meta { margin-top: var(--space-1); color: var(--li-muted); font-variant-numeric: tabular-nums lining-nums; }
+.li-side-sep { padding: 0 1pt; }
+.li-side-text { margin: 0; text-wrap: pretty; }
+.li-side-entry > .li-side-text { margin-top: var(--space-2); }
+.li-chips { margin: 0; line-height: 1; }
+.li-chip {
+  display: inline-block;
+  margin: 0 3pt 4.5pt 0;
+  padding: 2.5pt 6pt 2.75pt;
+  border-radius: 8pt;
+  background: white;
+  color: var(--li-deep);
+  font-size: 0.94em;
+  line-height: 1.15;
+}
+.li-pairs { display: grid; row-gap: var(--space-2); }
+.li-pair { display: flex; justify-content: space-between; align-items: baseline; gap: 8pt; }
+.li-pair-level { color: var(--li-muted); text-align: right; }
+
+/* -- main column ----------------------------------------------------------------------- */
+.li-main { grid-area: main; grid-row: 1 / span 3; padding: 0 var(--li-main-right) 0 var(--li-main-left); min-width: 0; }
+.li-band {
+  margin: calc(-1 * var(--li-top)) calc(-1 * var(--li-main-right)) var(--space-5) calc(-1 * var(--li-main-left));
+  padding: calc(var(--li-top) + var(--space-1)) var(--li-main-right) calc(var(--space-5) + var(--space-1)) var(--li-main-left);
+  background: var(--li-tint);
+  break-inside: avoid;
+}
+/* The band's own heading is a quiet label: the colour block already names the summary. */
+.li-band > h2 {
+  font: 600 1.05em / 1.2 var(--font-body);
+  letter-spacing: 0.1em;
+  font-variant-caps: all-small-caps;
+  color: var(--li-deep);
+  margin: 0 0 var(--space-2);
+}
+.li-band .cv-text { font-size: 1.04em; line-height: 1.5; }
+.li-main > .cv-section:first-child { margin-top: var(--space-1); }
+.cv-section + .cv-section { margin-top: var(--space-5); }
+
+.cv-entry { break-inside: avoid; }
+.cv-entry + .cv-entry { margin-top: var(--space-4); }
+.cv-entry--split { break-inside: auto; }
+.cv-entry-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "role dates" "org place";
+  column-gap: 12pt;
+  align-items: baseline;
+  break-inside: avoid;
+  break-after: avoid;
+}
+.cv-entry-head--no-dates { grid-template-areas: "role place" "org org"; }
+.cv-role { grid-area: role; font-weight: 600; font-size: 1.05em; line-height: 1.3; text-wrap: balance; }
+.cv-dates { grid-area: dates; text-align: right; white-space: nowrap; color: var(--li-muted); font-variant-numeric: tabular-nums lining-nums; }
+.cv-org { grid-area: org; color: var(--li-deep); text-wrap: balance; }
+.cv-place { grid-area: place; text-align: right; color: var(--li-muted); }
+
+.cv--lilac ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.cv--lilac li { padding-left: 11pt; break-inside: avoid; text-wrap: pretty; }
+.cv--lilac li + li { margin-top: calc(var(--space-1) * 0.67); }
+/* In flow, never positioned: a positioned box paints (and so extracts) after the text. */
+.cv--lilac li::before {
+  content: "\2022";
+  display: inline-block;
+  box-sizing: content-box;
+  width: 10pt;
+  margin-left: -11pt;
+  padding-left: 1pt;
+  color: var(--li-deep);
+  font-size: 1.05em;
+  line-height: 0;
+}
+.cv-entry li:first-child, .cv-entry li:nth-child(2), .cv-entry li:last-child { break-before: avoid; }
+.cv-text { margin: 0; text-wrap: pretty; }
+.cv-text + .cv-text { margin-top: var(--space-2); }
+.cv-entry > .cv-text { margin-top: var(--space-2); }
