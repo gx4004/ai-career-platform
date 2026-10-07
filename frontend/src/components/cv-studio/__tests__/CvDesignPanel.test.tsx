@@ -102,19 +102,19 @@ const thumbnailsFor = (patch: Partial<Record<string, Partial<CvTemplateThumbnail
   thumbnails: ids.map((template_id) => ({ template_id, url: PIXEL, width: 331, height: 468, pages: 1, error: null, ...patch[template_id] })),
 })
 const ready = (data = thumbnailsFor()): TemplateThumbnailsState => ({ status: 'ready', data })
-const templateRadio = (name: string) => screen.getByRole('radio', { name }) as HTMLInputElement
+const templateRadio = (name: string) => screen.getByRole('radio', { name: new RegExp(`^${name} (ATS-safe|Less ATS-safe)$`) }) as HTMLInputElement
 const tileOf = (name: string) => templateRadio(name).closest('label') as HTMLElement
 
 describe('CvDesignPanel template gallery', () => {
-  it('is two radio groups of tiles, ATS-safe first, each named by the template with its badge and columns as description', () => {
+  it('is two radio groups of tiles, ATS-safe first, each named by the template and its badge, described by its columns and summary', () => {
     panel(vi.fn(), style)
     const safe = screen.getByRole('radiogroup', { name: 'ATS-safe templates' })
     const more = screen.getByRole('radiogroup', { name: 'More designs' })
     expect(safe.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(safe.getAttribute('data-variant')).toBe('tile')
     expect(within(safe).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['classic', 'executive'])
-    expect(screen.getByRole('radio', { name: 'Classic', description: /ATS-safe One column/ })).toBeTruthy()
-    expect(screen.getByRole('radio', { name: 'Lagoon', description: /Less ATS-safe Two columns/ })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Classic ATS-safe', description: /^One column\. A quiet single column\.$/ })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Lagoon Less ATS-safe', description: /^Two columns\. Teal sidebar\.$/ })).toBeTruthy()
     expect(templateRadio('Classic').checked).toBe(true)
     expect(tileOf('Classic').hasAttribute('data-checked')).toBe(true)
   })
@@ -181,7 +181,7 @@ describe('CvDesignPanel template gallery', () => {
 
   it('in ATS mode offers only the ATS-safe tiles, disabled, with Classic selected', () => {
     render(<CvDesignPanel style={{ ...style, ats_mode: true, template_id: 'lagoon' }} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready()} />)
-    expect(screen.queryByRole('radio', { name: 'Lagoon' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: /Lagoon/ })).toBeNull()
     expect(screen.queryByRole('radiogroup', { name: 'More designs' })).toBeNull()
     expect(templateRadio('Classic').checked).toBe(true)
     expect(templateRadio('Classic').disabled).toBe(true)
@@ -265,6 +265,25 @@ describe('CvDesignTool fetches the gallery', () => {
     await vi.waitFor(() => expect(signals).toHaveLength(2), { timeout: 3000 })
     expect(signals[0].aborted).toBe(true)
     expect(signals[1].aborted).toBe(false)
+  })
+
+  it('does not abort or repeat the request when the panel remounts (the sheet remounts its body as it opens)', async () => {
+    const signals: AbortSignal[] = []
+    let finish: (value: CvTemplateThumbnails) => void = () => {}
+    api.templateThumbnailsForDraft.mockImplementation((_id: string, _draft: unknown, options: { signal: AbortSignal }) => {
+      signals.push(options.signal)
+      return new Promise<CvTemplateThumbnails>((resolve) => { finish = resolve })
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const ui = <QueryClientProvider client={client}><CvDesignTool documentId="d2" draft={draftWith()} catalog={styleCatalogFixture} onChange={vi.fn()} /></QueryClientProvider>
+    const first = render(ui)
+    await vi.waitFor(() => expect(signals).toHaveLength(1))
+    first.unmount()
+    render(ui)
+    await act(async () => { finish(thumbnailsFor()) })
+    expect(await screen.findByRole('img', { name: 'Preview of the Classic template' })).toBeTruthy()
+    expect(signals).toHaveLength(1)
+    expect(signals[0].aborted).toBe(false)
   })
 
   it('falls back to text-only tiles when the server cannot draw them', async () => {
