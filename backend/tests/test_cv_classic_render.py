@@ -266,7 +266,7 @@ def test_at_most_two_renders_print_at_once(monkeypatch):
     running = peak = 0
     guard = threading.Lock()
 
-    async def fake_print(self, html):
+    async def fake_print(self, html, prepare_script=None):
         nonlocal running, peak
         with guard:
             running += 1
@@ -296,7 +296,7 @@ def test_the_module_default_is_two_slots_and_fifteen_seconds():
 
 
 def test_a_render_that_takes_too_long_is_abandoned_with_a_503_error(monkeypatch):
-    async def slow(self, html):
+    async def slow(self, html, prepare_script=None):
         await asyncio.sleep(5)
 
     monkeypatch.setattr(ChromiumPool, "_print_once", slow)
