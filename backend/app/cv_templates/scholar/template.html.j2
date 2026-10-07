@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+{{ fontface }}
+@page { size: {{ page_size }}; margin: {{ margin.top }}mm {{ margin.right }}mm {{ margin.bottom }}mm {{ margin.left }}mm; }
+{{ root_vars }}
+{{ base_css }}
+{{ css }}
+</style>
+</head>
+<body class="cv cv--scholar">
+{#- Contact lines are packed here, as in Classic: details (location, email, phone) first, then
+    the links on their own line(s), whole items only, so no line breaks inside an email or URL
+    and no separator is left hanging at a line end. #}
+{%- set budget = 86 %}
+{%- set ns = namespace(lines=[], line=[], width=0) %}
+{%- for item in contact_items %}
+{%- set is_link = item.href and not item.href.startswith("mailto:") %}
+{%- set first_link = is_link and (loop.first or not (contact_items[loop.index0 - 1].href and not contact_items[loop.index0 - 1].href.startswith("mailto:"))) %}
+{%- set size = item.text|length %}
+{%- if ns.line and (first_link or ns.width + 3 + size > budget) %}
+{%- set ns.lines = ns.lines + [ns.line] %}{% set ns.line = [] %}{% set ns.width = 0 %}
+{%- endif %}
+{%- set ns.width = ns.width + (3 if ns.line else 0) + size %}
+{%- set ns.line = ns.line + [item] %}
+{%- endfor %}
+{%- if ns.line %}{% set ns.lines = ns.lines + [ns.line] %}{% endif %}
+<header class="sc-header" data-section-id="header">
+  <h1>{{ header.title }}</h1>
+  {%- if header.headline %}
+  <div class="sc-headline">{{ header.headline }}</div>
+  {%- endif %}
+  {%- if ns.lines %}
+  <div class="sc-contact">
+    {%- for line in ns.lines %}
+    <div class="sc-contact-line">
+      {%- for item in line %}{% if not loop.first %}<span class="sc-sep"> | </span>{% endif %}<span class="{{ 'nw' if item.text|length <= 60 else 'long' }}">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</span>{% endfor -%}
+    </div>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+</header>
+{% for section in sections %}
+<section class="sc-section sc-section--{{ section.kind }}" data-section-id="{{ section.id }}">
+  <h2>{{ section.title }}</h2>
+  {%- for entry in section.entries %}
+  {%- if entry.heading is none %}
+  {%- if entry.paragraph %}
+  <p class="sc-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+  {%- endif %}
+  {%- else %}
+  {#- DOM order is the reading order (role, organisation, dates, location); the grid places
+      them: bold role and dates on line one, the italic organisation and location on line two. #}
+  <div class="sc-entry{% if entry.bullets|length > 5 or entry.text|length > 700 %} sc-entry--split{% endif %}" data-entry-id="{{ entry.id }}">
+    <div class="sc-entry-head{% if not entry.dates %} sc-entry-head--no-dates{% endif %}">
+      <span class="sc-role">{{ entry.heading }}</span>
+      {%- if entry.subheading %}<span class="sc-org">{{ entry.subheading }}</span>{% endif %}
+      {%- if entry.dates %}<span class="sc-dates">{{ entry.dates }}</span>{% endif %}
+      {%- if entry.location %}<span class="sc-place">{{ entry.location }}</span>{% endif %}
+    </div>
+    {%- if entry.bullets %}
+    <ul>
+      {%- for bullet in entry.bullets %}
+      <li>{{ bullet|autolink }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if entry.paragraph %}
+    <p class="sc-text">{{ entry.paragraph|autolink }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- endfor %}
+</section>
+{% endfor %}
+</body>
+</html>
