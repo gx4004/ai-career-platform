@@ -136,4 +136,4 @@ Order: T1, T2, T4, T3, T5, then T6 to T8 in parallel, then T9 to T12.
 
 ## 9. Scope cut (owner, 2026-10-07)
 
-The first release ships 7 templates, not 16: `classic` (default), `scholar`, `executive`, `frame` (ATS-safe) and `lagoon`, `slate`, `lilac` (less ATS-safe). The other nine (`academic`, `manuscript`, `meadow`, `rail`, `almanac`, `violet`, `grotesk`, `panel`, `ledger`) stay in the schema as accepted ids, with recreations kept in `.claude/handoff/cv-studio/`, but are not built. T6 builds `lagoon` and `lilac`, T7 builds `scholar`, `executive` and `frame`, T8 builds `slate`.
+The first release ships 7 templates, not 16: three ATS-safe, `classic` (default), `scholar`, `frame`, and four colourful, eye-catching ones, `lagoon`, `rail`, `lilac`, `slate` (less ATS-safe, labelled). The other nine (`executive`, `academic`, `manuscript`, `meadow`, `almanac`, `violet`, `grotesk`, `panel`, `ledger`) stay in the schema as accepted ids, with recreations kept in `.claude/handoff/cv-studio/`, but are not built. T6 builds `lagoon`, `lilac` and `rail`, T7 builds `scholar` and `frame`, T8 builds `slate`.
