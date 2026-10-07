@@ -14,6 +14,7 @@ const TEMPLATE_FONT = 'template'
 const TEMPLATE_ACCENT = 'template'
 export const LESS_SAFE_NOTICE = 'Some job portals may read this layout out of order. Use an ATS-safe template for portal applications.'
 
+const columns = (template: CvStyleCatalog['templates'][number]) => (template.columns === 1 ? 'One column' : 'Two columns')
 const sentenceCase = (text: string) => text.replace('-', ' ').replace(/^./, (letter) => letter.toUpperCase())
 
 /** How long the look must rest before the gallery is redrawn (picking colours in a row asks once). */
@@ -184,11 +185,11 @@ export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
                           label={template.name}
                           description={
                             <>
-                              <Badge size="sm" tone={template.ats_safe ? 'success' : 'neutral'}>{template.ats_safe ? 'ATS-safe' : 'Less ATS-safe'}</Badge>{' '}
-                              {template.columns === 1 ? 'One column' : 'Two columns'}
-                              <span className="kit-sr-only">. {template.description}</span>
+                              <Badge size="sm" tone={template.ats_safe ? 'success' : 'neutral'}>{template.ats_safe ? 'ATS-safe' : 'Less ATS-safe'}</Badge>
+                              <span className="kit-sr-only">. {columns(template)}. {template.description}</span>
                             </>
                           }
+                          meta={<span aria-hidden="true">{columns(template)}</span>}
                           media={media}
                           mediaAspect={aspect}
                         />
