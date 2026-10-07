@@ -547,14 +547,14 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     view()
     const design = await openTool(/^Design/)
     fireEvent.click(within(design).getByRole('radio', { name: /Lagoon/ }))
-    fireEvent.click(within(design).getByRole('radio', { name: /PT Serif/ }))
+    fireEvent.click(within(design).getByRole('radio', { name: /Source Serif 4/ }))
     fireEvent.click(within(design).getByRole('radio', { name: 'Ocean' }))
     fireEvent.click(within(design).getByRole('radio', { name: 'Roomy' }))
     expect(paper().className).toContain('cvp-paper--two-column')
     expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#075985')
-    expect(paper().style.getPropertyValue('--cvp-font')).toContain('PT Serif')
+    expect(paper().style.getPropertyValue('--cvp-font')).toContain('Source Serif 4')
     await waitFor(() => expect(lastPatch()?.style).toEqual({
-      template_id: 'lagoon', font_id: 'pt-serif', accent_color: '#075985', density: 'spacious', ats_mode: false,
+      template_id: 'lagoon', font_id: 'source-serif-4', accent_color: '#075985', density: 'spacious', ats_mode: false,
       page_size: 'a4', fit_one_page: false,
     }), { timeout: 1500 })
   })
@@ -621,7 +621,7 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     fireEvent.click(toggle)
     expect((toggle as HTMLInputElement).checked).toBe(true)
     expect(within(design).getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
-    expect((within(design).getByRole('radio', { name: /PT Serif/ }) as HTMLInputElement).disabled).toBe(true)
+    expect((within(design).getByRole('radio', { name: /Source Serif 4/ }) as HTMLInputElement).disabled).toBe(true)
     expect(paper().className).not.toContain('two-column')
     expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#111827')
     // The plain-Helvetica export has no bold face; the paper keys its heading weight on this flag.

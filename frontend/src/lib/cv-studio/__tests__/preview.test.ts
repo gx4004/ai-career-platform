@@ -5,21 +5,21 @@ import { styleCatalogFixture as catalog } from './styleCatalog.fixture'
 
 describe('CV preview built from the backend style catalog', () => {
   it('looks up the template sizes for the chosen density, font and accent', () => {
-    expect(resolvePreviewStyle({ template_id: 'executive', font_id: 'pt-serif', accent_color: '#166534', density: 'spacious', ats_mode: false, page_size: 'a4', fit_one_page: false }, catalog)).toEqual({
-      layout: 'executive', fontStack: "'PT Serif', serif", accent: '#166534',
+    expect(resolvePreviewStyle({ template_id: 'executive', font_id: 'source-serif-4', accent_color: '#166534', density: 'spacious', ats_mode: false, page_size: 'a4', fit_one_page: false }, catalog)).toEqual({
+      layout: 'executive', fontStack: "'Source Serif 4', serif", accent: '#166534',
       bodyPt: 12, headingPt: 17, marginMm: 20, sectionGapPt: 11, titleAlign: 'left', sidebarKinds: [], atsMode: false,
     })
   })
 
   it('applies the catalog’s ATS-mode overrides whatever the saved style says', () => {
-    const style = resolvePreviewStyle({ template_id: 'lagoon', font_id: 'pt-serif', accent_color: '#B91C1C', density: 'compact', ats_mode: true, page_size: 'a4', fit_one_page: false }, catalog)
+    const style = resolvePreviewStyle({ template_id: 'lagoon', font_id: 'source-serif-4', accent_color: '#B91C1C', density: 'compact', ats_mode: true, page_size: 'a4', fit_one_page: false }, catalog)
     expect(style).toMatchObject({ layout: 'classic', accent: '#111827', bodyPt: 10, sidebarKinds: [], atsMode: true, fontStack: 'Helvetica, sans-serif' })
   })
 
   it('falls back to the first catalog template for an id that has no template yet', () => {
     const style = resolvePreviewStyle({ template_id: 'ledger', font_id: null, accent_color: '#111827', density: 'normal', ats_mode: false, page_size: 'a4', fit_one_page: false }, catalog)
     expect(style.layout).toBe('classic')
-    expect(style.fontStack).toBe("'Lato', sans-serif")
+    expect(style.fontStack).toBe("'Inter', sans-serif")
   })
 
   it('lays out entries the way the PDF does and hides hidden sections', () => {
