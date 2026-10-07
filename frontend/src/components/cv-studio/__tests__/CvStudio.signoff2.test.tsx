@@ -31,7 +31,7 @@ const experience = {
   }],
 }
 const skills = { id: 's2', kind: 'skills' as const, title: 'Skills', visible: true, position: 1, entries: [{ id: 'e2', evidence_item_id: null, body: 'Figma, research', position: 0 }] }
-const style = { template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false }
+const style = { template_id: 'classic' as const, font_id: null, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false, page_size: 'a4' as const, fit_one_page: false }
 const document: CvDocument = {
   id: 'd1', name: 'Principal CV', sections: [experience, skills], style,
   header: { name: null, headline: null, email: null, phone: null, location: null, links: [] },

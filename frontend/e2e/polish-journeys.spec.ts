@@ -84,9 +84,9 @@ test.describe('CV Studio editor loop', () => {
     await bullet.fill('Cut deploy time from 40 to 8 minutes.')
     await expect(page.getByTestId('save-status')).toContainText('Saved', { timeout: 15_000 })
 
-    // Switch template.
+    // Open the design panel (the catalog lists only Classic until T6-T8) and pick Letter.
     await page.getByRole('tablist', { name: 'Studio tools' }).getByRole('tab', { name: /^Design/ }).click()
-    await page.getByRole('radio', { name: /Modern Two-Column/ }).check({ force: true })
+    await page.getByRole('radio', { name: 'Letter' }).check({ force: true })
     // Switch font — the fixed template/font catalog always has more than one entry.
     const fonts = page.getByRole('radiogroup', { name: 'Font' }).getByRole('radio')
     await fonts.nth(1).check({ force: true })

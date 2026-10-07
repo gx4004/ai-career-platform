@@ -20,7 +20,8 @@ const cv = {
 describe('CV Studio contracts', () => {
   it('reads a document without a saved style as the default style the preview shows', () => {
     expect(cvDocumentSchema.parse(cv).style).toEqual({
-      template_id: 'ats-essential', font_id: 'lato', accent_color: '#111827', density: 'normal', ats_mode: false,
+      template_id: 'classic', font_id: null, accent_color: '#111827', density: 'normal', ats_mode: false,
+      page_size: 'a4', fit_one_page: false,
     })
     expect(() => cvDocumentSchema.parse({ ...cv, style: { section_order: ['x'] } })).toThrow()
   })
