@@ -50,10 +50,11 @@ top: 0; bottom: 0` strip (full bleed on every page), and the vertical page margi
 main column with `box-decoration-break: clone`, so each page fragment of the column gets its own top and
 bottom inset. The manifest's top/bottom margins are those insets (the read-back's page-gap check uses
 them). Sidebar content flows on page 1 only; later pages keep the main column in its column (the strip
-stays, so the page stays balanced). DOM order is header, main sections, then sidebar sections, so
-extraction reads each section whole; the order matches the written order only when the sidebar
-sections come last in the CV. The monogram is the last element of the header, so it reads after the
-contact lines and never inside a section.
+stays, so the page stays balanced). DOM order is header, sidebar sections, then main sections: PDF
+text is extracted page by page, so a main-first DOM splits a main section that runs onto page 2 around
+the page-1 sidebar text; sidebar-first keeps every section's text whole (the read-back reports
+`order_only`, which is what "less ATS-safe" means). The monogram follows the header in the DOM, so
+its letters read after the contact lines and never inside a section.
 
 ### 3.4 Style model
 
