@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+{{ fontface }}
+{#- The page has no margin so the sidebar strip bleeds to every edge; the vertical margins are
+    padding on .li-page, cloned onto each page fragment (docs/cv-templates-spec.md 3.3). #}
+@page { size: {{ page_size }}; margin: 0; }
+{{ root_vars }}
+{{ base_css }}
+.cv--lilac { --li-top: {{ margin.top }}mm; --li-bottom: {{ margin.bottom }}mm; --li-main-left: {{ margin.left }}mm; --li-main-right: {{ margin.right }}mm; }
+{{ css }}
+</style>
+</head>
+<body class="cv cv--lilac">
+{%- macro icon(kind) -%}
+<svg class="li-icon" viewBox="0 0 12 12" aria-hidden="true">
+{%- if kind == "place" %}<path d="M6 .6a4.1 4.1 0 0 0-4.1 4.1C1.9 7.8 6 11.4 6 11.4s4.1-3.6 4.1-6.7A4.1 4.1 0 0 0 6 .6Zm0 5.7a1.6 1.6 0 1 1 0-3.2 1.6 1.6 0 0 1 0 3.2Z"/>
+{%- elif kind == "mail" %}<path d="M1 2.4h10c.4 0 .7.3.7.7v5.8c0 .4-.3.7-.7.7H1a.7.7 0 0 1-.7-.7V3.1c0-.4.3-.7.7-.7Zm.6 1.2v.3L6 6.8l4.4-2.9v-.3H1.6Z"/>
+{%- elif kind == "phone" %}<path d="M3.3.6h5.4c.5 0 .9.4.9.9v9c0 .5-.4.9-.9.9H3.3a.9.9 0 0 1-.9-.9v-9c0-.5.4-.9.9-.9Zm.4 1.3v7h4.6v-7H3.7ZM6 9.4a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2Z"/>
+{%- else %}<path d="M6 .6a5.4 5.4 0 1 0 0 10.8A5.4 5.4 0 0 0 6 .6Zm3.9 4.8H8.3a8.3 8.3 0 0 0-.9-3.4 4.2 4.2 0 0 1 2.5 3.4ZM6 1.9c.5.6 1 1.9 1.1 3.5H4.9C5 3.8 5.5 2.5 6 1.9ZM4.6 2a8.3 8.3 0 0 0-.9 3.4H2.1A4.2 4.2 0 0 1 4.6 2ZM2.1 6.6h1.6c.1 1.3.4 2.5.9 3.4a4.2 4.2 0 0 1-2.5-3.4ZM6 10.1c-.5-.6-1-1.9-1.1-3.5h2.2c-.1 1.6-.6 2.9-1.1 3.5Zm1.4-.1c.5-.9.8-2.1.9-3.4h1.6A4.2 4.2 0 0 1 7.4 10Z"/>
+{%- endif %}</svg>
+{%- endmacro %}
+{%- macro side_section(section) %}
+<section class="li-side-section cv-section--{{ section.kind }}" data-section-id="{{ section.id }}">
+  <h2>{{ section.title }}</h2>
+  {%- for entry in section.entries %}
+  {%- if entry.heading is none %}
+  {%- if entry.paragraph %}
+  {%- set pairs = entry.paragraph|name_level_pairs if section.kind != "skills" else none %}
+  {%- if section.kind == "skills" and entry.paragraph|list_items|length > 1 %}
+  <p class="li-chips" data-entry-id="{{ entry.id }}">{% for item in entry.paragraph|list_items %}<span class="li-chip">{{ item }}</span> {% endfor %}</p>
+  {%- elif pairs %}
+  <div class="li-pairs" data-entry-id="{{ entry.id }}">
+    {%- for name, level in pairs %}
+    <div class="li-pair"><span class="li-pair-name">{{ name }}</span> <span class="li-pair-level">{{ level }}</span></div>
+    {%- endfor %}
+  </div>
+  {%- else %}
+  <p class="li-side-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+  {%- endif %}
+  {%- endif %}
+  {%- else %}
+  <div class="li-side-entry" data-entry-id="{{ entry.id }}">
+    <div class="li-side-role">{{ entry.heading }}</div>
+    {%- if entry.subheading %}<div class="li-side-org">{{ entry.subheading }}</div>{% endif %}
+    {%- if entry.dates or entry.location %}
+    <div class="li-side-meta">{% if entry.dates %}<span class="li-side-dates">{{ entry.dates }}</span>{% endif %}{% if entry.dates and entry.location %} <span class="li-side-sep">&middot;</span> {% endif %}{% if entry.location %}<span>{{ entry.location }}</span>{% endif %}</div>
+    {%- endif %}
+    {%- if entry.bullets %}
+    <ul>
+      {%- for bullet in entry.bullets %}
+      <li>{{ bullet|autolink }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if entry.paragraph %}<p class="li-side-text">{{ entry.paragraph|autolink }}</p>{% endif %}
+  </div>
+  {%- endif %}
+  {%- endfor %}
+</section>
+{%- endmacro %}
+{%- macro main_section(section) %}
+<section class="cv-section cv-section--{{ section.kind }}" data-section-id="{{ section.id }}">
+  <h2>{{ section.title }}</h2>
+  {%- for entry in section.entries %}
+  {%- if entry.heading is none %}
+  {%- if entry.paragraph %}
+  <p class="cv-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+  {%- endif %}
+  {%- else %}
+  {#- DOM order is the reading order (role, organisation, dates, location); the grid places
+      role and dates on line one, organisation and location on line two. #}
+  <div class="cv-entry{% if entry.bullets|length > 5 or entry.text|length > 700 %} cv-entry--split{% endif %}" data-entry-id="{{ entry.id }}">
+    <div class="cv-entry-head{% if not entry.dates %} cv-entry-head--no-dates{% endif %}">
+      <span class="cv-role">{{ entry.heading }}</span>
+      {%- if entry.subheading %}<span class="cv-org">{{ entry.subheading }}</span>{% endif %}
+      {%- if entry.dates %}<span class="cv-dates">{{ entry.dates }}</span>{% endif %}
+      {%- if entry.location %}<span class="cv-place">{{ entry.location }}</span>{% endif %}
+    </div>
+    {%- if entry.bullets %}
+    <ul>
+      {%- for bullet in entry.bullets %}
+      <li>{{ bullet|autolink }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if entry.paragraph %}
+    <p class="cv-text">{{ entry.paragraph|autolink }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- endfor %}
+</section>
+{%- endmacro %}
+<div class="li-strip" aria-hidden="true"></div>
+<div class="li-page">
+<header class="cv-header{{ '' if initials else ' li-top' }}" data-section-id="header">
+  {#- The panel is narrow: a long name steps down a size instead of breaking inside a word. #}
+  <h1{% if header.title|length > 40 %} class="li-name-longer"{% elif header.title|length > 22 %} class="li-name-long"{% endif %}>{{ header.title }}</h1>
+  {%- if header.headline %}
+  <div class="cv-headline">{{ header.headline }}</div>
+  {%- endif %}
+  {%- set ns = namespace(details=[], links=[]) %}
+  {%- for item in contact_items %}
+  {%- set kind = "place" if item.text == header.location else ("mail" if item.href and item.href.startswith("mailto:") else ("phone" if item.text == header.phone else "link")) %}
+  {%- if kind == "link" %}{% set ns.links = ns.links + [(kind, item)] %}{% else %}{% set ns.details = ns.details + [(kind, item)] %}{% endif %}
+  {%- endfor %}
+  {#- Details (location, email, phone) on one line, links on the next; items never break
+      inside themselves (gaps, not separators, so nothing dangles when a row wraps). #}
+  {%- for row in (ns.details, ns.links) if row %}
+  <div class="cv-contact">
+    {%- for kind, item in row %}
+    <span class="li-contact-item{{ ' li-long' if item.text|length > 48 else '' }}">{{ icon(kind) }}{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</span>
+    {%- endfor %}
+  </div>
+  {%- endfor %}
+</header>
+{#- Lilac: the name panel (header, then the monogram) is the top of the sidebar.
+    The monogram is the photo slot (spec D6 deviation: it prints in the PDF as well, as a
+    design element). It follows the header in the DOM, so its letters read after the contact
+    lines and never inside a section.
+    The sidebar comes before the main column in the DOM: it sits on page 1 only, and text is
+    extracted page by page, so this is the order that keeps every section's text whole when
+    the main column runs on (header, sidebar sections, then main sections). #}
+{%- if initials %}
+<div class="li-mono" aria-hidden="true"><span>{{ initials }}</span></div>
+{%- endif %}
+{%- if side_sections %}
+<aside class="li-side">
+{%- for section in side_sections %}{{ side_section(section) }}{% endfor %}
+</aside>
+{%- endif %}
+{%- if main_sections %}
+<main class="li-main">
+{%- for section in main_sections %}
+{%- if loop.first and section.kind == "summary" and section.entries|rejectattr("heading", "none")|list|length == 0 %}
+{#- The summary opens the main column as a tinted band that bleeds to the top and right edges. #}
+<section class="li-band cv-section--summary" data-section-id="{{ section.id }}">
+  <h2>{{ section.title }}</h2>
+  {%- for entry in section.entries %}
+  {%- if entry.paragraph %}<p class="cv-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>{% endif %}
+  {%- endfor %}
+</section>
+{%- else %}{{ main_section(section) }}{% endif %}
+{%- endfor %}
+</main>
+{%- endif %}
+</div>
+</body>
+</html>
