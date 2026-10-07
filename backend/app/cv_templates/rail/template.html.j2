@@ -27,13 +27,19 @@
     {%- if header.headline %}
     <div class="cv-headline">{{ header.headline }}</div>
     {%- endif %}
-    {%- if contact_items %}
+    {#- Details (location, email, phone) on one line, links on the next; whole items with gaps,
+        not separators, so a wrapped row never dangles one. #}
+    {%- set ns = namespace(details=[], links=[]) %}
+    {%- for item in contact_items %}
+    {%- if item.href and not item.href.startswith("mailto:") %}{% set ns.links = ns.links + [item] %}{% else %}{% set ns.details = ns.details + [item] %}{% endif %}
+    {%- endfor %}
+    {%- for row in (ns.details, ns.links) if row %}
     <div class="cv-contact">
-      {%- for item in contact_items %}
-      <div class="rl-contact-item">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</div>
+      {%- for item in row %}
+      <span class="rl-contact-item{{ ' rl-long' if item.text|length > 48 else '' }}">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</span>
       {%- endfor %}
     </div>
-    {%- endif %}
+    {%- endfor %}
   </header>
   {%- if initials %}
   <div class="rl-mono" aria-hidden="true"><span>{{ initials }}</span></div>

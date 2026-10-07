@@ -10,7 +10,7 @@
   --rl-ink-2: #333333;   /* organisation, contact: 12.6:1 */
   --rl-muted: #555555;   /* dates, location, levels: 7.5:1 */
   --rl-rule: #cfcfcf;
-  font: 400 clamp(8.75pt, calc(9.4pt * var(--type)), 10.75pt) / 1.45 var(--font-body);
+  font: 400 clamp(8.75pt, calc(9.4pt * var(--type)), 10.25pt) / 1.45 var(--font-body);
   hyphens: manual;
   orphans: 2;
   widows: 2;
@@ -46,8 +46,19 @@
 /* Headline, contact and dates are set in the heading family: under a serif override the
    sans keeps the header and the facts, and every face the template loads is used. */
 .cv-headline { font-family: var(--font-heading); font-weight: 500; font-size: 1.12em; line-height: 1.3; color: var(--rl-ink-2); margin-top: var(--space-2); text-wrap: balance; }
-.cv-contact { font-family: var(--font-heading); margin-top: var(--space-3); font-size: 0.9em; line-height: 1.5; color: var(--rl-ink-2); }
-.rl-contact-item { text-wrap: balance; }
+.cv-contact {
+  font-family: var(--font-heading);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--space-4) + var(--space-2));
+  margin-top: var(--space-3);
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: var(--rl-ink-2);
+}
+.cv-contact + .cv-contact { margin-top: 0; }
+.rl-contact-item { white-space: nowrap; }
+.rl-contact-item.rl-long { white-space: normal; }
 .rl-mono {
   grid-area: mono;
   justify-self: center;
@@ -78,7 +89,7 @@
 .cv-section > h2 {
   grid-area: label;
   margin: 0;
-  padding: calc(var(--space-4) + var(--space-1)) 6mm 0 4mm;
+  padding: calc(var(--space-4) + 0.5pt) 6mm 0 4mm;
   text-align: right;
   font: 600 1.2em / 1.2 var(--font-heading);
   letter-spacing: 0.1em;
@@ -93,7 +104,7 @@
 .rl-body {
   grid-area: body;
   min-width: 0;
-  padding: calc(var(--space-4) + var(--space-1)) var(--rl-right) var(--space-4) var(--rl-left);
+  padding: var(--space-4) var(--rl-right) var(--space-3) var(--rl-left);
   border-top: 0.75pt solid var(--rl-rule);
 }
 /* A row starts on the page its label and first block can share. */
@@ -138,7 +149,7 @@
 .cv-entry > .cv-text { margin-top: var(--space-2); }
 
 /* Skills and languages: outlined chips (no ratings, no separators to dangle at a line start). */
-.rl-list { margin: 0; line-height: 1; }
+.rl-list { margin: 0; line-height: 1; break-inside: avoid; }
 .rl-item {
   display: inline-block;
   margin: 0 3.5pt 4.5pt 0;
