@@ -62,7 +62,7 @@ def _model(document, template: str):
 
 def test_catalog_templates_share_canonical_render_model(db, test_user):
     document = _document(db, test_user)
-    assert list(TEMPLATES) == ["classic"]  # grows as T6-T8 add template directories
+    assert list(TEMPLATES)[0] == "classic"  # the default leads; T6-T8 add the rest from their directories
     models = [_model(document, template) for template in TEMPLATES]
     assert all(model.sections == models[0].sections for model in models)
     assert [model.template_id for model in models] == list(TEMPLATES)
@@ -70,7 +70,7 @@ def test_catalog_templates_share_canonical_render_model(db, test_user):
 
 def test_unavailable_template_ids_build_the_classic_model(db, test_user):
     document = _document(db, test_user)
-    for template in ("scholar", "lagoon", "ledger"):
+    for template in ("academic", "meadow", "ledger"):  # ids with no template directory (spec 9)
         assert _model(document, template).template_id == "classic"
 
 

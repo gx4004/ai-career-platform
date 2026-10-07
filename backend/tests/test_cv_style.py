@@ -196,7 +196,7 @@ def test_style_catalog_is_the_single_source_of_design_values(client, auth_header
     body = response.json()
     templates = {t["id"]: t for t in body["templates"]}
     assert list(templates) == list(TEMPLATES)
-    assert list(templates) == ["classic"]  # until T6-T8 add template directories
+    assert list(templates)[0] == "classic"  # the default leads; T6-T8 add the rest
     assert templates["classic"]["name"] == "Classic"
     assert [f["id"] for f in body["fonts"]] == list(OVERRIDE_FONT_IDS)
     assert len(body["palette"]) == 10
