@@ -28,7 +28,6 @@ from app.services.cv_chromium import (
     RenderTimeoutError,
 )
 from app.services.cv_html import (
-    LEGACY_TEMPLATE_IDS,
     html_template_id,
     load_manifest,
     missing_characters,
@@ -36,6 +35,7 @@ from app.services.cv_html import (
 )
 from app.services.cv_pdf import EmbeddedFont, embedded_fonts, font_problems, normalize_pdf
 from app.services.cv_rendering import build_render_model, render_pdf, validate_artifact
+from app.schemas.cv_documents import LEGACY_CV_TEMPLATE_IDS
 from tests import cv_fixtures
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "cv"
@@ -43,7 +43,7 @@ EXPECTED_PAGES = {"maya": 1, "long": 2, "accented": 1, "cyrillic": 1, "long_name
 FAMILIES = load_manifest("classic").families
 
 
-def _model(name: str, template: str = "ats-essential"):
+def _model(name: str, template: str = "classic"):
     return build_render_model(cv_fixtures.ALL[name](), template, CvStyle())
 
 
@@ -129,9 +129,9 @@ def test_pdf_normalisation_only_fixes_the_dates():
     assert b"D:20000101000000" in fixed and b"2026" not in fixed
 
 
-@pytest.mark.parametrize("template_id", sorted(LEGACY_TEMPLATE_IDS))
-def test_every_legacy_template_id_prints_as_classic_for_now(template_id):
-    # TODO(#461): T2 replaces this mapping with the catalog and a stored-style migration.
+@pytest.mark.parametrize("template_id", sorted(set(LEGACY_CV_TEMPLATE_IDS.values()) | {"scholar", "ledger"}))
+def test_a_template_id_without_a_template_dir_prints_as_classic(template_id):
+    # Ids of templates that have not landed yet (T6-T8) are valid and print as classic.
     assert html_template_id(template_id) == "classic"
     model = _model("maya", template_id)
     pdf = render_pdf(model)
@@ -142,7 +142,7 @@ def test_every_legacy_template_id_prints_as_classic_for_now(template_id):
 def test_glyphs_the_fonts_lack_are_reported_and_print_as_spaces():
     cv = cv_fixtures.maya()
     cv.sections[0]["entries"][0]["body"] = "Built APIs\U0001f600fast and 日本語 pages."
-    model = build_render_model(cv, "ats-essential", CvStyle())
+    model = build_render_model(cv, "classic", CvStyle())
     assert set(model.unsupported_characters) >= {"\U0001f600", "日"}
     pdf = render_pdf(model)
     assert font_problems(pdf, FAMILIES) == []  # no fallback face was embedded
@@ -154,7 +154,7 @@ def test_glyphs_the_fonts_lack_are_reported_and_print_as_spaces():
 def test_text_is_nfc_normalised_and_the_header_is_structured():
     cv = cv_fixtures.maya()
     cv.header = {**cv.header, "name": "Zoë Nũnez"}
-    model = build_render_model(cv, "ats-essential", CvStyle())
+    model = build_render_model(cv, "classic", CvStyle())
     assert model.header.title == unicodedata.normalize("NFC", "Zoë Nũnez")
     assert len(model.header.title) == len("Zoë Nuñez")
     header = model.header

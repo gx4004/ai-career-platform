@@ -13,7 +13,7 @@ from app.services.autopilot.policy import (
     assert_allowed_apply_url,
     ats_form_url,
 )
-from app.services.cv_rendering import build_render_model, render_pdf
+from app.services.cv_rendering import ATS_TEMPLATE_ID, build_render_model, render_pdf
 
 
 def _pairs(items) -> list[tuple[str, str]]:
@@ -50,7 +50,7 @@ def build_materials(details: ApplicationDetailsResponse, content: dict) -> Autof
             sections=variant["sections"],
         )
         resume_pdf = render_pdf(
-            build_render_model(document, "ats-essential", CvStyle(ats_mode=True))
+            build_render_model(document, ATS_TEMPLATE_ID, CvStyle(ats_mode=True))
         )
     safe_name = re.sub(r"[^A-Za-z0-9]+", "-", details.full_name).strip("-")
     return AutofillMaterials(
