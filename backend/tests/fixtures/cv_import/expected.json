@@ -1,0 +1,509 @@
+{
+ "date_formats": [
+  {
+   "kind": "summary",
+   "title": "Summary",
+   "entries": [
+    {
+     "body": "Frontend engineer with five years of experience."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Experience",
+   "entries": [
+    {
+     "heading": "Frontend Engineer",
+     "subheading": "Tulip Pay",
+     "location": "Amsterdam",
+     "start_date": "Mar 2022",
+     "end_date": "Present",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s.",
+      "Led a migration of 38 components to a shared library used by four product teams."
+     ]
+    },
+    {
+     "heading": "Web Developer",
+     "subheading": "Northwind Travel",
+     "location": "Amsterdam, NL",
+     "start_date": "03/2019",
+     "end_date": "now",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s."
+     ]
+    },
+    {
+     "heading": "Junior Developer",
+     "subheading": "Harbour Systems",
+     "location": "Remote",
+     "start_date": "2016",
+     "end_date": "2019",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s."
+     ]
+    },
+    {
+     "heading": "Intern",
+     "subheading": "Bright Labs",
+     "location": "Utrecht",
+     "start_date": "Jan 2015",
+     "end_date": "Dec 2015",
+     "bullets": []
+    }
+   ]
+  },
+  {
+   "kind": "education",
+   "title": "Education",
+   "entries": [
+    {
+     "heading": "BSc Information Science",
+     "subheading": "University of Amsterdam",
+     "location": null,
+     "start_date": "2012",
+     "end_date": "2016",
+     "bullets": []
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Skills",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js, GraphQL"
+    }
+   ]
+  }
+ ],
+ "company_first": [
+  {
+   "kind": "summary",
+   "title": "Summary",
+   "entries": [
+    {
+     "body": "Frontend engineer with five years of experience."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Work History",
+   "entries": [
+    {
+     "heading": "Senior Backend Engineer",
+     "subheading": "Stripe Payments Europe",
+     "location": "Dublin, Ireland",
+     "start_date": "Feb 2021",
+     "end_date": "Present",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s.",
+      "Led a migration of 38 components to a shared library used by four product teams."
+     ]
+    },
+    {
+     "heading": "Software Engineer",
+     "subheading": "Acme Corp",
+     "location": "Remote",
+     "start_date": "Jun 2017",
+     "end_date": "Jan 2021",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "education",
+   "title": "Education",
+   "entries": [
+    {
+     "heading": "MSc Computer Science",
+     "subheading": "Trinity College Dublin",
+     "location": "Dublin",
+     "start_date": "2015",
+     "end_date": "2017",
+     "bullets": []
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Skills",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js, GraphQL"
+    }
+   ]
+  }
+ ],
+ "stacked": [
+  {
+   "kind": "summary",
+   "title": "Summary",
+   "entries": [
+    {
+     "body": "Frontend engineer with five years of experience."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Professional Experience",
+   "entries": [
+    {
+     "heading": "Data Analyst",
+     "subheading": "Globex Analytics",
+     "location": "Amsterdam",
+     "start_date": "Sep 2020",
+     "end_date": "Present",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s.",
+      "Led a migration of 38 components to a shared library used by four product teams."
+     ]
+    },
+    {
+     "heading": "Research Assistant",
+     "subheading": "Delft University of Technology",
+     "location": "Delft",
+     "start_date": "Sep 2018",
+     "end_date": "Aug 2020",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Skills",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js, GraphQL"
+    }
+   ]
+  }
+ ],
+ "comma_paren": [
+  {
+   "kind": "experience",
+   "title": "Employment History",
+   "entries": [
+    {
+     "heading": "Product Designer",
+     "subheading": "Pixel Forge",
+     "location": "Berlin",
+     "start_date": "Mar 2022",
+     "end_date": "Present",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s.",
+      "Led a migration of 38 components to a shared library used by four product teams."
+     ]
+    },
+    {
+     "heading": "UX Designer",
+     "subheading": "Studio Nord",
+     "location": "Hamburg, DE",
+     "start_date": "Apr 2018",
+     "end_date": "Feb 2022",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Skills",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js, GraphQL"
+    }
+   ]
+  }
+ ],
+ "pipe_meta": [
+  {
+   "kind": "summary",
+   "title": "Summary",
+   "entries": [
+    {
+     "body": "Frontend engineer with five years of experience."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Experience",
+   "entries": [
+    {
+     "heading": "Operations Lead",
+     "subheading": "Northwind Logistics",
+     "location": "Rotterdam",
+     "start_date": "Aug 2019",
+     "end_date": "Present",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s.",
+      "Led a migration of 38 components to a shared library used by four product teams."
+     ]
+    },
+    {
+     "heading": "Operations Coordinator",
+     "subheading": "Port Services BV",
+     "location": "Rotterdam",
+     "start_date": "2015",
+     "end_date": "2019",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Skills",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js, GraphQL"
+    }
+   ]
+  }
+ ],
+ "company_dates_only": [
+  {
+   "kind": "summary",
+   "title": "Summary",
+   "entries": [
+    {
+     "body": "Frontend engineer with five years of experience."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Experience",
+   "entries": [
+    {
+     "heading": "Acme Media",
+     "subheading": null,
+     "location": null,
+     "start_date": "2019",
+     "end_date": "2022",
+     "bullets": []
+    },
+    {
+     "heading": "Globex News",
+     "subheading": null,
+     "location": null,
+     "start_date": "Jan 2016",
+     "end_date": "Dec 2018",
+     "bullets": []
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Skills",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js, GraphQL"
+    }
+   ]
+  }
+ ],
+ "accented": [
+  {
+   "kind": "summary",
+   "title": "Summary",
+   "entries": [
+    {
+     "body": "Frontend engineer with five years of experience."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Experience",
+   "entries": [
+    {
+     "heading": "Développeuse front-end",
+     "subheading": "Café Müller",
+     "location": "São Paulo",
+     "start_date": "Mar 2022",
+     "end_date": "Present",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s.",
+      "Led a migration of 38 components to a shared library used by four product teams."
+     ]
+    },
+    {
+     "heading": "Desenvolvedora",
+     "subheading": "Łódź Software",
+     "location": "Łódź, PL",
+     "start_date": "Jan 2019",
+     "end_date": "Feb 2022",
+     "bullets": [
+      "Rebuilt the checkout flow in React and TypeScript, cutting load time from 4.1s to 1.6s."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "education",
+   "title": "Education",
+   "entries": [
+    {
+     "heading": "Licenciatura em Informática",
+     "subheading": "Universidade de São Paulo",
+     "location": "São Paulo",
+     "start_date": "2014",
+     "end_date": "2018",
+     "bullets": []
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Skills",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js, GraphQL"
+    }
+   ]
+  }
+ ],
+ "cyrillic": [
+  {
+   "kind": "summary",
+   "title": "О себе",
+   "entries": [
+    {
+     "body": "Фронтенд-разработчик с пятилетним опытом."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Профессиональный опыт",
+   "entries": [
+    {
+     "heading": "Фронтенд-инженер",
+     "subheading": "Tulip Pay",
+     "location": "Амстердам",
+     "start_date": "мар 2022",
+     "end_date": "наст. время",
+     "bullets": [
+      "Переписал панель продавца на React и TypeScript, ускорив загрузку с 4,1 до 1,6 секунды.",
+      "Вёл переход на общую библиотеку компонентов для четырёх продуктовых команд."
+     ]
+    },
+    {
+     "heading": "Веб-разработчик",
+     "subheading": "Яндекс",
+     "location": "Москва",
+     "start_date": "март 2019",
+     "end_date": "настоящее время",
+     "bullets": [
+      "Переписал панель продавца на React и TypeScript, ускорив загрузку с 4,1 до 1,6 секунды."
+     ]
+    },
+    {
+     "heading": "Junior-разработчик",
+     "subheading": "Рамблер",
+     "location": "Санкт-Петербург",
+     "start_date": "янв 2016",
+     "end_date": "дек 2018",
+     "bullets": [
+      "Переписал панель продавца на React и TypeScript, ускорив загрузку с 4,1 до 1,6 секунды."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "education",
+   "title": "Образование",
+   "entries": [
+    {
+     "heading": "Бакалавр информатики",
+     "subheading": "Киевский политехнический институт",
+     "location": "Киев",
+     "start_date": "2012",
+     "end_date": "2016",
+     "bullets": []
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Навыки",
+   "entries": [
+    {
+     "body": "TypeScript, React, Node.js"
+    }
+   ]
+  }
+ ],
+ "cyrillic_company_first": [
+  {
+   "kind": "summary",
+   "title": "Обо мне",
+   "entries": [
+    {
+     "body": "Руководитель проектов с опытом более восьми лет."
+    }
+   ]
+  },
+  {
+   "kind": "experience",
+   "title": "Опыт работы",
+   "entries": [
+    {
+     "heading": "Руководитель проектов",
+     "subheading": "ООО Ромашка",
+     "location": "Москва",
+     "start_date": "март 2020",
+     "end_date": "настоящее время",
+     "bullets": [
+      "Переписал панель продавца на React и TypeScript, ускорив загрузку с 4,1 до 1,6 секунды.",
+      "Вёл переход на общую библиотеку компонентов для четырёх продуктовых команд."
+     ]
+    },
+    {
+     "heading": "Менеджер проектов",
+     "subheading": "АО Вектор",
+     "location": "Казань",
+     "start_date": "2016",
+     "end_date": "2020",
+     "bullets": [
+      "Переписал панель продавца на React и TypeScript, ускорив загрузку с 4,1 до 1,6 секунды."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "education",
+   "title": "Образование",
+   "entries": [
+    {
+     "heading": "Магистр менеджмента",
+     "subheading": "Казанский федеральный университет",
+     "location": null,
+     "start_date": "2012",
+     "end_date": "2016",
+     "bullets": []
+    }
+   ]
+  },
+  {
+   "kind": "skills",
+   "title": "Ключевые навыки",
+   "entries": [
+    {
+     "body": "Scrum, Jira, Excel"
+    }
+   ]
+  }
+ ]
+}

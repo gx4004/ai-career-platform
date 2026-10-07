@@ -74,7 +74,10 @@ class _Line:
     gap_before: bool = False  # a blank line (or empty paragraph) came right before it
 
 
-_BULLET_MARKER = re.compile(r"^(?:[•◦▪▫●○■□·∙‣⁃*➢➤►▶✓✔❖◆◇–—-])(?:\s+|$)|^[•◦▪▫●○■□∙‣⁃➢➤►▶✓✔❖◆◇]")
+# U+F000-U+F0FF is where Word's Symbol and Wingdings bullets land when a PDF is extracted.
+_BULLET_MARKER = re.compile(
+    r"^(?:[•◦▪▫●○■□·∙‣⁃*➢➤►▶✓✔❖◆◇–—-])(?:\s+|$)|^[•◦▪▫●○■□∙‣⁃➢➤►▶✓✔❖◆◇\uf000-\uf0ff]"
+)
 _MAX_LINE_FOR_ROLE = 200
 
 # Months in English, Russian and Ukrainian (full names, abbreviations, genitive forms).
@@ -101,7 +104,7 @@ _PRESENT = (
 )
 _END = rf"(?:{_DATE}|(?<!\w)(?:{_PRESENT})(?!\w))"
 _SEP = r"\s*(?:[–—‒−-]+|\bto\b|\buntil\b|\btill\b|\bthrough\b|\bпо\b|\bдо\b)\s*"
-_RANGE = rf"(?:(?:с|з|from|since)\s+)?(?P<start>{_DATE}){_SEP}(?P<end>{_END})"
+_RANGE = rf"(?:(?<!\w)(?:с|з|from|since)\s+)?(?P<start>{_DATE}){_SEP}(?P<end>{_END})"
 _TRAILING_RANGE = re.compile(
     rf"^(?P<rest>.+?)[\s,|·•:–—-]*[(\[]?\s*{_RANGE}\s*[)\]]?\s*$", re.IGNORECASE
 )
@@ -411,7 +414,7 @@ def _looks_like_name(text: str, *, next_is_contact: bool) -> bool:
     # A name is capitalised words; a lower-case tagline ("Experienced engineer") is not.
     if any(word[0].islower() and word.lower() not in _NAME_PARTICLES for word in words):
         return False
-    if not words or len(words) > 6 or len(text) > 60 or re.search(r"[\d@:/]", text):
+    if not words or len(words) > 6 or len(text) > 80 or re.search(r"[\d@:/]", text):
         return False
     if text.endswith((".", "!", "?", ";")) and not re.search(r"\b[A-Z]\.$", text):
         return False
@@ -420,22 +423,63 @@ def _looks_like_name(text: str, *, next_is_contact: bool) -> bool:
     return not any(ch in text for ch in "|•·")
 
 
-def _join_wrapped_links(lines: list[_Line]) -> list[_Line]:
-    """A link the page wrapped at a hyphen or slash ("linkedin.com/in/maya-" / "lindqvist")."""
+def _name_like(text: str) -> bool:
+    words = text.split()
+    return (
+        bool(words)
+        and len(words) <= 3
+        and not re.search(r"[\d@:/|•·,]", text)
+        and all(_is_capitalised(word) or word in _NAME_PARTICLES for word in words)
+        and not _reads_as_role(text)
+    )
+
+
+def _join_wrapped_header(lines: list[_Line]) -> list[_Line]:
+    """Header lines a narrow column wrapped: a line that ends on a hyphen continues on the
+    next ("front-" / "end", a link split at a hyphen), and a name printed one word to a
+    line ("Анастасия" / "Ковальчук-Фёдорова") is one name."""
     joined: list[_Line] = []
+    hyphenated: set[int] = set()
     for line in lines:
         text = line.text.strip()
+        previous = joined[-1].text.strip() if joined else ""
         if (
             joined
             and not line.bullet
-            and " " not in text
-            and re.search(r"\S[-/]$", joined[-1].text.strip())
-            and " " not in joined[-1].text.strip().split("|")[-1].strip()
-            and _URL.search(joined[-1].text)
+            and not joined[-1].bullet
+            and text
+            and re.search(r"[^\W\d_]-$|[\w]/$", previous)
+            and not _EMAIL.search(text)
+            and text[0].isalnum()
+            and (" " not in text or not _URL.search(previous))
         ):
-            joined[-1] = _Line(joined[-1].text.strip() + text, gap_before=joined[-1].gap_before)
+            joined[-1] = _Line(previous + text, gap_before=joined[-1].gap_before, title=joined[-1].title)
+            hyphenated.add(len(joined) - 1)
         else:
             joined.append(line)
+    if len(joined) > 2 and _name_like(joined[0].text) and not _is_contact_line(joined[1].text):
+        second = joined[1].text
+        wrapped_name = 1 in hyphenated and len(second.split()) <= 5 and not _reads_as_role(second)
+        one_word = len(joined[0].text.split()) == 1 and _name_like(second)
+        if wrapped_name or one_word:
+            extra = 1
+            if (
+                one_word
+                and len(second.split()) == 1
+                and _name_like(joined[2].text)
+                and not _is_contact_line(joined[2].text)
+            ):
+                extra = 2
+            text = " ".join(line.text.strip() for line in joined[: 1 + extra])
+            joined[: 1 + extra] = [_Line(text, title=joined[0].title)]
+    # "... van" / "der Westhuizen": a surname particle at the end of a line continues on the next.
+    while (
+        len(joined) > 1
+        and joined[0].text.split()[-1:] and joined[0].text.split()[-1] in _NAME_PARTICLES
+        and _name_like(joined[1].text)
+        and not _is_contact_line(joined[1].text)
+    ):
+        joined[:2] = [_Line(f"{joined[0].text.strip()} {joined[1].text.strip()}", title=joined[0].title)]
     return joined
 
 
@@ -451,6 +495,7 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
         preamble.pop(0)  # "Curriculum Vitae" above the name is a title, not the name
     if not preamble:
         return header, []
+    preamble = _join_wrapped_header(preamble)
     first = preamble[0]
     next_contact = len(preamble) > 1 and _is_contact_line(preamble[1].text)
     one_line = False
@@ -468,7 +513,6 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
             return header, list(preamble)
         header["name"] = first.text.strip()[:120]
     consumed = 0 if one_line else 1
-    preamble[:] = _join_wrapped_links(preamble)
     monogram = {w[:1].upper() for w in re.split(r"[\s-]+", header["name"] or "") if w}
     for line in preamble[consumed:]:
         text = line.text.strip()
@@ -488,14 +532,14 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
             place = ", ".join(part for part in parts if not _reads_as_role(part))
             if place and header["location"] is None and len(place) <= 80:
                 header["location"] = place
-            if titles and header["headline"] is None and len(titles[0]) <= 90:
+            if titles and header["headline"] is None and len(titles[0]) <= 120:
                 header["headline"] = titles[0]
         elif header["location"] is None and _place_like(text):
             header["location"] = text
         elif (
             header["headline"] is None
-            and len(text) <= 90
-            and len(text.split()) <= 12
+            and len(text) <= 120
+            and len(text.split()) <= 16
             and not text.endswith((".", "!", "?"))
         ):
             header["headline"] = text
@@ -506,6 +550,13 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
             and not _reads_as_role(header["headline"])
         ):
             header["headline"] = f"{header['headline']} {text}"  # the page wrapped the headline
+        elif (
+            header["headline"]
+            and len(text) <= 160
+            and not text.endswith((".", "!", "?"))
+            and any(_is_contact_line(later.text) for later in preamble[consumed + 1 : consumed + 4])
+        ):
+            header["headline"] = f"{header['headline']} {text}"  # a long headline the page wrapped
         else:
             break
         consumed += 1
@@ -559,7 +610,7 @@ def _is_capitalised(word: str) -> bool:
 def _place_like(text: str) -> bool:
     """A city, region or country, optionally comma separated ("Amsterdam, NL"), or Remote."""
     text = text.strip()
-    if not text or len(text) > 60 or re.search(r"\d|[.!?:;]$", text):
+    if not text or len(text) > 60 or re.search(r"\d|[.!?;]$|:", text):
         return False
     base = re.sub(r"\s*\([^)]*\)\s*$", "", text).strip().lower()
     if base in _REMOTE_WORDS:
@@ -626,15 +677,26 @@ def _split_org(rest: str, kind: str) -> dict:
         location = None
         if len(tail) > 1 and _place_like(tail[-1]):
             location = tail.pop()
-        org = " — ".join(tail)
-        # "Tulip Pay, Amsterdam": a company followed by its city.
-        inner = _COMMA_SPLIT.split(org, maxsplit=1)
-        if location is None and len(inner) == 2 and _place_like(inner[1]) and not _has_org_word(inner[1]):
-            org, location = inner
-        fields["subheading"] = org
+        fields["subheading"] = " — ".join(tail)
         if location:
             fields["location"] = location
-    return _order_pair(fields, kind)
+    fields = _order_pair(fields, kind)
+    return _peel_place(fields)
+
+
+def _peel_place(fields: dict) -> dict:
+    """"Tulip Pay, Amsterdam" and "Initech (Remote)": the place at the end of the organisation."""
+    org = fields.get("subheading")
+    if not org or fields.get("location"):
+        return fields
+    inner = _COMMA_SPLIT.split(org, maxsplit=1)
+    if len(inner) == 2 and _place_like(inner[1]) and not _has_org_word(inner[1]):
+        fields["subheading"], fields["location"] = inner
+        return fields
+    paren = re.match(r"^(?P<org>.+?)\s*\((?P<place>[^()]+)\)$", org)
+    if paren and (paren.group("place").lower() in _REMOTE_WORDS or _place_like(paren.group("place"))):
+        fields["subheading"], fields["location"] = paren.group("org"), paren.group("place")
+    return fields
 
 
 def _order_pair(fields: dict, kind: str) -> dict:
@@ -671,7 +733,7 @@ def _title_line(text: str) -> bool:
     text = text.strip()
     if not text or len(text.split()) > 12 or len(text) > 120 or text.endswith((":", ";", "!", "?")):
         return False
-    if text.endswith(".") and not re.search(r"\b[A-Za-z]{1,3}\.$", text):
+    if text.endswith(".") and not re.search(r"\b[^\W\d_]{1,3}\.$", text):
         return False
     return not _EMAIL.search(text)
 
@@ -1074,9 +1136,16 @@ def _structure_lines(
         grouped = grouped[:MAX_SECTIONS]
         warnings.append(f"Only the first {MAX_SECTIONS} sections were kept.")
     sections = []
-    for section_position, (section_kind, section_title, section_lines) in enumerate(grouped):
+    for section_kind, section_title, section_lines in grouped:
+        section_position = len(sections)
         import_entries = []
-        built = _build_entries(section_kind, section_lines, wraps=wraps, warnings=warnings)
+        built = [
+            entry
+            for entry in _build_entries(section_kind, section_lines, wraps=wraps, warnings=warnings)
+            if entry.get("body", "").strip()
+        ]
+        if not built:
+            continue  # a heading with nothing under it is never imported as an empty section
         if len(built) > MAX_ENTRIES:
             built = built[:MAX_ENTRIES]
             warnings.append(f"Only the first {MAX_ENTRIES} entries of a section were kept.")
