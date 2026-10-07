@@ -626,6 +626,20 @@ export type CvDocument = z.infer<typeof cvDocumentSchema>
 export type CvVariant = z.infer<typeof cvVariantSchema>
 export type CvDocumentUpdate = z.infer<typeof cvDocumentUpdateSchema>
 
+/** `POST /cv-documents/{id}/preview`: the unsaved draft as page images (print-faithful WebP data URLs) plus where
+ * each section sits on them, as fractions (0..1) of the page. A section that crosses a page break has one rectangle per page. */
+export const cvPreviewSchema = z.object({
+  pages: z.array(z.object({ url: z.string(), width: z.number().int().positive(), height: z.number().int().positive() })),
+  page_count: z.number().int().nonnegative(),
+  sections: z.array(z.object({
+    id: z.string(), kind: z.string(), page: z.number().int().nonnegative(),
+    x: z.number(), y: z.number(), w: z.number(), h: z.number(),
+  })),
+  warnings: z.array(z.object({ code: z.string(), message: z.string(), characters: z.array(z.string()).default([]) })).default([]),
+  truncated: z.boolean().default(false),
+})
+export type CvPreview = z.infer<typeof cvPreviewSchema>
+
 export const cvTailoringChangeSchema = z.strictObject({
   id: z.string().min(1).max(100), section_id: z.string().min(1).max(100), entry_id: z.string().min(1).max(100),
   // Which entry field this change rewrites: "body", or "bullets[<index>]" for

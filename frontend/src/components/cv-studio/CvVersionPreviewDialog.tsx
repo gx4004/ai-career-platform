@@ -4,22 +4,23 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, MetaRow, Notice,
 } from '#/components/kit'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
-import type { CvHeader, CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
-import { CvPaper } from './CvPaperPreview'
+import type { CvHeader, CvSection, CvStyle, CvVariant } from '#/lib/api/schemas'
+import { EMPTY_HEADER } from '#/lib/cv-studio/header'
+import { CvPagePreview } from './CvPagePreview'
 import { describeDiff, diffVersion } from './versionDiff'
 import type { VersionExport } from './CvVersionsPanel'
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** A saved version on its paper, read only, in the CV's current style: look before you restore or send it. */
-export function CvVersionPreviewDialog({ variant, documentName, header, style, catalog, currentSections, exporting, canRestore, error, onOpenChange, onExport, onRestore }: {
+export function CvVersionPreviewDialog({ variant, documentId, documentName, header, style, currentSections, exporting, canRestore, error, onOpenChange, onExport, onRestore }: {
   /** Open while set. */
   variant: CvVariant | null
+  documentId: string
   documentName: string
   /** The document's header: a saved version holds sections only, and its exports carry the current header. */
   header?: CvHeader
   style: CvStyle
-  catalog: CvStyleCatalog
   currentSections: CvSection[]
   exporting: VersionExport
   canRestore: boolean
@@ -61,7 +62,10 @@ export function CvVersionPreviewDialog({ variant, documentName, header, style, c
           {error ? <Notice tone="danger" className="cvs-preview__error">{error}</Notice> : null}
           {variant ? (
             <div className="cvs-preview">
-              <CvPaper name={documentName} header={header} sections={variant.sections} style={style} catalog={catalog} />
+              <CvPagePreview
+                documentId={documentId} draft={{ name: documentName, header: header ?? EMPTY_HEADER, sections: variant.sections, style }}
+                label={`Preview of ${variant.name}`}
+              />
             </div>
           ) : null}
         </DialogBody>

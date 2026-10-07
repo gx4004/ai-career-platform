@@ -1,8 +1,8 @@
 /* ── CV Studio ──────────────────────────────────────────────────────────────
    The studio chrome around the paper: header bar, tools panel, canvas. Every control
    in it is a kit component; this file lays them out and adds the few hooks the kit
-   does not have (grip, drag states, paper affordance, desk). The paper itself (`cvp-*`,
-   below) mirrors the server PDF renderer and is not part of the app's visual system.
+   does not have (grip, drag states, paper affordance, desk). The pages themselves (`cvpv__image`,
+   below) are images of the server's PDF render and are not part of the app's visual system.
    Kit CSS loads after this file, so a rule that adjusts a kit component here doubles
    its class to win at equal weight. */
 
@@ -730,14 +730,8 @@
   margin-inline: auto;
 }
 
-.cvs-desk .cvp {
+.cvs-desk .cvpv {
   width: 100%;
-}
-
-/* The paper lies on the desk: a hairline and a soft shadow around the scaled sheet, never on the document itself. */
-.cvs-desk .cvp-frame,
-.cvs-preview .cvp-frame {
-  box-shadow: 0 0 0 1px rgb(var(--shadow-ink) / 0.1), var(--shadow-paper);
 }
 
 /* ── Dialogs ── */
@@ -968,7 +962,7 @@
     overscroll-behavior-x: contain;
   }
 
-  .cvs-desk[data-zoom='read'] .cvp {
+  .cvs-desk[data-zoom='read'] .cvpv {
     width: 46rem;
   }
 }
@@ -1084,245 +1078,93 @@
   }
 }
 
-/* Paper (mirrors the server PDF renderer; see lib/cv-studio/preview.ts) */
+/* Preview: the pages as the server prints them (images; print-faithful, so no sticker chrome on them) */
 
-.cvp { display: flex; flex-direction: column; gap: 0.5rem; }
+.cvpv { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
 
-.cvp-frame {
+.cvpv__stage { position: relative; }
+
+.cvpv__pages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* The sheet lies on the desk: a hairline and a soft shadow around the page image, never on the document itself. */
+.cvpv__page {
   position: relative;
   width: 100%;
   overflow: hidden;
   border-radius: 3px;
   background: #fff;
-  box-shadow: 0 0 0 1px var(--border-soft), var(--shadow-soft);
+  box-shadow: 0 0 0 1px rgb(var(--shadow-ink) / 0.1), var(--shadow-paper);
 }
 
-.cvp-paper {
-  position: absolute;
-  top: 0;
-  left: 0;
-  box-sizing: border-box;
-  width: 210mm;
-  min-height: 297mm;
-  padding: var(--cvp-margin);
-  transform-origin: top left;
-  background-color: #fff;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(297mm - 1px),
-    var(--ink-hairline) calc(297mm - 1px),
-    var(--ink-hairline) 297mm
-  );
-  color: #000;
-  font-family: var(--cvp-font);
-  font-size: var(--cvp-body);
-  line-height: calc(var(--cvp-body) + 3pt);
-  text-align: left;
-  overflow-wrap: anywhere;
+.cvpv__image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
 }
 
-/* ReportLab's single-column Frame pads every side by 6pt inside the page margin; the preview models it so it matches "Exact PDF". The two-column frames set their own paddings and are unchanged. */
-.cvp-paper:not(.cvp-paper--two-column) { padding: calc(var(--cvp-margin) + 6pt); }
+/* Until the next pages arrive the previous ones stay, dimmed. */
+.cvpv__pages { transition: opacity var(--duration-fast) var(--ease-out); }
+.cvpv__stage[data-stale='true'] .cvpv__pages { opacity: 0.55; }
 
-:where(.cvp-paper) :where(p, h2, h3, ul) { margin: 0; }
+.cvpv__loading { width: 100%; }
 
-.cvp-title {
-  letter-spacing: normal; /* the global heading tracking would narrow the title ~5% against the PDF */
-  text-wrap: wrap;
-  margin-bottom: 10pt;
-  font-size: calc(var(--cvp-heading) + 6pt);
-  line-height: calc(var(--cvp-heading) + 9pt);
-  font-weight: 400;
-  color: var(--cvp-accent);
+.cvpv__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 1.5rem;
 }
 
-/* Header block (mirrors the exports' name, headline and contact line). With nothing set it is the bare title, unchanged. */
-.cvp-header--detailed { padding-bottom: 8pt; }
-.cvp-header--detailed .cvp-title { margin-bottom: 3pt; }
-
-.cvp-headline {
-  margin-bottom: 2pt;
-  font-size: calc(var(--cvp-body) + 2pt);
-  line-height: calc(var(--cvp-body) + 5pt);
-}
-
-.cvp-contact {
-  margin-bottom: 2pt;
-  font-size: max(7pt, calc(var(--cvp-body) - 1pt));
-  line-height: calc(var(--cvp-body) + 3pt);
-  color: #4b5563;
-}
-
-.cvp-link { color: #0000ff; }
-
-/* A BFC so the last entry's margin adds to the section gap (the PDF's spaceAfter + Spacer) instead of collapsing into it. */
-.cvp-section { display: flow-root; margin-bottom: var(--cvp-gap); }
-
-.cvp-section__title {
-  letter-spacing: normal;
-  text-wrap: wrap;
-  margin-bottom: 3pt;
-  font-size: var(--cvp-heading);
-  line-height: calc(var(--cvp-heading) + 3pt);
-  font-weight: 400;
-  color: var(--cvp-accent);
-}
-
-.cvp-entry__row {
-  display: grid;
-  grid-template-columns: 7fr 3fr;
-  align-items: start;
-}
-
-/* The PDF lays the heading/date table at the full text width, so it overhangs the padded frame by 6pt each side. */
-.cvp-paper:not(.cvp-paper--two-column) .cvp-entry__row { margin-inline: -6pt; }
-
-/* Two-column frames pad 6pt on the right only (the table inside overhangs by half of that on each side). */
-.cvp-paper--two-column .cvp-side,
-.cvp-paper--two-column .cvp-main { padding-right: 6pt; }
-.cvp-paper--two-column .cvp-entry__row { margin-inline: -3pt; }
-
-.cvp-entry__heading,
-.cvp-entry__dates {
-  margin-bottom: 1pt;
-  font-size: calc(var(--cvp-body) + 1pt);
-  line-height: calc(var(--cvp-body) + 4pt);
-}
-
-/* The export sets the whole heading line (heading and subheading) in the bold face. */
-.cvp-entry__heading { font-weight: 700; }
-
-/* ATS mode exports in plain Helvetica, whose "bold" is the regular face. */
-.cvp-paper[data-ats] .cvp-entry__heading,
-.cvp-paper[data-ats] .cvp-entry__heading b,
-.cvp-paper[data-ats] .cvp-entry__dates { font-weight: 400; }
-
-/* In the PDF a heading with dates is a table row, and ReportLab ignores a paragraph's spaceAfter inside a cell. */
-.cvp-entry__row:has(.cvp-entry__dates) > p { margin-bottom: 0; }
-
-.cvp-entry__heading b { font-weight: 700; }
-.cvp-entry__dates { font-weight: 700; text-align: right; }
-
-.cvp-entry__meta {
-  margin-bottom: 2pt;
-  font-size: max(7pt, calc(var(--cvp-body) - 1pt));
-  line-height: calc(var(--cvp-body) + 2pt);
-  color: #4b5563;
-}
-
-.cvp-entry__bullets { padding: 0; list-style: none; }
-
-/* The PDF sets the bullet inline at a 10pt indent (no hanging indent): wrapped lines return to the indent, not under the text. */
-.cvp-entry__bullets li {
-  margin-bottom: 2pt;
-  padding-left: 10pt;
-}
-
-.cvp-entry__bullets li::before { content: '•\00a0'; }
-
-.cvp-entry__text { margin-bottom: 4pt; white-space: pre-line; }
-
-.cvp-columns {
-  display: grid;
-  grid-template-columns: 58mm minmax(0, 1fr);
-  column-gap: 6mm;
-}
-
-.cvp-placeholder {
-  margin-top: 2rem;
-  font-family: var(--font-sans);
-  font-size: 11pt;
-  color: var(--text-soft);
-}
-
-.cvp-footnote {
+.cvpv__footnote {
   margin: 0;
   font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
-
-/* A section on the paper is the way into its editor. On-screen chrome only: none of it prints. */
-
-.cvp-section--editable {
-  position: relative;
-  outline: none;
-  cursor: pointer;
-}
-
-/* The frame and its wash: 1mm above and below the section, so it stays clear of the neighbouring sections'
-   text, and wider to the sides, so it also clears the entry rows that overhang the text (6pt on a single
-   column, 3pt in two columns). It is painted under the text (the paper is its stacking context). */
-.cvp-paper { --cvp-frame-x: 4mm; }
-.cvp-paper--two-column { --cvp-frame-x: 3mm; }
-
-.cvp-section--editable::before {
-  content: '';
+/* A section on the page is the way into its editor: a transparent button over the rectangle the server measured.
+   On-screen chrome only: none of it prints. */
+.cvpv__hit {
   position: absolute;
-  inset: -1mm calc(var(--cvp-frame-x) * -1);
-  z-index: -1;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
   border: 2px dashed transparent;
   border-radius: 4pt;
-  pointer-events: none;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
   transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
 }
 
 @media (hover: hover) {
-  .cvp-section--editable:hover::before {
+  .cvpv__hit:hover {
     border-color: var(--tangerine);
-    background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
+    background: color-mix(in srgb, var(--tangerine-soft) 20%, transparent);
   }
-
-  .cvp-section--editable:hover::after { opacity: 1; }
 }
 
-.cvp-section--editable[aria-pressed='true']::before {
+.cvpv__hit[aria-pressed='true'] {
+  border-style: solid;
   border-color: var(--tangerine);
-  background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
+  background: color-mix(in srgb, var(--tangerine-soft) 20%, transparent);
 }
 
-.cvp-section--editable:focus-visible::before {
+.cvpv__hit:focus-visible {
   border: var(--focus-ring-width) solid var(--focus-ring-color);
-  background: color-mix(in srgb, var(--tangerine-soft) 45%, white);
+  background: color-mix(in srgb, var(--tangerine-soft) 20%, transparent);
 }
 
-/* The tag hangs from the frame's top-right corner, inside it: the right end of a section's first line is its
-   short title's empty space, so the tag never covers the paper's text or its neighbours. */
-.cvp-section--editable::after {
-  content: 'Edit';
-  position: absolute;
-  top: calc(-1mm + 3px);
-  right: calc(var(--cvp-frame-x) * -1 + 6px);
-  padding: 0.5pt 6pt;
-  border: 2px solid var(--ink);
-  border-radius: var(--r-pill);
-  background: var(--surface);
-  box-shadow: var(--sh-1);
-  color: var(--ink);
-  font: 700 8.5pt/1.3 var(--font-ui);
-  opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-out);
-}
-
-.cvp-section--editable:focus-visible::after { opacity: 1; }
-
-/* The header's first line is the name, which can run to the edge of a narrow column: its tag sits just above
-   the frame instead, in the page's empty top margin. */
-.cvp-header.cvp-section--editable::after {
-  top: auto;
-  bottom: calc(100% + 1mm + 3px);
-}
-
-.cvp-section--editable[aria-pressed='true']::after {
-  content: 'Editing';
-  background: var(--tangerine);
-  opacity: 1;
-}
 
 @media print {
-  .cvp-section--editable::before,
-  .cvp-section--editable::after { content: none; }
+  .cvpv__hit,
+  .cvpv__busy { display: none; }
 
   .cvs-bar,
   .cvs-side,

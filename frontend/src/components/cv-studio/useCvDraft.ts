@@ -22,7 +22,8 @@ const documentKey = (id: string) => ['cv-studio', 'document', id] as const
 const isNewer = (serverRevision: string, baseRevision: string | null) =>
   baseRevision !== null && Date.parse(serverRevision) > Date.parse(baseRevision)
 
-const toPayload = (draft: CvDocument): CvDocumentUpdate => ({
+/** What a save sends for a draft, and what the live preview renders: the same cleaned sections, style and header. */
+export const toPayload = (draft: Pick<CvDocument, 'name' | 'sections' | 'style' | 'header'>): CvDocumentUpdate => ({
   ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
   sections: toSavableSections(draft.sections),
   style: draft.style,

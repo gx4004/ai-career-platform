@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
 import { CvVersionsPanel } from '#/components/cv-studio/CvVersionsPanel'
 import { savedAgo } from '#/components/cv-studio/CvSaveStatus'
-import type { CvDocument } from '#/lib/api/schemas'
+import type { CvDocument, CvDocumentUpdate } from '#/lib/api/schemas'
+import { previewFor } from '#/lib/cv-studio/__tests__/preview.fixture'
 import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
 
 const api = vi.hoisted(() => ({
@@ -16,6 +17,7 @@ const api = vi.hoisted(() => ({
   proposeCvImport: vi.fn(), acceptCvImport: vi.fn(),
   tailorCvDocument: vi.fn(), applyCvTailoring: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
+  previewCvDraft: vi.fn(),
 }))
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
@@ -77,6 +79,7 @@ beforeEach(() => {
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockImplementation((_id: string, payload: Partial<CvDocument>) => Promise.resolve({ ...document, ...payload, updated_at: '2026-07-12T10:05:00Z' }))
   api.getCvStyleCatalog.mockResolvedValue(styleCatalogFixture)
+  api.previewCvDraft.mockImplementation((_id: string, draft: CvDocumentUpdate) => Promise.resolve(previewFor(draft)))
   api.listEvidenceItems.mockResolvedValue({ items: [] })
   api.scoreCvDocument.mockResolvedValue(quality)
   api.snapshotCvVariant.mockResolvedValue(document.variants[0])
@@ -331,13 +334,15 @@ describe('export moment and the CV switcher (cv-studio-R3-02)', () => {
 })
 
 describe('versions as cards (cv-studio-d11)', () => {
-  it('previews a version on its paper without touching the working CV', async () => {
+  it('previews a version as drawn pages without touching the working CV', async () => {
     view()
     const versions = await openTool(/^Versions/)
     expect(within(versions).getByText('Differs from your CV now: 1 entry reworded')).toBeTruthy()
     fireEvent.click(within(versions).getByRole('button', { name: 'Preview Platform roles' }))
     const dialog = await screen.findByRole('dialog', { name: 'Preview: Platform roles' })
-    expect(within(dialog).getByText('Built accessible systems for hiring teams.')).toBeTruthy()
+    expect(await within(dialog).findByAltText('Page 1 of your CV')).toBeTruthy()
+    // The version's own sections are drawn (the server renders them; nothing is saved or restored).
+    expect(JSON.stringify(api.previewCvDraft.mock.calls.at(-1)?.[1].sections)).toContain('Built accessible systems for hiring teams.')
     expect(api.restoreCvVariant).not.toHaveBeenCalled()
     expect(api.updateCvDocument).not.toHaveBeenCalled()
   })
@@ -430,7 +435,7 @@ describe('section rows', () => {
     api.getCvDocument.mockResolvedValue(twoSections)
     api.listCvDocuments.mockResolvedValue({ items: [twoSections] })
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     // The first row is the document header: it is not a section and cannot be dragged.
     const rows = within(panel()).getAllByRole('listitem').slice(1)
     const transfer = { effectAllowed: '', setData: vi.fn() }

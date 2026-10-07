@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
-import type { CvDocument } from '#/lib/api/schemas'
+import type { CvDocument, CvDocumentUpdate } from '#/lib/api/schemas'
+import { previewFor } from '#/lib/cv-studio/__tests__/preview.fixture'
 import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
 
 const api = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const api = vi.hoisted(() => ({
   proposeCvImport: vi.fn(), acceptCvImport: vi.fn(),
   tailorCvDocument: vi.fn(), applyCvTailoring: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
+  previewCvDraft: vi.fn(),
 }))
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn(), user: null as { full_name?: string | null } | null }))
 vi.mock('#/lib/api/client', () => api)
@@ -78,6 +80,7 @@ beforeEach(() => {
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockImplementation((_id: string, payload: Partial<CvDocument>) => Promise.resolve({ ...document, ...payload, updated_at: '2026-07-12T10:05:00Z' }))
   api.getCvStyleCatalog.mockResolvedValue(styleCatalogFixture)
+  api.previewCvDraft.mockImplementation((_id: string, draft: CvDocumentUpdate) => Promise.resolve(previewFor(draft)))
   api.deleteCvDocument.mockResolvedValue(undefined)
   api.deleteAllCvDocuments.mockResolvedValue(undefined)
   api.exportCvDocuments.mockResolvedValue({ schema_version: 'cv-documents-export/v1', exported_at: '2026-08-13T10:00:00Z', document_count: 1, documents: [document] })
@@ -169,7 +172,7 @@ describe('CV Studio sign-off round 2 (cv-studio-G04..G14)', { timeout: 15_000 },
   it('puts Remove section in the editor foot on a phone too, never beside All sections (cv-studio-G11)', async () => {
     window.innerWidth = 320
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     fireEvent.click(screen.getByRole('button', { name: 'Edit Experience' }))
     const sheet = await screen.findByRole('dialog', { name: 'Edit Experience' })
     const remove = within(sheet).getByRole('button', { name: 'Remove section' })
@@ -180,7 +183,7 @@ describe('CV Studio sign-off round 2 (cv-studio-G04..G14)', { timeout: 15_000 },
   it('does not name a single-entry section a third time inside its phone sheet (RSR-04)', async () => {
     window.innerWidth = 320
     view()
-    await screen.findByTestId('cv-paper')
+    await screen.findByTestId('cv-pages')
     fireEvent.click(screen.getByRole('button', { name: 'Edit Skills' }))
     const sheet = await screen.findByRole('dialog', { name: 'Edit Skills' })
     expect(within(sheet).getByRole('textbox', { name: 'Skills text' })).toBeTruthy()

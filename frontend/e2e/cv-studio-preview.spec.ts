@@ -21,7 +21,7 @@ async function measureOverflow(page: Page) {
   }))
 }
 
-test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and prints without chrome', async ({ page }) => {
+test('CV Studio page preview fits 320/375px, edits in a sheet, follows the draft and prints without chrome', async ({ page }) => {
   // Initialize the application in its mobile shell. Resizing from Playwright's
   // desktop default and measuring immediately can sample the outgoing desktop
   // SidebarInset before React's breakpoint hook commits the mobile tree.
@@ -47,11 +47,16 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
   await expect(page.locator('.app-main--mobile')).toBeVisible()
   const toolbar = page.getByRole('tablist', { name: 'Studio tools' })
 
-  // Paper first on a phone: tapping a section opens its editor in a sheet.
+  // The server-drawn pages first on a phone: they fit the screen, and tapping a section opens its editor in a sheet.
+  await expect(page.getByAltText('Page 1 of your CV')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText('1 page', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Edit Summary' }).click()
   const sheet = page.getByRole('dialog', { name: 'Edit Summary' })
+  // The unsaved edit goes to the preview endpoint (debounced) and nothing else renders it.
+  const previewed = page.waitForRequest((request) => request.url().includes('/preview') && (request.postData() ?? '').includes('Edited from the sheet.'))
   await sheet.getByLabel('Summary text').fill('Edited from the sheet.')
-  await expect(page.getByTestId('cv-paper')).toContainText('Edited from the sheet.')
+  await previewed
+  await expect(page.getByTestId('cv-preview')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 })
   await sheet.getByRole('button', { name: 'Close panel' }).click()
 
   // The catalog lists only the templates that exist (Classic until T6-T8 add the rest).
@@ -64,7 +69,7 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
     await option.scrollIntoViewIfNeeded()
     await option.check({ force: true })
     await page.getByRole('dialog', { name: 'Design' }).getByRole('button', { name: 'Close panel' }).click()
-    await expect(page.getByTestId('cv-paper')).toBeVisible()
+    await expect(page.getByTestId('cv-pages')).toBeVisible()
     for (const width of [320, 375]) {
       await page.setViewportSize({ width, height: 812 })
       // AppShell selects its mobile structure through a reactive breakpoint
@@ -81,9 +86,10 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
   await expect(page.getByTitle('Classic PDF preview')).toBeVisible({ timeout: 30_000 })
   await page.keyboard.press('Escape')
 
-  // Printing the page prints the paper, without the studio chrome around it.
+  // Printing the page prints the page images, without the studio chrome or the section buttons around them.
   await page.emulateMedia({ media: 'print' })
   await expect(toolbar).toBeHidden()
-  await expect(page.getByTestId('cv-paper')).toBeVisible()
+  await expect(page.getByTestId('cv-pages')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Edit Summary' })).toBeHidden()
   await page.emulateMedia({ media: 'screen' })
 })

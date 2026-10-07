@@ -26,7 +26,8 @@ import { CvExportMoment, countPdfPages } from './CvExportMoment'
 import type { ExportMoment } from './CvExportMoment'
 import { CvImportDialog } from './CvImportDialog'
 import { CvOutline } from './CvOutline'
-import { CvPaper, ExactPdfDialog } from './CvPaperPreview'
+import { ExactPdfDialog } from './CvExactPdfDialog'
+import { CvPagePreview } from './CvPagePreview'
 import { CvSaveStatus } from './CvSaveStatus'
 import { CvHeaderEditor, CvSectionEditor } from './CvSectionEditor'
 import { CvTailorDialog } from './CvTailorDialog'
@@ -717,9 +718,9 @@ export function CvStudio({
         {desktop ? <aside className="cvs-side" aria-label="CV tools">{tools}</aside> : <div className="cvs-side">{tools}</div>}
 
         <CvDesk phone={phone} zoom={zoom} onZoomChange={setZoom} pdfDisabled={dirty} onViewPdf={() => setDialog('pdf')}>
-          <CvPaper
-            name={draft.name} header={draft.header} sections={draft.sections} style={draft.style} catalog={catalog}
-            // A closed editor sheet edits nothing: the paper marks a section only while its editor is in view.
+          <CvPagePreview
+            documentId={draft.id} draft={draft}
+            // A closed editor sheet edits nothing: the pages mark a section only while its editor is in view.
             activeId={desktop || panelOpen ? activeSection?.id : undefined} onEdit={(sectionId) => openPanel({ sectionId })}
             headerActive={(desktop || panelOpen) && headerOpen} onEditHeader={() => openPanel('header')}
           />
@@ -749,7 +750,7 @@ export function CvStudio({
       />
       <ExactPdfDialog open={dialog === 'pdf'} onOpenChange={closeDialog} documentId={draft.id} documentName={draft.name} revision={draft.updated_at} style={draft.style} templateName={templateName} />
       <CvVersionPreviewDialog
-        variant={previewVariant} documentName={draft.name} header={draft.header} style={draft.style} catalog={catalog} currentSections={draft.sections}
+        variant={previewVariant} documentId={draft.id} documentName={draft.name} header={draft.header} style={draft.style} currentSections={draft.sections}
         exporting={versionExport} canRestore={!dirty} error={actionError}
         onOpenChange={(next) => { if (!next) setPreviewVariant(null) }} onExport={(variant, format) => void exportVersion(variant, format)} onRestore={restoreFromPreview}
       />
