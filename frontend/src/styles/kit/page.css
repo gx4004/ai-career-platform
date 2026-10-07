@@ -14,7 +14,9 @@
   width: 100%;
   max-width: var(--kit-page-w-default);
   min-width: 0;
-  margin: 0;
+  /* Wider than its maximum (a 1700px+ window), the frame sits in the middle of the work area instead of leaving all
+     the spare ground on the right. The content inside stays left-aligned; at 1440 and below the frame fills the area. */
+  margin: 0 auto;
   padding: 0 var(--space-page-x) var(--s9);
   color: var(--ink);
 }
