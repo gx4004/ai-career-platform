@@ -106,6 +106,13 @@ describe('CvPagePreview', () => {
       expect(await screen.findByText(/Couldn’t fit to one page: it runs to 2 pages at the smallest size we allow \(9 pt text, 50% spacing\)/)).toBeTruthy()
       expect(screen.getByText('2 pages')).toBeTruthy()
     })
+
+    it('says when the fit search ran out of time instead of blaming the floor', async () => {
+      api.previewCvDraft.mockResolvedValue(previewFor({}, { ...two, fit: { fits: false, pages: 2, scale: 1, body_pt: 10, reason: 'time' }, length: { pages: 2, last_page_fill: 0.6, advice: null } }))
+      mount({ onStyleChange: vi.fn() })
+      expect(await screen.findByText(/Couldn’t finish fitting to one page in time: it runs to 2 pages for now/)).toBeTruthy()
+      expect(screen.queryByText(/smallest size we allow/)).toBeNull()
+    })
   })
 
   describe('page image size', () => {

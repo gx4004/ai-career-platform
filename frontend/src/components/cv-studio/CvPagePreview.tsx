@@ -62,6 +62,9 @@ function hitLabel(hit: Hit, titles: Map<string, string>, continued: boolean) {
 /** Plain words for how a fit-to-one-page attempt ended, or null when there is nothing to say. */
 export function fitSentence(fit: NonNullable<CvPreview['fit']>) {
   if (fit.fits) return null
+  if (fit.reason === 'time') {
+    return `Couldn’t finish fitting to one page in time: it runs to ${fit.pages} pages for now. It will try again on your next change, or shorten a section.`
+  }
   const body = Number.isInteger(fit.body_pt) ? fit.body_pt : Number(fit.body_pt.toFixed(1))
   return `Couldn’t fit to one page: it runs to ${fit.pages} pages at the smallest size we allow (${body} pt text, ${Math.round(fit.scale * 100)}% spacing). Shorten a section or turn the option off.`
 }
