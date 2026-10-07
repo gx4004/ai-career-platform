@@ -24,7 +24,9 @@ from PIL import Image
 
 from app.schemas.cv_documents import CvRenderModel
 from app.services.cv_chromium import print_pdf
-from app.services.cv_html import render_cv_html
+from app.services.cv_fit import FitResult, fit_to_one_page, wants_fit
+from app.services.cv_html import html_template_id, load_manifest, render_cv_html
+from app.services.cv_length import LengthAdvice, last_page_fill, length_advice, years_of_experience
 
 PREVIEW_DPI = 110
 MAX_PREVIEW_PAGES = 8
@@ -70,6 +72,10 @@ class PreviewResult:
     sections: list[PreviewSection]
     truncated: bool
     unsupported_characters: list[str] = field(default_factory=list)
+    # Set only when the style asks to fit to one page.
+    fit: FitResult | None = None
+    last_page_fill: float = 0.0
+    advice: LengthAdvice | None = None
 
 
 def _webp(pixmap: fitz.Pixmap, quality: int) -> bytes:
@@ -151,9 +157,22 @@ def render_preview(
 
     Raises ``CvRenderUnavailableError`` (HTTP 503 in the API) when Chromium cannot run.
     """
-    html = render_cv_html(model, page_size=str(model.tokens.get("page_size", "a4")))
-    pdf = print_pdf(html, MEASURE_SCRIPT)
+    fit = None
+    if wants_fit(model):
+        fit, pdf = fit_to_one_page(model, prepare_script=MEASURE_SCRIPT)
+    else:
+        html = render_cv_html(model, page_size=str(model.tokens.get("page_size", "a4")))
+        pdf = print_pdf(html, MEASURE_SCRIPT)
     kinds = {"header": "header"} | {section.id: section.kind for section in model.sections}
     result = rasterise(pdf, kinds, dpi=dpi, quality=quality)
     result.unsupported_characters = list(model.unsupported_characters)
+    result.fit = fit
+    manifest = load_manifest(html_template_id(model.template_id))
+    result.last_page_fill = last_page_fill(pdf, manifest.margin_top_mm, manifest.margin_bottom_mm)
+    result.advice = length_advice(
+        result.page_count,
+        result.last_page_fill,
+        years_of_experience(model.sections),
+        fit_one_page=wants_fit(model),
+    )
     return result

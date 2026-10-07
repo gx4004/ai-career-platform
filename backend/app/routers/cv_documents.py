@@ -22,8 +22,11 @@ from app.schemas.cv_documents import (
     CvDocumentResponse,
     CvDocumentsExport,
     CvDocumentUpdate,
+    CvFitResult,
     CvImportAccept,
     CvImportProposal,
+    CvLength,
+    CvLengthAdvice,
     CvPreviewPage,
     CvPreviewRequest,
     CvPreviewResponse,
@@ -63,6 +66,7 @@ from app.services.cv_documents import (
     update_document,
     update_variant,
 )
+from app.services.cv_fit import render_pdf_fitted, with_fit_option
 from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR, TYPEFACES
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
 from app.services.cv_preview import render_preview
@@ -71,7 +75,6 @@ from app.services.cv_rendering import (
     build_render_model,
     render_docx,
     render_txt,
-    render_pdf,
     style_catalog,
     validate_artifact,
 )
@@ -270,7 +273,18 @@ def _export(
     """Export the saved CV in its saved style (the same bytes "View exact PDF" shows)."""
     document, style, source = _renderable(db, document_id, user.id, variant_id)
     model = build_render_model(source, style.template_id, style)
-    artifact = {"pdf": render_pdf, "docx": render_docx, "txt": render_txt}[format](model)
+    fit_headers: dict[str, str] = {}
+    if format == "pdf":
+        # Fit to one page (T9) is part of the PDF only; the same search the preview ran.
+        artifact, fit = render_pdf_fitted(with_fit_option(model, style.fit_one_page))
+        if fit is not None:
+            fit_headers = {
+                "X-CV-Fit": "fits" if fit.fits else f"runs-to-{fit.pages}-pages",
+                "X-CV-Fit-Scale": f"{fit.scale:g}",
+                "X-CV-Pages": str(fit.pages),
+            }
+    else:
+        artifact = {"docx": render_docx, "txt": render_txt}[format](model)
     media_type = {
         "pdf": "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -286,6 +300,7 @@ def _export(
             "Content-Disposition": f'attachment; filename="{filename}"',
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, no-store",
+            **fit_headers,
         },
     )
 
@@ -385,7 +400,7 @@ async def preview(
         ),
     )
     style = body.style if body.style is not None else saved_style
-    model = build_render_model(draft, style.template_id, style)
+    model = with_fit_option(build_render_model(draft, style.template_id, style), style.fit_one_page)
     # Chromium, PyMuPDF and WebP encoding block; keep them off the event loop.
     result = await run_in_threadpool(render_preview, model)
     response.headers["Cache-Control"] = "private, no-store"
@@ -406,6 +421,12 @@ async def preview(
         sections=[CvPreviewSection(**vars(s)) for s in result.sections],
         warnings=warnings,
         truncated=result.truncated,
+        fit=None if result.fit is None else CvFitResult(**result.fit.as_dict()),
+        length=CvLength(
+            pages=result.page_count,
+            last_page_fill=result.last_page_fill,
+            advice=None if result.advice is None else CvLengthAdvice(**vars(result.advice)),
+        ),
     )
 
 
@@ -421,9 +442,9 @@ async def quality(
     # A deterministic document check, not one of the six tools: it bypasses
     # run_tool_pipeline() so autosave-driven checks never write ToolRuns (#362).
     _, style, source = _renderable(db, document_id, current_user.id, variant_id)
-    model = build_render_model(source, style.template_id, style)
+    model = with_fit_option(build_render_model(source, style.template_id, style), style.fit_one_page)
     # Chromium and fitz work blocks; keep it off the event loop.
-    evidence = await run_in_threadpool(lambda: validate_artifact(model, render_pdf(model)))
+    evidence = await run_in_threadpool(lambda: validate_artifact(model, render_pdf_fitted(model)[0]))
     result = analyze_cv_quality(source.sections, style, evidence)
     return CvQualityResponse(**result)
 

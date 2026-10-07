@@ -212,9 +212,13 @@ class ChromiumPool:
             finally:
                 self.in_flight -= 1
 
-    async def _print_with_timeout(self, html: str, prepare_script: str | None = None) -> bytes:
+    async def _print_with_timeout(
+        self, html: str, prepare_script: str | None = None, timeout: float | None = None
+    ) -> bytes:
         try:
-            return await asyncio.wait_for(self._print(html, prepare_script), self.timeout)
+            return await asyncio.wait_for(
+                self._print(html, prepare_script), min(timeout, self.timeout) if timeout else self.timeout
+            )
         except TimeoutError as error:
             raise RenderTimeoutError() from error
         except CvRenderUnavailableError:
@@ -230,11 +234,14 @@ class ChromiumPool:
 
     # -- public API (any thread) -------------------------------------------
 
-    def print_pdf(self, html: str, prepare_script: str | None = None) -> bytes:
+    def print_pdf(
+        self, html: str, prepare_script: str | None = None, timeout: float | None = None
+    ) -> bytes:
         """Blocking: print ``html`` (self-contained, with its own ``@page``) to PDF bytes.
 
-        ``prepare_script`` (a JS function expression) runs in the page right before printing."""
-        return self._submit(self._print_with_timeout(html, prepare_script)).result()
+        ``prepare_script`` (a JS function expression) runs in the page right before printing.
+        ``timeout`` can only shorten the pool's own limit (the fit search spends one budget)."""
+        return self._submit(self._print_with_timeout(html, prepare_script, timeout)).result()
 
     async def print_pdf_async(self, html: str, prepare_script: str | None = None) -> bytes:
         return await asyncio.wrap_future(self._submit(self._print_with_timeout(html, prepare_script)))
@@ -267,8 +274,8 @@ class ChromiumPool:
 _pool = ChromiumPool()
 
 
-def print_pdf(html: str, prepare_script: str | None = None) -> bytes:
-    return _pool.print_pdf(html, prepare_script)
+def print_pdf(html: str, prepare_script: str | None = None, timeout: float | None = None) -> bytes:
+    return _pool.print_pdf(html, prepare_script, timeout)
 
 
 def inspect_page(html: str, script: str):
