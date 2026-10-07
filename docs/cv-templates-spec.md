@@ -42,6 +42,19 @@ exports that parse.
 
 Sidebar content flows on page 1; later pages are main-column only (matches today's `cv-continued`). The sidebar background strip is a `position: fixed` element so it repeats on every printed page. Spike first (ticket T6); fall back to a full-width tinted band on page 1 only if repeat fixed elements misbehave.
 
+*T6 spike finding (Chromium 149, 2026-10-07):* five variants printed on a three-page document. A root
+(`html`) background and a `position: fixed` strip both repeat on every page but are clipped to the page
+content box, so with non-zero `@page` margins the strip stops short of the top and bottom edges;
+`@page { background }` is not painted at all. What works: `@page { margin: 0 }`, a `position: fixed;
+top: 0; bottom: 0` strip (full bleed on every page), and the vertical page margins as padding on the
+main column with `box-decoration-break: clone`, so each page fragment of the column gets its own top and
+bottom inset. The manifest's top/bottom margins are those insets (the read-back's page-gap check uses
+them). Sidebar content flows on page 1 only; later pages keep the main column in its column (the strip
+stays, so the page stays balanced). DOM order is header, main sections, then sidebar sections, so
+extraction reads each section whole; the order matches the written order only when the sidebar
+sections come last in the CV. The monogram is the last element of the header, so it reads after the
+contact lines and never inside a section.
+
 ### 3.4 Style model
 
 - `CvStyle.template_id`: the 16 new ids. A tolerant validator maps the five legacy ids (`ats-essential` to `classic`, `professional-editorial` and `minimal-serif` to `executive`, `technical-portfolio` to `slate`, `modern-two-column` to `lagoon`) so stored JSON never fails to parse. A data migration rewrites stored rows; the validator covers anything in flight.
