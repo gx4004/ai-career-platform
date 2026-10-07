@@ -333,6 +333,11 @@ class CvRenderHeader(BaseModel):
     headline: str | None = None
     # Email, phone, location and links, in that order.
     contact: list[str] = Field(default_factory=list)
+    # The same details by field, so a template can lay them out (icons, columns).
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    links: list[str] = Field(default_factory=list)
 
 
 class CvRenderModel(BaseModel):
@@ -360,6 +365,9 @@ class CvArtifactEvidence(BaseModel):
     # PDF could not draw: what the advice for a failed check can name.
     unread_sections: list[str] = Field(default_factory=list)
     unsupported_characters: list[str] = Field(default_factory=list)
+    # Fonts in the PDF that break the template contract (Type 3, not embedded, or not one
+    # of the template's families). Empty when the PDF is clean.
+    font_problems: list[str] = Field(default_factory=list)
     # The CV is longer than a PDF can be re-read, so nothing could be checked.
     too_long: bool = False
     # The same text came back but in a different order (a sidebar layout reads that way).

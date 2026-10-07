@@ -14,6 +14,8 @@ from docx.shared import Mm
 
 from app.schemas.cv_documents import CvDocumentCreate, CvStyle
 from app.services.cv_documents import create_document
+from app.services.cv_html import load_manifest
+from app.services.cv_pdf import embedded_fonts, font_problems
 from app.services.cv_rendering import build_render_model, validate_artifact
 from tests.test_cv_documents import _signed
 
@@ -168,7 +170,11 @@ def test_a_large_gap_at_the_bottom_of_a_non_final_page_fails_tidy_page_breaks(db
     assert validate_artifact(model, full).page_breaks == "pass"
 
 
-def test_two_column_continuation_pages_keep_the_main_column_in_place(client, auth_headers):
+def test_legacy_two_column_template_prints_as_the_single_column_classic_for_now(
+    client, auth_headers
+):
+    # TODO(T2/T6): the sidebar templates return with T6; until then the legacy
+    # two-column id prints as `classic`, so no content is lost or moved into a sidebar.
     document = _create(client, auth_headers, mid_cv_sections())
     client.patch(
         f"{PREFIX}/{document['id']}",
@@ -177,8 +183,8 @@ def test_two_column_continuation_pages_keep_the_main_column_in_place(client, aut
     )
     with fitz.open(stream=_pdf(client, auth_headers, document["id"]), filetype="pdf") as parsed:
         assert parsed.page_count > 1
-        # The sidebar is 58 mm wide: nothing on page two starts inside it.
-        assert min(block[0] for block in parsed[1].get_text("blocks")) > 58 * 72 / 25.4
+        # Single column: page two's text starts at the page margin, not right of a sidebar.
+        assert min(block[0] for block in parsed[1].get_text("blocks")) < 58 * 72 / 25.4
 
 
 # ── d10: ATS check, imported CV ──
@@ -786,9 +792,9 @@ def test_clearing_selection_for_an_empty_list_of_versions_clears_nothing(db, tes
 def test_a_symbol_in_the_text_does_not_change_the_whole_cv_font(client, auth_headers):
     document = _create(client, auth_headers, _body_cv("Reliable systems \u2713 done."))
     pdf = _pdf(client, auth_headers, document["id"])
-    with fitz.open(stream=pdf, filetype="pdf") as parsed:
-        names = {font[3] for page in parsed for font in page.get_fonts()}
-    assert names and all("Lato" in name for name in names), names
+    # The template's own families only: no fallback face is substituted for the symbol.
+    assert embedded_fonts(pdf)
+    assert font_problems(pdf, load_manifest("classic").families) == []
 
 
 def test_sidebar_template_order_difference_is_explained_as_layout_not_missing_sections(
@@ -885,23 +891,6 @@ def test_the_conflict_response_is_documented_in_the_api_schema(client):
     schema = client.get("/openapi.json").json()
     patch = schema["paths"]["/api/v1/cv-documents/{document_id}"]["patch"]
     assert "409" in patch["responses"]
-
-
-# ── a long entry's pieces are each emitted once ──
-
-
-@pytest.mark.parametrize("length", [4, 5, 6, 7])
-def test_a_long_entry_splits_into_groups_that_hold_every_piece_once_in_order(length):
-    from reportlab.platypus import Spacer
-
-    from app.services.cv_rendering import _entry_groups
-
-    flow = [Spacer(1, 400) for _ in range(length)]
-
-    groups = _entry_groups(flow, 400, 800)
-
-    flattened = [item for group in groups for item in group]
-    assert [id(item) for item in flattened] == [id(item) for item in flow]
 
 
 def test_a_tall_four_piece_entry_prints_its_middle_bullet_once(client, auth_headers):

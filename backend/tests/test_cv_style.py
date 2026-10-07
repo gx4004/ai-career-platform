@@ -8,6 +8,8 @@ import fitz
 from app.schemas.cv_documents import CV_ACCENT_PALETTE, CvDocumentCreate, CvStyle
 from app.services.cv_documents import create_document
 from app.services.cv_fonts import FONT_FAMILIES, register_fonts
+from app.services.cv_html import load_manifest
+from app.services.cv_pdf import embedded_fonts, font_problems
 from app.services.cv_rendering import (
     TEMPLATES,
     build_render_model,
@@ -102,17 +104,11 @@ def test_unstyled_cv_exports_in_the_font_its_preview_shows(client, auth_headers,
     docx = client.get(f"{PREFIX}/{document.id}/artifacts/docx", headers=auth_headers)
 
     assert pdf.status_code == 200 and docx.status_code == 200
-    with fitz.open(stream=pdf.content, filetype="pdf") as parsed:
-        # Fonts of the glyphs actually drawn (ReportLab also lists an unused
-        # Helvetica resource on every page, so page.get_fonts() is not enough).
-        drawn_fonts = {
-            span["font"]
-            for page in parsed
-            for block in page.get_text("dict")["blocks"]
-            for line in block.get("lines", [])
-            for span in line["spans"]
-        }
-    assert drawn_fonts and all(family.pdf_name in font for font in drawn_fonts), drawn_fonts
+    # TODO(#461, T4): the PDF's typeface comes from the template until the typeface
+    # override lands; it is `classic`'s pair whatever `font_id` says. Only fonts of the
+    # template are embedded (no Type 3, no fallback face).
+    assert embedded_fonts(pdf.content)
+    assert font_problems(pdf.content, load_manifest("classic").families) == []
     with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
         document_xml = archive.read("word/document.xml").decode()
     assert f'w:ascii="{family.name}"' in document_xml
@@ -124,7 +120,7 @@ def test_ats_mode_forces_single_column_standard_font_neutral_accent():
     )
     effective = resolve_effective_style("modern-two-column", style)
     assert effective.layout_template_id == "ats-essential"
-    assert effective.font_name == "Helvetica"
+    assert effective.font_docx_name == "Helvetica"
     assert effective.accent == "#111827"
     assert effective.two_column is False
 
@@ -264,9 +260,9 @@ def test_artifact_export_uses_the_saved_style(client, auth_headers, db, test_use
     response = client.get(f"{PREFIX}/{document.id}/artifacts/pdf", headers=auth_headers)
     assert response.status_code == 200
     assert "Structured-CV-minimal-serif.pdf" in response.headers["content-disposition"]
-    with fitz.open(stream=response.content, filetype="pdf") as parsed:
-        fonts = {font[3] for page in parsed for font in page.get_fonts()}
-    assert any("CrimsonText" in font for font in fonts), fonts
+    # TODO(#461, T4): every legacy template prints as `classic` for now, so the saved
+    # `font_id` does not change the PDF's typeface yet.
+    assert font_problems(response.content, load_manifest("classic").families) == []
 
 
 def test_style_rejects_the_removed_section_order_field():

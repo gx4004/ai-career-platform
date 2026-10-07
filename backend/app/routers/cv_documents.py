@@ -341,7 +341,7 @@ async def quality(
     # run_tool_pipeline() so autosave-driven checks never write ToolRuns (#362).
     _, style, source = _renderable(db, document_id, current_user.id, variant_id)
     model = build_render_model(source, style.template_id, style)
-    # ReportLab/fitz work is CPU-bound; keep it off the event loop.
+    # Chromium and fitz work blocks; keep it off the event loop.
     evidence = await run_in_threadpool(lambda: validate_artifact(model, render_pdf(model)))
     result = analyze_cv_quality(source.sections, style, evidence)
     return CvQualityResponse(**result)
