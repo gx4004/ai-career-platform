@@ -5,6 +5,7 @@
   "ats_safe": true,
   "photo_slot": false,
   "columns": 1,
+  "title_align": "center",
   "typefaces": {"heading": "Source Serif 4", "body": "Source Sans 3"},
   "accent_role": "none",
   "sidebar_kinds": [],

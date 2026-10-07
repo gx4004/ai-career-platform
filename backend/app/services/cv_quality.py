@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.schemas.cv_documents import CvArtifactEvidence, CvStyle
-from app.services.cv_rendering import ATS_SAFE_TEMPLATES
+from app.services.cv_rendering import is_ats_safe
 
 
 def _visible(sections: list[dict]) -> list[dict]:
@@ -35,17 +35,17 @@ def _reads_back_fix(style: CvStyle, evidence: CvArtifactEvidence) -> str:
         return advice
     if evidence.too_long:
         return "This CV is too long to check. Shorten it, then run the check again."
-    if evidence.order_only and not (style.ats_mode or style.template_id in ATS_SAFE_TEMPLATES):
+    if evidence.order_only and not (style.ats_mode or is_ats_safe(style.template_id)):
         return (
             "Every section is there, but this layout reads in a different order than you "
-            "wrote it. Pick a single-column template to keep your order."
+            "wrote it. Pick an ATS-safe template to keep your order."
         )
     if evidence.unread_sections:
         named = f"These sections did not read back as written: {_listed(evidence.unread_sections, 5)}."
-        if style.ats_mode or style.template_id in ATS_SAFE_TEMPLATES:
+        if style.ats_mode or is_ats_safe(style.template_id):
             return f"{named} Look for unusual symbols or stray formatting in them."
-        return f"{named} Try ATS-friendly mode or a single-column template."
-    return "Some sections did not read back in order. Try ATS-friendly mode or a single-column template."
+        return f"{named} Try ATS-friendly mode or an ATS-safe template."
+    return "Some sections did not read back in order. Try ATS-friendly mode or an ATS-safe template."
 
 
 def _check(check_id: str, label: str, passed: bool, detail: str, fix: str) -> dict[str, Any]:
@@ -98,10 +98,10 @@ def run_checks(
         _check(
             "layout",
             "Single-column layout",
-            style.ats_mode or style.template_id in ATS_SAFE_TEMPLATES,
+            style.ats_mode or is_ats_safe(style.template_id),
             "Single-column layouts read in the order you wrote them.",
-            "Your template uses two columns, which some application systems read out of "
-            "order. Turn on ATS-friendly mode or pick a single-column template.",
+            "Your template is not marked ATS-safe: some application systems read its layout out of "
+            "order. Turn on ATS-friendly mode or pick an ATS-safe template.",
         ),
     ]
 

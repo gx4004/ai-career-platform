@@ -60,18 +60,18 @@ def _model(document, template: str):
     return build_render_model(document, template, CvStyle(template_id=template))
 
 
-def test_five_declarative_templates_share_canonical_render_model(db, test_user):
+def test_catalog_templates_share_canonical_render_model(db, test_user):
     document = _document(db, test_user)
-    assert list(TEMPLATES) == [
-        "ats-essential",
-        "professional-editorial",
-        "technical-portfolio",
-        "modern-two-column",
-        "minimal-serif",
-    ]
+    assert list(TEMPLATES) == ["classic"]  # grows as T6-T8 add template directories
     models = [_model(document, template) for template in TEMPLATES]
     assert all(model.sections == models[0].sections for model in models)
     assert [model.template_id for model in models] == list(TEMPLATES)
+
+
+def test_unavailable_template_ids_build_the_classic_model(db, test_user):
+    document = _document(db, test_user)
+    for template in ("scholar", "lagoon", "ledger"):
+        assert _model(document, template).template_id == "classic"
 
 
 def test_docx_and_pdf_are_byte_stable_and_validate_for_every_template(db, test_user):
@@ -159,7 +159,7 @@ def test_docx_boundary_fixture_renders_every_template_without_orphaned_headings(
 def test_link_parser_excludes_sentence_punctuation(db, test_user):
     document = _document(db, test_user)
     document.sections[1]["entries"][0]["body"] = "See https://example.com/work."
-    model = _model(document, "ats-essential")
+    model = _model(document, "classic")
     assert model.sections[1].entries[0].links == ["https://example.com/work"]
     assert validate_artifact(model, render_pdf(model)).links == "pass"
 
@@ -266,7 +266,7 @@ def test_structured_entry_scores_the_same_as_its_plain_text_equivalent(db, test_
         ),
     )
     for document in (structured, plain):
-        model = _model(document, "ats-essential")
+        model = _model(document, "classic")
         evidence = validate_artifact(model, render_pdf(model))
         assert evidence.reads_back == "pass"
         assert evidence.page_breaks == "pass"
@@ -283,7 +283,7 @@ def test_artifact_routes_are_owner_isolated_and_return_safe_headers(
     assert response.headers["x-content-type-options"] == "nosniff"
     assert (
         response.headers["content-disposition"]
-        == 'attachment; filename="Synthetic-CV-ats-essential.pdf"'
+        == 'attachment; filename="Synthetic-CV-classic.pdf"'
     )
     assert client.get(url).status_code == 401
 

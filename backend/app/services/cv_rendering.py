@@ -41,7 +41,10 @@ from app.schemas.cv_documents import (
 from app.services.cv_chromium import print_pdf
 from app.services.cv_fonts import FONT_FAMILIES, css_family, docx_font_name
 from app.services.cv_html import (
+    DEFAULT_TEMPLATE_ID,
     URL_RE,
+    TemplateManifest,
+    available_template_ids,
     html_template_id,
     load_manifest,
     missing_characters,
@@ -60,74 +63,60 @@ from app.services.cv_pdf import font_problems, normalize_pdf
 
 @dataclass(frozen=True)
 class Template:
+    """A template's layout facts, read from its manifest (the DOCX export and the catalog use them)."""
+
     name: str
     description: str
     body_size: int
     heading_size: int
     margin_mm: int
     section_gap: int
+    ats_safe: bool
+    columns: int
+    photo_slot: bool
+    group: str
+    typefaces: dict[str, str]
     title_align: str = "left"
     # Section kinds rendered in a sidebar column; empty means single column.
     sidebar_kinds: tuple[str, ...] = ()
 
     @property
     def two_column(self) -> bool:
-        return bool(self.sidebar_kinds)
-
-    @property
-    def ats_safe(self) -> bool:
-        """Safe for strict ATS parsers without ATS mode: single column, so the
-        reading order is the order the person wrote."""
-        return not self.two_column
+        return self.columns == 2 or bool(self.sidebar_kinds)
 
 
+def _template_from_manifest(manifest: TemplateManifest) -> Template:
+    return Template(
+        name=manifest.name,
+        description=manifest.description,
+        body_size=10,
+        heading_size=13,
+        margin_mm=round(manifest.margin_left_mm),
+        section_gap=6,
+        ats_safe=manifest.ats_safe,
+        columns=manifest.columns,
+        photo_slot=manifest.photo_slot,
+        group=manifest.group,
+        typefaces=dict(manifest.typefaces),
+        title_align=manifest.title_align,
+        sidebar_kinds=manifest.sidebar_kinds,
+    )
+
+
+# Built from the manifests under app/cv_templates/: a template appears here (and in the
+# style catalog) once its directory exists. ATS-safe templates are listed first.
 TEMPLATES: dict[str, Template] = {
-    "ats-essential": Template(
-        "ATS Essential",
-        "Single-column, minimal styling built for applicant tracking systems.",
-        10,
-        13,
-        18,
-        6,
-    ),
-    "professional-editorial": Template(
-        "Professional Editorial",
-        "A roomy single-column layout with a centered name and larger section headings.",
-        10,
-        15,
-        20,
-        8,
-        title_align="center",
-    ),
-    "technical-portfolio": Template(
-        "Technical Portfolio",
-        "A compact single-column layout with smaller type and tighter margins for dense technical CVs.",
-        9,
-        12,
-        16,
-        7,
-    ),
-    "modern-two-column": Template(
-        "Modern Two-Column",
-        "A sidebar column for contact/skills next to a wide main column. PDF only — "
-        "DOCX exports degrade to a single column.",
-        9,
-        12,
-        14,
-        6,
-        sidebar_kinds=("skills", "certifications"),
-    ),
-    "minimal-serif": Template(
-        "Minimal Serif",
-        "A quiet single-column layout with generous margins and whitespace.",
-        10,
-        13,
-        20,
-        7,
-    ),
+    template_id: _template_from_manifest(load_manifest(template_id))
+    for template_id in available_template_ids()
 }
 
 ATS_SAFE_TEMPLATES = frozenset(tid for tid, template in TEMPLATES.items() if template.ats_safe)
+
+
+def is_ats_safe(template_id: str) -> bool:
+    """Whether the template that prints ``template_id`` is single-column (an unavailable id prints as the default)."""
+    return TEMPLATES[html_template_id(template_id)].ats_safe
+
 
 # density -> (display name, type scale, section-gap scale)
 DENSITIES: dict[str, tuple[str, float, float]] = {
@@ -137,7 +126,9 @@ DENSITIES: dict[str, tuple[str, float, float]] = {
 }
 
 # What ATS-friendly mode forces, whatever the saved style says.
-ATS_TEMPLATE_ID = "ats-essential"
+ATS_TEMPLATE_ID = DEFAULT_TEMPLATE_ID
+# The DOCX font when the person has not picked a typeface (T10 gives DOCX per-template fonts).
+DEFAULT_DOCX_FONT_ID = "lato"
 ATS_DENSITY = "normal"
 ATS_ACCENT = "#111827"
 ATS_CSS_FAMILY = "Helvetica, Arial, 'Liberation Sans', sans-serif"
@@ -160,6 +151,10 @@ def style_catalog() -> CvStyleCatalog:
                 name=template.name,
                 description=template.description,
                 ats_safe=template.ats_safe,
+                columns=template.columns,
+                photo_slot=template.photo_slot,
+                group=template.group,
+                typefaces=template.typefaces,
                 title_align=template.title_align,
                 margin_mm=template.margin_mm,
                 sidebar_kinds=list(template.sidebar_kinds),
@@ -182,6 +177,7 @@ def style_catalog() -> CvStyleCatalog:
         densities=[CvStyleCatalogDensity(id=d, name=name) for d, (name, _, _) in DENSITIES.items()],
         ats_mode=CvStyleCatalogAtsMode(
             template_id=ATS_TEMPLATE_ID,
+            offered_template_ids=sorted(ATS_SAFE_TEMPLATES, key=list(TEMPLATES).index),
             density=ATS_DENSITY,
             accent=ATS_ACCENT,
             css_family=ATS_CSS_FAMILY,
@@ -206,12 +202,12 @@ class EffectiveStyle:
 def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
     """Resolve template + style into the concrete tokens both renderers consume."""
     ats = style.ats_mode
-    layout_id = ATS_TEMPLATE_ID if ats else template_id
+    layout_id = ATS_TEMPLATE_ID if ats else html_template_id(template_id)
     template = TEMPLATES[layout_id]
     if ats:
         font_docx, accent = "Helvetica", ATS_ACCENT
     else:
-        font_docx = docx_font_name(style.font_id)
+        font_docx = docx_font_name(style.font_id or DEFAULT_DOCX_FONT_ID)
         accent = style.accent_color
     density = ATS_DENSITY if ats else style.density
     sizes = template_sizes(template, density)
@@ -362,6 +358,7 @@ def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderMo
             "section_gap_pt": effective.section_gap,
             "type_scale_pct": round(DENSITIES[effective.density][1] * 100),
             "gap_scale_pct": round(DENSITIES[effective.density][2] * 100),
+            "page_size": style.page_size,
             "title_align": template.title_align,
             "two_column": effective.two_column,
         },
@@ -398,7 +395,7 @@ def render_pdf(model: CvRenderModel) -> bytes:
     Raises ``CvRenderUnavailableError`` (HTTP 503 in the API) when Chromium cannot run;
     there is no fallback renderer.
     """
-    return normalize_pdf(print_pdf(render_cv_html(model)))
+    return normalize_pdf(print_pdf(render_cv_html(model, page_size=str(model.tokens.get("page_size", "a4")))))
 
 
 def render_docx(model: CvRenderModel) -> bytes:

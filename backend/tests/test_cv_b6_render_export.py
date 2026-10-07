@@ -160,7 +160,7 @@ def test_a_large_gap_at_the_bottom_of_a_non_final_page_fails_tidy_page_breaks(db
             name="Gap", sections=[_section("summary", "Summary", 0, [_entry("a", 0, body="One short line.")])]
         ),
     )
-    model = build_render_model(document, "ats-essential", CvStyle())
+    model = build_render_model(document, "classic", CvStyle())
 
     # Page one holds a title and the summary only; the rest sits on page two.
     sparse = _page_gap_pdf(["Test User", "Summary", "One short line."], ["More content on page two."])
@@ -178,7 +178,7 @@ def test_legacy_two_column_template_prints_as_the_single_column_classic_for_now(
     document = _create(client, auth_headers, mid_cv_sections())
     client.patch(
         f"{PREFIX}/{document['id']}",
-        json={"style": {"template_id": "modern-two-column"}},
+        json={"style": {"template_id": "lagoon"}},
         headers=auth_headers,
     )
     with fitz.open(stream=_pdf(client, auth_headers, document["id"]), filetype="pdf") as parsed:
@@ -238,9 +238,9 @@ def _pdf_text(pdf):
     "style",
     [
         {"font_id": "lato"},
-        {"font_id": "crimson-text", "template_id": "minimal-serif"},
-        {"font_id": "ibm-plex-mono", "template_id": "technical-portfolio"},
-        {"font_id": "pt-sans", "template_id": "professional-editorial"},
+        {"font_id": "crimson-text", "template_id": "executive"},
+        {"font_id": "ibm-plex-mono", "template_id": "slate"},
+        {"font_id": "pt-sans", "template_id": "executive"},
         {"ats_mode": True},
     ],
     ids=["lato", "crimson", "plex-mono", "pt-sans", "ats-mode"],
@@ -310,7 +310,7 @@ def test_pdf_embeds_every_font_it_uses(client, auth_headers):
     document = _create(client, auth_headers, mid_cv_sections())
     client.patch(
         f"{PREFIX}/{document['id']}",
-        json={"style": {"template_id": "professional-editorial", "font_id": "pt-serif"}},
+        json={"style": {"template_id": "executive", "font_id": "pt-serif"}},
         headers=auth_headers,
     )
     pdf = _pdf(client, auth_headers, document["id"])
@@ -752,7 +752,7 @@ def test_a_long_sidebar_does_not_push_the_main_column_into_the_sidebar_frame(
     document = _create(client, auth_headers, sections)
     client.patch(
         f"{PREFIX}/{document['id']}",
-        json={"style": {"template_id": "modern-two-column"}},
+        json={"style": {"template_id": "lagoon"}},
         headers=auth_headers,
     )
     with fitz.open(stream=_pdf(client, auth_headers, document["id"]), filetype="pdf") as parsed:
@@ -803,7 +803,7 @@ def test_sidebar_template_order_difference_is_explained_as_layout_not_missing_se
     document = _create(client, auth_headers, mid_cv_sections())
     client.patch(
         f"{PREFIX}/{document['id']}",
-        json={"style": {"template_id": "modern-two-column"}},
+        json={"style": {"template_id": "lagoon"}},
         headers=auth_headers,
     )
     check = _quality(client, auth_headers, document["id"])["reads_back"]
@@ -865,7 +865,7 @@ def test_a_two_column_version_exports(client, auth_headers):
     document = _create(client, auth_headers, mid_cv_sections())
     client.patch(
         f"{PREFIX}/{document['id']}",
-        json={"style": {"template_id": "modern-two-column"}},
+        json={"style": {"template_id": "lagoon"}},
         headers=auth_headers,
     )
     variant = client.post(

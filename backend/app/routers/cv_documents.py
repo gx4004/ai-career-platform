@@ -269,7 +269,7 @@ def _export(
     )
     # A version's name is in the file name, so versions made for different jobs stay apart.
     label = document.name if source.variant_name is None else f"{document.name} {source.variant_name}"
-    filename = _safe_filename(label, style.template_id, format)
+    filename = _safe_filename(label, model.template_id, format)
     return Response(
         content=artifact,
         media_type=media_type,

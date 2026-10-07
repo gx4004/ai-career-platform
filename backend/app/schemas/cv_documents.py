@@ -28,13 +28,39 @@ CvSectionKind = Literal[
     "custom",
 ]
 CvCheckId = Literal["sections", "reads_back", "links", "page_breaks", "layout"]
+# The 16 template ids (docs/cv-templates-spec.md section 4). A template is *available* once
+# its directory and manifest exist under app/cv_templates/; an id that is not yet available
+# is accepted here and prints as the default template. tests/test_cv_template_catalog.py
+# keeps this list and the manifests in sync.
 CvTemplateId = Literal[
-    "ats-essential",
-    "professional-editorial",
-    "technical-portfolio",
-    "modern-two-column",
-    "minimal-serif",
+    "classic",
+    "scholar",
+    "academic",
+    "manuscript",
+    "executive",
+    "frame",
+    "lagoon",
+    "lilac",
+    "meadow",
+    "rail",
+    "almanac",
+    "slate",
+    "violet",
+    "grotesk",
+    "panel",
+    "ledger",
 ]
+DEFAULT_CV_TEMPLATE_ID: CvTemplateId = "classic"
+# The five pre-catalog ids stored in older documents, and the template each became.
+LEGACY_CV_TEMPLATE_IDS: dict[str, CvTemplateId] = {
+    "ats-essential": "classic",
+    "professional-editorial": "executive",
+    "minimal-serif": "executive",
+    "technical-portfolio": "slate",
+    "modern-two-column": "lagoon",
+}
+CvPageSize = Literal["a4", "letter"]
+CvTemplateGroup = Literal["ats-safe", "more"]
 CvFontId = Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"]
 CvDensity = Literal["compact", "normal", "spacious"]
 
@@ -85,11 +111,20 @@ CV_ACCENT_PALETTE: tuple[str, ...] = tuple(CV_ACCENT_NAMES)
 class CvStyle(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    template_id: CvTemplateId = "ats-essential"
-    font_id: CvFontId = "lato"
+    template_id: CvTemplateId = DEFAULT_CV_TEMPLATE_ID
+    # Optional typeface override; None means the template's own pairing.
+    font_id: CvFontId | None = None
     accent_color: str = Field(default="#111827", pattern=r"^#[0-9a-fA-F]{6}$")
     density: CvDensity = "normal"
     ats_mode: bool = False
+    page_size: CvPageSize = "a4"
+    fit_one_page: bool = False
+
+    @field_validator("template_id", mode="before")
+    @classmethod
+    def _map_legacy_template(cls, value):
+        """Stored styles from before the catalog still parse: old ids map to a new one."""
+        return LEGACY_CV_TEMPLATE_IDS.get(value, value) if isinstance(value, str) else value
 
     @field_validator("accent_color")
     @classmethod
@@ -550,6 +585,11 @@ class CvStyleCatalogTemplate(BaseModel):
     name: str
     description: str
     ats_safe: bool
+    columns: Literal[1, 2]
+    photo_slot: bool
+    group: CvTemplateGroup
+    # The template's default typeface pair (family names).
+    typefaces: dict[str, str]
     title_align: Literal["left", "center"]
     margin_mm: int
     # Section kinds placed in the sidebar; empty for single-column templates.
@@ -578,6 +618,8 @@ class CvStyleCatalogAtsMode(BaseModel):
     """What ATS-friendly mode forces, whatever the saved template/font/accent/density."""
 
     template_id: CvTemplateId
+    # The templates still offered while ATS mode is on (the ATS-safe ones).
+    offered_template_ids: list[CvTemplateId]
     density: CvDensity
     accent: str
     css_family: str

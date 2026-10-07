@@ -77,8 +77,8 @@ def test_all_bundled_fonts_register_and_render_deterministically(db, test_user):
     register_fonts()
     document = _structured_document(db, test_user)
     for font_id in FONT_FAMILIES:
-        style = CvStyle(template_id="ats-essential", font_id=font_id, accent_color="#111827")
-        model = build_render_model(document, "ats-essential", style)
+        style = CvStyle(template_id="classic", font_id=font_id, accent_color="#111827")
+        model = build_render_model(document, "classic", style)
         pdf_a = render_pdf(model)
         pdf_b = render_pdf(model)
         assert pdf_a == pdf_b
@@ -95,10 +95,9 @@ def test_unstyled_cv_exports_in_the_font_its_preview_shows(client, auth_headers,
     rendered artifact (export, "View exact PDF", the ATS check) must match it."""
     document = _structured_document(db, test_user)
     assert document.style is None
-    preview_font = client.get(f"{PREFIX}/{document.id}", headers=auth_headers).json()["style"][
-        "font_id"
-    ]
-    family = FONT_FAMILIES[preview_font]
+    # No typeface override: the template's own pair prints (DOCX falls back to Lato until T10).
+    assert client.get(f"{PREFIX}/{document.id}", headers=auth_headers).json()["style"]["font_id"] is None
+    family = FONT_FAMILIES["lato"]
 
     pdf = client.get(f"{PREFIX}/{document.id}/artifacts/pdf", headers=auth_headers)
     docx = client.get(f"{PREFIX}/{document.id}/artifacts/docx", headers=auth_headers)
@@ -115,20 +114,22 @@ def test_unstyled_cv_exports_in_the_font_its_preview_shows(client, auth_headers,
 
 
 def test_ats_mode_forces_single_column_standard_font_neutral_accent():
+    # A legacy id still parses (it maps to lagoon); ATS mode forces classic whatever it is.
     style = CvStyle(
         template_id="modern-two-column", font_id="crimson-text", accent_color="#B91C1C", ats_mode=True
     )
-    effective = resolve_effective_style("modern-two-column", style)
-    assert effective.layout_template_id == "ats-essential"
+    assert style.template_id == "lagoon"
+    effective = resolve_effective_style("lagoon", style)
+    assert effective.layout_template_id == "classic"
     assert effective.font_docx_name == "Helvetica"
     assert effective.accent == "#111827"
     assert effective.two_column is False
 
 
 def test_density_scales_type_and_gap_size():
-    compact = resolve_effective_style("ats-essential", CvStyle(density="compact"))
-    spacious = resolve_effective_style("ats-essential", CvStyle(density="spacious"))
-    assert compact.body_size <= TEMPLATES["ats-essential"].body_size <= spacious.body_size
+    compact = resolve_effective_style("classic", CvStyle(density="compact"))
+    spacious = resolve_effective_style("classic", CvStyle(density="spacious"))
+    assert compact.body_size <= TEMPLATES["classic"].body_size <= spacious.body_size
     assert compact.section_gap < spacious.section_gap
 
 
@@ -145,7 +146,7 @@ def test_accent_color_outside_curated_palette_is_rejected():
 
 def test_structured_entry_renders_heading_subheading_dates_and_bullets(db, test_user):
     document = _structured_document(db, test_user)
-    model = build_render_model(document, "ats-essential", CvStyle())
+    model = build_render_model(document, "classic", CvStyle())
     entry = model.sections[0].entries[0]
     assert entry.heading == "Senior Engineer"
     assert entry.subheading == "Synthetic Corp"
@@ -166,24 +167,23 @@ def test_structured_entry_renders_heading_subheading_dates_and_bullets(db, test_
 
 def test_legacy_body_only_entry_still_renders_as_single_paragraph(db, test_user):
     document = _structured_document(db, test_user)
-    model = build_render_model(document, "ats-essential", CvStyle())
+    model = build_render_model(document, "classic", CvStyle())
     skills_entry = model.sections[1].entries[0]
     assert skills_entry.heading is None
     assert skills_entry.paragraph == "Python, TypeScript, PostgreSQL"
 
 
-def test_modern_two_column_template_renders_pdf_with_sidebar(db, test_user):
+def test_a_sidebar_template_without_a_template_dir_prints_as_classic(db, test_user):
+    # lagoon (T6) is a valid id before its template lands; it renders as classic, without error.
     document = _structured_document(db, test_user)
-    model = build_render_model(
-        document, "modern-two-column", CvStyle(template_id="modern-two-column")
-    )
-    assert model.tokens["two_column"] is True
+    model = build_render_model(document, "lagoon", CvStyle(template_id="lagoon"))
+    assert model.template_id == "classic"
+    assert model.tokens["two_column"] is False
     pdf = render_pdf(model)
     with fitz.open(stream=pdf, filetype="pdf") as parsed:
         assert parsed.page_count >= 1
         text = "".join(page.get_text() for page in parsed)
     assert "Skills" in text and "Senior Engineer" in text
-    # DOCX degrades to single column but still renders every section.
     docx = render_docx(model)
     assert docx
 
@@ -197,15 +197,18 @@ def test_style_catalog_is_the_single_source_of_design_values(client, auth_header
     body = response.json()
     templates = {t["id"]: t for t in body["templates"]}
     assert list(templates) == list(TEMPLATES)
-    assert templates["technical-portfolio"]["name"] == "Technical Portfolio"
+    assert list(templates) == ["classic"]  # until T6-T8 add template directories
+    assert templates["classic"]["name"] == "Classic"
     assert {f["id"] for f in body["fonts"]} == set(FONT_FAMILIES)
     assert all(f["css_family"].startswith(f"'{f['name']}'") for f in body["fonts"])
     assert [d["id"] for d in body["densities"]] == ["compact", "normal", "spacious"]
     assert {c["value"] for c in body["palette"]} == set(CV_ACCENT_PALETTE)
-    two_col = templates["modern-two-column"]
-    assert two_col["ats_safe"] is False
-    assert two_col["sidebar_kinds"] == ["skills", "certifications"]
-    assert templates["professional-editorial"]["title_align"] == "center"
+    classic = templates["classic"]
+    assert classic["ats_safe"] is True and classic["columns"] == 1
+    assert classic["group"] == "ats-safe" and classic["photo_slot"] is False
+    assert classic["typefaces"] == {"heading": "Source Serif 4", "body": "Source Sans 3"}
+    assert classic["sidebar_kinds"] == []
+    assert classic["title_align"] == "center"
     # The per-density sizes the preview uses are exactly what the renderer uses.
     for template_id, template in templates.items():
         for density, sizes in template["sizes"].items():
@@ -216,8 +219,11 @@ def test_style_catalog_is_the_single_source_of_design_values(client, auth_header
                 "section_gap_pt": effective.section_gap,
             }
             assert template["margin_mm"] == effective.margin_mm
-    ats = resolve_effective_style("modern-two-column", CvStyle(ats_mode=True))
-    assert body["ats_mode"]["template_id"] == ats.layout_template_id
+    ats = resolve_effective_style("lagoon", CvStyle(ats_mode=True))
+    assert body["ats_mode"]["template_id"] == ats.layout_template_id == "classic"
+    assert body["ats_mode"]["offered_template_ids"] == [
+        tid for tid, t in templates.items() if t["ats_safe"]
+    ]
     assert body["ats_mode"]["accent"] == ats.accent
 
 
@@ -233,7 +239,7 @@ def test_patch_style_persists_and_defaults_for_legacy_documents(client, auth_hea
         f"{PREFIX}/{created['id']}",
         json={
             "style": {
-                "template_id": "minimal-serif",
+                "template_id": "executive",
                 "font_id": "pt-serif",
                 "accent_color": "#166534",
                 "density": "spacious",
@@ -243,7 +249,7 @@ def test_patch_style_persists_and_defaults_for_legacy_documents(client, auth_hea
         headers=auth_headers,
     )
     assert patched.status_code == 200
-    assert patched.json()["style"]["template_id"] == "minimal-serif"
+    assert patched.json()["style"]["template_id"] == "executive"
     assert patched.json()["style"]["font_id"] == "pt-serif"
 
     fetched = client.get(f"{PREFIX}/{created['id']}", headers=auth_headers).json()
@@ -254,14 +260,14 @@ def test_artifact_export_uses_the_saved_style(client, auth_headers, db, test_use
     document = _structured_document(db, test_user)
     client.patch(
         f"{PREFIX}/{document.id}",
-        json={"style": {"template_id": "minimal-serif", "font_id": "crimson-text"}},
+        json={"style": {"template_id": "executive", "font_id": "crimson-text"}},
         headers=auth_headers,
     )
     response = client.get(f"{PREFIX}/{document.id}/artifacts/pdf", headers=auth_headers)
     assert response.status_code == 200
-    assert "Structured-CV-minimal-serif.pdf" in response.headers["content-disposition"]
-    # TODO(#461, T4): every legacy template prints as `classic` for now, so the saved
-    # `font_id` does not change the PDF's typeface yet.
+    # executive has no template directory yet (T7), so it prints, and is named, as classic.
+    assert "Structured-CV-classic.pdf" in response.headers["content-disposition"]
+    # TODO(T4): the saved `font_id` does not change the PDF's typeface yet.
     assert font_problems(response.content, load_manifest("classic").families) == []
 
 

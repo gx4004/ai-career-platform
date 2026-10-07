@@ -48,7 +48,7 @@ def test_mutations_on_a_legacy_oversize_row_do_not_500(client, auth_headers, db,
 
     styled = client.patch(
         url,
-        json={"style": {"template_id": "ats-essential", "font_id": "lato",
+        json={"style": {"template_id": "classic", "font_id": "lato",
                         "accent_color": "#111827", "density": "normal", "ats_mode": False}},
         headers=auth_headers,
     )

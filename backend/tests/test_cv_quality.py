@@ -78,14 +78,13 @@ def test_cv_with_known_problems_fails_exactly_those_checks(client, auth_headers)
         client,
         auth_headers,
         sidebar_before_main,
-        style={"template_id": "modern-two-column", "ats_mode": False},
+        style={"template_id": "lagoon", "ats_mode": False},
     )
 
     failed = {c["id"] for c in payload["checks"] if not c["passed"]}
-    # No Experience/Skills sections, and a two-column style (the "layout" check). The
-    # PDF itself reads back in order now: until T6 (T6) the legacy two-column id
-    # prints as the single-column `classic`, so there is no sidebar to read first.
-    assert failed == {"sections", "layout"}
+    # No Experience/Skills sections. lagoon (T6) has no template yet and prints as the
+    # ATS-safe `classic`, so the layout check passes and nothing reads out of order.
+    assert failed == {"sections"}
     assert all(c["fix"] for c in payload["checks"] if not c["passed"])
 
 
@@ -94,7 +93,7 @@ def test_ats_mode_clears_the_two_column_layout_failure(client, auth_headers):
         client,
         auth_headers,
         _clean_sections(),
-        style={"template_id": "modern-two-column", "ats_mode": True},
+        style={"template_id": "lagoon", "ats_mode": True},
     )
 
     assert all(c["passed"] for c in payload["checks"])

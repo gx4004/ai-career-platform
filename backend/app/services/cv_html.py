@@ -20,7 +20,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, pass_context
 from markupsafe import Markup
 
-from app.schemas.cv_documents import CvRenderModel
+from app.schemas.cv_documents import DEFAULT_CV_TEMPLATE_ID, CvRenderModel
 from app.services.cv_fonts import FONTS_DIR, needs_glyph
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "cv_templates"
@@ -28,18 +28,7 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "cv_templates"
 URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']*[^\s<>()\[\]{}\"'.,;:!?]")
 _HOSTLIKE_RE = re.compile(r"(https?://)?[\w-]+(\.[\w-]+)+(/\S*)?", re.IGNORECASE)
 
-DEFAULT_TEMPLATE_ID = "classic"
-# TODO(#461): T2 replaces this with the 16-template catalog and a stored-style migration.
-# Until then every legacy template id prints as `classic`.
-LEGACY_TEMPLATE_IDS = frozenset(
-    {
-        "ats-essential",
-        "professional-editorial",
-        "technical-portfolio",
-        "modern-two-column",
-        "minimal-serif",
-    }
-)
+DEFAULT_TEMPLATE_ID = DEFAULT_CV_TEMPLATE_ID
 
 PAGE_SIZES = {"a4": "A4", "letter": "Letter"}
 
@@ -61,6 +50,8 @@ class TemplateManifest:
     photo_slot: bool
     columns: int
     typefaces: dict[str, str]
+    group: str
+    title_align: str
     accent_role: str
     sidebar_kinds: tuple[str, ...]
     margin_top_mm: float
@@ -86,6 +77,8 @@ def load_manifest(template_id: str) -> TemplateManifest:
         photo_slot=raw["photo_slot"],
         columns=raw["columns"],
         typefaces=raw["typefaces"],
+        group="ats-safe" if raw["ats_safe"] else "more",
+        title_align=raw.get("title_align", "left"),
         accent_role=raw["accent_role"],
         sidebar_kinds=tuple(raw["sidebar_kinds"]),
         margin_top_mm=margin["top"],
@@ -96,11 +89,23 @@ def load_manifest(template_id: str) -> TemplateManifest:
     )
 
 
+@functools.cache
+def available_template_ids() -> tuple[str, ...]:
+    """Ids of the templates that exist on disk (directory, manifest and Jinja file), in catalog order.
+
+    The catalog is built from this: a template becomes available when its directory is added.
+    """
+    ids = [
+        path.name
+        for path in TEMPLATES_DIR.iterdir()
+        if (path / "manifest.json").is_file() and (path / "template.html.j2").is_file()
+    ]
+    return tuple(sorted(ids, key=lambda tid: (not load_manifest(tid).ats_safe, tid != DEFAULT_TEMPLATE_ID, tid)))
+
+
 def html_template_id(model_template_id: str) -> str:
-    """The HTML template that prints a model's (possibly legacy) template id."""
-    if model_template_id in LEGACY_TEMPLATE_IDS:
-        return DEFAULT_TEMPLATE_ID
-    return model_template_id
+    """The HTML template that prints a model's template id; one not yet available prints as the default."""
+    return model_template_id if model_template_id in available_template_ids() else DEFAULT_TEMPLATE_ID
 
 
 def nfc(value: str) -> str:
