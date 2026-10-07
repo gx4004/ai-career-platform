@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
@@ -70,8 +70,9 @@ from app.services.cv_documents import (
 )
 from app.services.cv_fit import render_pdf_fitted, with_fit_option
 from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR, TYPEFACES
+from app.services.cv_html import available_template_ids
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
-from app.services.cv_preview import render_preview
+from app.services.cv_preview import MAX_PREVIEW_WIDTH, MIN_PREVIEW_WIDTH, render_preview
 from app.services.cv_quality import analyze_cv_quality
 from app.services.cv_rendering import (
     build_render_model,
@@ -385,16 +386,20 @@ async def preview(
     response: Response,
     document_id: str,
     body: CvPreviewRequest,
+    width: int | None = Query(default=None, ge=MIN_PREVIEW_WIDTH, le=MAX_PREVIEW_WIDTH),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Page images and section rectangles of the unsaved draft. Stores nothing."""
+    """Page images and section rectangles of the unsaved draft. Stores nothing.
+
+    ``width``: the pixel width the client shows a page at (CSS width times pixel ratio), so a phone
+    gets small pages; without it, pages are 110 dpi."""
     document, saved_style, _ = _renderable(db, document_id, current_user.id, None)
     draft = _draft_source(document, body)
     style = body.style if body.style is not None else saved_style
     model = with_fit_option(build_render_model(draft, style.template_id, style), style.fit_one_page)
     # Chromium, PyMuPDF and WebP encoding block; keep them off the event loop.
-    result = await run_in_threadpool(render_preview, model)
+    result = await run_in_threadpool(lambda: render_preview(model, width=width))
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     warnings = []
@@ -444,16 +449,26 @@ async def template_thumbnails(
     response: Response,
     document_id: str,
     body: CvPreviewRequest | None = None,
+    templates: str | None = Query(default=None, max_length=400),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Page 1 of the unsaved draft in every available template, for the Design panel's
+    """Page 1 of the unsaved draft in every available template (or only ``templates``, a comma list,
+    so a client can ask for the first group before the rest), for the Design panel's
     gallery. The draft's own colour, typeface, spacing and page size; the sample CV while it
     has no entries. Stores nothing."""
+    wanted = None
+    if templates is not None:
+        wanted = [template.strip() for template in templates.split(",") if template.strip()]
+        unknown = [template for template in wanted if template not in available_template_ids()]
+        if not wanted or unknown:
+            raise HTTPException(status_code=422, detail="Unknown template in templates.")
     document, saved_style, _ = _renderable(db, document_id, current_user.id, None)
     style = body.style if body is not None and body.style is not None else saved_style
     # Prints one template at a time; Chromium, PyMuPDF and WebP block, so off the event loop.
-    result = await run_in_threadpool(render_thumbnails, _draft_source(document, body), style)
+    result = await run_in_threadpool(
+        lambda: render_thumbnails(_draft_source(document, body), style, template_ids=wanted)
+    )
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return CvTemplateThumbnailsResponse(
