@@ -17,7 +17,7 @@ const api = vi.hoisted(() => ({
   tailorCvDocument: vi.fn(), applyCvTailoring: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
   previewCvDraft: vi.fn(),
-  templateThumbnailsForDraft: vi.fn((..._args: unknown[]) => Promise.resolve({ sample: false, thumbnails: [] as unknown[] })),
+  getTemplateThumbnails: vi.fn((..._args: unknown[]) => Promise.resolve({ thumbnails: [] as unknown[] })),
 }))
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn(), user: null as { full_name?: string | null } | null }))
 vi.mock('#/lib/api/client', () => api)

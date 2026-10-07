@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvDesignPanel, CvDesignTool, THUMBNAILS_DEBOUNCE_MS, type TemplateThumbnailsState } from '#/components/cv-studio/CvDesignPanel'
 import { ApiError } from '#/lib/api/errors'
 import { CV_ACCENT_PALETTE, cvStyleSchema } from '#/lib/api/schemas'
-import type { CvDocument, CvStyle, CvTemplateThumbnails } from '#/lib/api/schemas'
+import type { CvStyle, CvTemplateThumbnails } from '#/lib/api/schemas'
 import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
 
-const api = vi.hoisted(() => ({ templateThumbnailsForDraft: vi.fn() }))
+const api = vi.hoisted(() => ({ getTemplateThumbnails: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
 
 const style = cvStyleSchema.parse({})
@@ -97,24 +97,23 @@ describe('CvDesignPanel style controls', () => {
 
 const PIXEL = 'data:image/webp;base64,UklGRg=='
 const ids = styleCatalogFixture.templates.map((template) => template.id)
-const thumbnailsFor = (patch: Partial<Record<string, Partial<CvTemplateThumbnails['thumbnails'][number]>>> = {}, sample = false): CvTemplateThumbnails => ({
-  sample,
-  thumbnails: ids.map((template_id) => ({ template_id, url: PIXEL, width: 331, height: 468, pages: 1, error: null, ...patch[template_id] })),
+const thumbnailsFor = (patch: Partial<Record<string, Partial<CvTemplateThumbnails['thumbnails'][number]>>> = {}, only?: readonly string[]): CvTemplateThumbnails => ({
+  thumbnails: (only ?? ids).map((template_id) => ({ template_id, url: PIXEL, width: 320, height: 453, error: null, ...patch[template_id] })),
 })
 const ready = (data = thumbnailsFor()): TemplateThumbnailsState => ({ status: 'ready', data })
-const templateRadio = (name: string) => screen.getByRole('radio', { name: new RegExp(`^${name} (ATS-safe|Less ATS-safe)$`) }) as HTMLInputElement
+const templateRadio = (name: string) => screen.getByRole('radio', { name }) as HTMLInputElement
 const tileOf = (name: string) => templateRadio(name).closest('label') as HTMLElement
 
 describe('CvDesignPanel template gallery', () => {
-  it('is two radio groups of tiles, ATS-safe first, each named by the template and its badge, described by its columns and summary', () => {
+  it('is two radio groups of tiles, ATS-safe first, each named by the template, described by its badge, columns and summary', () => {
     panel(vi.fn(), style)
     const safe = screen.getByRole('radiogroup', { name: 'ATS-safe templates' })
     const more = screen.getByRole('radiogroup', { name: 'More designs' })
     expect(safe.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(safe.getAttribute('data-variant')).toBe('tile')
     expect(within(safe).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['classic', 'executive'])
-    expect(screen.getByRole('radio', { name: 'Classic ATS-safe', description: /^One column\. A quiet single column\.$/ })).toBeTruthy()
-    expect(screen.getByRole('radio', { name: 'Lagoon Less ATS-safe', description: /^Two columns\. Teal sidebar\.$/ })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Classic', description: /^ATS-safe One column\. A quiet single column\.$/ })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Lagoon', description: /^Less ATS-safe Two columns\. Teal sidebar\.$/ })).toBeTruthy()
     expect(templateRadio('Classic').checked).toBe(true)
     expect(tileOf('Classic').hasAttribute('data-checked')).toBe(true)
   })
@@ -137,20 +136,23 @@ describe('CvDesignPanel template gallery', () => {
     expect((tileOf('Classic').querySelector('.kit-radio__media') as HTMLElement).style.getPropertyValue('--kit-radio-media-ratio')).toBe('216 / 279')
   })
 
-  it('shows each template’s own picture with a plain alt text, and says whose CV it is', () => {
+  it('shows each template’s own picture with a plain alt text, in a page-shaped box, labelled as sample content', () => {
     render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready()} />)
     const image = within(tileOf('Lagoon')).getByRole('img', { name: 'Preview of the Lagoon template' })
     expect(image.getAttribute('src')).toBe(PIXEL)
-    expect(image.getAttribute('width')).toBe('331')
+    expect(image.getAttribute('width')).toBe('320')
+    // The box keeps the page ratio from skeleton to picture, so nothing moves when the pictures arrive.
+    expect((tileOf('Lagoon').querySelector('.kit-radio__media') as HTMLElement).style.getPropertyValue('--kit-radio-media-ratio')).toBe('210 / 297')
     expect(screen.getAllByRole('img', { name: /^Preview of the .* template$/ })).toHaveLength(3)
-    expect(screen.getByText('Shown with your CV, colour and typeface.')).toBeTruthy()
+    expect(screen.getByText('Sample content, in your colour, typeface and spacing.')).toBeTruthy()
     // The picture is not part of the radio's name.
     expect(templateRadio('Lagoon')).toBeTruthy()
   })
 
-  it('says when the pictures use the sample CV', () => {
-    render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready(thumbnailsFor({}, true))} />)
-    expect(screen.getByText('Shown with a sample CV until you add your own entries.')).toBeTruthy()
+  it('shows placeholders only for the group still being drawn', () => {
+    render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={{ status: 'ready', data: thumbnailsFor({}, ['classic', 'executive']), pending: ['lagoon'] }} />)
+    expect(within(tileOf('Classic')).getByRole('img')).toBeTruthy()
+    expect(tileOf('Lagoon').querySelector('.kit-skeleton')).toBeTruthy()
   })
 
   it('falls back to a text-only tile for a template that could not be drawn, keeping the others', () => {
@@ -191,107 +193,95 @@ describe('CvDesignPanel template gallery', () => {
   })
 })
 
-const header = { name: 'Ada Lovelace', headline: null, email: null, phone: null, location: null, links: [] }
-const sections: CvDocument['sections'] = [{
-  id: 's1', kind: 'experience', title: 'Experience', visible: true, position: 0,
-  entries: [{ id: 'e1', evidence_item_id: null, body: 'Built things.', position: 0 }],
-}]
-const draftWith = (patch: Partial<CvStyle> = {}, body = 'Built things.') => ({
-  name: 'Principal CV', header, style: { ...style, ...patch },
-  sections: [{ ...sections[0], entries: [{ ...sections[0].entries[0], body }] }],
-})
-
-function tool(draft = draftWith()) {
+function tool(initial = style) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const onChange = vi.fn()
-  const ui = (next: ReturnType<typeof draftWith>) => (
-    <QueryClientProvider client={client}><CvDesignTool documentId="d1" draft={next} catalog={styleCatalogFixture} onChange={onChange} /></QueryClientProvider>
+  const ui = (next: CvStyle) => (
+    <QueryClientProvider client={client}><CvDesignTool style={next} catalog={styleCatalogFixture} onChange={vi.fn()} /></QueryClientProvider>
   )
-  const view = render(ui(draft))
-  return { onChange, update: (next: ReturnType<typeof draftWith>) => view.rerender(ui(next)) }
+  const view = render(ui(initial))
+  return { ...view, update: (next: CvStyle) => view.rerender(ui(next)) }
 }
+const groupOf = (call: unknown[]) => (call[1] as { templates?: string[] }).templates
 
 describe('CvDesignTool fetches the gallery', () => {
   beforeEach(() => {
-    api.templateThumbnailsForDraft.mockReset()
-    api.templateThumbnailsForDraft.mockImplementation(() => Promise.resolve(thumbnailsFor()))
+    api.getTemplateThumbnails.mockReset()
+    api.getTemplateThumbnails.mockImplementation((_look: unknown, options: { templates?: string[] }) => Promise.resolve(thumbnailsFor({}, options.templates)))
   })
   afterEach(() => { vi.useRealTimers() })
 
-  it('asks once when the panel opens, with the cleaned content and the drawn style, then shows the pictures', async () => {
-    tool(draftWith({ accent_color: '#075985', fit_one_page: true }))
+  it('asks for the ATS-safe group first, then the rest, with the look only (no CV content)', async () => {
+    tool({ ...style, accent_color: '#075985', fit_one_page: true, ats_mode: true, template_id: 'lagoon' })
     expect(document.querySelectorAll('.kit-skeleton').length).toBeGreaterThan(0)
     expect(await screen.findByRole('img', { name: 'Preview of the Classic template' })).toBeTruthy()
-    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
-    const [id, body] = api.templateThumbnailsForDraft.mock.calls[0]
-    expect(id).toBe('d1')
-    expect(body.sections[0].entries[0].body).toBe('Built things.')
-    expect(body.header.name).toBe('Ada Lovelace')
-    expect(body.style).toMatchObject({ accent_color: '#075985', density: 'normal', page_size: 'a4', ats_mode: false, fit_one_page: false })
+    await vi.waitFor(() => expect(api.getTemplateThumbnails).toHaveBeenCalledTimes(2))
+    const [look] = api.getTemplateThumbnails.mock.calls[0]
+    expect(look).toEqual({ accent_color: '#075985', font_id: null, density: 'normal', page_size: 'a4' })
+    expect(api.getTemplateThumbnails.mock.calls.map(groupOf)).toEqual([['classic', 'executive'], ['lagoon']])
   })
 
-  it('does not ask again when only the template changes', async () => {
+  it('does not ask again when the template, ATS mode or fit changes', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const view = tool()
-    await screen.findByRole('img', { name: 'Preview of the Classic template' })
-    view.update(draftWith({ template_id: 'lagoon' }))
-    view.update(draftWith({ template_id: 'lagoon', ats_mode: true }))
-    await act(async () => { await vi.advanceTimersByTimeAsync(THUMBNAILS_DEBOUNCE_MS * 2) })
-    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(api.getTemplateThumbnails).toHaveBeenCalledTimes(2))
+    view.update({ ...style, template_id: 'lagoon' })
+    view.update({ ...style, template_id: 'lagoon', ats_mode: true, fit_one_page: true })
+    await act(async () => { await vi.advanceTimersByTimeAsync(THUMBNAILS_DEBOUNCE_MS * 4) })
+    expect(api.getTemplateThumbnails).toHaveBeenCalledTimes(2)
   })
 
-  it('asks again after a pause when the accent changes, keeping the old pictures meanwhile', async () => {
+  it('asks again after a short pause when the accent changes, keeping the old pictures meanwhile', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const view = tool()
-    await screen.findByRole('img', { name: 'Preview of the Classic template' })
-    view.update(draftWith({ accent_color: '#B91C1C' }))
-    await act(async () => { await vi.advanceTimersByTimeAsync(THUMBNAILS_DEBOUNCE_MS - 200) })
-    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
+    await screen.findByRole('img', { name: 'Preview of the Lagoon template' })
+    view.update({ ...style, accent_color: '#B91C1C' })
     expect(screen.getByRole('img', { name: 'Preview of the Classic template' })).toBeTruthy()
-    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(2)
-    expect(api.templateThumbnailsForDraft.mock.calls[1][1].style.accent_color).toBe('#B91C1C')
+    await act(async () => { await vi.advanceTimersByTimeAsync(THUMBNAILS_DEBOUNCE_MS + 50) })
+    await vi.waitFor(() => expect(api.getTemplateThumbnails).toHaveBeenCalledTimes(3))
+    expect(api.getTemplateThumbnails.mock.calls[2][0].accent_color).toBe('#B91C1C')
   })
 
-  it('aborts a request whose draft was replaced before it finished', async () => {
+  it('aborts a request whose look was replaced before it finished', async () => {
     const signals: AbortSignal[] = []
-    api.templateThumbnailsForDraft.mockImplementation((_id: string, _draft: unknown, options: { signal: AbortSignal }) => {
+    api.getTemplateThumbnails.mockImplementation((_look: unknown, options: { signal: AbortSignal }) => {
       signals.push(options.signal)
       return new Promise<CvTemplateThumbnails>(() => {})
     })
     const view = tool()
     await vi.waitFor(() => expect(signals).toHaveLength(1))
-    view.update(draftWith({}, 'Changed.'))
+    view.update({ ...style, density: 'compact' })
     await vi.waitFor(() => expect(signals).toHaveLength(2), { timeout: 3000 })
     expect(signals[0].aborted).toBe(true)
     expect(signals[1].aborted).toBe(false)
   })
 
-  it('does not abort or repeat the request when the panel remounts (the sheet remounts its body as it opens)', async () => {
+  it('keeps the request when the panel remounts at once (the sheet does as it opens) and aborts it when it closes', async () => {
     const signals: AbortSignal[] = []
     let finish: (value: CvTemplateThumbnails) => void = () => {}
-    api.templateThumbnailsForDraft.mockImplementation((_id: string, _draft: unknown, options: { signal: AbortSignal }) => {
+    api.getTemplateThumbnails.mockImplementation((_look: unknown, options: { signal: AbortSignal; templates?: string[] }) => {
       signals.push(options.signal)
-      return new Promise<CvTemplateThumbnails>((resolve) => { finish = resolve })
+      return new Promise<CvTemplateThumbnails>((resolve) => { finish = () => resolve(thumbnailsFor({}, options.templates)) })
     })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const ui = <QueryClientProvider client={client}><CvDesignTool documentId="d2" draft={draftWith()} catalog={styleCatalogFixture} onChange={vi.fn()} /></QueryClientProvider>
+    const ui = <QueryClientProvider client={client}><CvDesignTool style={{ ...style, density: 'spacious' }} catalog={styleCatalogFixture} onChange={vi.fn()} /></QueryClientProvider>
     const first = render(ui)
     await vi.waitFor(() => expect(signals).toHaveLength(1))
     first.unmount()
-    render(ui)
+    const second = render(ui)
     await act(async () => { finish(thumbnailsFor()) })
     expect(await screen.findByRole('img', { name: 'Preview of the Classic template' })).toBeTruthy()
-    expect(signals).toHaveLength(1)
     expect(signals[0].aborted).toBe(false)
+    // The second group is in flight; closing the panel for good aborts it.
+    await vi.waitFor(() => expect(signals).toHaveLength(2))
+    second.unmount()
+    await vi.waitFor(() => expect(signals[1].aborted).toBe(true), { timeout: 2000 })
   })
 
   it('falls back to text-only tiles when the server cannot draw them', async () => {
-    api.templateThumbnailsForDraft.mockRejectedValue(new ApiError('The PDF renderer is not available right now.', 503))
-    tool()
+    api.getTemplateThumbnails.mockRejectedValue(new ApiError('The PDF renderer is not available right now.', 503))
+    tool({ ...style, page_size: 'letter' })
     expect(await screen.findByText(/The previews couldn’t be drawn right now/)).toBeTruthy()
     expect(screen.queryAllByRole('img')).toHaveLength(0)
-    // The controls still work.
     expect(templateRadio('Lagoon').disabled).toBe(false)
   })
 })

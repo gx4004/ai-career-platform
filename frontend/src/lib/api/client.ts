@@ -86,6 +86,7 @@ import type {
   EvidenceItemUpdate,
   CvDocumentCreate,
   CvDocumentUpdate,
+  CvStyle,
   CvImportProposal,
   WorkspaceUpdate,
   ApplicationDetail,
@@ -124,16 +125,27 @@ export function deleteAllCvDocuments() {
 }
 
 /** Page images and section rectangles of an unsaved draft; nothing is saved. `signal` aborts a superseded request. */
-export function previewCvDraft(documentId: string, draft: Omit<CvDocumentUpdate, 'expected_updated_at'>, options: { signal?: AbortSignal } = {}) {
-  return request(`/cv-documents/${encodeURIComponent(documentId)}/preview`, {
+export function previewCvDraft(documentId: string, draft: Omit<CvDocumentUpdate, 'expected_updated_at'>, options: { signal?: AbortSignal; width?: number } = {}) {
+  // `width`: the pixels a page is shown at (CSS width times pixel ratio), so a phone is not sent desktop-sized pages.
+  const query = options.width ? `?width=${options.width}` : ''
+  return request(`/cv-documents/${encodeURIComponent(documentId)}/preview${query}`, {
     method: 'POST', body: parseRequest(cvDocumentUpdateSchema, draft), schema: cvPreviewSchema, signal: options.signal,
   })
 }
 
-/** Page 1 of an unsaved draft in every template, for the Design panel's gallery; nothing is saved. */
-export function templateThumbnailsForDraft(documentId: string, draft: Omit<CvDocumentUpdate, 'expected_updated_at'>, options: { signal?: AbortSignal } = {}) {
-  return request(`/cv-documents/${encodeURIComponent(documentId)}/template-thumbnails`, {
-    method: 'POST', body: parseRequest(cvDocumentUpdateSchema, draft), schema: cvTemplateThumbnailsSchema, signal: options.signal,
+/** The look a gallery tile is drawn with (the sample CV in each template). */
+export type TemplateThumbnailsLook = Pick<CvStyle, 'accent_color' | 'font_id' | 'density' | 'page_size'>
+
+/** Page 1 of the built-in sample CV in every template (or `templates`), in the person's look: the Design panel's
+ * gallery. It reads no CV, so the browser may cache it. */
+export function getTemplateThumbnails(look: TemplateThumbnailsLook, options: { signal?: AbortSignal; templates?: string[] } = {}) {
+  const params = new URLSearchParams({ density: look.density, page_size: look.page_size })
+  if (look.accent_color) params.set('accent_color', look.accent_color)
+  if (look.font_id) params.set('font_id', look.font_id)
+  // `templates`: only these (the first group, so the top of the gallery fills in before the rest).
+  if (options.templates?.length) params.set('templates', options.templates.join(','))
+  return request(`/cv-documents/template-thumbnails?${params}`, {
+    method: 'GET', schema: cvTemplateThumbnailsSchema, signal: options.signal,
   })
 }
 

@@ -19,7 +19,7 @@ const api = vi.hoisted(() => ({
   tailorCvDocument: vi.fn(), applyCvTailoring: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
   previewCvDraft: vi.fn(),
-  templateThumbnailsForDraft: vi.fn((..._args: unknown[]) => Promise.resolve({ sample: false, thumbnails: [] as unknown[] })),
+  getTemplateThumbnails: vi.fn((..._args: unknown[]) => Promise.resolve({ thumbnails: [] as unknown[] })),
 }))
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn(), user: null as { full_name?: string | null } | null }))
 vi.mock('#/lib/api/client', () => api)
@@ -554,7 +554,7 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['ATS-safe templates', 'More designs'])
     expect(within(groups[0]).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['classic', 'executive'])
     expect(within(groups[1]).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['lagoon'])
-    expect(within(design).getByRole('radio', { name: /Lagoon.*Less ATS-safe/ })).toBeTruthy()
+    expect(within(design).getByRole('radio', { name: 'Lagoon', description: /Less ATS-safe/ })).toBeTruthy()
     const warning = /Some job portals may read this layout out of order/
     expect(within(design).queryByText(warning)).toBeNull()
     fireEvent.click(within(design).getByRole('radio', { name: /Lagoon/ }))
@@ -575,20 +575,18 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     expect(within(design).queryByText(/Some job portals/)).toBeNull()
   })
 
-  it('draws the template gallery from the open CV once, and picking a tile saves the template without redrawing it', async () => {
-    api.templateThumbnailsForDraft.mockResolvedValue({
-      sample: false,
-      thumbnails: ['classic', 'executive', 'lagoon'].map((template_id) => ({ template_id, url: 'data:image/webp;base64,UklGRg==', width: 331, height: 468, pages: 1, error: null })),
-    })
+  it('draws the sample gallery once, and picking a tile saves the template without redrawing it', async () => {
+    api.getTemplateThumbnails.mockImplementation((...args: unknown[]) => Promise.resolve({
+      thumbnails: ((args[1] as { templates?: string[] }).templates ?? []).map((template_id) => ({ template_id, url: 'data:image/webp;base64,UklGRg==', width: 320, height: 453, error: null })),
+    }))
     view()
     const design = await openTool(/^Design/)
     const lagoon = await within(design).findByRole('img', { name: 'Preview of the Lagoon template' })
-    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
-    expect(api.templateThumbnailsForDraft.mock.calls[0][0]).toBe('d1')
+    expect(api.getTemplateThumbnails).toHaveBeenCalledTimes(2)
     fireEvent.click(lagoon)
     await waitFor(() => expect(lastPatch()?.style).toMatchObject({ template_id: 'lagoon' }), { timeout: 1500 })
     await previewShows((draft) => expect(draft.style.template_id).toBe('lagoon'))
-    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
+    expect(api.getTemplateThumbnails).toHaveBeenCalledTimes(2)
   })
 
   it('shows the names the style catalog provides', async () => {

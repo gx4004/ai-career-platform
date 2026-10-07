@@ -1,107 +1,121 @@
+import { useEffect } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Badge, Notice, RadioGroup, RadioItem, Section, Segmented, Skeleton, Stack, Switch } from '#/components/kit'
 import { useDebouncedValue } from '#/hooks/use-debounced-value'
-import { templateThumbnailsForDraft } from '#/lib/api/client'
-import type { CvDocument, CvDocumentUpdate, CvStyle, CvStyleCatalog, CvTemplateThumbnails } from '#/lib/api/schemas'
-import { toPayload } from './useCvDraft'
+import { getTemplateThumbnails } from '#/lib/api/client'
+import type { TemplateThumbnailsLook } from '#/lib/api/client'
+import type { CvStyle, CvStyleCatalog, CvTemplateThumbnails } from '#/lib/api/schemas'
 
 const TEMPLATE_GROUPS = [
   { group: 'ats-safe', title: 'ATS-safe' },
   { group: 'more', title: 'More designs' },
 ] as const
 const TEMPLATE_FONT = 'template'
-/** Sent as the draft's template with the thumbnails request; the server draws every template regardless. */
-const DEFAULT_TEMPLATE: CvStyle['template_id'] = 'classic'
 const TEMPLATE_ACCENT = 'template'
 export const LESS_SAFE_NOTICE = 'Some job portals may read this layout out of order. Use an ATS-safe template for portal applications.'
 
 const sentenceCase = (text: string) => text.replace('-', ' ').replace(/^./, (letter) => letter.toUpperCase())
 
-/** How long the content and style must rest before the gallery is drawn again (it is the expensive call). */
-export const THUMBNAILS_DEBOUNCE_MS = 1000
-/** The page box of a thumbnail before it arrives, so the placeholder and the image take the same room. */
+/** How long the look must rest before the gallery is redrawn (picking colours in a row asks once). */
+export const THUMBNAILS_DEBOUNCE_MS = 300
+/** The same on a slow or data-saving connection. */
+export const THUMBNAILS_SLOW_DEBOUNCE_MS = 1000
+/** The page box of a thumbnail, so the placeholder and the picture take the same room. */
 const PAGE_ASPECT: Record<CvStyle['page_size'], string> = { a4: '210 / 297', letter: '216 / 279' }
-
-type Draft = Pick<CvDocument, 'name' | 'sections' | 'style' | 'header'>
-
-/** A short, stable hash of a string (cyrb53), for the gallery's cache key. */
-export function hashText(text: string) {
-  let h1 = 0xdeadbeef
-  let h2 = 0x41c6ce57
-  for (let index = 0; index < text.length; index++) {
-    const code = text.charCodeAt(index)
-    h1 = Math.imul(h1 ^ code, 2654435761)
-    h2 = Math.imul(h2 ^ code, 1597334677)
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)
-}
-
-type ThumbnailsBody = Pick<CvDocumentUpdate, 'header' | 'sections'> & { drawn: Omit<CvStyle, 'template_id' | 'ats_mode' | 'fit_one_page'> }
-
-/** What the thumbnails depend on, serialised: the content and every style field except the template (each tile is
- * its own template) and the options the thumbnails do not draw (ATS mode, fit to one page). */
-export function thumbnailsKey(draft: Draft) {
-  const { header, sections } = toPayload(draft)
-  const { template_id: _template, ats_mode: _ats, fit_one_page: _fit, ...drawn } = draft.style
-  return JSON.stringify({ header, sections, drawn } satisfies ThumbnailsBody)
-}
+/** A panel that unmounts and mounts again within this time (the sheet does, as it opens) keeps its request. */
+const REMOUNT_GRACE_MS = 400
 
 export type TemplateThumbnailsState = {
+  /** loading: nothing drawn yet; error: nothing could be drawn; ready: some or all pictures are here. */
   status: 'loading' | 'ready' | 'error'
+  /** The pictures that have arrived (the first group before the rest). */
   data?: CvTemplateThumbnails
+  /** Templates whose pictures are still being drawn (they show a placeholder). */
+  pending?: string[]
 }
 
-/** The gallery request in flight per CV. A newer draft aborts it; closing (or remounting) the panel does not, because
- * the sheet remounts its body as it opens and the server would draw the whole gallery twice. */
-const inFlight = new Map<string, AbortController>()
+/** The gallery requests in flight, by group. A newer look aborts its group's request; closing the panel aborts both
+ * after a short grace, because the sheet remounts its body as it opens. */
+const inFlight = new Map<number, AbortController>()
+let closing: ReturnType<typeof setTimeout> | undefined
+
+function slowConnection() {
+  const connection = (globalThis.navigator as (Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }) | undefined)?.connection
+  return Boolean(connection && (connection.saveData || /(^|-)(2g|3g)$/.test(connection.effectiveType ?? '')))
+}
+
+/** The style fields a tile is drawn with: everything but the template (each tile is its own), ATS mode and fit. */
+export function thumbnailsLook(style: CvStyle): TemplateThumbnailsLook {
+  return { accent_color: style.accent_color, font_id: style.font_id, density: style.density, page_size: style.page_size }
+}
 
 /**
- * Page 1 of the draft in every template, fetched while the Design panel is open. Cached by a hash of the content and
- * the drawn style fields, so picking a template never refetches; a content or style change refetches after a pause,
- * and the superseded request is aborted. The last gallery stays on screen while the next one is drawn.
+ * Page 1 of the built-in sample CV in every template, in the person's look, fetched only while the Design panel is
+ * open: the ATS-safe group first (the top of the gallery), then the rest, one request after the other. It does not
+ * depend on the CV, so typing never redraws it; a colour, typeface, spacing or page-size change asks again after a
+ * short pause (the server caches every tile, so a look seen before comes back at once). The last pictures stay on
+ * screen meanwhile. Closing the panel aborts what is still being drawn.
  */
-export function useTemplateThumbnails(documentId: string, draft: Draft): TemplateThumbnailsState {
-  const settled = useDebouncedValue(thumbnailsKey(draft), THUMBNAILS_DEBOUNCE_MS, documentId)
-  const query = useQuery({
-    queryKey: ['cv-template-thumbnails', documentId, hashText(settled)],
-    // React Query's own signal would cancel on unmount too; this one is aborted only by a newer draft.
+export function useTemplateThumbnails(style: CvStyle, catalog: CvStyleCatalog): TemplateThumbnailsState {
+  const look = useDebouncedValue(JSON.stringify(thumbnailsLook(style)), slowConnection() ? THUMBNAILS_SLOW_DEBOUNCE_MS : THUMBNAILS_DEBOUNCE_MS)
+  const groups = TEMPLATE_GROUPS
+    .map(({ group }) => catalog.templates.filter((template) => template.group === group).map((template) => template.id))
+    .filter((ids) => ids.length > 0)
+
+  useEffect(() => {
+    clearTimeout(closing)
+    return () => {
+      closing = setTimeout(() => {
+        for (const controller of inFlight.values()) controller.abort()
+        inFlight.clear()
+      }, REMOUNT_GRACE_MS)
+    }
+  }, [])
+
+  const groupQuery = (ids: string[] | undefined, index: number, enabled: boolean) => ({
+    queryKey: ['cv-template-thumbnails', look, ids?.join(',') ?? ''],
+    // React Query's own signal would cancel on every unmount; this one is aborted by a newer look or a close.
     queryFn: async () => {
-      inFlight.get(documentId)?.abort()
+      inFlight.get(index)?.abort()
       const controller = new AbortController()
-      inFlight.set(documentId, controller)
-      const { header, sections, drawn } = JSON.parse(settled) as ThumbnailsBody
-      const style: CvStyle = { ...drawn, template_id: DEFAULT_TEMPLATE, ats_mode: false, fit_one_page: false }
+      inFlight.set(index, controller)
       try {
-        return await templateThumbnailsForDraft(documentId, { header, sections, style }, { signal: controller.signal })
+        return await getTemplateThumbnails(JSON.parse(look) as TemplateThumbnailsLook, { signal: controller.signal, templates: ids })
       } finally {
-        if (inFlight.get(documentId) === controller) inFlight.delete(documentId)
+        if (inFlight.get(index) === controller) inFlight.delete(index)
       }
     },
+    enabled: enabled && Boolean(ids),
     staleTime: Infinity,
-    gcTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
     retry: false,
     placeholderData: keepPreviousData,
   })
-  if (query.data) return { status: 'ready', data: query.data }
-  return { status: query.isError ? 'error' : 'loading' }
+  const first = useQuery(groupQuery(groups[0], 0, true))
+  const firstSettled = (first.isSuccess && !first.isPlaceholderData) || first.isError
+  const second = useQuery(groupQuery(groups[1], 1, firstSettled))
+
+  const parts = [first, second].slice(0, groups.length)
+  const arrived = parts.flatMap((part) => part.data?.thumbnails ?? [])
+  const pending = parts.flatMap((part, index) => (!part.data && !part.isError ? groups[index] : []))
+  if (parts.every((part) => part.isError && !part.data)) return { status: 'error' }
+  if (arrived.length === 0) return { status: 'loading', pending }
+  return { status: 'ready', data: { thumbnails: arrived }, pending }
 }
 
-/** The Design panel with its template gallery drawn from the open CV. */
-export function CvDesignTool({ documentId, draft, catalog, onChange }: {
-  documentId: string; draft: Draft; catalog: CvStyleCatalog; onChange: (patch: Partial<CvStyle>) => void
+/** The Design panel with its template gallery. */
+export function CvDesignTool({ style, catalog, onChange }: {
+  style: CvStyle; catalog: CvStyleCatalog; onChange: (patch: Partial<CvStyle>) => void
 }) {
-  const thumbnails = useTemplateThumbnails(documentId, draft)
-  return <CvDesignPanel style={draft.style} catalog={catalog} onChange={onChange} thumbnails={thumbnails} />
+  const thumbnails = useTemplateThumbnails(style, catalog)
+  return <CvDesignPanel style={style} catalog={catalog} onChange={onChange} thumbnails={thumbnails} />
 }
 
 function galleryNote(locked: boolean, thumbnails?: TemplateThumbnailsState) {
   if (locked) return 'Paused while ATS-friendly mode is on.'
   if (!thumbnails) return undefined
   if (thumbnails.status === 'error') return 'The previews couldn’t be drawn right now. You can still pick a template by name.'
-  if (thumbnails.data?.sample) return 'Shown with a sample CV until you add your own entries.'
-  return 'Shown with your CV, colour and typeface.'
+  return 'Sample content, in your colour, typeface and spacing.'
 }
 
 export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
@@ -112,13 +126,14 @@ export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
   const pictures = new Map((thumbnails?.data?.thumbnails ?? []).map((thumbnail) => [thumbnail.template_id, thumbnail]))
   const picture = (template: CvStyleCatalog['templates'][number]) => {
     if (!thumbnails || thumbnails.status === 'error') return { media: undefined, aspect: undefined }
-    if (thumbnails.status === 'loading') return { media: <Skeleton variant="block" />, aspect: PAGE_ASPECT[style.page_size] }
+    if (thumbnails.status === 'loading' || thumbnails.pending?.includes(template.id)) return { media: <Skeleton variant="block" />, aspect: PAGE_ASPECT[style.page_size] }
     const found = pictures.get(template.id)
     // A template the server could not draw (or did not send) falls back to a text-only tile.
     if (!found?.url) return { media: undefined, aspect: undefined }
+    // The box keeps the page size's ratio from skeleton to picture, so nothing moves when the pictures arrive.
     return {
       media: <img src={found.url} width={found.width} height={found.height} alt={`Preview of the ${template.name} template`} />,
-      aspect: `${found.width} / ${found.height}`,
+      aspect: PAGE_ASPECT[style.page_size],
     }
   }
 
@@ -166,8 +181,14 @@ export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
                         <RadioItem
                           key={template.id}
                           value={template.id}
-                          label={<>{template.name} <Badge size="sm" tone={template.ats_safe ? 'success' : 'neutral'}>{template.ats_safe ? 'ATS-safe' : 'Less ATS-safe'}</Badge></>}
-                          description={<>{template.columns === 1 ? 'One column' : 'Two columns'}<span className="kit-sr-only">. {template.description}</span></>}
+                          label={template.name}
+                          description={
+                            <>
+                              <Badge size="sm" tone={template.ats_safe ? 'success' : 'neutral'}>{template.ats_safe ? 'ATS-safe' : 'Less ATS-safe'}</Badge>{' '}
+                              {template.columns === 1 ? 'One column' : 'Two columns'}
+                              <span className="kit-sr-only">. {template.description}</span>
+                            </>
+                          }
                           media={media}
                           mediaAspect={aspect}
                         />
