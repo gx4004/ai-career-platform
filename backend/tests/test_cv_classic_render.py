@@ -29,6 +29,7 @@ from app.services.cv_chromium import (
     RenderTimeoutError,
 )
 from app.services.cv_html import (
+    available_template_ids,
     html_template_id,
     load_manifest,
     missing_characters,
@@ -130,7 +131,10 @@ def test_pdf_normalisation_only_fixes_the_dates():
     assert b"D:20000101000000" in fixed and b"2026" not in fixed
 
 
-@pytest.mark.parametrize("template_id", sorted(set(LEGACY_CV_TEMPLATE_IDS.values()) | {"scholar", "ledger"}))
+@pytest.mark.parametrize(
+    "template_id",
+    sorted((set(LEGACY_CV_TEMPLATE_IDS.values()) | {"ledger", "meadow"}) - set(available_template_ids())),
+)
 def test_a_template_id_without_a_template_dir_prints_as_classic(template_id):
     # Ids of templates that have not landed yet (T6-T8) are valid and print as classic.
     assert html_template_id(template_id) == "classic"

@@ -68,6 +68,9 @@ class TemplateManifest:
     margin_bottom_mm: float
     margin_left_mm: float
     fonts: tuple[FontFace, ...]
+    # The accent a template prints with while the person keeps the global default (Ink):
+    # a colourful template keeps its own colour until another accent is picked.
+    default_accent: str | None = None
 
     @property
     def families(self) -> frozenset[str]:
@@ -95,6 +98,7 @@ def load_manifest(template_id: str) -> TemplateManifest:
         margin_bottom_mm=margin["bottom"],
         margin_left_mm=margin["left"],
         fonts=tuple(FontFace(**face) for face in raw["fonts"]),
+        default_accent=raw.get("default_accent"),
     )
 
 
@@ -260,6 +264,8 @@ def _environment() -> Environment:
         keep_trailing_newline=True,
     )
     env.filters["autolink"] = _autolink
+    env.filters["list_items"] = list_items
+    env.filters["name_level_pairs"] = name_level_pairs
     return env
 
 
@@ -280,6 +286,50 @@ def _contact_items(model: CvRenderModel) -> list[dict[str, str | None]]:
     return items
 
 
+GLOBAL_DEFAULT_ACCENT = "#111827"
+
+# A custom section joins the sidebar only when it is a few plain lines (Languages,
+# Interests); anything with entry headings or more text stays in the main column.
+_SIDEBAR_CUSTOM_MAX_CHARS = 240
+_LIST_SPLIT_RE = re.compile(r"\s*(?:[•·|;\n]|,(?![^()]*\)))\s*")
+_PAIR_RE = re.compile(r"^(?P<name>[^()]+?)\s*\((?P<level>[^()]+)\)$")
+
+
+def _in_sidebar(section, kinds: tuple[str, ...]) -> bool:
+    if section.kind not in kinds:
+        return False
+    if section.kind != "custom":
+        return True
+    return all(entry.heading is None for entry in section.entries) and (
+        sum(len(entry.paragraph or "") for entry in section.entries) <= _SIDEBAR_CUSTOM_MAX_CHARS
+    )
+
+
+def list_items(text: str) -> list[str]:
+    """A list written as one line ("React • Vue, Go") as its items, in order."""
+    return [item for item in _LIST_SPLIT_RE.split(text) if item.strip()]
+
+
+def name_level_pairs(text: str) -> list[tuple[str, str | None]] | None:
+    """ "English (fluent), Dutch (native)" as [(name, level), ...]; None unless every item has a level."""
+    pairs = []
+    for item in list_items(text):
+        match = _PAIR_RE.match(item)
+        if not match:
+            return None
+        pairs.append((match["name"], match["level"]))
+    return pairs or None
+
+
+def initials(name: str) -> str:
+    """The monogram of a name: the first letters of its first and last words."""
+    words = [word for word in re.split(r"[\s]+", name) if word[:1].isalpha()]
+    if not words:
+        return ""
+    letters = words[0][0] + (words[-1][0] if len(words) > 1 else "")
+    return letters.upper()
+
+
 def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
     """One self-contained HTML document for the model, in its (mapped) template."""
     template_id = html_template_id(model.template_id)
@@ -288,6 +338,14 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
     tokens = model.tokens
     font_override = str(tokens.get("font_override") or "") or None
     plan = font_plan(template_id, font_override)
+    accent = str(tokens.get("accent", GLOBAL_DEFAULT_ACCENT))
+    if manifest.default_accent and accent.upper() == GLOBAL_DEFAULT_ACCENT:
+        accent = manifest.default_accent
+    # Sidebar templates print the main column first and the sidebar after it, so text
+    # extraction reads header, main sections, then sidebar sections, each one whole.
+    side = [s for s in model.sections if _in_sidebar(s, manifest.sidebar_kinds)]
+    side_ids = {s.id for s in side}
+    main = [s for s in model.sections if s.id not in side_ids]
     return (
         _environment()
         .get_template(f"{template_id}/template.html.j2")
@@ -296,11 +354,14 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
             header=model.header,
             contact_items=_contact_items(model),
             sections=model.sections,
+            main_sections=main,
+            side_sections=side,
+            initials=initials(model.header.title),
             fontface=Markup(_font_face_css(template_id, font_override)),  # noqa: S704 - bundled files only
             root_vars=Markup(  # noqa: S704 - built from bundled fonts and a validated hex colour
                 _root_vars(
                     plan,
-                    str(tokens.get("accent", "#111827")),
+                    accent,
                     int(tokens.get("type_scale_pct", 100)) / 100,
                     int(tokens.get("gap_scale_pct", 100)) / 100,
                 )

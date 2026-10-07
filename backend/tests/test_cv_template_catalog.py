@@ -96,7 +96,7 @@ def test_ats_mode_catalog_offers_only_ats_safe_templates_and_forces_classic():
 
 
 def test_is_ats_safe_resolves_unavailable_ids_to_the_default():
-    assert is_ats_safe("classic") and is_ats_safe("lagoon")  # lagoon prints as classic for now
+    assert is_ats_safe("classic") and is_ats_safe("ledger")  # ledger is not built; it prints as classic
 
 
 @pytest.mark.parametrize("size,expected", [("a4", (595, 842)), ("letter", (612, 792))])
