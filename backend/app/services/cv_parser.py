@@ -74,23 +74,46 @@ class _Line:
     gap_before: bool = False  # a blank line (or empty paragraph) came right before it
 
 
-_BULLET_MARKER = re.compile(r"^(?:[•◦▪▫●○■□·∙‣⁃*]|[-–—])(?:\s+|$)")
+_BULLET_MARKER = re.compile(r"^(?:[•◦▪▫●○■□·∙‣⁃*➢➤►▶✓✔❖◆◇–—-])(?:\s+|$)|^[•◦▪▫●○■□∙‣⁃➢➤►▶✓✔❖◆◇]")
 _MAX_LINE_FOR_ROLE = 200
 
+# Months in English, Russian and Ukrainian (full names, abbreviations, genitive forms).
 _MONTH = (
-    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|"
-    r"Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?"
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|"
+    r"Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?"
+    r"|янв(?:арь|аря)?|фев(?:р(?:аль|аля)?)?|мар(?:т|та)?|апр(?:ель|еля)?|ма[йя]|июн[ья]?"
+    r"|июл[ья]?|авг(?:уст|уста)?|сен(?:т(?:ябрь|ября)?)?|окт(?:ябрь|ября)?|ноя(?:брь|бря)?"
+    r"|дек(?:абрь|абря)?"
+    r"|січ(?:ень|ня)?|лют(?:ий|ого)?|бер(?:езень|езня)?|кві(?:тень|тня)?|тра(?:вень|вня)?"
+    r"|чер(?:вень|вня)?|лип(?:ень|ня)?|сер(?:пень|пня)?|вер(?:есень|есня)?|жов(?:тень|тня)?"
+    r"|лис(?:топад|топада)?|гру(?:день|дня)?)\.?"
 )
-_DATE = rf"(?:(?:{_MONTH})\s+)?(?:19|20)\d{{2}}|\d{{1,2}}/(?:19|20)\d{{2}}"
-_END = rf"(?:{_DATE}|Present|Current|Now|Today|Ongoing)"
-_RANGE = rf"(?P<start>{_DATE})\s*(?:[–—-]|\bto\b|\buntil\b)\s*(?P<end>{_END})"
+_YEAR4 = r"(?:19|20)\d{2}"
+_DATE = (
+    rf"(?<![\w/.])(?:(?:{_MONTH})\s*)?{_YEAR4}(?:\s?г(?:ода|\.)?)?(?!\d)"
+    rf"|(?<![\w/.])\d{{1,2}}\s*[/.]\s*{_YEAR4}(?!\d)"
+    rf"|(?<![\w/.])\d{{1,2}}[/.]\d{{1,2}}[/.]{_YEAR4}(?!\d)"
+)
+_PRESENT = (
+    r"Present|Current(?:ly)?|Now|Today|Ongoing|to\s+date|till\s+date|"
+    r"настоящее\s+время|наст\.?\s*время|наст\.?\s*вр\.?|н\.\s?в\.?|сейчас|по\s+сегодня|"
+    r"текущее\s+время|теперішній\s+час|тепер|дотепер|досі|наш\s+час"
+)
+_END = rf"(?:{_DATE}|(?<!\w)(?:{_PRESENT})(?!\w))"
+_SEP = r"\s*(?:[–—‒−-]+|\bto\b|\buntil\b|\btill\b|\bthrough\b|\bпо\b|\bдо\b)\s*"
+_RANGE = rf"(?:(?:с|з|from|since)\s+)?(?P<start>{_DATE}){_SEP}(?P<end>{_END})"
 _TRAILING_RANGE = re.compile(
-    rf"^(?P<rest>.+?)[\s,|·]*[(\[]?\s*{_RANGE}\s*[)\]]?\s*$", re.IGNORECASE
+    rf"^(?P<rest>.+?)[\s,|·•:–—-]*[(\[]?\s*{_RANGE}\s*[)\]]?\s*$", re.IGNORECASE
+)
+_LEADING_RANGE = re.compile(
+    rf"^[(\[]?\s*{_RANGE}\s*[)\]]?[\s,|·•:–—-]*(?P<rest>\S.*)$", re.IGNORECASE
 )
 _DATE_ONLY = re.compile(rf"^[(\[]?\s*(?:{_RANGE}|(?P<single>{_DATE}))\s*[)\]]?$", re.IGNORECASE)
 _TAB_SINGLE = re.compile(rf"^(?P<rest>.+?)\t+\s*(?P<single>{_DATE})\s*$", re.IGNORECASE)
 _PAREN_SINGLE = re.compile(rf"^(?P<rest>.+?)\s*\(\s*(?P<single>{_DATE})\s*\)\s*$", re.IGNORECASE)
-_HEAD_SPLIT = re.compile(r"^(?P<h>.+?)(?:\s+[–—|@-]\s+|\s*\|\s*|\s+at\s+|\s*,\s*|\t+)(?P<s>.+)$")
+_BAR_SINGLE = re.compile(rf"^(?P<rest>.+?)\s*[|·]\s*(?P<single>{_DATE})\s*$", re.IGNORECASE)
+_STRONG_SPLIT = re.compile(r"\s+[–—|@-]\s+|\s*[|·]\s*|\s+at\s+|\t+")
+_COMMA_SPLIT = re.compile(r"\s*,\s*")
 _YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
 
 _EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -105,7 +128,11 @@ _CONTACT_LABEL = re.compile(
     r"^(?:e-?mail|phone|tel|mobile|cell|linkedin|github|portfolio|website|web|location|address)\s*:\s*",
     re.IGNORECASE,
 )
-_PLACE = re.compile(r"^[A-Z][\w.'’-]*(?: [A-Z][\w.'’-]*){0,3}(?:, [A-Z][\w.'’-]*(?: [A-Z][\w.'’-]*){0,3}){1,2}$")
+_PLACE_PARTICLES = {"of", "de", "la", "le", "del", "da", "do", "den", "der", "upon", "on", "am", "im"}
+_REMOTE_WORDS = {
+    "remote", "hybrid", "on-site", "onsite", "удалённо", "удаленно", "удалённая работа",
+    "віддалено", "гибрид", "гібрид",
+}
 
 # Exact (normalised) section titles. Word heading styles also name sections
 # outside this list; those become "custom" sections with their own title.
@@ -114,45 +141,55 @@ _SECTION_TITLES: dict[str, tuple[str, ...]] = {
         "summary", "profile", "professional summary", "career summary", "executive summary",
         "personal profile", "personal statement", "professional profile", "objective",
         "career objective", "about", "about me", "summary of qualifications",
+        "profile summary", "professional overview", "overview", "introduction", "о себе", "обо мне", "профиль", "цель", "карьерная цель", "краткое резюме", "профессиональное резюме", "краткая информация", "про себе", "мета",
     ),
     "experience": (
         "experience", "work experience", "professional experience", "relevant experience",
         "employment", "employment history", "work history", "career history",
         "professional background", "experience and projects",
+        "employment experience", "professional history", "work", "career", "опыт работы", "профессиональный опыт", "опыт", "трудовая деятельность", "места работы", "карьера", "рабочий опыт", "история работы", "досвід роботи", "професійний досвід", "досвід",
     ),
     "achievements": (
         "achievements", "key achievements", "accomplishments", "key accomplishments",
         "selected achievements", "highlights", "career highlights",
+        "достижения", "ключевые достижения", "основные достижения", "досягнення",
     ),
     "skills": (
         "skills", "technical skills", "key skills", "core skills", "core competencies",
         "competencies", "skills and tools", "skills and technologies", "technologies",
         "tech stack", "technical expertise", "areas of expertise", "expertise",
         "tools and technologies",
+        "skills and tools", "technical proficiency", "skills and expertise", "навыки", "ключевые навыки", "профессиональные навыки", "технические навыки", "компетенции", "ключевые компетенции", "технологии", "стек технологий", "стек", "навички", "ключові навички", "технічні навички",
     ),
     "education": (
         "education", "education and training", "academic background", "educational background",
         "academic qualifications",
+        "education and qualifications", "образование", "образование и обучение", "академическое образование", "высшее образование", "освіта",
     ),
     "projects": (
         "projects", "selected projects", "personal projects", "side projects", "key projects",
         "open source", "open source contributions",
+        "notable projects", "проекты", "избранные проекты", "личные проекты", "проєкти", "проекти",
     ),
     "certifications": (
         "certifications", "certificates", "licenses and certifications",
         "licences and certifications", "professional certifications",
         "certifications and licenses",
+        "certificates and courses", "certifications and courses", "сертификаты", "сертификация", "сертификаты и курсы", "курсы и сертификаты", "сертифікати",
     ),
     "custom": (
         "languages", "volunteering", "volunteer experience", "volunteer work", "publications",
         "awards", "awards and honors", "honors", "interests", "hobbies", "hobbies and interests",
         "references", "training", "courses", "additional information", "additional",
         "extracurricular activities", "activities", "talks", "speaking",
+        "internships", "interests and hobbies", "языки", "знание языков", "владение языками", "иностранные языки", "интересы", "хобби", "увлечения", "дополнительно", "дополнительная информация", "публикации", "награды", "волонтёрство", "волонтерство", "волонтерский опыт", "рекомендации", "курсы", "обучение", "мови", "інтереси", "додатково",
     ),
 }
-_TITLE_KIND = {title: kind for kind, titles in _SECTION_TITLES.items() for title in titles}
+_TITLE_KIND = {
+    title.replace("ё", "е"): kind for kind, titles in _SECTION_TITLES.items() for title in titles
+}
 # "Technical Skills: Go, Rust, SQL" on one line: a section title and its content.
-_INLINE_SECTION = re.compile(r"^(?P<title>[A-Za-z][A-Za-z &/]{1,40}?)\s*:\s*(?P<values>\S.*)$")
+_INLINE_SECTION = re.compile(r"^(?P<title>[A-Za-zА-Яа-яЁёІіЇїЄє][A-Za-zА-Яа-яЁёІіЇїЄє &/]{1,40}?)\s*:\s*(?P<values>\S.*)$")
 _INLINE_SECTION_KINDS = {"skills", "certifications", "custom"}
 _ROLE_SECTIONS = {"experience", "education", "projects", "certifications", "custom"}
 _CLAIM_BY_SECTION = {
@@ -166,7 +203,7 @@ MAX_BODY_CHARS = 5_000
 
 
 def title_key(text: str) -> str:
-    text = text.lower().replace("&", " and ")
+    text = text.lower().replace("ё", "е").replace("&", " and ")
     text = re.sub(r"^[\W_]+|[\W_]+$", "", text)
     return re.sub(r"\s+", " ", text)
 
@@ -230,11 +267,19 @@ def _bullet_text(text: str) -> str:
     return _BULLET_MARKER.sub("", text, count=1).strip()
 
 
+_ODD_SPACES = str.maketrans({c: " " for c in "\u00a0\u2007\u2009\u200a\u202f\u2002\u2003\u2005"})
+_INVISIBLE = str.maketrans("", "", "\u200b\u200c\u200d\u2060\ufeff\u00ad")
+
+
+def _tidy(text: str) -> str:
+    return text.translate(_ODD_SPACES).translate(_INVISIBLE)
+
+
 def lines_from_text(text: str) -> list[_Line]:
     lines: list[_Line] = []
     pending_marker = False
     gap = False
-    for raw in text.splitlines():
+    for raw in _tidy(text).splitlines():
         stripped = raw.strip()
         if not stripped:
             gap = bool(lines)
@@ -345,6 +390,7 @@ def _trim_segment(part: str) -> str:
 
 
 _MAX_HEADER_LINE = 300
+_ONE_LINE_SPLIT = re.compile(r"\s+[|·•●]\s+|\s+[–—-]\s+|\s*,\s+")
 _NAME_PARTICLES = {"van", "von", "de", "der", "den", "da", "di", "del", "la", "le", "bin", "al", "ibn", "ter", "du"}
 
 
@@ -356,7 +402,7 @@ def _is_contact_line(text: str) -> bool:
 
 
 _DOCUMENT_BANNERS = {
-    "curriculum vitae", "cv", "resume", "résumé", "resume cv", "curriculum vitae cv",
+    "curriculum vitae", "cv", "resume", "résumé", "resume cv", "curriculum vitae cv", "резюме",
 }
 
 
@@ -374,6 +420,25 @@ def _looks_like_name(text: str, *, next_is_contact: bool) -> bool:
     return not any(ch in text for ch in "|•·")
 
 
+def _join_wrapped_links(lines: list[_Line]) -> list[_Line]:
+    """A link the page wrapped at a hyphen or slash ("linkedin.com/in/maya-" / "lindqvist")."""
+    joined: list[_Line] = []
+    for line in lines:
+        text = line.text.strip()
+        if (
+            joined
+            and not line.bullet
+            and " " not in text
+            and re.search(r"\S[-/]$", joined[-1].text.strip())
+            and " " not in joined[-1].text.strip().split("|")[-1].strip()
+            and _URL.search(joined[-1].text)
+        ):
+            joined[-1] = _Line(joined[-1].text.strip() + text, gap_before=joined[-1].gap_before)
+        else:
+            joined.append(line)
+    return joined
+
+
 def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
     """The candidate's name, headline and contact details from the lines above the
     first section, and whatever is left over."""
@@ -388,16 +453,30 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
         return header, []
     first = preamble[0]
     next_contact = len(preamble) > 1 and _is_contact_line(preamble[1].text)
-    if first.bullet or not (
-        first.title or _looks_like_name(first.text, next_is_contact=next_contact)
-    ):
-        return header, list(preamble)
-    header["name"] = first.text.strip()[:120]
-    consumed = 1
-    for line in preamble[1:]:
+    one_line = False
+    if not first.bullet and not first.title and _is_contact_line(first.text):
+        # One-line header: "Maya Lindqvist | Amsterdam | maya@example.com | +31 6 1234 5678".
+        pieces = _ONE_LINE_SPLIT.split(first.text.strip(), maxsplit=1)
+        if len(pieces) == 2 and _looks_like_name(pieces[0], next_is_contact=True):
+            header["name"] = pieces[0].strip()[:120]
+            preamble[0] = _Line(pieces[1], gap_before=first.gap_before)
+            one_line = True
+    if not one_line:
+        if first.bullet or not (
+            first.title or _looks_like_name(first.text, next_is_contact=next_contact)
+        ):
+            return header, list(preamble)
+        header["name"] = first.text.strip()[:120]
+    consumed = 0 if one_line else 1
+    preamble[:] = _join_wrapped_links(preamble)
+    monogram = {w[:1].upper() for w in re.split(r"[\s-]+", header["name"] or "") if w}
+    for line in preamble[consumed:]:
         text = line.text.strip()
         if line.bullet or len(text) > _MAX_HEADER_LINE:
             break
+        if 2 <= len(text) <= 3 and text.isalpha() and text.isupper() and set(text) <= monogram:
+            consumed += 1  # the initials a template prints in its photo slot
+            continue
         if _is_contact_line(text):
             found, parts = _contact_tokens(text)
             header["email"] = header["email"] or found["email"]
@@ -411,7 +490,7 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
                 header["location"] = place
             if titles and header["headline"] is None and len(titles[0]) <= 90:
                 header["headline"] = titles[0]
-        elif header["location"] is None and _PLACE.match(text):
+        elif header["location"] is None and _place_like(text):
             header["location"] = text
         elif (
             header["headline"] is None
@@ -420,6 +499,13 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
             and not text.endswith((".", "!", "?"))
         ):
             header["headline"] = text
+        elif (
+            header["headline"]
+            and len(text.split()) <= 4
+            and _reads_as_role(text)
+            and not _reads_as_role(header["headline"])
+        ):
+            header["headline"] = f"{header['headline']} {text}"  # the page wrapped the headline
         else:
             break
         consumed += 1
@@ -427,48 +513,350 @@ def _extract_header(preamble: list[_Line]) -> tuple[dict, list[_Line]]:
     return header, list(preamble[consumed:])
 
 
-def _parse_role_header(text: str, following: str | None) -> tuple[dict, bool] | None:
-    """``Role, Company (Mar 2021 - Present)`` and its common variants (a trailing
-    date range, a tab before the dates, dates on the next line) as entry fields,
-    plus whether the dates came from the following line."""
+_ORG_WORDS = frozenset(
+    {
+        "inc", "ltd", "llc", "gmbh", "b.v", "bv", "corp", "corporation", "co", "company", "group",
+        "labs", "lab", "systems", "solutions", "technologies", "bank", "studio", "agency", "partners",
+        "foundation", "university", "college", "school", "institute", "ag", "plc", "sa", "oy", "ab",
+        "ооо", "ао", "зао", "пао", "ип", "компания", "университет", "институт", "школа", "банк",
+    }
+)  # fmt: skip
+_ROLE_STEMS = (
+    "инженер", "разработчик", "программист", "менеджер", "аналитик", "дизайнер", "руководител",
+    "директор", "специалист", "архитектор", "консультант", "стажер", "стажёр", "преподавател",
+    "тестировщик", "администратор", "координатор", "ассистент", "помощник", "основател",
+    "редактор", "бухгалтер", "учител", "врач", "юрист", "маркетолог", "продавец", "лидер",
+    "технолог", "исследовател", "розробник", "інженер", "менеджер", "аналітик", "керівник",
+)  # fmt: skip
+_DEGREE_WORDS = frozenset(
+    {
+        "bsc", "msc", "ba", "ma", "mba", "phd", "bachelor", "bachelors", "master", "masters",
+        "diploma", "degree", "doctorate", "бакалавр", "магистр", "магистратура", "бакалавриат",
+        "специалитет", "аспирантура", "бакалавр.", "диплом",
+    }
+)  # fmt: skip
+
+
+def _words(text: str) -> list[str]:
+    return [w.strip(",.()[]:;").lower() for w in text.split()]
+
+
+def _has_org_word(text: str) -> bool:
+    return any(w in _ORG_WORDS for w in _words(text)) or bool(re.search(r"\bB\.V\.|\bInc\.|\bLtd\.", text))
+
+
+def _has_degree_word(text: str) -> bool:
+    return any(w in _DEGREE_WORDS for w in _words(text))
+
+
+def _is_capitalised(word: str) -> bool:
+    word = word.strip("(\"'“«")
+    if any(piece[:1].islower() for piece in word.split("-")[1:]):
+        return False  # "Product-minded" is a word of a sentence, "Saint-Étienne" a place
+    return bool(word) and (word[0].isupper() or word.lower() in _PLACE_PARTICLES)
+
+
+def _place_like(text: str) -> bool:
+    """A city, region or country, optionally comma separated ("Amsterdam, NL"), or Remote."""
     text = text.strip()
-    if not text or len(text) > _MAX_LINE_FOR_ROLE or text.endswith((".", "!", "?")):
-        return None
-    start = end = None
-    rest = None
-    next_line = False
-    match = _TRAILING_RANGE.match(text)
-    if match:
-        rest, start, end = match.group("rest"), match.group("start"), match.group("end")
+    if not text or len(text) > 60 or re.search(r"\d|[.!?:;]$", text):
+        return False
+    base = re.sub(r"\s*\([^)]*\)\s*$", "", text).strip().lower()
+    if base in _REMOTE_WORDS:
+        return True
+    parts = [part for part in _COMMA_SPLIT.split(text) if part]
+    if not 1 <= len(parts) <= 3 or _reads_as_role(text):
+        return False
+    for part in parts:
+        words = part.split()
+        if not 1 <= len(words) <= 4 or not all(_is_capitalised(w) for w in words):
+            return False
+        if _has_org_word(part):
+            return False
+    return len(parts) > 1 or len(parts[0].split()) <= 2
+
+
+def _analyse(text: str) -> tuple[str, str | None, str | None]:
+    """``(rest, start, end)``: the date range or single date a line carries and the text
+    around it. ``start`` is None when the line has no date."""
+    text = text.strip()
+    only = _DATE_ONLY.match(text)
+    if only:
+        return "", (only.group("start") or only.group("single")), only.group("end")
+    for pattern in (_TRAILING_RANGE, _LEADING_RANGE):
+        found = pattern.match(text)
+        if found:
+            return found.group("rest").strip(), found.group("start"), found.group("end")
+    for pattern in (_TAB_SINGLE, _PAREN_SINGLE, _BAR_SINGLE):
+        found = pattern.match(text)
+        if found:
+            return found.group("rest").strip(), found.group("single"), None
+    return text, None, None
+
+
+def _clean_rest(rest: str) -> str:
+    return re.sub(r"^[\s,|–—:@·-]+|[\s,|–—:@·-]+$", "", rest).strip()
+
+
+def _split_commas(rest: str) -> list[str]:
+    """``Role, Company`` as two parts. A role that has a comma of its own ("Staff Engineer,
+    Payments, Tulip Pay B.V.") splits at the company, found by its legal suffix, else a
+    trailing place."""
+    pieces = [piece for piece in _COMMA_SPLIT.split(rest) if piece]
+    if len(pieces) <= 2:
+        return pieces
+    org_at = max((i for i, piece in enumerate(pieces) if _has_org_word(piece) and i > 0), default=None)
+    if org_at is not None:
+        head = ", ".join(pieces[:org_at])
+        tail = pieces[org_at:]
+        return [head, ", ".join(tail)]
+    if len(pieces) == 3 and _place_like(pieces[2]):
+        return pieces
+    return [pieces[0], ", ".join(pieces[1:])]
+
+
+def _split_org(rest: str, kind: str) -> dict:
+    """``Role — Company | Amsterdam`` (or company first) as heading, subheading and location."""
+    parts = [part.strip() for part in _STRONG_SPLIT.split(rest) if part and part.strip()]
+    if len(parts) == 1:
+        parts = _split_commas(rest)
+    fields: dict = {"heading": parts[0]}
+    if len(parts) > 1:
+        tail = parts[1:]
+        location = None
+        if len(tail) > 1 and _place_like(tail[-1]):
+            location = tail.pop()
+        org = " — ".join(tail)
+        # "Tulip Pay, Amsterdam": a company followed by its city.
+        inner = _COMMA_SPLIT.split(org, maxsplit=1)
+        if location is None and len(inner) == 2 and _place_like(inner[1]) and not _has_org_word(inner[1]):
+            org, location = inner
+        fields["subheading"] = org
+        if location:
+            fields["location"] = location
+    return _order_pair(fields, kind)
+
+
+def _order_pair(fields: dict, kind: str) -> dict:
+    """Put the role (or degree) in ``heading`` and the company (or school) in ``subheading``
+    when the file wrote them the other way round."""
+    first, second = fields.get("heading"), fields.get("subheading")
+    if not first or not second:
+        return fields
+    if kind == "education":
+        swap = (_SCHOOL_WORD.search(first) and not _SCHOOL_WORD.search(second)) or (
+            _has_degree_word(second) and not _has_degree_word(first)
+        )
     else:
-        single = _TAB_SINGLE.match(text) or _PAREN_SINGLE.match(text)
-        if single:
-            rest, start = single.group("rest"), single.group("single")
-        elif following and len(following) <= 60:
-            date_line = _DATE_ONLY.match(following.strip())
-            if date_line:
-                rest = text
-                start = date_line.group("start") or date_line.group("single")
-                end = date_line.group("end")
-                next_line = True
-    if rest is None or start is None:
-        return None
-    rest = re.sub(r"[\s,|–—:@·-]+$", "", rest).strip()
-    if (
-        not rest
-        or len(rest.split()) > 16
-        or _DATE_ONLY.match(rest)
-        or re.fullmatch(_MONTH, rest, re.IGNORECASE)
-    ):
-        return None
-    split = _HEAD_SPLIT.match(rest)
-    heading, subheading = (split.group("h"), split.group("s")) if split else (rest, None)
-    fields = {"heading": heading.strip()[:200], "start_date": start.strip()[:40]}
-    if subheading and subheading.strip():
-        fields["subheading"] = subheading.strip()[:200]
+        role_first, role_second = _reads_as_role(first), _reads_as_role(second)
+        swap = (role_second and not role_first) or (
+            _has_org_word(first) and not _has_org_word(second) and not role_first
+        )
+    if swap:
+        fields["heading"], fields["subheading"] = second, first
+    return fields
+
+
+def _date_fields(start: str | None, end: str | None) -> dict:
+    fields: dict = {}
+    if start:
+        fields["start_date"] = start.strip()[:40]
     if end:
         fields["end_date"] = end.strip()[:40]
-    return fields, next_line
+    return fields
+
+
+def _title_line(text: str) -> bool:
+    """A short line that can name a role or an organisation."""
+    text = text.strip()
+    if not text or len(text.split()) > 12 or len(text) > 120 or text.endswith((":", ";", "!", "?")):
+        return False
+    if text.endswith(".") and not re.search(r"\b[A-Za-z]{1,3}\.$", text):
+        return False
+    return not _EMAIL.search(text)
+
+
+def _location_line(lines: list[_Line], index: int, kind: str) -> str | None:
+    """A place on its own line right after an entry's header, when what follows is a
+    bullet, the end of the section or the header of the next entry."""
+    if index >= len(lines) or lines[index].bullet or lines[index].heading:
+        return None
+    text = lines[index].text.strip()
+    if not _place_like(text) or _analyse(text)[1]:
+        return None
+    strong = text.lower() in _REMOTE_WORDS or "," in text
+    following = lines[index + 1] if index + 1 < len(lines) else None
+    if strong or following is None or following.bullet:
+        return text
+    return text if _read_header(kind, lines, index + 1, allow_location=False) else None
+
+
+_JOINERS = ("," , "&", "-", "–", "—", "/", "(", " and", " of", " for", " the", " at", " in")
+
+
+def _wrapped_groups(titles: list[str]) -> list[str]:
+    """Title lines of one entry header, with a line the page wrapped joined back: a line
+    that ends on a joiner or the next starting lower-case continues it. At most two
+    groups come out (title, organisation)."""
+    groups: list[str] = []
+    for title in titles:
+        if groups and (groups[-1].endswith(_JOINERS) or title[:1].islower()):
+            groups[-1] = f"{groups[-1]} {title}"
+        else:
+            groups.append(title)
+    if len(groups) > 2:
+        groups = [groups[0], " ".join(groups[1:])] if len(groups) == 3 else [
+            " ".join(groups[: len(groups) // 2]), " ".join(groups[len(groups) // 2 :])
+        ]
+    return groups
+
+
+def _title_block(lines: list[_Line], index: int) -> tuple[list[str], str, int] | None:
+    """Two to four title lines followed by a line with the dates:
+    ``(titles, date line, lines used)``."""
+    titles = [lines[index].text.strip()]
+    for offset in range(1, 6):
+        if index + offset >= len(lines):
+            return None
+        line = lines[index + offset]
+        text = line.text.strip()
+        if line.bullet or not _title_line(text) and not _analyse(text)[1]:
+            return None
+        if _analyse(text)[1]:
+            return (titles, text, offset + 1) if len(titles) >= 2 else None
+        titles.append(text)
+    return None
+
+
+def _undated_header(kind: str, text: str, nxt: _Line | None, ahead: list[_Line]) -> dict | None:
+    """A header with no dates, recognised by the bullets right below it: ``Role — Company``
+    (+ a place line), or two title lines (+ a place line)."""
+    if nxt is None or not _title_line(text) or _place_like(text) or _analyse(nxt.text)[1]:
+        return None
+    third = ahead[1] if len(ahead) > 1 else None
+    fourth = ahead[2] if len(ahead) > 2 else None
+    separated = bool(_STRONG_SPLIT.search(text) or "," in text)
+    nxt_place = _place_like(nxt.text)
+    if separated:
+        if nxt_place and third is not None and third.bullet:
+            return {**_split_org(text, kind), "_one": True}
+        return None
+    if third is not None and third.bullet and nxt_place and (
+        nxt.text.strip().lower() in _REMOTE_WORDS or "," in nxt.text
+    ):
+        return {"heading": text, "_one": True}  # "Budget Buddy" / "Remote" / bullets
+    if kind == "projects" or not _title_line(nxt.text):
+        return None
+    if third is not None and third.bullet and nxt.text.strip().lower() not in _REMOTE_WORDS:
+        return _order_pair({"heading": text, "subheading": nxt.text.strip()}, kind)
+    if (
+        third is not None
+        and not third.bullet
+        and _place_like(third.text)
+        and fourth is not None
+        and fourth.bullet
+    ):
+        return _order_pair({"heading": text, "subheading": nxt.text.strip()}, kind)
+    return None
+
+
+def _read_header(
+    kind: str, lines: list[_Line], index: int, *, allow_location: bool = True
+) -> tuple[dict, int] | None:
+    """The entry header that starts at ``lines[index]`` as ``(fields, lines used)``.
+
+    Reads ``Role, Company (Mar 2021 - Present)`` and its variants: dates on the same
+    line (before or after), role / company / dates / place on separate lines, a place
+    next to the dates ("Amsterdam · Mar 2022 – Present"), company first, dates first,
+    and two title lines directly above bullets.
+    """
+    first = lines[index]
+    text = first.text.strip()
+    if first.bullet or not text or len(text) > _MAX_LINE_FOR_ROLE:
+        return None
+    ahead = lines[index + 1 : index + 4]
+    nxt = ahead[0] if ahead and not ahead[0].bullet else None
+    nxt2 = ahead[1] if len(ahead) > 1 and not ahead[1].bullet and nxt is not None else None
+    rest, start, end = _analyse(text)
+    fields: dict | None = None
+    used = 1
+
+    if start and rest:
+        rest = _clean_rest(rest)
+        if (
+            not rest
+            or text.endswith((".", "!", "?")) and not _title_line(text)
+            or len(rest.split()) > 16
+            or re.fullmatch(_MONTH, rest, re.IGNORECASE)
+        ):
+            return None
+        fields = _split_org(rest, kind)
+        fields.update(_date_fields(start, end))
+    elif start:
+        # Dates first: the title lines follow ("Mar 2022 – Present" / "Engineer" / "Acme").
+        if nxt is None or not _title_line(nxt.text) or _analyse(nxt.text)[1]:
+            return None
+        titles = [nxt.text.strip()]
+        used = 2
+        if nxt2 is not None and _title_line(nxt2.text) and not _analyse(nxt2.text)[1]:
+            titles.append(nxt2.text.strip())
+            used = 3
+        fields = {"heading": titles[0]}
+        if len(titles) > 1:
+            fields["subheading"] = titles[1]
+        fields = _order_pair(fields, kind)
+        fields.update(_date_fields(start, end))
+    elif nxt is not None and _title_line(text):
+        rest1, start1, end1 = _analyse(nxt.text)
+        if start1 and len(nxt.text) <= 120:
+            used = 2
+            fields = _split_org(text, kind) if _STRONG_SPLIT.search(text) else {"heading": text}
+            rest1 = _clean_rest(rest1)
+            if rest1:
+                if _place_like(rest1):
+                    fields["location"] = rest1
+                elif "subheading" in fields or len(rest1.split()) > 6 or rest1[:1].islower():
+                    fields["_description"] = rest1  # "2015 – 2019 · Thesis on ..."
+                else:
+                    # "Northwind Labs · Rotterdam · Aug 2019 - Feb 2022" under a bare title.
+                    parts = [p for p in _STRONG_SPLIT.split(rest1) if p.strip()]
+                    fields["subheading"] = parts[0].strip()
+                    if len(parts) > 1 and _place_like(parts[-1]):
+                        fields["location"] = parts[-1].strip()
+                    fields = _order_pair(fields, kind)
+            fields.update(_date_fields(start1, end1))
+        elif (block := _title_block(lines, index)) is not None:
+            titles, dates_line, used = block
+            groups = _wrapped_groups(titles)
+            fields = {"heading": groups[0]}
+            if len(groups) > 1:
+                fields["subheading"] = groups[1]
+            fields = _order_pair(fields, kind)
+            rest_d, start_d, end_d = _analyse(dates_line)
+            fields.update(_date_fields(start_d, end_d))
+            extra = _clean_rest(rest_d)
+            if extra:
+                if _place_like(extra):
+                    fields["location"] = extra
+                else:
+                    fields["_description"] = extra
+        elif kind in {"experience", "education", "projects"} and _is_capitalised(text.split()[0]):
+            fields = _undated_header(kind, text, nxt, ahead)
+            used = 2 if fields is not None and "subheading" in fields and "_one" not in fields else 1
+            if fields is not None:
+                fields.pop("_one", None)
+    if fields is None:
+        return None
+    if allow_location and "location" not in fields:
+        place = _location_line(lines, index + used, kind)
+        if place:
+            fields["location"] = place[:200]
+            used += 1
+    for key in ("heading", "subheading", "location"):
+        if key in fields:
+            fields[key] = fields[key].strip()[:200]
+    fields = {k: v for k, v in fields.items() if v}
+    return (fields, used) if fields.get("heading") else None
 
 
 def _heading_only_role(text: str) -> dict | None:
@@ -476,64 +864,38 @@ def _heading_only_role(text: str) -> dict | None:
     text = text.strip()
     if not text or len(text.split()) > 14 or text.endswith((".", "!", "?", ":")) or "%" in text:
         return None
-    split = _HEAD_SPLIT.match(text)
-    heading, subheading = (split.group("h"), split.group("s")) if split else (text, None)
-    fields = {"heading": heading.strip()[:200]}
-    if subheading and subheading.strip():
-        fields["subheading"] = subheading.strip()[:200]
-    return fields
+    fields = _split_org(text, "experience") if _STRONG_SPLIT.search(text) or "," in text else {"heading": text}
+    return {k: v[:200] for k, v in fields.items()}
 
 
-_SCHOOL_WORD = re.compile(r"\b(?:university|college|school|institute|academy|universität)\b", re.IGNORECASE)
-
-
-def _three_line_role(kind: str, text: str, ahead: list[_Line]) -> tuple[dict, int] | None:
-    """``Senior Engineer`` / ``Stripe`` / ``Jan 2020 – Dec 2023`` on three lines (a
-    common PDF extraction): title, organisation and a date line."""
-    if len(ahead) < 2 or not (_short_title_line(text) and _short_title_line(ahead[0].text)):
-        return None
-    if ahead[0].bullet or ahead[1].bullet:
-        return None
-    dates = _DATE_ONLY.match(ahead[1].text.strip())
-    if not dates or len(ahead[1].text) > 60 or _DATE_ONLY.match(ahead[0].text.strip()):
-        return None
-    first, second = text.strip(), ahead[0].text.strip()
-    if kind == "education" and _SCHOOL_WORD.search(first) and not _SCHOOL_WORD.search(second):
-        first, second = second, first  # degree first, school second
-    fields = {"heading": first[:200], "subheading": second[:200],
-              "start_date": (dates.group("start") or dates.group("single"))[:40]}
-    if dates.group("end"):
-        fields["end_date"] = dates.group("end")[:40]
-    return fields, 2
-
-
-def _short_title_line(text: str) -> bool:
-    text = text.strip()
-    return bool(text) and len(text.split()) <= 8 and not text.endswith((".", "!", "?", ":", ";"))
-
+_SCHOOL_WORD = re.compile(
+    r"\b(?:university|college|school|institute|academy|universität|университет|институт|академия|школа|колледж|училище|університет)\b",
+    re.IGNORECASE,
+)
 
 _ROLE_WORDS = frozenset(
     {
         "engineer", "developer", "designer", "manager", "analyst", "scientist", "lead", "director",
         "consultant", "architect", "specialist", "officer", "intern", "chef", "nurse", "teacher",
         "administrator", "coordinator", "assistant", "associate", "head", "founder", "writer",
+        "programmer", "tester", "owner", "executive", "president", "representative", "technician",
+        "strategist", "recruiter", "trainer", "instructor", "professor", "lecturer", "researcher",
+        "editor", "producer", "advisor", "adviser", "supervisor", "freelancer", "contractor",
+        "accountant", "auditor", "driver", "cook", "clerk", "secretary", "devops", "sre", "qa",
+        "cto", "ceo", "cfo", "coo", "vp", "marketer", "paralegal", "lawyer", "attorney", "doctor",
     }
 )  # fmt: skip
 
 
 def _reads_as_role(text: str) -> bool:
-    return any(word.lower().strip(",()") in _ROLE_WORDS for word in text.split())
+    for word in _words(text):
+        if word in _ROLE_WORDS or (word[:1] and word[0] > "Ѐ" and word.startswith(_ROLE_STEMS)):
+            return True
+    return False
 
 
 def _looks_like_location(text: str) -> bool:
-    words = text.split()
-    if not words or len(words) > 4 or len(text) > 40 or re.search(r"\d|[.!?]$", text):
-        return False
-    if _reads_as_role(text):
-        return False  # "Senior Engineer" is a title, not a place
-    return bool(_PLACE.match(text)) or text.lower() in {"remote", "hybrid", "on-site", "onsite"} or (
-        len(words) <= 2 and all(word[:1].isupper() for word in words)
-    )
+    return _place_like(text) and _analyse(text)[1] is None
 
 
 def _finish_role(role: dict, warnings: list[str]) -> dict:
@@ -595,53 +957,44 @@ def _build_entries(
                 entries.append({"body": text})
             continue
         if role_capable:
-            parsed = _parse_role_header(text, following.text if following else None)
-            if parsed is not None:
-                fields, used_next_line = parsed
-                index += used_next_line
+            continuation = (
+                role is not None
+                and wraps
+                and role["last_bullet"]
+                and not line.gap_before
+                and text[:1].islower()
+            )
+            header = None if continuation else _read_header(kind, lines, index - 1)
+            if header is not None and role is not None and wraps and role["last_bullet"] and not line.gap_before:
+                # In a PDF a bullet that wraps must not be mistaken for the next header: with no
+                # dates the header needs a title-case start and a sentence end before it.
+                prev = role["bullets"][-1] if role["bullets"] else ""
+                if "start_date" not in header[0] and not prev.endswith((".", "!", "?", ")", "%")):
+                    header = None
+            if header is not None:
+                fields, used = header
+                index += used - 1
                 close()
-                role = {**fields, "bullets": [], "description": [], "last_bullet": False}
-                continue
-            three = _three_line_role(kind, text, lines[index : index + 2])
-            if three is not None:
-                fields, used = three
-                index += used
-                close()
-                role = {**fields, "bullets": [], "description": [], "last_bullet": False}
+                description = [fields.pop("_description")] if "_description" in fields else []
+                role = {**fields, "bullets": [], "description": description, "last_bullet": False}
                 continue
             if line.heading:
                 # A Word heading below the section level names an entry (a job title).
                 fields = _heading_only_role(text)
                 if fields is not None:
-                    if following is not None and not following.bullet and (
-                        date_line := _DATE_ONLY.match(following.text.strip())
-                    ):
-                        fields["start_date"] = (date_line.group("start") or date_line.group("single"))[:40]
-                        if date_line.group("end"):
-                            fields["end_date"] = date_line.group("end")[:40]
-                        index += 1
-                    elif (
-                        following is not None
-                        and not following.bullet
-                        and not following.heading
-                        and "subheading" not in fields
-                        and (org := _parse_role_header(following.text, None)) is not None
-                    ):
-                        # "Senior Engineer" (Heading 2) then "Northwind Labs | Mar 2021 - Present":
-                        # the second line is the same role's organisation and dates.
-                        org_fields, _ = org
-                        fields["subheading"] = org_fields["heading"]
-                        fields["start_date"] = org_fields["start_date"]
-                        if org_fields.get("end_date"):
-                            fields["end_date"] = org_fields["end_date"]
-                        if org_fields.get("subheading") and _looks_like_location(org_fields["subheading"]):
-                            fields["location"] = org_fields["subheading"]
-                        index += 1
                     close()
                     role = {**fields, "bullets": [], "description": [], "last_bullet": False}
                     continue
             if following is not None and following.bullet and kind != "custom" and (
-                role is None or (role["last_bullet"] and not wraps)
+                role is None
+                or (role["last_bullet"] and not wraps)
+                or (
+                    role["last_bullet"]
+                    and wraps
+                    and _is_capitalised(text.split()[0])
+                    and len(text.split()) <= 10
+                    and not text.endswith((".", ",", ";", ":"))
+                )
             ):
                 fields = _heading_only_role(text)
                 if fields is not None:
@@ -779,7 +1132,7 @@ def _clean_docx_lines(lines: list[_Line]) -> list[_Line]:
     cleaned = []
     gap = False
     for line in lines:
-        text = line.text.strip()
+        text = _tidy(line.text).strip()
         if not text:
             gap = bool(cleaned)
             continue
@@ -819,7 +1172,13 @@ def _docx_lines(content: bytes) -> list[_Line]:
                 )
             else:
                 paragraphs.append(block)
-        lines = [_docx_line(paragraph) for paragraph in paragraphs]
+        lines = []
+        for paragraph in paragraphs:
+            line = _docx_line(paragraph)
+            pieces = line.text.replace("\v", "\n").split("\n")
+            lines.append(_Line(pieces[0], line.heading, line.title, line.bullet, line.level))
+            # A soft line break (Shift+Enter) inside a paragraph is a line of its own.
+            lines.extend(_Line(piece, level=line.level) for piece in pieces[1:])
     _bounded_text_parts(line.text for line in lines)
     return lines
 
