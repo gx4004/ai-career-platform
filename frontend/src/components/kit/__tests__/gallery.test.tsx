@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { KitPage } from '#/pages/kit-page'
 import { KIT_SECTIONS } from '#/pages/kit/sections'
 
-describe('/_kit gallery', () => {
+describe('/_kit gallery', { timeout: 20_000 }, () => { // renders every specimen: slow under a loaded full run
   it('lists every section in the index and renders it with a matching anchor id', () => {
     const { container } = render(<KitPage />)
     const nav = screen.getByRole('navigation', { name: 'Kit sections' })
