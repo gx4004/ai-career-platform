@@ -5,21 +5,43 @@
 <title>{{ title }}</title>
 <style>
 {{ fontface }}
-@page { size: {{ page_size }}; margin: {{ margin.top }}mm {{ margin.right }}mm {{ margin.bottom }}mm {{ margin.left }}mm; }
+{#- Letter keeps 0.7in sides (A4 uses the manifest's 17mm). #}
+@page { size: {{ page_size }}; margin: {{ margin.top }}mm {{ 17.8 if page_size == "Letter" else margin.right }}mm {{ margin.bottom }}mm {{ 17.8 if page_size == "Letter" else margin.left }}mm; }
 {{ root_vars }}
 {{ base_css }}
 {{ css }}
 </style>
 </head>
 <body class="cv cv--classic">
+{#- Contact lines are packed here, not by the browser, so a line never breaks inside an item
+    or leaves a separator dangling: the details (location, email, phone) first, then the
+    links, each line holding whole items up to a budget that fits the measure at every
+    density and typeface. #}
+{%- set budget = 82 %}
+{%- set ns = namespace(lines=[], line=[], width=0) %}
+{%- for item in contact_items %}
+{%- set is_link = item.href and not item.href.startswith("mailto:") %}
+{%- set first_link = is_link and (loop.first or not (contact_items[loop.index0 - 1].href and not contact_items[loop.index0 - 1].href.startswith("mailto:"))) %}
+{%- set size = item.text|length %}
+{%- if ns.line and (first_link or ns.width + 3 + size > budget) %}
+{%- set ns.lines = ns.lines + [ns.line] %}{% set ns.line = [] %}{% set ns.width = 0 %}
+{%- endif %}
+{%- set ns.width = ns.width + (3 if ns.line else 0) + size %}
+{%- set ns.line = ns.line + [item] %}
+{%- endfor %}
+{%- if ns.line %}{% set ns.lines = ns.lines + [ns.line] %}{% endif %}
 <header class="cv-header" data-section-id="header">
   <h1>{{ header.title }}</h1>
   {%- if header.headline %}
   <div class="cv-headline">{{ header.headline }}</div>
   {%- endif %}
-  {%- if contact_items %}
+  {%- if ns.lines %}
   <div class="cv-contact">
-    {%- for item in contact_items %}{% if not loop.first %} &bull; {% endif %}<span class="nw">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</span>{% endfor -%}
+    {%- for line in ns.lines %}
+    <div class="cv-contact-line">
+      {%- for item in line %}{% if not loop.first %}<span class="cv-sep"> &bull; </span>{% endif %}<span class="{{ 'nw' if item.text|length <= 60 else 'long' }}">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</span>{% endfor -%}
+    </div>
+    {%- endfor %}
   </div>
   {%- endif %}
 </header>
@@ -32,8 +54,11 @@
   <p class="cv-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
   {%- endif %}
   {%- else %}
+  {#- DOM order is the reading order (role, organisation, dates, location); the grid only
+      places them: role and dates on line one, organisation and location on line two. With no dates the
+      location takes their slot, so line two never holds a lone right-hand item. #}
   <div class="cv-entry{% if entry.bullets|length > 5 or entry.text|length > 700 %} cv-entry--split{% endif %}" data-entry-id="{{ entry.id }}">
-    <div class="cv-entry-head{% if not entry.subheading %} cv-entry-head--no-org{% endif %}">
+    <div class="cv-entry-head{% if not entry.dates %} cv-entry-head--no-dates{% endif %}">
       <span class="cv-role">{{ entry.heading }}</span>
       {%- if entry.subheading %}<span class="cv-org">{{ entry.subheading }}</span>{% endif %}
       {%- if entry.dates %}<span class="cv-dates">{{ entry.dates }}</span>{% endif %}

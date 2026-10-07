@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import threading
 import time
 import unicodedata
@@ -351,3 +352,128 @@ def test_font_problems_name_type_3_unembedded_and_foreign_fonts(monkeypatch):
         "Helvetica is not embedded",
         "DejaVuSans is not one of the template's fonts",
     ]
+
+
+# -- the Classic perfection pass (#464): edge fixtures, entry anatomy, contact lines ----------
+
+
+@pytest.fixture(scope="module")
+def edge_pdfs():
+    return {name: render_pdf(build_render_model(cv_fixtures.EDGE[name](), "classic", CvStyle()))
+            for name in cv_fixtures.EDGE}
+
+
+def _words(pdf: bytes, page: int = 0) -> list[tuple[float, float, float, float, str]]:
+    with fitz.open(stream=pdf, filetype="pdf") as document:
+        return [tuple(word[:5]) for word in document[page].get_text("words")]
+
+
+def _line_of(words, text: str) -> float:
+    """The baseline-ish y (bottom) of the first word equal to ``text``."""
+    return next(word[3] for word in words if word[4] == text)
+
+
+@pytest.mark.parametrize("name", list(cv_fixtures.EDGE))
+def test_edge_fixtures_read_back_with_only_the_templates_fonts(edge_pdfs, name):
+    model = build_render_model(cv_fixtures.EDGE[name](), "classic", CvStyle())
+    evidence = validate_artifact(model, edge_pdfs[name])
+    assert (evidence.reads_back, evidence.links, evidence.page_breaks) == ("pass",) * 3
+    assert font_problems(edge_pdfs[name], FAMILIES) == []
+
+
+def test_a_cv_with_only_a_name_prints_just_the_name(edge_pdfs):
+    with fitz.open(stream=edge_pdfs["name_only"], filetype="pdf") as document:
+        assert document.page_count == 1
+        assert document[0].get_text().split() == ["Maya", "Lindqvist"]
+    html = render_cv_html(build_render_model(cv_fixtures.name_only(), "classic", CvStyle()))
+    assert "<h2>" not in html and "cv-contact" not in html.split("<body")[1]
+
+
+def test_a_cv_without_a_summary_opens_on_experience(edge_pdfs):
+    lines = [line for line in _text(edge_pdfs["no_summary"]).splitlines() if line.strip()]
+    assert "Summary" not in lines
+    assert lines.index("Experience") < lines.index("Projects")
+
+
+def test_the_role_is_the_anchor_with_dates_on_its_line_and_the_org_below(pdfs):
+    words = _words(pdfs["maya"])
+    dates, org = _line_of(words, "Mar"), _line_of(words, "Tulip")
+    place = next(w[3] for w in words if w[4] == "Amsterdam" and abs(w[3] - org) < 20)
+    role = max(w[3] for w in words if w[4] == "Frontend" and w[3] < org)  # not the headline
+    assert role == pytest.approx(dates, abs=1.5)  # dates share the role's first line
+    assert org == pytest.approx(place, abs=1.5) and org > role + 5  # org and location below
+    # The role prints in the semibold face, the organisation in the regular one.
+    with fitz.open(stream=pdfs["maya"], filetype="pdf") as document:
+        spans = [s for b in document[0].get_text("dict")["blocks"] for l in b.get("lines", []) for s in l["spans"]]
+    face = {s["text"].strip(): s["font"] for s in spans}
+    assert face["Frontend Engineer"].endswith("Semibold") and face["Tulip Pay"].endswith("Regular")
+    # Extraction keeps the reading order: role, organisation, dates, location.
+    text = _text(pdfs["maya"])
+    assert text.index("Frontend Engineer") < text.index("Tulip Pay") < text.index("Mar 2022") < text.index("Amsterdam\n")
+
+
+def test_a_long_role_wraps_and_keeps_its_dates_on_the_first_line(edge_pdfs):
+    pdf = render_pdf(build_render_model(
+        cv_fixtures.edge_entries(), "classic", CvStyle(density="spacious", font_id="inter")))
+    words = _words(pdf)
+    first, last = _line_of(words, "Senior"), _line_of(words, "Reliability")
+    assert last > first + 5  # the 60-character role wraps at this size
+    assert _line_of(words, "Mar") == pytest.approx(first, abs=1.5)
+    dates_left = next(word[0] for word in words if word[4] == "Mar")
+    assert all(word[2] < dates_left for word in words if word[4] in ("Senior", "Staff", "Platform"))
+    assert cv_fixtures.LONG_ROLE in " ".join(_text(pdf).split())
+
+
+def test_an_entry_without_dates_puts_its_location_on_the_role_line(edge_pdfs):
+    words = _words(edge_pdfs["edge_entries"])
+    assert _line_of(words, "Freelance") == pytest.approx(_line_of(words, "Remote"), abs=1.5)
+    # Education has no dates and no location: the head is just the degree and the school.
+    assert "BSc Information Science\nUniversity of Amsterdam" in _text(edge_pdfs["edge_entries"])
+
+
+def test_twelve_bullets_all_print_as_text_bullets_in_order(edge_pdfs):
+    text = " ".join(_text(edge_pdfs["edge_entries"]).split())
+    positions = [text.index(f"• Shipped project {n}:") for n in range(1, 13)]
+    assert positions == sorted(positions)
+
+
+def test_contact_lines_never_break_inside_an_item_or_dangle_a_separator(pdfs):
+    for name in ("maya", "long_name", "cyrillic"):
+        model = _model(name)
+        lines = [line.strip() for line in _text(pdfs[name]).splitlines()]
+        # The contact block: everything between the headline and the first section heading.
+        start = next(i for i in range(len(lines)) if any(item in lines[i] for item in model.header.contact))
+        end = lines.index(model.sections[0].title)
+        contact = [line for line in lines[start:end] if line]
+        for line in contact:
+            assert not line.startswith("•") and not line.endswith("•"), (name, line)
+        for item in model.header.contact:
+            assert any(item in line for line in contact), (name, item)  # whole, on one line
+
+
+def test_letter_pages_use_seven_tenths_of_an_inch_at_the_sides():
+    pdf = render_pdf(build_render_model(cv_fixtures.maya(), "classic", CvStyle(page_size="letter")))
+    with fitz.open(stream=pdf, filetype="pdf") as document:
+        page = document[0]
+        assert page.rect.width == pytest.approx(612, abs=0.5)
+        left = min(block[0] for block in page.get_text("blocks"))
+    assert left == pytest.approx(0.7 * 72, abs=1.5)
+
+
+def test_section_headings_print_the_users_own_text_in_small_caps(pdfs):
+    """Small caps, never text-transform: the PDF carries "Experience", not "EXPERIENCE"."""
+    lines = _text(pdfs["maya"]).splitlines()
+    assert {"Summary", "Experience", "Education"} <= set(lines)
+    assert "EXPERIENCE" not in lines
+    css = (Path(__file__).resolve().parent.parent / "app" / "cv_templates" / "classic" / "template.css").read_text()
+    assert not re.search(r"text-transform\s*:", css)
+
+
+def test_every_text_colour_in_classic_reads_at_4_5_to_1_on_white():
+    from app.services.cv_style_tokens import contrast_ratio
+
+    css = (Path(__file__).resolve().parent.parent / "app" / "cv_templates" / "classic" / "template.css").read_text()
+    colours = set(re.findall(r"#[0-9a-fA-F]{6}\b", css))
+    assert colours  # the template's own greys
+    for colour in colours:
+        assert contrast_ratio(colour, "#FFFFFF") >= 4.5, colour
