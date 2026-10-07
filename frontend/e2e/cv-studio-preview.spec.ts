@@ -54,7 +54,8 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
   await expect(page.getByTestId('cv-paper')).toContainText('Edited from the sheet.')
   await sheet.getByRole('button', { name: 'Close panel' }).click()
 
-  for (const template of ['ATS Essential', 'Professional Editorial', 'Modern Two-Column']) {
+  // The catalog lists only the templates that exist (Classic until T6-T8 add the rest).
+  for (const template of ['Classic']) {
     await toolbar.getByRole('tab', { name: /^Design/ }).click()
     const design = page.getByRole('dialog', { name: 'Design' })
     // The sheet slides in: let it settle before reaching into its scrolling body (lower templates sit below the fold).
@@ -77,7 +78,7 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
   // The exact server PDF for the saved template stays one click away.
   await expect(page.getByTestId('save-status')).toContainText('Saved')
   await page.getByRole('button', { name: /View exact PDF/ }).click()
-  await expect(page.getByTitle('Modern Two-Column PDF preview')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTitle('Classic PDF preview')).toBeVisible({ timeout: 30_000 })
   await page.keyboard.press('Escape')
 
   // Printing the page prints the paper, without the studio chrome around it.

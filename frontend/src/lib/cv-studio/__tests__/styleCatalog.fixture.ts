@@ -10,9 +10,9 @@ const sizes = (body: number, heading: number, gap: number) => ({
 /** A `GET /cv-documents/style-catalog` response, parsed through the real Zod schema. */
 export const styleCatalogFixture: CvStyleCatalog = cvStyleCatalogSchema.parse({
   templates: [
-    { id: 'ats-essential', name: 'ATS Essential', description: 'Single column.', ats_safe: true, title_align: 'left', margin_mm: 18, sidebar_kinds: [], sizes: sizes(10, 13, 6) },
-    { id: 'professional-editorial', name: 'Professional Editorial', description: 'Centred name.', ats_safe: true, title_align: 'center', margin_mm: 20, sidebar_kinds: [], sizes: sizes(10, 15, 8) },
-    { id: 'modern-two-column', name: 'Modern Two-Column', description: 'Sidebar.', ats_safe: false, title_align: 'left', margin_mm: 14, sidebar_kinds: ['skills', 'certifications'], sizes: sizes(9, 12, 6) },
+    { id: 'classic', name: 'Classic', description: 'A quiet single column.', ats_safe: true, columns: 1, photo_slot: false, group: 'ats-safe', typefaces: { heading: 'Source Serif 4', body: 'Source Sans 3' }, title_align: 'center', margin_mm: 17, sidebar_kinds: [], sizes: sizes(10, 13, 6) },
+    { id: 'executive', name: 'Executive', description: 'A light serif name, airy.', ats_safe: true, columns: 1, photo_slot: false, group: 'ats-safe', typefaces: { heading: 'Source Serif 4', body: 'Source Sans 3' }, title_align: 'left', margin_mm: 20, sidebar_kinds: [], sizes: sizes(10, 15, 8) },
+    { id: 'lagoon', name: 'Lagoon', description: 'Teal sidebar.', ats_safe: false, columns: 2, photo_slot: true, group: 'more', typefaces: { heading: 'Source Sans 3', body: 'Source Sans 3' }, title_align: 'left', margin_mm: 14, sidebar_kinds: ['skills', 'certifications'], sizes: sizes(9, 12, 6) },
   ],
   fonts: [
     { id: 'lato', name: 'Lato', category: 'sans-serif', css_family: "'Lato', sans-serif" },
@@ -20,5 +20,5 @@ export const styleCatalogFixture: CvStyleCatalog = cvStyleCatalogSchema.parse({
   ],
   palette: [{ value: '#111827', name: 'Ink' }, { value: '#075985', name: 'Ocean' }],
   densities: [{ id: 'compact', name: 'Compact' }, { id: 'normal', name: 'Balanced' }, { id: 'spacious', name: 'Roomy' }],
-  ats_mode: { template_id: 'ats-essential', density: 'normal', accent: '#111827', css_family: 'Helvetica, sans-serif' },
+  ats_mode: { template_id: 'classic', offered_template_ids: ['classic', 'executive'], density: 'normal', accent: '#111827', css_family: 'Helvetica, sans-serif' },
 })

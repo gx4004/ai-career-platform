@@ -33,7 +33,7 @@ const experience = {
   }],
 }
 const skills = { id: 's2', kind: 'skills' as const, title: 'Skills', visible: true, position: 1, entries: [{ id: 'e2', evidence_item_id: null, body: 'Figma, research', position: 0 }] }
-const style = { template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false }
+const style = { template_id: 'classic' as const, font_id: null, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false, page_size: 'a4' as const, fit_one_page: false }
 const document: CvDocument = {
   id: 'd1', name: 'Principal CV', sections: [experience, skills], style,
   header: { name: null, headline: null, email: null, phone: null, location: null, links: [] },
@@ -493,7 +493,7 @@ describe('CV Studio document header', { timeout: 15_000 }, () => {
 
   it('stacks the contact items in a two-column template, as the export does', async () => {
     withHeader()
-    const doc = { ...document, header, style: { ...style, template_id: 'modern-two-column' as const } }
+    const doc = { ...document, header, style: { ...style, template_id: 'lagoon' as const } }
     api.listCvDocuments.mockResolvedValue({ items: [doc] })
     api.getCvDocument.mockResolvedValue(doc)
     view()
@@ -546,7 +546,7 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
   it('persists a template, font, accent and spacing change and mirrors it on the paper', async () => {
     view()
     const design = await openTool(/^Design/)
-    fireEvent.click(within(design).getByRole('radio', { name: /Modern Two-Column/ }))
+    fireEvent.click(within(design).getByRole('radio', { name: /Lagoon/ }))
     fireEvent.click(within(design).getByRole('radio', { name: /PT Serif/ }))
     fireEvent.click(within(design).getByRole('radio', { name: 'Ocean' }))
     fireEvent.click(within(design).getByRole('radio', { name: 'Roomy' }))
@@ -554,14 +554,43 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#075985')
     expect(paper().style.getPropertyValue('--cvp-font')).toContain('PT Serif')
     await waitFor(() => expect(lastPatch()?.style).toEqual({
-      template_id: 'modern-two-column', font_id: 'pt-serif', accent_color: '#075985', density: 'spacious', ats_mode: false,
+      template_id: 'lagoon', font_id: 'pt-serif', accent_color: '#075985', density: 'spacious', ats_mode: false,
+      page_size: 'a4', fit_one_page: false,
     }), { timeout: 1500 })
+  })
+
+  it('groups templates by the catalog (ATS-safe first) and warns only for a less ATS-safe one', async () => {
+    view()
+    const design = await openTool(/^Design/)
+    const groups = within(design).getAllByRole('radiogroup').filter((group) => /^(ATS-safe templates|More designs)$/.test(group.getAttribute('aria-label') ?? ''))
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['ATS-safe templates', 'More designs'])
+    expect(within(groups[0]).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['classic', 'executive'])
+    expect(within(groups[1]).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['lagoon'])
+    expect(within(design).getByRole('radio', { name: /Lagoon.*Less ATS-safe/ })).toBeTruthy()
+    const warning = /Some job portals may read this layout out of order/
+    expect(within(design).queryByText(warning)).toBeNull()
+    fireEvent.click(within(design).getByRole('radio', { name: /Lagoon/ }))
+    expect(within(design).getByText(/Some job portals may read this layout out of order\. Use an ATS-safe template for portal applications\./)).toBeTruthy()
+    fireEvent.click(within(design).getByRole('radio', { name: /Executive/ }))
+    expect(within(design).queryByText(warning)).toBeNull()
+  })
+
+  it('saves the page size, and ATS mode lists only the ATS-safe templates', async () => {
+    view()
+    const design = await openTool(/^Design/)
+    fireEvent.click(within(design).getByRole('radio', { name: 'Letter' }))
+    await waitFor(() => expect(lastPatch()?.style).toMatchObject({ page_size: 'letter' }), { timeout: 1500 })
+    fireEvent.click(within(design).getByRole('switch', { name: 'ATS-friendly mode' }))
+    expect(within(design).queryByRole('radio', { name: /Lagoon/ })).toBeNull()
+    expect(within(design).getByRole('radio', { name: /Executive/ })).toBeTruthy()
+    expect((within(design).getByRole('radio', { name: /Classic/ }) as HTMLInputElement).checked).toBe(true)
+    expect(within(design).queryByText(/Some job portals/)).toBeNull()
   })
 
   it('shows the names the style catalog provides', async () => {
     api.getCvStyleCatalog.mockResolvedValue({
       ...styleCatalogFixture,
-      templates: styleCatalogFixture.templates.map((template) => template.id === 'ats-essential' ? { ...template, name: 'Catalog Plain', description: 'Named by the server.' } : template),
+      templates: styleCatalogFixture.templates.map((template) => template.id === 'classic' ? { ...template, name: 'Catalog Plain', description: 'Named by the server.' } : template),
       palette: [{ value: '#111827', name: 'Graphite' }],
       densities: [{ id: 'normal', name: 'Airy' }],
     })
@@ -585,7 +614,7 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
   })
 
   it('turns on ATS-friendly mode, pauses the other controls and saves it', async () => {
-    api.getCvDocument.mockResolvedValue({ ...document, style: { ...style, template_id: 'modern-two-column', accent_color: '#B91C1C' } })
+    api.getCvDocument.mockResolvedValue({ ...document, style: { ...style, template_id: 'lagoon', accent_color: '#B91C1C' } })
     view()
     const design = await openTool(/^Design/)
     const toggle = within(design).getByRole('switch', { name: 'ATS-friendly mode' })
@@ -665,7 +694,7 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
     await waitFor(() => expect(api.fetchCvArtifactBlob).toHaveBeenCalledWith('d1', 'pdf'))
     await waitFor(() => expect(clickedDownload).toBe('Principal CV.pdf'))
     fireEvent.click(screen.getByRole('button', { name: /View exact PDF/ }))
-    expect(await screen.findByTitle('ATS Essential PDF preview')).toBeTruthy()
+    expect(await screen.findByTitle('Classic PDF preview')).toBeTruthy()
   })
 
   it('exports DOCX and CV data and deletes all CVs from the overflow menu after confirmation', async () => {

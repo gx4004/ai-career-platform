@@ -352,7 +352,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       const styled = await page.request.patch(`/api/v1/cv-documents/${id}`, {
         data: {
           style: {
-            template_id: 'professional-editorial', font_id: 'pt-serif', accent_color: '#075985',
+            template_id: 'classic', font_id: 'pt-serif', accent_color: '#075985',
             density: 'normal', ats_mode: false,
           },
         },

@@ -33,7 +33,7 @@ const tailoredExperience = {
   entries: [{ ...experience.entries[0], bullets: ['Built accessible systems for hiring teams.'], body: 'Built accessible systems for hiring teams.' }],
 }
 const skills = { id: 's2', kind: 'skills' as const, title: 'Skills', visible: true, position: 1, entries: [{ id: 'e2', evidence_item_id: null, body: 'Figma, research', position: 0 }] }
-const style = { template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false }
+const style = { template_id: 'classic' as const, font_id: null, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false, page_size: 'a4' as const, fit_one_page: false }
 const header = { name: null, headline: null, email: null, phone: null, location: null, links: [] }
 const document: CvDocument = {
   id: 'd1', name: 'Principal CV', sections: [experience], style, header,

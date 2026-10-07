@@ -453,20 +453,28 @@ export const cvEntrySchema = z.strictObject({
   end_date: z.string().min(1).max(40).nullable().optional(),
   bullets: z.array(z.string()).max(30).optional(),
 })
+/** The 16 template ids (mirrors backend `CvTemplateId`). Not every id has a template yet:
+ * the style catalog lists the available ones, and an unavailable id renders as the first. */
+export const cvTemplateIdSchema = z.enum([
+  'classic', 'scholar', 'academic', 'manuscript', 'executive', 'frame', 'lagoon', 'lilac',
+  'meadow', 'rail', 'almanac', 'slate', 'violet', 'grotesk', 'panel', 'ledger',
+])
+export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
+export const cvPageSizeSchema = z.enum(['a4', 'letter'])
 export const cvFontIdSchema = z.enum(['lato', 'pt-sans', 'pt-serif', 'crimson-text', 'ibm-plex-mono'])
 export const cvDensitySchema = z.enum(['compact', 'normal', 'spacious'])
 export const CV_ACCENT_PALETTE = [
   '#111827', '#7C2D12', '#075985', '#166534', '#6D28D9', '#B91C1C', '#0F766E',
 ] as const
 export const cvStyleSchema = z.strictObject({
-  template_id: z.enum([
-    'ats-essential', 'professional-editorial', 'technical-portfolio',
-    'modern-two-column', 'minimal-serif',
-  ]).default('ats-essential'),
-  font_id: cvFontIdSchema.default('lato'),
+  template_id: cvTemplateIdSchema.default('classic'),
+  /** Typeface override; null uses the template's own pairing. */
+  font_id: cvFontIdSchema.nullable().default(null),
   accent_color: z.enum(CV_ACCENT_PALETTE).default('#111827'),
   density: cvDensitySchema.default('normal'),
   ats_mode: z.boolean().default(false),
+  page_size: cvPageSizeSchema.default('a4'),
+  fit_one_page: z.boolean().default(false),
 })
 export type CvStyle = z.infer<typeof cvStyleSchema>
 export const cvSectionSchema = z.strictObject({
@@ -522,8 +530,8 @@ export const cvVariantSchema = z.object({
 export const cvDocumentSchema = z.object({
   id: z.string(), name: z.string(), sections: z.array(cvSectionSchema),
   style: cvStyleSchema.default(() => ({
-    template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const,
-    density: 'normal' as const, ats_mode: false,
+    template_id: 'classic' as const, font_id: null, accent_color: '#111827' as const,
+    density: 'normal' as const, ats_mode: false, page_size: 'a4' as const, fit_one_page: false,
   })),
   header: cvHeaderSchema.default(emptyCvHeader),
   created_at: z.iso.datetime({ offset: true }), updated_at: z.iso.datetime({ offset: true }),
@@ -638,11 +646,6 @@ export const cvTailoringApplySchema = z.strictObject({
 export type CvTailoringProposal = z.infer<typeof cvTailoringProposalSchema>
 export type CvTailoringChange = z.infer<typeof cvTailoringChangeSchema>
 
-export const cvTemplateIdSchema = z.enum([
-  'ats-essential', 'professional-editorial', 'technical-portfolio',
-  'modern-two-column', 'minimal-serif',
-])
-export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
 export const cvQualityResponseSchema = z.object({
   schema_version: z.literal('cv-quality/v3'),
   checks: z.array(z.object({
@@ -656,6 +659,9 @@ const cvStyleSizesSchema = z.object({ body_pt: z.number(), heading_pt: z.number(
 export const cvStyleCatalogSchema = z.object({
   templates: z.array(z.object({
     id: cvTemplateIdSchema, name: z.string(), description: z.string(), ats_safe: z.boolean(),
+    columns: z.union([z.literal(1), z.literal(2)]), photo_slot: z.boolean(),
+    group: z.enum(['ats-safe', 'more']),
+    typefaces: z.record(z.string(), z.string()),
     title_align: z.enum(['left', 'center']), margin_mm: z.number(),
     sidebar_kinds: z.array(cvSectionKindSchema),
     sizes: z.object({ compact: cvStyleSizesSchema, normal: cvStyleSizesSchema, spacious: cvStyleSizesSchema }),
@@ -664,7 +670,8 @@ export const cvStyleCatalogSchema = z.object({
   palette: z.array(z.object({ value: z.enum(CV_ACCENT_PALETTE), name: z.string() })).min(1),
   densities: z.array(z.object({ id: cvDensitySchema, name: z.string() })).min(1),
   ats_mode: z.object({
-    template_id: cvTemplateIdSchema, density: cvDensitySchema, accent: z.string(), css_family: z.string(),
+    template_id: cvTemplateIdSchema, offered_template_ids: z.array(cvTemplateIdSchema),
+    density: cvDensitySchema, accent: z.string(), css_family: z.string(),
   }),
 })
 export type CvStyleCatalog = z.infer<typeof cvStyleCatalogSchema>

@@ -274,7 +274,7 @@ export function CvStudio({
 
   const settledRevision = useSettledValue(draft?.updated_at ?? '', QUALITY_SETTLE_MS)
   const qualityRevision = settledRevision || draft?.updated_at || ''
-  const quality = useCvQuality(draft?.id ?? '', qualityRevision, draft?.style.template_id ?? 'ats-essential')
+  const quality = useCvQuality(draft?.id ?? '', qualityRevision, draft?.style.template_id ?? 'classic')
 
   const editSections = (change: (sections: CvSection[]) => CvSection[]) =>
     edit((current) => ({ ...current, sections: change(current.sections) }))

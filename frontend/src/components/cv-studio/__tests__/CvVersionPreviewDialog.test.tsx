@@ -6,7 +6,7 @@ import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixt
 
 const skills: CvSection = { id: 's2', kind: 'skills', title: 'Skills', visible: true, position: 0, entries: [{ id: 'e2', evidence_item_id: null, body: 'Figma, research', position: 0 }] }
 const variant = { id: 'v1', name: 'Before tailoring', target_role: null, sections: [skills], created_at: '2026-10-07T10:00:00Z' }
-const style = { template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false }
+const style = { template_id: 'classic' as const, font_id: null, accent_color: '#111827' as const, density: 'normal' as const, ats_mode: false, page_size: 'a4' as const, fit_one_page: false }
 
 function view(onExport = vi.fn()) {
   render(
