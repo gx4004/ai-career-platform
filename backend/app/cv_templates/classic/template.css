@@ -1,35 +1,27 @@
 /* Classic: from the quiet single-column reference (recreation enhancv-2).
-   Sizes are em of the body size, so the density scale (--type) moves everything. */
-:root { --type: 1; --gap: 1; --ink: #1a1a1a; --muted: #6b6b6b; --rule: #555; }
-* { box-sizing: border-box; }
-html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body {
-  margin: 0;
-  font: 400 calc(9pt * var(--type)) / 1.5 "Source Sans 3", sans-serif;
-  color: var(--ink);
-  font-variant-ligatures: none;
-  overflow-wrap: anywhere;
-}
-a { color: inherit; text-decoration: underline; text-underline-offset: 0.12em; }
+   Sizes are em of the body size, so the density scale (--type) moves everything; the accent
+   colours the section headings and their rules (manifest accent_role "rules"). */
+body { font: 400 calc(9pt * var(--type)) / 1.5 var(--font-body); }
 .cv-contact a { text-decoration: none; }
 
 .cv-header { text-align: center; margin-bottom: 4pt; }
-.cv-header h1 { font: 600 2.11em / 1.15 "Source Serif 4", serif; margin: 0 0 2pt; }
+.cv-header h1 { font: 600 2.11em / 1.15 var(--font-heading); margin: 0 0 2pt; }
 .cv-headline { font-size: 1.11em; color: var(--muted); font-weight: 300; }
 .cv-contact { font-size: 0.911em; color: #333; margin-top: 1pt; }
 .cv-contact .nw { white-space: nowrap; }
 
-.cv-section { margin-top: calc(14pt * var(--gap)); }
+.cv-section { margin-top: var(--space-5); }
 .cv-section > h2 {
-  font: 600 1.222em / 1.3 "Source Serif 4", serif;
+  font: 600 1.222em / 1.3 var(--font-heading);
   text-align: center;
-  margin: 0 0 6pt;
-  padding-bottom: 3pt;
-  border-bottom: 1.1pt solid var(--rule);
+  color: var(--accent);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1.1pt solid var(--accent);
   break-after: avoid;
 }
 
-.cv-entry { margin-bottom: 8pt; break-inside: avoid; }
+.cv-entry { margin-bottom: var(--space-4); break-inside: avoid; }
 .cv-entry--split { break-inside: auto; }
 .cv-entry-head {
   display: grid;
@@ -49,8 +41,8 @@ a { color: inherit; text-decoration: underline; text-underline-offset: 0.12em; }
 
 /* The bullet is text, not a list marker: Chromium draws markers as vector discs, which
    text extraction (and so an ATS) never sees. */
-.cv-entry ul { margin: 3pt 0 0; padding: 0; list-style: none; }
-.cv-entry li { margin-bottom: 1.5pt; padding-left: 11pt; font-size: 0.956em; break-inside: avoid; }
+.cv-entry ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.cv-entry li { margin-bottom: var(--space-1); padding-left: 11pt; font-size: 0.956em; break-inside: avoid; }
 .cv-entry li::before { content: "\2022"; display: inline-block; width: 11pt; margin-left: -11pt; font-weight: 600; line-height: 0; font-size: 1.3em; }
-.cv-text { margin: 0 0 4pt; font-size: 0.978em; }
-.cv-entry > .cv-text { margin-top: 3pt; }
+.cv-text { margin: 0 0 var(--space-2); font-size: 0.978em; }
+.cv-entry > .cv-text { margin-top: var(--space-2); }

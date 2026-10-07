@@ -21,7 +21,16 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, pass_context
 from markupsafe import Markup
 
 from app.schemas.cv_documents import DEFAULT_CV_TEMPLATE_ID, CvRenderModel
-from app.services.cv_fonts import FONTS_DIR, needs_glyph
+from app.services.cv_fonts import (
+    TYPEFACES,
+    Face,
+    Typeface,
+    heading_family,
+    needs_glyph,
+    typeface_codepoints,
+    typeface_for_name,
+)
+from app.services.cv_style_tokens import accent_tokens
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "cv_templates"
 
@@ -113,33 +122,77 @@ def nfc(value: str) -> str:
     return unicodedata.normalize("NFC", value)
 
 
-@functools.cache
-def _covered_codepoints(template_id: str) -> frozenset[int]:
-    """Codepoints every face of the template can draw (a missing one in any weight is a gap)."""
-    import fitz
+@dataclass(frozen=True)
+class FontPlan:
+    """The families a template prints with, and the exact faces it loads for them."""
 
+    body: Typeface
+    heading: Typeface
+    faces: tuple[tuple[Typeface, int, str, Face], ...]  # family, CSS weight, CSS style, file
+
+    @property
+    def families(self) -> frozenset[str]:
+        return frozenset({self.body.name, self.heading.name})
+
+
+@functools.cache
+def font_plan(template_id: str, font_override: str | None = None) -> FontPlan:
+    """Body and heading families, and the @font-face set, for a template and typeface override.
+
+    Rule (docs/cv-templates-spec.md 3.4): the override replaces the body family; it also
+    replaces the heading family when that is the same category (serif/sans) as the override,
+    so a template keeps its serif or sans headings under an override of the other kind.
+    Each role keeps the (weight, style) pairs the template's manifest uses for its own
+    family; the override family supplies its nearest shipped real face for each pair, declared
+    under the pair the CSS asks for, so Chromium never synthesises a weight or an italic.
+    """
+    manifest = load_manifest(template_id)
+    override = TYPEFACES.get(font_override) if font_override else None
+    default = {role: typeface_for_name(name) for role, name in manifest.typefaces.items()}
+    body = override or default["body"]
+    heading = heading_family(manifest.typefaces["heading"], override)
+    used = {
+        role: sorted({(f.weight, f.style) for f in manifest.fonts if f.family == family.name})
+        for role, family in default.items()
+    }
+    faces: dict[tuple[str, int, str], tuple[Typeface, int, str, Face]] = {}
+    for role, family in (("body", body), ("heading", heading)):
+        for weight, style in used[role]:
+            faces.setdefault(
+                (family.id, weight, style), (family, weight, style, family.face(weight, style))
+            )
+    return FontPlan(body, heading, tuple(faces.values()))
+
+
+def effective_families(template_id: str, font_override: str | None = None) -> frozenset[str]:
+    """The family names a PDF of this template may embed (everything else is a fallback)."""
+    return font_plan(template_id, font_override).families
+
+
+@functools.cache
+def _covered_codepoints(template_id: str, font_override: str | None) -> frozenset[int]:
+    """Codepoints every face the template loads can draw (a gap in any weight is a gap)."""
     covered: frozenset[int] | None = None
-    for face in load_manifest(template_id).fonts:
-        font = fitz.Font(fontfile=str(FONTS_DIR / face.file))
-        points = frozenset(font.valid_codepoints())
+    for _family, _weight, _style, face in font_plan(template_id, font_override).faces:
+        points = typeface_codepoints(face.file)
         covered = points if covered is None else covered & points
     return covered or frozenset()
 
 
-def missing_characters(template_id: str, text: str) -> list[str]:
-    """Characters in ``text`` the template's bundled fonts cannot draw, once each."""
-    covered = _covered_codepoints(template_id)
+def missing_characters(template_id: str, text: str, font_override: str | None = None) -> list[str]:
+    """Characters in ``text`` the template's loaded fonts cannot draw, once each."""
+    covered = _covered_codepoints(template_id, font_override)
     return list(dict.fromkeys(c for c in text if needs_glyph(c) and ord(c) not in covered))
 
 
 @functools.cache
-def _font_face_css(template_id: str) -> str:
+def _font_face_css(template_id: str, font_override: str | None = None) -> str:
     rules = []
-    for face in load_manifest(template_id).fonts:
-        data = base64.b64encode((FONTS_DIR / face.file).read_bytes()).decode("ascii")
+    for family, weight, style, face in font_plan(template_id, font_override).faces:
+        data = base64.b64encode(face.path.read_bytes()).decode("ascii")
         rules.append(
-            f'@font-face {{ font-family: "{face.family}"; font-weight: {face.weight}; '
-            f"font-style: {face.style}; "
+            f'@font-face {{ font-family: "{family.name}"; font-weight: {weight}; '
+            f"font-style: {style}; "
             f'src: url("data:font/ttf;base64,{data}") format("truetype"); }}'
         )
     return "\n".join(rules)
@@ -148,6 +201,28 @@ def _font_face_css(template_id: str) -> str:
 @functools.cache
 def _template_css(template_id: str) -> str:
     return (TEMPLATES_DIR / template_id / "template.css").read_text("utf-8")
+
+
+@functools.cache
+def _base_css() -> str:
+    return (TEMPLATES_DIR / "_base.css").read_text("utf-8")
+
+
+_GENERIC = {"sans-serif": "sans-serif", "serif": "serif", "monospace": "monospace"}
+
+
+def _stack(family: Typeface) -> str:
+    return f'"{family.name}", {_GENERIC[family.category]}'
+
+
+def _root_vars(plan: FontPlan, accent: str, type_scale: float, gap_scale: float) -> str:
+    tokens = accent_tokens(accent)
+    return (
+        ":root { "
+        f"--font-body: {_stack(plan.body)}; --font-heading: {_stack(plan.heading)}; "
+        f"--accent: {tokens['accent']}; --accent-tint: {tokens['accent_tint']}; "
+        f"--on-accent: {tokens['on_accent']}; --type: {type_scale}; --gap: {gap_scale}; }}"
+    )
 
 
 def _drawable(ctx, value: str) -> str:
@@ -211,6 +286,8 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
     manifest = load_manifest(template_id)
     missing = set(model.unsupported_characters)
     tokens = model.tokens
+    font_override = str(tokens.get("font_override") or "") or None
+    plan = font_plan(template_id, font_override)
     return (
         _environment()
         .get_template(f"{template_id}/template.html.j2")
@@ -219,7 +296,16 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
             header=model.header,
             contact_items=_contact_items(model),
             sections=model.sections,
-            fontface=Markup(_font_face_css(template_id)),  # noqa: S704 - bundled files only
+            fontface=Markup(_font_face_css(template_id, font_override)),  # noqa: S704 - bundled files only
+            root_vars=Markup(  # noqa: S704 - built from bundled fonts and a validated hex colour
+                _root_vars(
+                    plan,
+                    str(tokens.get("accent", "#111827")),
+                    int(tokens.get("type_scale_pct", 100)) / 100,
+                    int(tokens.get("gap_scale_pct", 100)) / 100,
+                )
+            ),
+            base_css=Markup(_base_css()),  # noqa: S704 - bundled file only
             css=Markup(_template_css(template_id)),  # noqa: S704 - bundled file only
             page_size=PAGE_SIZES[page_size],
             margin={
@@ -228,8 +314,6 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
                 "bottom": manifest.margin_bottom_mm,
                 "left": manifest.margin_left_mm,
             },
-            type_scale=int(tokens.get("type_scale_pct", 100)) / 100,
-            gap_scale=int(tokens.get("gap_scale_pct", 100)) / 100,
             missing_table={ord(c): " " for c in missing},
         )
     )

@@ -6,7 +6,8 @@
 <style>
 {{ fontface }}
 @page { size: {{ page_size }}; margin: {{ margin.top }}mm {{ margin.right }}mm {{ margin.bottom }}mm {{ margin.left }}mm; }
-:root { --type: {{ type_scale }}; --gap: {{ gap_scale }}; }
+{{ root_vars }}
+{{ base_css }}
 {{ css }}
 </style>
 </head>

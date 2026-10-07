@@ -83,7 +83,7 @@ def test_a_stored_legacy_style_opens_and_exports(client, auth_headers, db, test_
                  "density": "normal", "ats_mode": False}
     db.commit()
     fetched = client.get(f"{PREFIX}/{created['id']}", headers=auth_headers).json()["style"]
-    assert fetched["template_id"] == "lagoon" and fetched["font_id"] == "pt-serif"
+    assert fetched["template_id"] == "lagoon" and fetched["font_id"] == "source-serif-4"
     assert client.get(f"{PREFIX}/{created['id']}/artifacts/pdf", headers=auth_headers).status_code == 200
 
 

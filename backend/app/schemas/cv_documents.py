@@ -61,7 +61,15 @@ LEGACY_CV_TEMPLATE_IDS: dict[str, CvTemplateId] = {
 }
 CvPageSize = Literal["a4", "letter"]
 CvTemplateGroup = Literal["ats-safe", "more"]
-CvFontId = Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"]
+CvFontId = Literal["inter", "source-sans-3", "ibm-plex-sans", "source-serif-4", "lora", "eb-garamond"]
+# Typeface ids stored before the 16-template catalog map to the nearest curated family.
+LEGACY_CV_FONT_IDS: dict[str, CvFontId] = {
+    "lato": "inter",
+    "pt-sans": "source-sans-3",
+    "pt-serif": "source-serif-4",
+    "crimson-text": "lora",
+    "ibm-plex-mono": "ibm-plex-sans",
+}
 CvDensity = Literal["compact", "normal", "spacious"]
 
 
@@ -104,6 +112,9 @@ CV_ACCENT_NAMES: dict[str, str] = {
     "#6D28D9": "Violet",
     "#B91C1C": "Crimson",
     "#0F766E": "Teal",
+    "#9D174D": "Plum",
+    "#334155": "Slate",
+    "#B45309": "Amber",
 }
 CV_ACCENT_PALETTE: tuple[str, ...] = tuple(CV_ACCENT_NAMES)
 
@@ -125,6 +136,12 @@ class CvStyle(BaseModel):
     def _map_legacy_template(cls, value):
         """Stored styles from before the catalog still parse: old ids map to a new one."""
         return LEGACY_CV_TEMPLATE_IDS.get(value, value) if isinstance(value, str) else value
+
+    @field_validator("font_id", mode="before")
+    @classmethod
+    def _map_legacy_font(cls, value):
+        """Stored styles from before the catalog still parse: old typeface ids map to the nearest."""
+        return LEGACY_CV_FONT_IDS.get(value, value) if isinstance(value, str) else value
 
     @field_validator("accent_color")
     @classmethod

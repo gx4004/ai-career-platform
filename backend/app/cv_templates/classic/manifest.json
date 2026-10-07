@@ -7,7 +7,7 @@
   "columns": 1,
   "title_align": "center",
   "typefaces": {"heading": "Source Serif 4", "body": "Source Sans 3"},
-  "accent_role": "none",
+  "accent_role": "rules",
   "sidebar_kinds": [],
   "page_margin_mm": {"top": 14, "right": 17, "bottom": 12, "left": 17},
   "fonts": [
