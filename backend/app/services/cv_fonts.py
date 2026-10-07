@@ -115,7 +115,7 @@ def css_family(font_id: str) -> str:
     return f"'{family.name}', {_CSS_FALLBACKS[family.category]}"
 
 
-def _needs_glyph(character: str) -> bool:
+def needs_glyph(character: str) -> bool:
     """Whether ``character`` is something a font has to draw (not whitespace, a
     control or format character such as a joiner, or a variation selector)."""
     if character.isspace() or "\ufe00" <= character <= "\ufe0f":
@@ -136,7 +136,7 @@ def missing_characters(font_id: str, text: str) -> list[str]:
     """The characters in ``text`` that the bundled ``font_id`` cannot draw, once each."""
     covered = _covered(font_id)
     return list(
-        dict.fromkeys(c for c in text if _needs_glyph(c) and ord(c) not in covered)
+        dict.fromkeys(c for c in text if needs_glyph(c) and ord(c) not in covered)
     )
 
 
@@ -172,7 +172,7 @@ def not_in_winansi(text: str) -> list[str]:
     can encode, once each."""
     missing = []
     for character in dict.fromkeys(text):
-        if not _needs_glyph(character):
+        if not needs_glyph(character):
             continue
         try:
             character.encode("cp1252")

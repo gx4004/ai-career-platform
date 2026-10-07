@@ -82,9 +82,10 @@ def test_cv_with_known_problems_fails_exactly_those_checks(client, auth_headers)
     )
 
     failed = {c["id"] for c in payload["checks"] if not c["passed"]}
-    # No Experience/Skills sections, and a two-column PDF that reads back out
-    # of order; links and page breaks are still fine.
-    assert failed == {"sections", "reads_back", "layout"}
+    # No Experience/Skills sections, and a two-column style (the "layout" check). The
+    # PDF itself reads back in order now: until T6 (T6) the legacy two-column id
+    # prints as the single-column `classic`, so there is no sidebar to read first.
+    assert failed == {"sections", "layout"}
     assert all(c["fix"] for c in payload["checks"] if not c["passed"])
 
 

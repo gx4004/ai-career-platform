@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+{{ fontface }}
+@page { size: {{ page_size }}; margin: {{ margin.top }}mm {{ margin.right }}mm {{ margin.bottom }}mm {{ margin.left }}mm; }
+:root { --type: {{ type_scale }}; --gap: {{ gap_scale }}; }
+{{ css }}
+</style>
+</head>
+<body class="cv cv--classic">
+<header class="cv-header" data-section-id="header">
+  <h1>{{ header.title }}</h1>
+  {%- if header.headline %}
+  <div class="cv-headline">{{ header.headline }}</div>
+  {%- endif %}
+  {%- if contact_items %}
+  <div class="cv-contact">
+    {%- for item in contact_items %}{% if not loop.first %} &bull; {% endif %}<span class="nw">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</span>{% endfor -%}
+  </div>
+  {%- endif %}
+</header>
+{% for section in sections %}
+<section class="cv-section cv-section--{{ section.kind }}" data-section-id="{{ section.id }}">
+  <h2>{{ section.title }}</h2>
+  {%- for entry in section.entries %}
+  {%- if entry.heading is none %}
+  {%- if entry.paragraph %}
+  <p class="cv-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+  {%- endif %}
+  {%- else %}
+  <div class="cv-entry{% if entry.bullets|length > 5 or entry.text|length > 700 %} cv-entry--split{% endif %}" data-entry-id="{{ entry.id }}">
+    <div class="cv-entry-head{% if not entry.subheading %} cv-entry-head--no-org{% endif %}">
+      <span class="cv-role">{{ entry.heading }}</span>
+      {%- if entry.subheading %}<span class="cv-org">{{ entry.subheading }}</span>{% endif %}
+      {%- if entry.dates %}<span class="cv-dates">{{ entry.dates }}</span>{% endif %}
+      {%- if entry.location %}<span class="cv-place">{{ entry.location }}</span>{% endif %}
+    </div>
+    {%- if entry.bullets %}
+    <ul>
+      {%- for bullet in entry.bullets %}
+      <li>{{ bullet|autolink }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if entry.paragraph %}
+    <p class="cv-text">{{ entry.paragraph|autolink }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- endfor %}
+</section>
+{% endfor %}
+</body>
+</html>
