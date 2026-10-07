@@ -35,6 +35,10 @@ MIN_PREVIEW_WIDTH = 240
 MAX_PREVIEW_WIDTH = 1600
 MAX_PREVIEW_PAGES = 8
 WEBP_QUALITY = 80
+# Pages drawn for a high-density screen (over 1000 px wide) have pixels to spare: a lower quality
+# looks the same at 2x and roughly halves the bytes.
+HIGH_DENSITY_WIDTH = 1000
+HIGH_DENSITY_QUALITY = 60
 
 _PROBE_HOST = "https://cv-section.invalid/"
 
@@ -149,7 +153,10 @@ def rasterise(
                 pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
             else:
                 pixmap = page.get_pixmap(dpi=dpi, alpha=False)
-            encoded = base64.b64encode(encode_webp(pixmap, quality)).decode("ascii")
+            dense = width is not None and pixmap.width > HIGH_DENSITY_WIDTH
+            encoded = base64.b64encode(
+                encode_webp(pixmap, HIGH_DENSITY_QUALITY if dense else quality)
+            ).decode("ascii")
             pages.append(
                 PreviewPage(f"data:image/webp;base64,{encoded}", pixmap.width, pixmap.height)
             )

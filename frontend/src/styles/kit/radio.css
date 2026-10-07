@@ -273,23 +273,28 @@
   margin-top: calc((var(--lh-body) - var(--kit-radio-dot)) / 2);
 }
 
-/* The dot and the label share the first row; the description runs under both at the tile's full width, so a
-   badge never squeezes beside the dot in a narrow tile. */
+/* The dot and the label share the first row; the description (a badge) and the meta line each run under both at
+   the tile's full width, so nothing squeezes beside the dot in a narrow tile. */
 .kit-radio__body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: var(--s1) var(--s2);
   min-width: 0;
-  padding-inline: var(--s1);
 }
 
 .kit-radio__body > .kit-radio__text {
   display: contents;
 }
 
-.kit-radio__body .kit-radio__description {
+.kit-radio__body .kit-radio__description,
+.kit-radio__body .kit-radio__meta {
   grid-column: 1 / -1;
+  margin-inline-start: 0;
+}
+
+.kit-radio__body .kit-radio__meta {
+  white-space: normal;
 }
 
 /* ── Swatch: the input is the chip; selected = a white gap plus an ink ring (position, not colour) ── */
