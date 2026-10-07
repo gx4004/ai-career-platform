@@ -5,7 +5,7 @@ import { MetaRow } from './meta-row'
 export type PageWidth = 'narrow' | 'default' | 'wide' | 'full'
 
 export type PageProps = ComponentPropsWithoutRef<'main'> & {
-  /** Maximum content width including gutters: narrow 62rem (settings, forms), default 75rem, wide 90rem (boards), full. */
+  /** Maximum content width including gutters: narrow 62rem (settings, forms), default 90rem, wide 110rem (boards), full. Centred when the area is wider. */
   width?: PageWidth
   /**
    * main (default) is the page's one landmark and the skip-link target (id="main-content").

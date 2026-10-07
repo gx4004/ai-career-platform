@@ -34,8 +34,8 @@
   --kit-row-h-md: var(--row-h); /* compact row, 40 */
   --kit-row-h-lg: var(--row-h-lg); /* comfortable row, 44 */
   --kit-page-w-narrow: 62rem;
-  --kit-page-w-default: 75rem;
-  --kit-page-w-wide: 90rem;
+  --kit-page-w-default: 90rem; /* fills a 1710px window; centred beyond (raised from 75rem on 2026-10-07) */
+  --kit-page-w-wide: 110rem; /* boards */
   --kit-rail-w: 17.5rem;
   --kit-card-px: var(--space-5); /* 20 */
   --kit-card-py: var(--space-4); /* 16 */
