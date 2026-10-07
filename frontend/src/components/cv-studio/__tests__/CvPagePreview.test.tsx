@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup as cleanupAll, fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvPagePreview, PREVIEW_DEBOUNCE_MS } from '#/components/cv-studio/CvPagePreview'
@@ -105,6 +105,37 @@ describe('CvPagePreview', () => {
       mount({ onStyleChange: vi.fn() })
       expect(await screen.findByText(/Couldn’t fit to one page: it runs to 2 pages at the smallest size we allow \(9 pt text, 50% spacing\)/)).toBeTruthy()
       expect(screen.getByText('2 pages')).toBeTruthy()
+    })
+  })
+
+  describe('page image size', () => {
+    afterEach(() => { vi.restoreAllMocks(); Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 }) })
+    const sized = (cssWidth: number, ratio: number) => {
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        return { width: this.classList.contains('cvpv') ? cssWidth : 0, height: 0, top: 0, left: 0, right: cssWidth, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
+      })
+      Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: ratio })
+    }
+
+    it('asks for pages drawn for the phone it is on (CSS width times pixel ratio, in steps)', async () => {
+      sized(343, 3)
+      mount()
+      await screen.findByAltText('Page 1 of your CV')
+      expect(api.previewCvDraft).toHaveBeenCalledTimes(1)
+      // 343 px at a ratio capped to 2 is 686, rounded up to a 160 px step.
+      expect(api.previewCvDraft.mock.calls[0][2].width).toBe(800)
+    })
+
+    it('never asks for more than 1600 px, and sends no size when it cannot measure', async () => {
+      sized(1200, 2)
+      mount()
+      await screen.findByAltText('Page 1 of your CV')
+      expect(api.previewCvDraft.mock.calls[0][2].width).toBe(1600)
+      cleanupAll()
+      sized(0, 2)
+      mount()
+      await vi.waitFor(() => expect(api.previewCvDraft).toHaveBeenCalledTimes(2))
+      expect(api.previewCvDraft.mock.calls[1][2].width).toBeUndefined()
     })
   })
 

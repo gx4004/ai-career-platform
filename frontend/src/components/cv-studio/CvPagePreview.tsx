@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, ErrorState, Notice, Skeleton } from '#/components/kit'
 import { useDebouncedValue } from '#/hooks/use-debounced-value'
@@ -9,6 +9,40 @@ import { toPayload } from './useCvDraft'
 
 /** How long the draft must rest before the server renders it. */
 export const PREVIEW_DEBOUNCE_MS = 400
+/** Page images are asked for in steps of this many pixels, so a small resize does not redraw them. */
+const WIDTH_STEP = 160
+const MIN_WIDTH = 320
+const MAX_WIDTH = 1600
+
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+
+/**
+ * The pixel width to ask the server for: the preview's CSS width times the screen's pixel ratio (at most 2), rounded up
+ * to a step, so a phone gets pages drawn for a phone and a retina laptop gets sharp ones. It only grows while the
+ * preview is open (Read larger asks once for bigger pages; going back keeps them). 0 when it cannot be measured (the
+ * server's default size); null until the first measurement, so the first request already has the right size.
+ */
+export function usePageImageWidth() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pixels, setPixels] = useState<number | null>(null)
+  useIsomorphicLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const measure = () => {
+      const width = element.getBoundingClientRect().width
+      if (!width) { setPixels((previous) => previous ?? 0); return }
+      const ratio = Math.min(window.devicePixelRatio || 1, 2)
+      const wanted = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.ceil((width * ratio) / WIDTH_STEP) * WIDTH_STEP))
+      setPixels((previous) => (previous && previous >= wanted ? previous : wanted))
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  return { ref, pixels }
+}
 
 type Draft = Pick<CvDocument, 'name' | 'sections' | 'style' | 'header'>
 
@@ -45,10 +79,12 @@ export function CvPagePreview({ documentId, draft, activeId, onEdit, headerActiv
 }) {
   const serialized = JSON.stringify(toPayload(draft))
   const settled = useDebouncedValue(serialized, PREVIEW_DEBOUNCE_MS, documentId)
+  const { ref, pixels } = usePageImageWidth()
   const query = useQuery({
     // The abort signal of a superseded key reaches fetch: only the newest draft is ever rendered to the end.
-    queryKey: ['cv-preview', documentId, settled],
-    queryFn: ({ signal }) => previewCvDraft(documentId, JSON.parse(settled), { signal }),
+    queryKey: ['cv-preview', documentId, settled, pixels],
+    queryFn: ({ signal }) => previewCvDraft(documentId, JSON.parse(settled), pixels ? { signal, width: pixels } : { signal }),
+    enabled: pixels !== null,
     staleTime: Infinity,
     gcTime: 30_000,
     retry: false,
@@ -69,7 +105,7 @@ export function CvPagePreview({ documentId, draft, activeId, onEdit, headerActiv
   })
 
   return (
-    <div className="cvpv" data-testid="cv-preview" aria-busy={stale}>
+    <div className="cvpv" ref={ref} data-testid="cv-preview" aria-busy={stale}>
       {query.isError ? (
         <ErrorState
           title="The preview couldn’t be drawn"

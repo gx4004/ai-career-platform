@@ -546,7 +546,7 @@ export function CvStudio({
     <>
       {desktop && !activeSection && !headerOpen ? <h2 className="kit-sr-only">{TOOL_TITLES[tool]}</h2> : null}
       {tool === 'design' ? (
-        <CvDesignTool documentId={draft.id} draft={draft} catalog={catalog} onChange={editStyle} />
+        <CvDesignTool style={draft.style} catalog={catalog} onChange={editStyle} />
       ) : tool === 'checks' ? (
         <CvAtsPanel
           quality={quality} sections={draft.sections} onAddSection={addAndOpen}
