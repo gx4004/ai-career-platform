@@ -47,6 +47,7 @@ from app.routers import (
     today,
 )
 from app.services.ats_ingestion import run_ats_ingestion_scheduler
+from app.services.cv_chromium import CvRenderUnavailableError, shutdown_chromium
 from app.services.observability import configure_logging
 from app.services.retention import run_discovered_listing_expiry_scheduler
 from app.startup_checks import redacted_config_summary, validate_startup_config
@@ -125,6 +126,7 @@ async def lifespan(app: FastAPI):
         with suppress(asyncio.CancelledError):
             await scheduler_task
         await asyncio.to_thread(release_scheduler_leader)
+        await asyncio.to_thread(shutdown_chromium)
 
 
 app = FastAPI(title="Career Workbench API", version="1.0.0", lifespan=lifespan)
@@ -149,6 +151,18 @@ async def request_validation_error_handler(
 
 
 app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+
+
+async def cv_render_unavailable_handler(
+    _request: Request, exc: CvRenderUnavailableError
+) -> JSONResponse:
+    # A CV PDF needs the shared headless Chromium; with none there is no fallback renderer.
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": exc.message}
+    )
+
+
+app.add_exception_handler(CvRenderUnavailableError, cv_render_unavailable_handler)
 
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)

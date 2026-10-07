@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import database
 from app.config import settings
 from app.database import get_db
+from app.services.cv_chromium import chromium_status
 
 router = APIRouter()
 
@@ -68,4 +69,8 @@ def health_check(db: Session = Depends(get_db)):
         checks["database"] = f"error: {type(exc).__name__}"
         return JSONResponse(status_code=503, content=_body("degraded", checks))
 
+    # CV PDF export needs headless Chromium. Reported, never a reason to fail the probe:
+    # every other route works without it. "ready", "idle" (installed, not started yet)
+    # or "unavailable".
+    checks["chromium"] = chromium_status()
     return _body("ok", checks)
