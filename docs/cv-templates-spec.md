@@ -114,6 +114,15 @@ Photo upload, skill ratings, LLM-generated design, template marketplace, i18n, c
 2. **T2 Catalog, style schema and migration**: 16 ids, legacy mapping, new fields, Zod, picker grouped by ATS status, ATS mode.
 3. **T3 Preview pipeline**: preview endpoint, page images, section rectangles, client viewer, delete `.cvp-*`, update e2e.
 4. **T4 Fonts and style controls**: bundled TTFs with Cyrillic, typeface override, accent derivation, density, page size, NFC, glyph coverage.
+   *T4 notes (as built):* `cv_fonts.TYPEFACES` registers 15 static families (Roboto Slab is Apache 2.0 and Ubuntu is UFL; the
+   rest OFL) built by `backend/scripts/build_cv_fonts.py` (variable upstreams are instanced to static files). The six overrides
+   replace the body family, and the heading family only when it is the same category (serif/sans) as the override; each role
+   keeps the (weight, style) pairs the template's manifest uses and the override supplies its nearest real face under that pair.
+   Templates read `--font-body`, `--font-heading`, `--accent`, `--accent-tint` (12% accent in white), `--on-accent`, `--type`,
+   `--gap` and the `--space-*` scale from `cv_templates/_base.css`. Legacy font ids map in `CvStyle` (lato to inter, pt-sans to
+   source-sans-3, pt-serif to source-serif-4, crimson-text to lora, ibm-plex-mono to ibm-plex-sans). There is no fallback face:
+   characters the chosen faces lack are reported (`unsupported_characters`) and print as spaces; a Greek name under Lora is reported,
+   not drawn in another font. `tests/test_cv_fonts.py` audits every rendered (family, weight, style) against the loaded faces.
 5. **T5 Classic perfection**: the review loop on the default across all fixtures.
 6. **T6 Sidebar spike and column templates**: repeat-fixed sidebar, then `lagoon`, `lilac`, `meadow`, `rail`.
 7. **T7 Safe batch**: `scholar`, `academic`, `manuscript`, `executive`, `frame`.
