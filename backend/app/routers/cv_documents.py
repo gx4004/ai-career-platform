@@ -38,6 +38,8 @@ from app.schemas.cv_documents import (
     CvTailoringApply,
     CvTailoringProposal,
     CvTailoringRequest,
+    CvTemplateThumbnail,
+    CvTemplateThumbnailsResponse,
     CvVariantCreate,
     CvVariantResponse,
     CvVariantUpdate,
@@ -83,6 +85,7 @@ from app.services.cv_tailoring import (
     proposal_token,
     verify_proposal_token,
 )
+from app.services.cv_thumbnails import render_thumbnails
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.tool_pipeline import run_tool_pipeline
 
@@ -387,18 +390,7 @@ async def preview(
 ):
     """Page images and section rectangles of the unsaved draft. Stores nothing."""
     document, saved_style, _ = _renderable(db, document_id, current_user.id, None)
-    # Only plain data is read from the ORM row, so the draft cannot be written back.
-    draft = SimpleNamespace(
-        name=body.name if body.name is not None else document.name,
-        header=(
-            body.header.model_dump() if body.header is not None else document.header
-        ),
-        sections=(
-            [section.model_dump() for section in body.sections]
-            if body.sections is not None
-            else document.sections
-        ),
-    )
+    draft = _draft_source(document, body)
     style = body.style if body.style is not None else saved_style
     model = with_fit_option(build_render_model(draft, style.template_id, style), style.fit_one_page)
     # Chromium, PyMuPDF and WebP encoding block; keep them off the event loop.
@@ -427,6 +419,56 @@ async def preview(
             last_page_fill=result.last_page_fill,
             advice=None if result.advice is None else CvLengthAdvice(**vars(result.advice)),
         ),
+    )
+
+
+def _draft_source(document: CvDocument, body: CvPreviewRequest | None) -> SimpleNamespace:
+    """The unsaved draft as plain data (fields left out come from the saved CV), so nothing
+    a render reads can be written back to the ORM row."""
+    body = body or CvPreviewRequest()
+    return SimpleNamespace(
+        name=body.name if body.name is not None else document.name,
+        header=body.header.model_dump() if body.header is not None else document.header,
+        sections=(
+            [section.model_dump() for section in body.sections]
+            if body.sections is not None
+            else document.sections
+        ),
+    )
+
+
+@router.post("/{document_id}/template-thumbnails", response_model=CvTemplateThumbnailsResponse)
+@limiter.limit("20/minute")
+async def template_thumbnails(
+    request: Request,
+    response: Response,
+    document_id: str,
+    body: CvPreviewRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Page 1 of the unsaved draft in every available template, for the Design panel's
+    gallery. The draft's own colour, typeface, spacing and page size; the sample CV while it
+    has no entries. Stores nothing."""
+    document, saved_style, _ = _renderable(db, document_id, current_user.id, None)
+    style = body.style if body is not None and body.style is not None else saved_style
+    # Prints one template at a time; Chromium, PyMuPDF and WebP block, so off the event loop.
+    result = await run_in_threadpool(render_thumbnails, _draft_source(document, body), style)
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return CvTemplateThumbnailsResponse(
+        thumbnails=[
+            CvTemplateThumbnail(
+                template_id=t.template_id,
+                url=t.data_url,
+                width=t.width,
+                height=t.height,
+                pages=t.pages,
+                error=t.error,
+            )
+            for t in result.thumbnails
+        ],
+        sample=result.sample,
     )
 
 

@@ -78,7 +78,7 @@ class PreviewResult:
     advice: LengthAdvice | None = None
 
 
-def _webp(pixmap: fitz.Pixmap, quality: int) -> bytes:
+def encode_webp(pixmap: fitz.Pixmap, quality: int) -> bytes:
     image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
     out = io.BytesIO()
     image.save(out, format="WEBP", quality=quality, method=2)
@@ -138,7 +138,7 @@ def rasterise(
         pages = []
         for index in range(min(len(document), page_limit)):
             pixmap = document[index].get_pixmap(dpi=dpi, alpha=False)
-            encoded = base64.b64encode(_webp(pixmap, quality)).decode("ascii")
+            encoded = base64.b64encode(encode_webp(pixmap, quality)).decode("ascii")
             pages.append(
                 PreviewPage(f"data:image/webp;base64,{encoded}", pixmap.width, pixmap.height)
             )
