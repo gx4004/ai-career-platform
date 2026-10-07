@@ -681,6 +681,8 @@ export const cvStyleCatalogSchema = z.object({
     typefaces: z.record(z.string(), z.string()),
     title_align: z.enum(['left', 'center']), margin_mm: z.number(),
     sidebar_kinds: z.array(cvSectionKindSchema),
+    // A plain sentence about the Word export when it differs from the PDF; null when it matches.
+    docx_note: z.string().nullable().default(null),
     sizes: z.object({ compact: cvStyleSizesSchema, normal: cvStyleSizesSchema, spacious: cvStyleSizesSchema }),
   })).min(1),
   fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string(), css_family: z.string() })).min(1),

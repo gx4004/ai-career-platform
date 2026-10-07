@@ -12,7 +12,7 @@ export const styleCatalogFixture: CvStyleCatalog = cvStyleCatalogSchema.parse({
   templates: [
     { id: 'classic', name: 'Classic', description: 'A quiet single column.', ats_safe: true, columns: 1, photo_slot: false, group: 'ats-safe', typefaces: { heading: 'Source Serif 4', body: 'Source Sans 3' }, title_align: 'center', margin_mm: 17, sidebar_kinds: [], sizes: sizes(10, 13, 6) },
     { id: 'executive', name: 'Executive', description: 'A light serif name, airy.', ats_safe: true, columns: 1, photo_slot: false, group: 'ats-safe', typefaces: { heading: 'Source Serif 4', body: 'Source Sans 3' }, title_align: 'left', margin_mm: 20, sidebar_kinds: [], sizes: sizes(10, 15, 8) },
-    { id: 'lagoon', name: 'Lagoon', description: 'Teal sidebar.', ats_safe: false, columns: 2, photo_slot: true, group: 'more', typefaces: { heading: 'Source Sans 3', body: 'Source Sans 3' }, title_align: 'left', margin_mm: 14, sidebar_kinds: ['skills', 'certifications'], sizes: sizes(9, 12, 6) },
+    { id: 'lagoon', name: 'Lagoon', description: 'Teal sidebar.', ats_safe: false, columns: 2, photo_slot: true, group: 'more', typefaces: { heading: 'Source Sans 3', body: 'Source Sans 3' }, title_align: 'left', margin_mm: 14, sidebar_kinds: ['skills', 'certifications'], docx_note: 'Word version uses a single column.', sizes: sizes(9, 12, 6) },
   ],
   fonts: [
     { id: 'inter', name: 'Inter', category: 'sans-serif', css_family: "'Inter', sans-serif" },

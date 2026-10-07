@@ -699,6 +699,16 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
     await waitFor(() => expect(api.deleteAllCvDocuments).toHaveBeenCalled())
   })
 
+  it('exports plain text from the overflow menu', async () => {
+    view()
+    const menu = await openMenu('More options')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Export plain text/ }))
+    await waitFor(() => expect(clickedDownload).toBe('Principal CV.txt'))
+    expect(api.fetchCvArtifactBlob).toHaveBeenCalledWith('d1', 'txt')
+    const moment = await screen.findByTestId('export-moment')
+    expect(within(moment).getByText('Your TXT is ready')).toBeTruthy()
+  })
+
   it('saves a named version and restores one after an inline confirmation', async () => {
     api.restoreCvVariant.mockRejectedValueOnce(new Error('Restore unavailable'))
     view()

@@ -175,7 +175,7 @@ export function acceptCvImport(proposal: CvImportProposal) {
 }
 
 /** The saved CV rendered in its saved style: exactly what Export downloads. */
-export async function fetchCvArtifactBlob(documentId: string, format: 'docx' | 'pdf'): Promise<Blob> {
+export async function fetchCvArtifactBlob(documentId: string, format: 'docx' | 'pdf' | 'txt'): Promise<Blob> {
   const { blob } = await requestBlob(`/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}`)
   return blob
 }

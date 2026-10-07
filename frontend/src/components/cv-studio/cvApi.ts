@@ -30,7 +30,7 @@ export class VersionExportUnavailable extends Error {
  * A saved version rendered as PDF or DOCX, in the CV's current style, without touching the working CV.
  * The route is `GET /cv-documents/{id}/variants/{variantId}/artifacts/{format}`.
  */
-export async function fetchVariantArtifactBlob(documentId: string, variantId: string, format: 'pdf' | 'docx'): Promise<Blob> {
+export async function fetchVariantArtifactBlob(documentId: string, variantId: string, format: 'pdf' | 'docx' | 'txt'): Promise<Blob> {
   // A plain request first: the shared client refreshes an expired session on its own, a bare fetch cannot.
   await getCvDocument(documentId)
   const response = await fetch(

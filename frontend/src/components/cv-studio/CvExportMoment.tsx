@@ -4,7 +4,9 @@ import { Button, ScoreSeal, Sticker } from '#/components/kit'
 
 export type ExportMoment = {
   id: number
-  format: 'pdf' | 'docx'
+  format: 'pdf' | 'docx' | 'txt'
+  /** A plain sentence about this file (the Word version of a two-column template is one column); null when none. */
+  note?: string | null
   filename: string
   /** Pages in the exported PDF, read from the file itself; null when it could not be read. */
   pages: number | null
@@ -58,6 +60,7 @@ export function CvExportMoment({ moment, otherBusy, onDownloadOther, onClose }: 
         <div className="cvs-moment__text">
           <p className="cvs-moment__title">Your {label} is ready</p>
           <p className="cvs-moment__file">{moment.filename}</p>
+          {moment.note ? <p className="cvs-moment__facts">{moment.note}</p> : null}
           {facts.length > 0 ? <p className="cvs-moment__facts">{facts.join(' · ')}</p> : null}
           <div className="cvs-moment__actions">
             <Button type="button" size="sm" variant="secondary" loading={otherBusy} onClick={onDownloadOther}>
