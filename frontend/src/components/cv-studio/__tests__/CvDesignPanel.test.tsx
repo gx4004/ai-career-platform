@@ -58,4 +58,20 @@ describe('CvDesignPanel style controls', () => {
     expect(screen.getByRole('radio', { name: /Inter/ }).hasAttribute('disabled') || screen.getByRole('radio', { name: /Inter/ }).getAttribute('aria-disabled') === 'true').toBe(true)
     expect(screen.getByRole('radio', { name: 'Plum' }).hasAttribute('disabled') || screen.getByRole('radio', { name: 'Plum' }).getAttribute('aria-disabled') === 'true').toBe(true)
   })
+
+  it('has a Fit to one page switch wired to style.fit_one_page', () => {
+    const onChange = panel()
+    const toggle = screen.getByRole('switch', { name: /Fit to one page/ })
+    expect((toggle as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(toggle)
+    expect(onChange).toHaveBeenCalledWith({ fit_one_page: true })
+  })
+
+  it('shows the switch on when the style fits to one page', () => {
+    const onChange = panel(vi.fn(), { ...style, fit_one_page: true })
+    const toggle = screen.getByRole('switch', { name: /Fit to one page/ })
+    expect((toggle as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(toggle)
+    expect(onChange).toHaveBeenCalledWith({ fit_one_page: false })
+  })
 })

@@ -728,6 +728,7 @@ export function CvStudio({
             // A closed editor sheet edits nothing: the pages mark a section only while its editor is in view.
             activeId={desktop || panelOpen ? activeSection?.id : undefined} onEdit={(sectionId) => openPanel({ sectionId })}
             headerActive={(desktop || panelOpen) && headerOpen} onEditHeader={() => openPanel('header')}
+            onStyleChange={editStyle}
           />
         </CvDesk>
       </div>

@@ -637,6 +637,15 @@ export const cvPreviewSchema = z.object({
   })),
   warnings: z.array(z.object({ code: z.string(), message: z.string(), characters: z.array(z.string()).default([]) })).default([]),
   truncated: z.boolean().default(false),
+  /** Present when the style asks to fit to one page: whether it fit, the pages at the chosen scale (more than one means
+   * it runs to that many at the smallest allowed scale), the scale and the body size in points. */
+  fit: z.object({ fits: z.boolean(), pages: z.number().int().positive(), scale: z.number(), body_pt: z.number() }).nullish(),
+  /** How long the CV runs, with a plain-sentence suggestion when there is one (`action` is a style option to switch on). */
+  length: z.object({
+    pages: z.number().int().nonnegative(),
+    last_page_fill: z.number(),
+    advice: z.object({ code: z.string(), message: z.string(), action: z.literal('fit_one_page').nullish() }).nullish(),
+  }).nullish(),
 })
 export type CvPreview = z.infer<typeof cvPreviewSchema>
 

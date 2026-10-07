@@ -101,6 +101,16 @@ export function CvDesignPanel({ style, catalog, onChange }: {
         />
       </Section>
 
+      <Section headingLevel={3} title="Length">
+        <Switch
+          controlPosition="end"
+          label="Fit to one page"
+          description="Shrinks the type and spacing a little, never below 9 pt text, to keep the CV on one page. If it can’t fit, it stays at that size and runs over."
+          checked={style.fit_one_page}
+          onCheckedChange={(fit_one_page) => onChange({ fit_one_page })}
+        />
+      </Section>
+
       <Section headingLevel={3} title="Page size">
         <Segmented
           fullWidth
