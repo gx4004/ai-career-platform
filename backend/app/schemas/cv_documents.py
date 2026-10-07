@@ -343,6 +343,9 @@ class CvFitResult(BaseModel):
     pages: int
     scale: float
     body_pt: float
+    # "time" when the search was cut short (time ran out or a later render failed) and this is
+    # the best result it had; null when the search ran to its end.
+    reason: Literal["time"] | None = None
 
 
 class CvLengthAdvice(BaseModel):

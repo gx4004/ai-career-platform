@@ -97,11 +97,27 @@ def test_the_search_is_deterministic():
     assert runs[0] == runs[1] == runs[2]
 
 
+class FakeClock:
+    """A clock the fake renders move forward."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
 def test_the_search_stops_and_keeps_its_best_fit_when_the_time_budget_runs_out():
-    ticks = iter([0.0, 0.0, 1.0, 1.0, 2.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0])
-    render = FakeRender(60)
-    fit, _ = fit_to_one_page(_model("classic"), render=render, clock=lambda: next(ticks))
-    assert fit.fits and len(render.scales) <= 3 and fit.scale <= 0.6
+    clock = FakeClock()
+    inner = FakeRender(60)
+
+    def render(html, script=None, timeout=None):
+        clock.now += 4.5  # 100, 50, 75 then 1.5s are left: under the minimum, so it stops
+        return inner(html, script, timeout)
+
+    fit, _ = fit_to_one_page(_model("classic"), render=render, clock=clock)
+    assert fit.fits and fit.scale == 0.5 and fit.reason == "time"
+    assert inner.scales == [100, 50, 75]
 
 
 def test_each_render_is_given_what_is_left_of_the_budget():
@@ -111,8 +127,64 @@ def test_each_render_is_given_what_is_left_of_the_budget():
         seen.append(timeout)
         return _fake_pdf(1)
 
-    fit_to_one_page(_model("classic"), render=render, clock=lambda: 0.0)
-    assert seen == [cv_fit.TIME_BUDGET_SECONDS]
+    fit, _ = fit_to_one_page(_model("classic"), render=render, clock=lambda: 0.0)
+    assert seen == [cv_fit.TIME_BUDGET_SECONDS] and fit.reason is None
+
+
+def test_no_attempt_is_started_with_less_than_the_minimum_left():
+    clock = FakeClock()
+    seen = []
+    inner = FakeRender(60)
+
+    def render(html, script=None, timeout=None):
+        seen.append(timeout)
+        clock.now += 6.5
+        return inner(html, script, timeout)
+
+    fit_to_one_page(_model("classic"), render=render, clock=clock)
+    assert all(timeout >= cv_fit.MIN_ATTEMPT_SECONDS for timeout in seen)
+    assert seen == [15.0, 8.5]  # 2s left after two renders is not enough for a third
+
+
+class FailingRender(FakeRender):
+    """Like FakeRender, but the render with index ``fail_at`` raises ``error``."""
+
+    def __init__(self, threshold, fail_at, error, over=2):
+        super().__init__(threshold, over)
+        self.fail_at, self.error, self.calls = fail_at, error, 0
+
+    def __call__(self, html, script=None, timeout=None):
+        index, self.calls = self.calls, self.calls + 1
+        if index == self.fail_at:
+            raise self.error
+        return super().__call__(html, script, timeout)
+
+
+@pytest.mark.parametrize("fail_at", range(1, MAX_RENDERS))
+@pytest.mark.parametrize(
+    "error", [cv_fit.RenderTimeoutError(), cv_fit.CvRenderUnavailableError()], ids=["timeout", "unavailable"]
+)
+def test_a_failed_attempt_after_the_first_returns_the_best_result_so_far(fail_at, error):
+    render = FailingRender(73, fail_at, error)
+    fit, pdf = fit_to_one_page(_model("classic"), render=render)
+    assert fit.reason == "time"
+    assert fitz.open(stream=pdf, filetype="pdf").page_count == fit.pages
+    if fail_at == 1:  # only the full-size render (two pages) succeeded
+        assert (fit.fits, fit.pages, fit.scale) == (False, 2, 1.0)
+    else:  # the floor fitted, so the best fitting attempt is kept
+        assert fit.fits and fit.pages == 1 and 0.5 <= fit.scale <= 0.73
+
+
+def test_a_failed_attempt_with_nothing_fitting_returns_the_fewest_pages():
+    render = FailingRender(10, 1, cv_fit.RenderTimeoutError(), over=3)
+    fit, _ = fit_to_one_page(_model("classic"), render=render)
+    assert (fit.fits, fit.pages, fit.scale, fit.reason) == (False, 3, 1.0, "time")
+
+
+def test_a_failed_first_render_still_fails():
+    render = FailingRender(73, 0, cv_fit.RenderTimeoutError())
+    with pytest.raises(cv_fit.RenderTimeoutError):
+        fit_to_one_page(_model("classic"), render=render)
 
 
 def test_the_fit_scale_reaches_the_css_and_body_is_held_at_nine_points():

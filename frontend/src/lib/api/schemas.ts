@@ -641,7 +641,11 @@ export const cvPreviewSchema = z.object({
   truncated: z.boolean().default(false),
   /** Present when the style asks to fit to one page: whether it fit, the pages at the chosen scale (more than one means
    * it runs to that many at the smallest allowed scale), the scale and the body size in points. */
-  fit: z.object({ fits: z.boolean(), pages: z.number().int().positive(), scale: z.number(), body_pt: z.number() }).nullish(),
+  fit: z.object({
+    fits: z.boolean(), pages: z.number().int().positive(), scale: z.number(), body_pt: z.number(),
+    /** `time` when the search was cut short and this is the best result it had. */
+    reason: z.literal('time').nullish(),
+  }).nullish(),
   /** How long the CV runs, with a plain-sentence suggestion when there is one (`action` is a style option to switch on). */
   length: z.object({
     pages: z.number().int().nonnegative(),
