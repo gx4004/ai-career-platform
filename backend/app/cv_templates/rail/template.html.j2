@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+{{ fontface }}
+{#- The page has no margin so the rail bleeds to every edge; the vertical margins are
+    padding on .rl-page, cloned onto each page fragment (docs/cv-templates-spec.md 3.3). #}
+@page { size: {{ page_size }}; margin: 0; }
+{{ root_vars }}
+{{ base_css }}
+.cv--rail { --rl-top: {{ margin.top }}mm; --rl-bottom: {{ margin.bottom }}mm; --rl-left: {{ margin.left }}mm; --rl-right: {{ margin.right }}mm; }
+{{ css }}
+</style>
+</head>
+<body class="cv cv--rail">
+<div class="rl-strip" aria-hidden="true"></div>
+<div class="rl-page">
+{#- Every block is a row: its label in the rail, its content beside it. The label comes first
+    in the DOM, so text reads label, content, next label: the written section order. The
+    monogram (photo slot; spec D6 deviation: it prints in the PDF too) follows the header so
+    its letters read after the contact lines. #}
+<div class="rl-row rl-row--head">
+  <header class="cv-header" data-section-id="header">
+    <h1>{{ header.title }}</h1>
+    {%- if header.headline %}
+    <div class="cv-headline">{{ header.headline }}</div>
+    {%- endif %}
+    {%- if contact_items %}
+    <div class="cv-contact">
+      {%- for item in contact_items %}
+      <div class="rl-contact-item">{% if item.href %}<a href="{{ item.href }}">{{ item.text }}</a>{% else %}{{ item.text }}{% endif %}</div>
+      {%- endfor %}
+    </div>
+    {%- endif %}
+  </header>
+  {%- if initials %}
+  <div class="rl-mono" aria-hidden="true"><span>{{ initials }}</span></div>
+  {%- endif %}
+</div>
+{%- for section in sections %}
+<section class="rl-row cv-section cv-section--{{ section.kind }}" data-section-id="{{ section.id }}">
+  <h2>{{ section.title }}</h2>
+  <div class="rl-body">
+  {%- for entry in section.entries %}
+  {%- if entry.heading is none %}
+  {%- if entry.paragraph %}
+  {%- set items = entry.paragraph|list_items %}
+  {%- set pairs = entry.paragraph|name_level_pairs if section.kind != "skills" else none %}
+  {%- if section.kind == "skills" and items|length > 1 %}
+  <p class="rl-list" data-entry-id="{{ entry.id }}">{% for item in items %}<span class="rl-item">{{ item }}</span> {% endfor %}</p>
+  {%- elif pairs %}
+  <p class="rl-list" data-entry-id="{{ entry.id }}">{% for name, level in pairs %}<span class="rl-item"><span class="rl-item-name">{{ name }}</span> <span class="rl-item-level">{{ level }}</span></span> {% endfor %}</p>
+  {%- else %}
+  <p class="cv-text" data-entry-id="{{ entry.id }}">{{ entry.paragraph|autolink }}</p>
+  {%- endif %}
+  {%- endif %}
+  {%- else %}
+  {#- DOM order is the reading order (role, organisation, dates, location); the grid places
+      role and dates on line one, organisation and location on line two. #}
+  <div class="cv-entry{% if entry.bullets|length > 5 or entry.text|length > 700 %} cv-entry--split{% endif %}" data-entry-id="{{ entry.id }}">
+    <div class="cv-entry-head{% if not entry.dates %} cv-entry-head--no-dates{% endif %}">
+      <span class="cv-role">{{ entry.heading }}</span>
+      {%- if entry.subheading %}<span class="cv-org">{{ entry.subheading }}</span>{% endif %}
+      {%- if entry.dates %}<span class="cv-dates">{{ entry.dates }}</span>{% endif %}
+      {%- if entry.location %}<span class="cv-place">{{ entry.location }}</span>{% endif %}
+    </div>
+    {%- if entry.bullets %}
+    <ul>
+      {%- for bullet in entry.bullets %}
+      <li>{{ bullet|autolink }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if entry.paragraph %}
+    <p class="cv-text">{{ entry.paragraph|autolink }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- endfor %}
+  </div>
+</section>
+{%- endfor %}
+</div>
+</body>
+</html>

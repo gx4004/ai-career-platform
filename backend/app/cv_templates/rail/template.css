@@ -1,0 +1,149 @@
+/* Rail: a full-height accent rail (ink by default) down the left edge. Each block is a row:
+   the section's label sits right-aligned in the rail, in small caps, set apart from its
+   content on white beside it; a hairline separates the rows. The rail is a fixed strip, so
+   it repeats edge to edge on every printed page (docs/cv-templates-spec.md 3.3), and a
+   section that runs on simply continues beside the empty rail.
+   Text on the rail is var(--on-accent) (4.5:1 or better on every palette colour); text on
+   white is ink or greys at 7:1 or better. */
+.cv--rail {
+  --rl-rail-w: 46mm;
+  --rl-ink-2: #333333;   /* organisation, contact: 12.6:1 */
+  --rl-muted: #555555;   /* dates, location, levels: 7.5:1 */
+  --rl-rule: #cfcfcf;
+  font: 400 clamp(8.75pt, calc(9.4pt * var(--type)), 10.75pt) / 1.45 var(--font-body);
+  hyphens: manual;
+  orphans: 2;
+  widows: 2;
+}
+.cv--rail a { color: inherit; text-decoration: none; }
+
+.rl-strip {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--rl-rail-w);
+  background: var(--accent);
+  z-index: -1;
+}
+.rl-page {
+  padding: var(--rl-top) 0 var(--rl-bottom);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.rl-row {
+  display: grid;
+  grid-template-columns: var(--rl-rail-w) minmax(0, 1fr);
+  grid-template-areas: "label body";
+  align-items: start;
+}
+
+/* -- header row: monogram in the rail, name and contact beside it ---------------------- */
+.rl-row--head { grid-template-areas: "mono head"; align-items: center; padding-bottom: var(--space-5); }
+.cv-header { grid-area: head; padding: 0 var(--rl-right) 0 var(--rl-left); min-width: 0; }
+.cv-header h1 { font: 700 2.5em / 1.08 var(--font-heading); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.cv-headline { font-weight: 500; font-size: 1.12em; line-height: 1.3; color: var(--rl-ink-2); margin-top: var(--space-2); text-wrap: balance; }
+.cv-contact { margin-top: var(--space-3); font-size: 0.9em; line-height: 1.5; color: var(--rl-ink-2); }
+.rl-contact-item { text-wrap: balance; }
+.rl-mono {
+  grid-area: mono;
+  justify-self: center;
+  /* Never positioned: a positioned box paints (and so extracts) after the page's text. */
+  width: 24mm;
+  height: 24mm;
+  border-radius: 50%;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Two crossing hairlines behind the letters: the rail's mark. Drawn as backgrounds, not text. */
+.rl-mono {
+  background:
+    linear-gradient(45deg, transparent calc(50% - 0.5pt), var(--accent) calc(50% - 0.5pt), var(--accent) calc(50% + 0.5pt), transparent calc(50% + 0.5pt)),
+    linear-gradient(-45deg, transparent calc(50% - 0.5pt), var(--accent) calc(50% - 0.5pt), var(--accent) calc(50% + 0.5pt), transparent calc(50% + 0.5pt)),
+    var(--on-accent);
+}
+.rl-mono span {
+  font: 600 17pt / 1 var(--font-heading);
+  letter-spacing: 0.02em;
+  background: var(--on-accent);
+  padding: 2pt 3pt;
+}
+
+/* -- section rows ----------------------------------------------------------------------- */
+.cv-section > h2 {
+  grid-area: label;
+  margin: 0;
+  padding: calc(var(--space-4) + var(--space-1)) 6mm 0 4mm;
+  text-align: right;
+  font: 600 1.2em / 1.2 var(--font-heading);
+  letter-spacing: 0.1em;
+  font-variant-caps: all-small-caps;
+  color: var(--on-accent);
+  background: var(--accent); /* the rail's colour, so the label reads on one fill */
+  border-top: 0.75pt solid color-mix(in srgb, var(--on-accent) 22%, var(--accent));
+  break-after: avoid;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+.rl-body {
+  grid-area: body;
+  min-width: 0;
+  padding: calc(var(--space-4) + var(--space-1)) var(--rl-right) var(--space-4) var(--rl-left);
+  border-top: 0.75pt solid var(--rl-rule);
+}
+/* A row starts on the page its label and first block can share. */
+.rl-body > :first-child { break-before: avoid; }
+
+.cv-entry { break-inside: avoid; }
+.cv-entry + .cv-entry { margin-top: var(--space-4); }
+.cv-entry--split { break-inside: auto; }
+.cv-entry-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "role dates" "org place";
+  column-gap: 12pt;
+  align-items: baseline;
+  break-inside: avoid;
+  break-after: avoid;
+}
+.cv-entry-head--no-dates { grid-template-areas: "role place" "org org"; }
+.cv-role { grid-area: role; font-weight: 600; font-size: 1.06em; line-height: 1.3; text-wrap: balance; }
+.cv-dates { grid-area: dates; text-align: right; white-space: nowrap; color: var(--rl-muted); font-size: 0.9em; font-variant-numeric: tabular-nums lining-nums; }
+.cv-org { grid-area: org; color: var(--rl-ink-2); text-wrap: balance; }
+.cv-place { grid-area: place; text-align: right; color: var(--rl-muted); font-size: 0.9em; }
+
+.cv--rail ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.cv--rail li { padding-left: 11pt; break-inside: avoid; text-wrap: pretty; }
+.cv--rail li + li { margin-top: calc(var(--space-1) * 0.67); }
+/* In flow, never positioned: a positioned box paints (and so extracts) after the text. */
+.cv--rail li::before {
+  content: "\2022";
+  display: inline-block;
+  box-sizing: content-box;
+  width: 10pt;
+  margin-left: -11pt;
+  padding-left: 1pt;
+  font-size: 1.05em;
+  line-height: 0;
+}
+.cv-entry li:first-child, .cv-entry li:nth-child(2), .cv-entry li:last-child { break-before: avoid; }
+
+.cv-text { margin: 0; text-wrap: pretty; }
+.cv-text + .cv-text { margin-top: var(--space-2); }
+.cv-entry > .cv-text { margin-top: var(--space-2); }
+
+/* Skills and languages: outlined chips (no ratings, no separators to dangle at a line start). */
+.rl-list { margin: 0; line-height: 1; }
+.rl-item {
+  display: inline-block;
+  margin: 0 3.5pt 4.5pt 0;
+  padding: 2.5pt 6pt 2.75pt;
+  border: 0.75pt solid var(--rl-rule);
+  border-radius: 2pt;
+  line-height: 1.2;
+}
+.rl-item-name { font-weight: 500; }
+.rl-item-level { color: var(--rl-muted); }
