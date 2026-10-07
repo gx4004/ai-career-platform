@@ -6,6 +6,7 @@ const TEMPLATE_GROUPS = [
   { group: 'more', title: 'More designs' },
 ] as const
 const TEMPLATE_FONT = 'template'
+const TEMPLATE_ACCENT = 'template'
 export const LESS_SAFE_NOTICE = 'Some job portals may read this layout out of order. Use an ATS-safe template for portal applications.'
 
 const sentenceCase = (text: string) => text.replace('-', ' ').replace(/^./, (letter) => letter.toUpperCase())
@@ -83,7 +84,9 @@ export function CvDesignPanel({ style, catalog, onChange }: {
       </Section>
 
       <Section headingLevel={3} title="Accent colour">
-        <RadioGroup aria-label="Accent colour" variant="swatch" orientation="horizontal" disabled={locked} value={style.accent_color} onValueChange={(accent_color) => onChange({ accent_color: accent_color as CvStyle['accent_color'] })}>
+        <RadioGroup aria-label="Accent colour" variant="swatch" orientation="horizontal" disabled={locked} value={style.accent_color ?? TEMPLATE_ACCENT} onValueChange={(accent_color) => onChange({ accent_color: accent_color === TEMPLATE_ACCENT ? null : (accent_color as NonNullable<CvStyle['accent_color']>) })}>
+          {/* The template's own colour (null): picking Ink, or any colour, is then a real choice. */}
+          <RadioItem value={TEMPLATE_ACCENT} label={`Template colour (${catalog.palette.find(({ value }) => value === selected.default_accent)?.name ?? 'Ink'})`} swatch={selected.default_accent} />
           {catalog.palette.map(({ value, name }) => (
             <RadioItem key={value} value={value} label={name} swatch={value} />
           ))}

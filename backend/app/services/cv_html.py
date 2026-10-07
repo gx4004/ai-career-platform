@@ -68,8 +68,8 @@ class TemplateManifest:
     margin_bottom_mm: float
     margin_left_mm: float
     fonts: tuple[FontFace, ...]
-    # The accent a template prints with while the person keeps the global default (Ink):
-    # a colourful template keeps its own colour until another accent is picked.
+    # The accent a template prints with while the style's accent is null (no colour picked);
+    # resolved in ``cv_rendering.resolve_effective_style``, so the model's accent is final.
     default_accent: str | None = None
 
     @property
@@ -345,9 +345,7 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
     tokens = model.tokens
     font_override = str(tokens.get("font_override") or "") or None
     plan = font_plan(template_id, font_override)
-    accent = str(tokens.get("accent", GLOBAL_DEFAULT_ACCENT))
-    if manifest.default_accent and accent.upper() == GLOBAL_DEFAULT_ACCENT:
-        accent = manifest.default_accent
+    accent = str(tokens.get("accent") or manifest.default_accent or GLOBAL_DEFAULT_ACCENT)
     # Sidebar templates print the main column first and the sidebar after it, so text
     # extraction reads header, main sections, then sidebar sections, each one whole.
     side = [s for s in model.sections if _in_sidebar(s, manifest.sidebar_kinds)]

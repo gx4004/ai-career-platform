@@ -32,8 +32,8 @@ PAGES = {
     "maya": 1, "long": 2, "accented": 1, "cyrillic": 1, "long_name": 1,
     "no_summary": 1, "name_only": 1, "edge_entries": 2,
 }
-# Frame's name card and contact band are taller: the long-name fixture runs just over a page.
-PAGES_BY_TEMPLATE = {("frame", "long_name"): 2}
+# Frame's long-name card steps the name down a size, so that fixture stays on one page (#471).
+PAGES_BY_TEMPLATE: dict[tuple[str, str], int] = {}
 PDF_PREFIX = {"scholar": {"SourceSerif4"}, "frame": {"Ubuntu"}, "slate": {"FiraSans"}}
 
 
@@ -273,6 +273,12 @@ def test_slate_keeps_its_own_colour_until_another_accent_is_picked():
     html = render_cv_html(_model("slate", "maya"))
     assert "--accent: #0F766E" in html
     assert "--accent: #B91C1C" in render_cv_html(_model("slate", "maya", accent_color="#B91C1C"))
+    assert "--accent: #111827" in render_cv_html(_model("slate", "maya", accent_color="#111827"))
+
+
+def test_frame_prints_ocean_by_default_and_ink_when_ink_is_picked():
+    assert "--accent: #075985" in render_cv_html(_model("frame", "maya"))
+    assert "--accent: #111827" in render_cv_html(_model("frame", "maya", accent_color="#111827"))
 
 
 def test_manifests_match_the_spec():

@@ -33,6 +33,7 @@ from app.services.cv_docx import docx_note_for, render_docx, render_txt  # noqa:
 from app.services.cv_fonts import OVERRIDE_FONT_IDS, TYPEFACES, css_family
 from app.services.cv_html import (
     DEFAULT_TEMPLATE_ID,
+    GLOBAL_DEFAULT_ACCENT,
     URL_RE,
     TemplateManifest,
     available_template_ids,
@@ -72,6 +73,8 @@ class Template:
     title_align: str = "left"
     # Section kinds rendered in a sidebar column; empty means single column.
     sidebar_kinds: tuple[str, ...] = ()
+    # The colour the template prints with while the style's accent is null.
+    default_accent: str = GLOBAL_DEFAULT_ACCENT
 
     @property
     def two_column(self) -> bool:
@@ -93,6 +96,7 @@ def _template_from_manifest(manifest: TemplateManifest) -> Template:
         typefaces=dict(manifest.typefaces),
         title_align=manifest.title_align,
         sidebar_kinds=manifest.sidebar_kinds,
+        default_accent=(manifest.default_accent or GLOBAL_DEFAULT_ACCENT).upper(),
     )
 
 
@@ -150,6 +154,7 @@ def style_catalog() -> CvStyleCatalog:
                 margin_mm=template.margin_mm,
                 sidebar_kinds=list(template.sidebar_kinds),
                 docx_note=docx_note_for(template.two_column),
+                default_accent=template.default_accent,
                 sizes={density: template_sizes(template, density) for density in DENSITIES},
             )
             for template_id, template in TEMPLATES.items()
@@ -204,7 +209,8 @@ def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
     else:
         plan = font_plan(layout_id, style.font_id or None)
         font_docx, font_docx_heading = plan.body.name, plan.heading.name
-        accent = style.accent_color
+        # Null is the template's own colour; a palette colour (Ink too) is the person's choice.
+        accent = style.accent_color or template.default_accent
     density = ATS_DENSITY if ats else style.density
     sizes = template_sizes(template, density)
     return EffectiveStyle(
