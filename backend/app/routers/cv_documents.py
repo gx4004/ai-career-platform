@@ -70,6 +70,7 @@ from app.services.cv_quality import analyze_cv_quality
 from app.services.cv_rendering import (
     build_render_model,
     render_docx,
+    render_txt,
     render_pdf,
     style_catalog,
     validate_artifact,
@@ -269,12 +270,12 @@ def _export(
     """Export the saved CV in its saved style (the same bytes "View exact PDF" shows)."""
     document, style, source = _renderable(db, document_id, user.id, variant_id)
     model = build_render_model(source, style.template_id, style)
-    artifact = render_pdf(model) if format == "pdf" else render_docx(model)
-    media_type = (
-        "application/pdf"
-        if format == "pdf"
-        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    artifact = {"pdf": render_pdf, "docx": render_docx, "txt": render_txt}[format](model)
+    media_type = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "txt": "text/plain; charset=utf-8",
+    }[format]
     # A version's name is in the file name, so versions made for different jobs stay apart.
     label = document.name if source.variant_name is None else f"{document.name} {source.variant_name}"
     filename = _safe_filename(label, model.template_id, format)
@@ -334,6 +335,29 @@ def export_variant_docx(
     db: Session = Depends(get_db),
 ):
     return _export(request, document_id, "docx", variant_id, current_user, db)
+
+
+@router.get("/{document_id}/artifacts/txt")
+@limiter.limit("10/minute")
+def export_txt(
+    request: Request,
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _export(request, document_id, "txt", None, current_user, db)
+
+
+@router.get("/{document_id}/variants/{variant_id}/artifacts/txt")
+@limiter.limit("10/minute")
+def export_variant_txt(
+    request: Request,
+    document_id: str,
+    variant_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _export(request, document_id, "txt", variant_id, current_user, db)
 
 
 @router.post("/{document_id}/preview", response_model=CvPreviewResponse)
