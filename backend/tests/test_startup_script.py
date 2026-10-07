@@ -101,7 +101,9 @@ def test_startup_script_launches_real_server_on_ephemeral_port(tmp_path):
 
         assert response.status == 200
         assert payload["status"] == "ok"
-        assert payload["checks"] == {"database": "ok"}
+        assert payload["checks"]["database"] == "ok"
+        # Reported for CV export; never a reason to fail the probe.
+        assert payload["checks"]["chromium"] in {"ready", "idle", "unavailable"}
     finally:
         if process.poll() is None:
             process.terminate()

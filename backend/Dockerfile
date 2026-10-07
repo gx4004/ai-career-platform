@@ -2,6 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# CV PDFs are printed by one shared headless Chromium per worker (app/services/cv_chromium.py).
+# Template fonts are bundled in app/assets/fonts and embedded as data URIs, so nothing
+# depends on system fonts. If the host forbids Chromium's sandbox (no user namespaces),
+# set CV_CHROMIUM_NO_SANDBOX=1 in the service variables.
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 libatk-bridge2.0-0 libdrm2 libxcomposite1 libxdamage1 \

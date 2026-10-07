@@ -106,6 +106,11 @@ Photo upload, skill ratings, LLM-generated design, template marketplace, i18n, c
 ## 8. Tickets
 
 1. **T1 Render foundation**: Chromium PDF service, pool, 503, health; `classic` end to end (export, read-back, golden test); load test on the Railway-like container. Replaces ReportLab for CV PDFs.
+   *T1 notes (as built):* the Chromium service runs Playwright's async API on a private loop thread so sync endpoints and
+   `run_in_threadpool` share one browser; fonts are inlined as data URIs (HTML is about 2 MB); list bullets are a text `•`
+   (Chromium draws native markers as vectors, invisible to extraction); PDF dates are patched to a fixed value so output is
+   byte-stable; every legacy template id prints as `classic` until T2; `font_id` and accent do not affect the PDF until T4;
+   `validate_artifact` reports `font_problems` (Type 3, unembedded, foreign family) in the evidence.
 2. **T2 Catalog, style schema and migration**: 16 ids, legacy mapping, new fields, Zod, picker grouped by ATS status, ATS mode.
 3. **T3 Preview pipeline**: preview endpoint, page images, section rectangles, client viewer, delete `.cvp-*`, update e2e.
 4. **T4 Fonts and style controls**: bundled TTFs with Cyrillic, typeface override, accent derivation, density, page size, NFC, glyph coverage.
