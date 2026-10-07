@@ -66,23 +66,17 @@
   width: 24mm;
   height: 24mm;
   border-radius: 50%;
+  /* A clean initials disc: the accent on --on-accent, the same pair the rail's labels use
+     the other way round, so it is 4.5:1 or better on every palette colour. */
   color: var(--accent);
+  background: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
 }
-/* Two crossing hairlines behind the letters: the rail's mark. Drawn as backgrounds, not text. */
-.rl-mono {
-  background:
-    linear-gradient(45deg, transparent calc(50% - 0.5pt), var(--accent) calc(50% - 0.5pt), var(--accent) calc(50% + 0.5pt), transparent calc(50% + 0.5pt)),
-    linear-gradient(-45deg, transparent calc(50% - 0.5pt), var(--accent) calc(50% - 0.5pt), var(--accent) calc(50% + 0.5pt), transparent calc(50% + 0.5pt)),
-    var(--on-accent);
-}
 .rl-mono span {
   font: 600 17pt / 1 var(--font-heading);
-  letter-spacing: 0.02em;
-  background: var(--on-accent);
-  padding: 2pt 3pt;
+  letter-spacing: 0.04em;
 }
 
 /* -- section rows ----------------------------------------------------------------------- */
