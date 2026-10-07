@@ -76,6 +76,12 @@
   background: var(--slate-panel);
   break-inside: avoid;
 }
+/* Each line-level block beside the panel is its own formatting context: a block next to a
+   float is narrowed as a whole (or moved below it) instead of flowing round its edge, so a
+   bullet or paragraph that reaches the panel's bottom keeps one measure on every line
+   rather than wrapping narrow, then full width. */
+.sl-flow .sl-entry-head, .sl-flow li, .sl-flow .sl-text, .sl-flow .sl-chips, .sl-flow .sl-section > h2 { display: flow-root; }
+.sl-flow .sl-chips { display: flex; }
 .sl-lead, .sl-flow { isolation: isolate; } /* paint order = reading order (see the template) */
 .sl-flow::after { content: ""; display: block; clear: both; }
 .sl-lead + .sl-flow > .sl-panel { margin-top: var(--space-5); }

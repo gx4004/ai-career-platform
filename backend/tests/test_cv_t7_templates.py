@@ -164,6 +164,33 @@ def test_slate_draws_lists_beside_the_summary_and_the_rest_full_width(pdfs):
         assert right > page.rect.width * 0.8
 
 
+@pytest.mark.parametrize("density", ["compact", "normal", "spacious"])
+@pytest.mark.parametrize("extra_bullets", [0, 1, 2, 3])
+def test_slate_a_bullet_at_the_panels_bottom_keeps_one_measure(density, extra_bullets):
+    # A long bullet near the chip panel's bottom edge (moved down a line at a time): if its
+    # first line sits beside the panel, every line wraps at that measure; never narrow then
+    # full width round the panel's corner (before #471 normal and spacious did exactly that).
+    cv = cv_fixtures.maya()
+    cv.sections[1]["entries"][1]["bullets"][0] = (
+        "Zanzibar booking search UI built with Vue 2 and later migrated to React, serving 1.2M "
+        "monthly visitors across web and mobile, with server rendering, caching at the edge and a "
+        "design-system rewrite shared with the native apps team."
+    )
+    cv.sections[1]["entries"][0]["bullets"] += ["Ran the frontend guild."] * extra_bullets
+    pdf = render_pdf(build_render_model(cv, "slate", CvStyle(density=density)))
+    with fitz.open(stream=pdf, filetype="pdf") as document:
+        words = document[0].get_text("words")
+    panel_left = min(w[0] for w in words if w[4] in ("TypeScript", "English"))
+    start = next(i for i, w in enumerate(words) if w[4] == "Zanzibar")
+    end = next(i for i, w in enumerate(words) if w[4] == "team." and i > start)
+    lines: dict[int, float] = {}
+    for word in words[start : end + 1]:
+        lines[round(word[1])] = max(lines.get(round(word[1]), 0), word[2])
+    rights = [right for _, right in sorted(lines.items())]
+    if rights[0] < panel_left:  # the first line is beside the panel
+        assert max(rights) < panel_left, (density, extra_bullets, rights)
+
+
 @pytest.mark.parametrize("template", TEMPLATES)
 @pytest.mark.parametrize("density", ["compact", "normal", "spacious"])
 def test_densities_and_letter_print_cleanly(template, density):
