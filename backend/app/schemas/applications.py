@@ -320,7 +320,15 @@ class ReviewFinding(BaseModel):
     trace: list[str]
 
 
+class ReviewDocuments(BaseModel):
+    """Which documents the checks read: a CV version chosen, a cover letter (chosen or drafted) with text."""
+
+    cv: bool = True
+    cover_letter: bool = True
+
+
 class ReviewResponse(SharedResultEnvelope):
+    documents: ReviewDocuments = Field(default_factory=ReviewDocuments)
     findings: list[ReviewFinding]
 
 

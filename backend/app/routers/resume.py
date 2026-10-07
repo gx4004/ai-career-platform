@@ -8,6 +8,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.prompts.resume import RESUME_PROMPT_VERSION
 from app.schemas.tools import ResumeAnalyzeRequest, ResumeAnalyzeResponse
+from app.services.job_posting import job_subject, run_label
 from app.services.resume_analyzer import analyze_resume
 from app.services.tool_pipeline import run_tool_pipeline
 
@@ -35,7 +36,9 @@ async def analyze(
             "job_description": body.job_description,
             "feedback": body.feedback,
         },
-        label_fn=lambda r: f"Resume Analysis ({r['overall_score']}/100)",
+        label_fn=lambda r: run_label(
+            "Resume Analysis", f"{r['overall_score']}/100", job_subject(body.job_description)
+        ),
         resume_text=body.resume_text,
         job_description=body.job_description,
         feedback=body.feedback,

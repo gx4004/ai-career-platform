@@ -202,19 +202,28 @@ def test_edits_cannot_relabel_an_items_kind_or_origin(client, auth_headers, chan
 
 
 def test_import_and_inferred_provenance_still_start_unconfirmed(client, auth_headers):
+    # Distinct facts: the same suggestion posted twice is one item, so a repeat would re-check the first row.
     for provenance in ("imported", "inferred"):
         created = client.post(
-            PREFIX, json=_payload(provenance=provenance), headers=auth_headers
+            PREFIX,
+            json=_payload(provenance=provenance, content={"statement": f"Improved synthetic {provenance} flow by 20%."}),
+            headers=auth_headers,
         ).json()
+        assert created["provenance"] == provenance
         assert created["confirmation_state"] == "unconfirmed"
 
 
 def test_bulk_confirm_saves_only_the_owners_listed_items_in_one_commit(
     client, auth_headers, second_user, db, monkeypatch
 ):
+    # Three different facts: the same suggestion posted twice is one item.
     first, second, untouched = (
-        client.post(PREFIX, json=_payload(provenance="imported"), headers=auth_headers).json()
-        for _ in range(3)
+        client.post(
+            PREFIX,
+            json=_payload(provenance="imported", content={"statement": f"Improved synthetic process {n} by 20%."}),
+            headers=auth_headers,
+        ).json()
+        for n in range(3)
     )
     foreign = EvidenceItem(
         user_id=second_user.id,

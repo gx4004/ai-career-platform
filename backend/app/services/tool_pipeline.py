@@ -86,24 +86,21 @@ def _clean_inputs(
 
     if tool_name in _USER_FACING_TOOLS:
         if not clean_resume:
-            raise HTTPException(status_code=422, detail="resume text is required")
+            raise HTTPException(status_code=422, detail="Add your resume text, or upload a PDF or DOCX.")
         if not _is_meaningful(
             clean_resume, min_alnum=_MIN_RESUME_ALNUM, min_distinct=_MIN_RESUME_DISTINCT
         ):
             raise HTTPException(
                 status_code=422,
-                detail="resume text has too little usable content once unsupported text is removed",
+                detail="This resume has too little readable text. Paste it as plain text, or upload a PDF or DOCX.",
             )
         if tool_name in _JD_REQUIRED_TOOLS and job_description:
             if not clean_jd:
-                raise HTTPException(status_code=422, detail="job description is required")
+                raise HTTPException(status_code=422, detail="Add the job description.")
             if not _is_meaningful(clean_jd, min_alnum=_MIN_JD_ALNUM, min_distinct=_MIN_JD_DISTINCT):
                 raise HTTPException(
                     status_code=422,
-                    detail=(
-                        "job description has too little usable content "
-                        "once unsupported text is removed"
-                    ),
+                    detail="This job description has too little readable text. Paste the posting as plain text.",
                 )
     # Optional job description that cleaned to nothing: treat as not provided.
     return clean_resume, clean_jd or None, clean_feedback or None

@@ -9,6 +9,7 @@ from app.models.user import User
 from app.prompts.job_match import JOB_MATCH_PROMPT_VERSION
 from app.schemas.tools import JobMatchRequest, JobMatchResponse
 from app.services.job_matcher import match_job
+from app.services.job_posting import job_subject, run_label
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
@@ -41,7 +42,11 @@ async def match(
             # in the "Re-generate with feedback" textarea.
             "feedback": body.feedback,
         },
-        label_fn=lambda r: f"Job Match ({r['match_score']}%)",
+        label_fn=lambda r: run_label(
+            "Job Match",
+            f"{r['match_score']}%",
+            job_subject(body.job_description, title=r.get("job_title"), company=r.get("company")),
+        ),
         resume_text=body.resume_text,
         job_description=body.job_description,
         feedback=body.feedback,

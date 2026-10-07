@@ -221,13 +221,31 @@ _SECTION_NAMES = frozenset(
         "summary", "professional summary", "profile", "about", "experience", "work experience",
         "professional experience", "work history", "employment", "skills", "technical skills",
         "core competencies", "technologies", "projects", "education", "certifications",
-        "awards", "languages", "interests", "contact",
+        "awards", "languages", "interests", "contact", "relevant experience", "employment history",
+        "internships", "research experience", "volunteer experience", "leadership", "work",
     }
 )  # fmt: skip
+# A heading that is not in the standard set but plainly opens work ("Teaching Experience",
+# "LEADERSHIP & ACTIVITIES"): it ends an Education or Certifications section.
+_WORK_HEADING_WORDS = frozenset(
+    {"experience", "employment", "work", "internship", "internships", "leadership", "volunteer", "volunteering", "career"}
+)
+
+
+def _section_heading(line: str) -> str | None:
+    """The section a heading line opens, or None for an ordinary line."""
+    heading = line.lower().rstrip(":").strip()
+    if heading in _SECTION_NAMES:
+        return heading
+    if _BULLET_RE.match(line) or line.endswith(".") or re.search(r"\d", line) or len(heading.split()) > 4:
+        return None
+    return heading if set(re.findall(r"[a-z]+", heading)) & _WORK_HEADING_WORDS else None
 _PAST_TENSE_IRREGULAR = frozenset(
     {
         "led", "built", "ran", "wrote", "drove", "grew", "cut", "won", "made", "launched",
         "shipped", "taught", "spun", "sold", "set", "put", "took", "gave", "brought", "kept",
+        "rebuilt", "rewrote", "rolled", "oversaw", "began", "chose", "found", "held", "met", "paid",
+        "sent", "spent", "stood", "upheld", "bought", "sought", "caught", "drew", "redrew",
     }
 )  # fmt: skip
 
@@ -243,10 +261,19 @@ def _looks_like_name(line: str) -> bool:
     return True
 
 
+# Countries a "City, Country" header segment ends with (a place, never an employer).
+_COUNTRIES = (
+    "USA|UK|United States|United Kingdom|Germany|France|Spain|Italy|Portugal|Netherlands|Belgium|Austria"
+    "|Switzerland|Ireland|Poland|Czechia|Czech Republic|Sweden|Norway|Denmark|Finland|Estonia|Latvia|Lithuania"
+    "|Greece|Turkey|Türkiye|Canada|Mexico|Brazil|Argentina|Australia|New Zealand|India|Japan|Singapore"
+    "|South Korea|China|Israel|UAE|South Africa|Nigeria|Kenya|Egypt|Ukraine|Romania|Hungary"
+)
+
 _CONTACT_RE = re.compile(
     r"@|https?://|www\.|\b[\w-]+\.(?:com|io|dev|net|org|me|co)\b|linkedin|github"
     r"|\+?\(?\d[\d\s().-]{6,}\d"  # phone number
-    r"|^[A-Z][a-zA-Z.]+(?:\s[A-Z][a-zA-Z.]+)*,\s*(?:[A-Z]{2}|USA|UK)$",  # "Austin, TX"
+    rf"|^[A-Z][\w.'-]+(?:\s[A-Z][\w.'-]+)*,\s*(?:[A-Z]{{2}}|{_COUNTRIES})(?:\s*\(?(?i:remote)\)?)?$"  # "Austin, TX", "Berlin, Germany"
+    r"|^(?i:remote)$",
 )
 
 
@@ -274,10 +301,55 @@ def _shown_line(keyword: str, resume_text: str) -> str | None:
     return evidence_line(keyword, body)
 
 
+# A degree or a school: "B.S. Computer Science", "BSc", "MBA", "University of Texas". Never a job.
+_DEGREE_RE = re.compile(
+    # Abbreviations are matched in capitals only: "as" and "ma" are ordinary words.
+    r"(?:^|[\s,(])(?:B\.?\s?Sc?|B\.?\s?A|B\.?\s?Eng|M\.?\s?Sc?|M\.?\s?A|M\.?\s?Eng|MBA|Ph\.?\s?D|A\.\s?S)\.?(?=[\s,]|$)"
+    r"|(?i:\b(?:bachelor(?:'s)?|master's|masters? (?:of|degree|in)|doctorate|associate degree|diploma|university|college"
+    r"|polytechnic)\b)"
+)
+# "Backend Engineer, Freightline (2022 - present)": a role and its employer, then the dates.
+_ROLE_COMMA_RE = re.compile(r"^(?P<role>[A-Z][^,|()]{1,60}?),\s+(?P<employer>[A-Z0-9][^,|()]{0,60}?)\s*\((?P<dates>[^()]*\d{4}[^()]*)\)$")
+
+
+# Words that make a phrase a job title ("Backend Engineer", "Head of Sales"), not an employer or a place.
+_JOB_WORDS = frozenset(
+    {
+        "engineer", "developer", "designer", "manager", "analyst", "scientist", "chef", "director", "lead",
+        "specialist", "consultant", "architect", "officer", "intern", "head", "coordinator", "administrator",
+        "assistant", "associate", "founder", "co-founder", "owner", "president", "vp", "cto", "ceo", "cfo", "coo",
+        "nurse", "teacher", "accountant", "technician", "writer", "editor", "researcher", "programmer",
+        "recruiter", "representative", "executive", "advisor", "adviser", "strategist", "planner", "operator",
+        "supervisor", "agent", "clerk", "tutor", "lecturer", "professor", "fellow", "trainee", "apprentice",
+        "principal", "partner", "marketer", "copywriter", "producer", "artist", "photographer", "attorney",
+        "lawyer", "paralegal", "pharmacist", "therapist", "physician", "doctor", "sre", "devops", "tester",
+        "qa", "support", "contractor", "freelancer", "maintainer", "instructor", "counselor", "auditor",
+    }
+)  # fmt: skip
+
+
+def _names_a_job(phrase: str) -> bool:
+    return any(word.strip(".,()-").lower() in _JOB_WORDS for word in phrase.split())
+
+
 def _role_line(line: str) -> tuple[str, str] | None:
-    """A ``Role at Employer`` line (not a bullet, a sentence or a contact header)."""
+    """A ``Role at Employer`` line (not a bullet, a sentence, a degree or a contact header)."""
     if _BULLET_RE.match(line) or len(line) > 90 or line.endswith("."):
         return None
+    comma = _ROLE_COMMA_RE.match(line)
+    if comma and not _DEGREE_RE.search(comma.group("role")):
+        role, employer = comma.group("role").strip(), comma.group("employer").strip()
+        # "Employer, City (dates)" has the same shape: the left side must name a job, and
+        # "Role at Employer, Country" is left to the " at " reading below.
+        if (
+            _names_a_job(role)
+            and not re.search(r" at | @ ", role)
+            and not _looks_like_contact(role)
+            and not _looks_like_contact(f"{role}, {employer}")
+            and 1 <= len(role.split()) <= 6
+            and 1 <= len(employer.split()) <= 6
+        ):
+            return role[:80], employer[:80]
     for sep in (" at ", " @ ", " | "):
         if sep in line:
             role, _, employer = line.partition(sep)
@@ -285,7 +357,10 @@ def _role_line(line: str) -> tuple[str, str] | None:
             employer = re.sub(r"\s*[\(,|]?\s*\(?\d{4}.*$", "", employer).strip(" ,;")
             # "Role | Employer | Location": the employer is the first segment only.
             employer = employer.split("|", 1)[0].strip(" ,;")
-            if _looks_like_contact(employer) or _looks_like_contact(role):
+            if sep != " | ":
+                # "Engineer at Siemens, Germany": the place after the employer is not part of it.
+                employer = employer.split(",", 1)[0].strip()
+            if _looks_like_contact(employer) or _looks_like_contact(role) or _DEGREE_RE.search(role):
                 return None
             if 1 <= len(role.split()) <= 6 and 1 <= len(employer.split()) <= 6 and employer[:1].isalnum():
                 return role[:80], employer[:80]
@@ -404,13 +479,21 @@ def _parse_resume(text: str) -> _Resume:
     if lines and _looks_like_name(lines[0]):
         resume.name = lines[0]
     employer = ""
+    section = ""
+    in_education: list[bool] = []
     for index, line in enumerate(lines):
+        heading = _section_heading(line)
+        if heading:
+            section = heading
+        studying = section in ("education", "certifications")
+        in_education.append(studying)
         bullet = _BULLET_RE.match(line)
         if bullet:
-            if len(bullet.group(1)) >= 12:
+            # A degree, a course or a thesis under Education is not work to quote.
+            if len(bullet.group(1)) >= 12 and not studying:
                 resume.bullets.append(_Bullet(bullet.group(1).strip(), employer))
             continue
-        role = _role_line(line)
+        role = None if studying else _role_line(line)
         if role:
             resume.roles.append(role)
             employer = role[1]
@@ -427,9 +510,14 @@ def _parse_resume(text: str) -> _Resume:
                 resume.skills = _split_skills(line)
                 break
     if not resume.bullets:
-        # Prose resumes: treat number-bearing sentences as the quotable facts.
-        for line in lines:
+        # Prose resumes: treat number-bearing sentences as the quotable facts (never a degree line).
+        for line, studying in zip(lines, in_education, strict=True):
+            if studying:
+                continue
             for sentence in re.split(r"(?<=[.!?])\s+", line):
+                # "Computer Science, University of Texas, 2019" (split off a "B.S.") is a degree, not a fact.
+                if _DEGREE_RE.search(sentence) and not _past_tense(sentence.split(" ", 1)[0]):
+                    continue
                 if re.search(r"\d", sentence) and len(sentence.split()) >= 6:
                     resume.bullets.append(_Bullet(sentence.strip()))
     years = re.search(r"(\d{1,2})\+?\s+years", text, re.I)
@@ -526,6 +614,12 @@ _FOCUS_RE = re.compile(
 )
 
 
+# "Focus on leadership please": politeness and filler after the topic are not part of it.
+_FILLER_TAIL = re.compile(
+    r"(?:\s+(?:please|pls|thanks|thank you|thx|too|as well|a bit|a little|a lot|more|instead|now|again))+\s*$", re.I
+)
+
+
 @dataclass(frozen=True)
 class _FeedbackIntent:
     concise: bool = False
@@ -536,7 +630,8 @@ def _feedback_intent(feedback: str) -> _FeedbackIntent:
     if not feedback:
         return _FeedbackIntent()
     match = _FOCUS_RE.search(feedback)
-    return _FeedbackIntent(concise=bool(_CONCISE_RE.search(feedback)), topic=match.group("topic").strip() if match else "")
+    topic = _FILLER_TAIL.sub("", match.group("topic")).strip() if match else ""
+    return _FeedbackIntent(concise=bool(_CONCISE_RE.search(feedback)), topic=topic)
 
 
 def _first_sentence(text: str) -> str:
@@ -1070,8 +1165,12 @@ def _cover_letter(system_prompt: str, user_prompt: str) -> dict:
 
     body_points: list[dict] = []
     if proof:
-        place = f"At {proof.employer}, " if proof.employer else "In my recent work, "
-        sentence = f"{place}{proof.clause()}."
+        clause = proof.clause()
+        if proof.employer:
+            sentence = f"At {proof.employer}, {clause}."
+        else:
+            # "My work included ..." already says where; "In my recent work, my work included" says it twice.
+            sentence = f"In my recent work, {clause}." if clause.startswith("I ") else f"{_upper_first(clause)}."
         if proof2 and (wants_numbers or not wants_short):
             sentence += f" I also {proof2.clause()[2:]}." if proof2.clause().startswith("I ") else f" Elsewhere, {proof2.clause()}."
         if matched:
@@ -1505,12 +1604,22 @@ _RESULT_VERBS = re.compile(
 )
 
 
+def _question_quote(question: str) -> str:
+    """The question itself, whole: its asking sentence ("How would you ...?") rather than the setup before it.
+
+    A question that quotes the resume keeps its inner quotes as single ones, never nested doubles.
+    """
+    sentences = [part for part in re.split(r"(?:(?<=[.!?])|(?<=[.!?][\"'”’]))\s+(?=[A-Z\"'“])", " ".join(question.split())) if part]
+    asking = next((part for part in reversed(sentences) if part.endswith("?")), sentences[0] if sentences else "")
+    return _trim(asking, 160).rstrip(".?! ").replace('"', "'") or "this question"
+
+
 def _interview_practice_feedback(system_prompt: str, user_prompt: str) -> dict:
     question = _section(user_prompt, "Interview Question")
     answer = _section(user_prompt, "User Answer")
     model_answer = _section(user_prompt, "Model Answer")
     # A question that quotes the resume keeps its inner quotes as single ones, never nested doubles.
-    quoted_question = _trim(question, 110).rstrip(".?! ").replace('"', "'") or "this question"
+    quoted_question = _question_quote(question)
 
     if "(No answer provided)" in user_prompt or not answer:
         return {
@@ -1884,7 +1993,11 @@ def _portfolio(system_prompt: str, user_prompt: str) -> dict:
         "presentation_tips": [
             f"Lead with a 30-second demo of {start} before any code walkthrough.",
             f"Name the hardest trade-off you made in {last} and why.",
-            f"Tie each project back to {signals[0].lower() if signals else 'the role'} in the first line of the README.",
+            (
+                f'Open each README with the hiring signal it proves, such as "{signals[0].rstrip(".")}".'
+                if signals
+                else "Tie each project back to the role in the first line of the README."
+            ),
         ],
     }
     return _reflect_feedback(
@@ -1983,11 +2096,26 @@ def _front_phrase(text: str, term: str) -> str:
         return ""
     start = starts[-1]
     end = index + len(term)
+    # "Python and SQL", "Python, SQL or Go": the moved phrase carries the whole list, never half of it.
+    # Only a skill-shaped conjunct ("SQL", "C++", "Node.js") joins the list: "and cut latency" or
+    # "and reduced costs" starts the next clause and stays where it is.
+    coordinated = re.match(r"(?:(?:\s*,\s*[A-Z0-9][\w+#./-]*)+,?)?\s+(?:and|or|&)\s+[A-Z0-9][\w+#./-]*", body[end:])
+    if coordinated and not any(
+        _past_tense(word) or word.lower().endswith("ing")
+        for word in re.findall(r"[A-Za-z][\w+#./-]*", coordinated.group())
+        if word.lower() not in ("and", "or")
+    ):
+        end += coordinated.end()
     trailing = re.match(r"\s+[\w-]+(?=\s*(?:,|$))", body[end:])
     if trailing:
         end += trailing.end()
     head = body[:start].rstrip(" ,")
     if len(head.split()) < 2:
+        return ""
+    # Only an action turns around ("Built ..." -> "In Python, built ..."); a noun phrase such as
+    # "Backend engineer with six years of Python" would read inside out.
+    first = head.split(" ", 1)[0]
+    if not (_past_tense(first) or first.lower().endswith("ing")):
         return ""
     tail = body[start:end]
     return f"{tail[:1].upper()}{tail[1:]}, {_lower_first(head)}{body[end:]}."
@@ -2088,7 +2216,9 @@ def _application_drafts(system_prompt: str, user_prompt: str) -> dict:
         history.append(f"most recently as {resume.current_title}" + (f" at {resume.roles[0][1]}" if resume.roles else ""))
     experience_answer = ", ".join(history) if history else "My background is in the CV attached to this application"
     if proof2:
-        experience_answer += f". I also {proof2.clause()[2:]}" if proof2.clause().startswith("I ") else f". {proof2.clause()}"
+        experience_answer += (
+            f". I also {proof2.clause()[2:]}" if proof2.clause().startswith("I ") else f". {_upper_first(proof2.clause())}"
+        )
     experience_answer = experience_answer[0].upper() + experience_answer[1:] + "."
     screening = [
         {

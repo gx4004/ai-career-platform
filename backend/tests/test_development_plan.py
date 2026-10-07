@@ -125,7 +125,7 @@ def test_completion_with_user_supplied_notes_confirms_evidence_directly(
     assert body["updated_at"].endswith("Z")
     proposal = db.query(EvidenceItem).filter_by(id=body["evidence_item_id"]).one()
     assert proposal.user_id == test_user.id
-    assert proposal.provenance == "inferred"
+    assert proposal.provenance == "user-entered"  # the owner's own notes (history-profile-F35)
     assert proposal.confirmation_state == "confirmed"
     assert proposal.content == {"statement": "Built a Kubernetes deployment controller."}
 

@@ -108,6 +108,19 @@ def _fact_key(kind: str, content: dict) -> tuple[str, tuple[tuple[str, str], ...
     )
 
 
+def suggest_evidence_item(db: Session, user_id: str, body: EvidenceItemCreate) -> EvidenceItem:
+    """Add one tool-suggested fact as an unconfirmed proposal, once.
+
+    Idempotent like the resume import: a fact the profile already holds (in any state)
+    is returned as it is, so a repeated "Add to profile" never makes a duplicate.
+    """
+    key = _fact_key(body.kind, body.content)
+    for item in list_evidence_items(db, user_id):
+        if _fact_key(item.kind, item.content) == key:
+            return item
+    return create_evidence_item(db, user_id, body)
+
+
 def stage_evidence_items(
     db: Session, user_id: str, bodies: list[EvidenceItemCreate]
 ) -> list[EvidenceItem]:

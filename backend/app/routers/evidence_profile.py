@@ -24,6 +24,7 @@ from app.services.evidence_profile import (
     delete_evidence_items,
     list_evidence_items,
     stage_evidence_items,
+    suggest_evidence_item,
     update_evidence_item,
 )
 
@@ -91,10 +92,10 @@ def create_item(
     # is the owner typing it themselves right now, so it is trusted immediately
     # with no extra confirm click; `imported`/`inferred` items still land
     # unconfirmed for review (Phase 1b, #321).
-    confirmation_state = "confirmed" if body.provenance == "user-entered" else "unconfirmed"
-    return create_evidence_item(
-        db, current_user.id, body, confirmation_state=confirmation_state
-    )
+    if body.provenance != "user-entered":
+        # A repeated "Add to profile" returns the suggestion already there.
+        return suggest_evidence_item(db, current_user.id, body)
+    return create_evidence_item(db, current_user.id, body, confirmation_state="confirmed")
 
 
 @router.post("/items/confirm", response_model=EvidenceItemListResponse)
