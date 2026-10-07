@@ -270,10 +270,14 @@ def test_every_weight_and_style_a_template_uses_is_a_loaded_face(template_id, fo
     html = render_cv_html(_model("long", font=font_id, template=template_id), page_size="a4")
     audit = cv_chromium.inspect_page(html, _FACE_AUDIT)
     declared = {(family, weight, style) for family, weight, style, _ in audit["faces"]}
+    loaded = {(family, weight, style) for family, weight, style, status in audit["faces"] if status == "loaded"}
     assert audit["used"]
     for family, weight, style in audit["used"]:
         assert (family, weight, style) in declared, (template_id, font_id, family, weight, style)
-    assert all(status == "loaded" for *_, status in audit["faces"]), audit["faces"]
+        # Only faces the text uses are fetched: a one-family template under an override of the
+        # other category declares heading weights the body never asks for.
+        assert (family, weight, style) in loaded, (template_id, font_id, family, weight, style)
+    assert all(status in ("loaded", "unloaded") for *_, status in audit["faces"]), audit["faces"]
 
 
 @pytest.mark.parametrize("template_id", available_template_ids())
