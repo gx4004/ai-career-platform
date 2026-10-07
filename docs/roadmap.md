@@ -33,7 +33,7 @@ Tracked on GitHub: umbrella #319.
 |---|---|---|
 | 0 Consolidate | #320 | One integration branch, providers, held bugs fixed, screenshot harness |
 | 1 Simplify foundations | #321 | Independent feature flags; simpler Evidence with Development folded in |
-| 2 CV Studio | #322 | Structured editor, customisation, ATS mode, live preview, redesign |
+| 2 CV Studio | #322 | Structured editor, customisation, ATS mode, live preview, redesign; templates chapter (#459-#471): seven HTML templates printed by Chromium, server-rendered preview, fit to one page, DOCX per template, plain-text export (ADR 0011; nine more template ids accepted, not built; Chromium capacity on one Railway replica still to measure in the container) |
 | 3 Discovery + Queue | #323 | Real ingestion from public job boards; redesigned discovery and queue |
 | 4 Campaigns + Evidence | #324 | Redesigned tracker and profile; grouped navigation |
 | 5 Autopilot experiment | #325 | Browser-assisted fill — experimental, off by default, stops before submit |

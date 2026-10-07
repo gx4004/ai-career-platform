@@ -111,11 +111,21 @@ target role. The base document and every prior variant remain restorable;
 restoring one first keeps the replaced document as a variant.
 
 **CV template**
-One of five declarative layouts (ATS Essential, Professional Editorial,
-Technical Portfolio, Modern Two-Column, Minimal Serif) from which preview, DOCX,
-and PDF render deterministically from the same structured document. The backend
-style catalog is the single source of template, font, palette and density values;
-the live preview looks them up rather than keeping its own copy.
+One of seven declarative HTML/CSS layouts (`backend/app/cv_templates/<id>/`) from
+which the PDF, the preview and the DOCX render deterministically from the same
+structured document. **ATS-safe** templates are single-column and read in section
+order (Classic, the default; Scholar; Frame); **less ATS-safe** templates use a
+sidebar, rail or two-column body and may be read out of order by a job portal
+(Lagoon, Rail, Lilac, Slate), so they carry a warning and ATS mode never offers them.
+Nine further ids are accepted but not built and print as Classic. A style picks a
+template plus an optional typeface override, an accent (null means the template's own
+colour), density, page size and fit to one page. The backend style catalog is the
+single source of those values (ADR 0011).
+
+**CV preview**
+Server-rendered page images of the unsaved draft, printed by the same Chromium pass
+as the PDF, plus section rectangles for click-to-edit. What the preview shows is the
+PDF; there is no second renderer in the browser.
 
 **ATS-aware check**
 A deterministic structural validation of a CV document or its exports — section

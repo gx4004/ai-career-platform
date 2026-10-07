@@ -95,7 +95,10 @@ uvicorn process without `--workers`. The frontend is a single Node process.
 Both Dockerfiles run the application as a dedicated non-root user.
 
 - Backend: `backend/Dockerfile` — based on `python:3.12-slim`, includes
-  Playwright + Chromium for PDF rendering, runs as UID 10001 (`appuser`)
+  Playwright + Chromium for PDF rendering, runs as UID 10001 (`appuser`).
+  Chromium keeps its sandbox unless the host lacks user namespaces and the service
+  sets `CV_CHROMIUM_NO_SANDBOX=1` (a documented, weaker posture; see the CV
+  rendering boundary below)
 - Frontend: `frontend/Dockerfile` — multi-stage build from `node:22-slim`,
   runs custom `serve.mjs` as the base image's `node` user
 
@@ -394,7 +397,7 @@ its fixed 20/minute route limit still applies.
 | Method | Path | Rate limit | Purpose |
 |--------|------|------------|---------|
 | `GET` | `/health` | — | Database readiness probe |
-| `GET` | `/cv-documents/fonts/{filename}` | — | Bundled OFL CV template font (strict filename allowlist, long-cached, static) |
+| `GET` | `/cv-documents/fonts/{filename}` | — | Bundled CV template font (OFL/UFL/Apache files only; strict allowlist of registry file names, never a path; long-cached, static, `nosniff`) |
 | `POST` | `/auth/login` | 10/min | Email/password login |
 | `POST` | `/auth/register` | 5/min | Account registration |
 | `POST` | `/auth/logout` | — | Origin-checked cookie clearing; valid access token not required |
@@ -466,7 +469,7 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `GET` | `/evidence-profile/export` | — (owner lifecycle) | 5/min |
 | `DELETE` | `/evidence-profile/items` | — (owner lifecycle) | 5/min |
 
-#### R12 CV Studio (16)
+#### R12 CV Studio (24)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
@@ -477,7 +480,13 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `GET` | `/cv-documents` | R12 | — |
 | `POST` | `/cv-documents` | R12 | — |
 | `GET` | `/cv-documents/{document_id}` | R12 | — |
-| `GET` | `/cv-documents/{document_id}/artifacts/{format}` | R12 | 10/min |
+| `GET` | `/cv-documents/{document_id}/artifacts/pdf` | R12 | 10/min |
+| `GET` | `/cv-documents/{document_id}/artifacts/docx` | R12 | 10/min |
+| `GET` | `/cv-documents/{document_id}/artifacts/txt` | R12 | 10/min |
+| `GET` | `/cv-documents/{document_id}/variants/{variant_id}/artifacts/pdf` | R12 | 10/min |
+| `GET` | `/cv-documents/{document_id}/variants/{variant_id}/artifacts/docx` | R12 | 10/min |
+| `GET` | `/cv-documents/{document_id}/variants/{variant_id}/artifacts/txt` | R12 | 10/min |
+| `POST` | `/cv-documents/{document_id}/preview` | R12 | 60/min |
 | `POST` | `/cv-documents/{document_id}/quality` | R12 | 20/min + Model shared when model-backed |
 | `PATCH` | `/cv-documents/{document_id}` | R12 | — |
 | `POST` | `/cv-documents/{document_id}/tailoring` | R12 | 20/min + Model shared |
@@ -486,6 +495,8 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `DELETE` | `/cv-documents` | R12 | — |
 | `POST` | `/cv-documents/{document_id}/variants` | R12 | — |
 | `POST` | `/cv-documents/{document_id}/variants/{variant_id}/restore` | R12 | — |
+| `PATCH` | `/cv-documents/{document_id}/variants/{variant_id}` | R12 | — |
+| `DELETE` | `/cv-documents/{document_id}/variants/{variant_id}` | R12 | — |
 
 #### R13 campaigns (13)
 
@@ -1082,9 +1093,29 @@ local override can confirm or launder a claim. No CV, job, diff, or evidence con
 is logged or emitted as telemetry.
 
 R12 #158 adds two sensitive bulk-read/export boundaries. Template rendering accepts
-only one of the three closed template ids and normalizes the owner-scoped structured
-document into `cv-render/v1`; template code never receives an upload or arbitrary
-markup. PDF/DOCX generators consume only that normalized render model, set private
+only a closed template id (sixteen schema ids, seven built; an unbuilt id prints as
+Classic; legacy ids map through the style validator) and normalizes the owner-scoped
+structured document into the render model; template code never receives an upload or
+arbitrary markup. Jinja autoescaping is on, so user text reaches the HTML only as
+escaped text (links are built from validated URLs).
+
+CV rendering boundary (#459-#471, ADR 0011). PDFs and preview pages are printed by
+one shared headless Chromium per worker. Each render gets a fresh browser context
+with service workers blocked, and every request the page makes is aborted unless it
+is a `data:` or `about:` URL: fonts and CSS are inlined, so a render has no network
+access, cannot reach internal services and cannot leak CV text to a third party.
+Two render slots and a 15 s budget (queueing included) bound concurrency; a crashed
+browser is relaunched; a missing one is a 503, not a fallback. The preview endpoint
+(`POST /cv-documents/{id}/preview`) requires the owner's session, scopes the
+document first, accepts the same validated draft fields as a save (1 MiB JSON cap),
+stores nothing, answers `private, no-store`, and is limited to 60/min per client; fit
+to one page spends at most six renders inside the same budget. The plain-text export
+(`artifacts/txt`, document and variant) is owner-scoped, 10/min, `text/plain;
+charset=utf-8` and built from the render model only. The remaining risk is capacity,
+not data: a single Railway replica holds a browser per worker (measured locally at
+about 0.5-0.8 GB RSS under load; not yet measured in the container), so a burst of
+previews within the rate limits can pressure memory. The hosted load test is an
+open pre-launch item. PDF/DOCX generators consume only that normalized render model, set private
 no-store responses, and validate text, links, page boundaries, and own-parser
 re-import before evidence is reported. The parser boundary remains subprocess-
 isolated and resource-capped for both user imports and generated-artifact validation;

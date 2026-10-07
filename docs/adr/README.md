@@ -51,3 +51,4 @@ What becomes easier, what becomes harder, rollback posture.
 - [0008. Discovery sources are registry-gated with bounded, attributable ingestion](0008-r14-registry-gated-discovery.md) — accepted 2026-07-10
 - [0009. Applications prepare materials; submission stays human](0009-r15-queue-prepares-submission-stays-human.md) — accepted 2026-07-10, amended 2026-09-30
 - [0010. Submission is a per-source authorized act on approved packet snapshots](0010-r16-per-source-authorized-submission.md) — superseded 2026-09-30 (submission code removed in the Sept 2026 reset)
+- [0011. CV PDFs and the live preview are HTML/CSS templates printed by headless Chromium](0011-cv-html-chromium-rendering.md) — accepted 2026-10-07
