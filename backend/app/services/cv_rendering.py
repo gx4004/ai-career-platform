@@ -39,12 +39,13 @@ from app.schemas.cv_documents import (
     CvStyleSizes,
 )
 from app.services.cv_chromium import print_pdf
-from app.services.cv_fonts import FONT_FAMILIES, css_family, docx_font_name
+from app.services.cv_fonts import OVERRIDE_FONT_IDS, TYPEFACES, css_family, docx_font_name
 from app.services.cv_html import (
     DEFAULT_TEMPLATE_ID,
     URL_RE,
     TemplateManifest,
     available_template_ids,
+    effective_families,
     html_template_id,
     load_manifest,
     missing_characters,
@@ -169,7 +170,7 @@ def style_catalog() -> CvStyleCatalog:
                 category=family.category,
                 css_family=css_family(family.id),
             )
-            for family in FONT_FAMILIES.values()
+            for family in (TYPEFACES[font_id] for font_id in OVERRIDE_FONT_IDS)
         ],
         palette=[
             CvStyleCatalogColor(value=value, name=name) for value, name in CV_ACCENT_NAMES.items()
@@ -188,6 +189,7 @@ def style_catalog() -> CvStyleCatalog:
 @dataclass(frozen=True)
 class EffectiveStyle:
     layout_template_id: str
+    font_override: str
     font_docx_name: str
     accent: str
     density: str
@@ -213,6 +215,7 @@ def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
     sizes = template_sizes(template, density)
     return EffectiveStyle(
         layout_template_id=layout_id,
+        font_override="" if ats else (style.font_id or ""),
         font_docx_name=font_docx,
         accent=accent,
         density=density,
@@ -284,7 +287,7 @@ def _render_header(document) -> CvRenderHeader:
 
 
 def _unsupported_characters(
-    template_id: str, header: CvRenderHeader, sections: list[dict]
+    template_id: str, header: CvRenderHeader, sections: list[dict], font_override: str | None = None
 ) -> list[str]:
     """The characters of this CV that none of the template's bundled fonts can draw.
 
@@ -318,7 +321,7 @@ def _unsupported_characters(
             ),
         ]
     )
-    return missing_characters(template_id, text)
+    return missing_characters(template_id, text, font_override)
 
 
 def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderModel:
@@ -342,7 +345,10 @@ def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderMo
     ]
     header = _render_header(document)
     unsupported = _unsupported_characters(
-        html_template_id(effective.layout_template_id), header, sections
+        html_template_id(effective.layout_template_id),
+        header,
+        sections,
+        effective.font_override or None,
     )
     return CvRenderModel(
         document_name=nfc(document.name.strip()),
@@ -352,6 +358,7 @@ def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderMo
         unsupported_characters=unsupported,
         tokens={
             "font_docx": effective.font_docx_name,
+            "font_override": effective.font_override,
             "accent": effective.accent,
             "body_size_pt": effective.body_size,
             "heading_size_pt": effective.heading_size,
@@ -644,7 +651,12 @@ def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
         page_breaks="pass" if page_breaks_ok else "fail",
         unread_sections=_unread_sections(model, expected_structure, actual_structure),
         unsupported_characters=unsupported,
-        font_problems=font_problems(pdf, manifest.families),
+        font_problems=font_problems(
+            pdf,
+            effective_families(
+                html_template_id(model.template_id), str(model.tokens.get("font_override") or "") or None
+            ),
+        ),
     )
 
 

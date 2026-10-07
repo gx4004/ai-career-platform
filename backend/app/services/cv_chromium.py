@@ -68,6 +68,13 @@ def chromium_installed() -> bool:
     return any(root.is_dir() and any(root.glob("chromium*-*")) for root in roots)
 
 
+async def _only_inline(route) -> None:
+    if route.request.url.startswith(("data:", "about:")):
+        await route.continue_()
+    else:
+        await route.abort()
+
+
 class ChromiumPool:
     """The shared browser and its render slots. Use the module-level instance."""
 
@@ -162,17 +169,23 @@ class ChromiumPool:
         try:
             page = await context.new_page()
             # The HTML is self-contained (fonts are data URIs): nothing may be fetched.
-
-            async def only_inline(route) -> None:
-                if route.request.url.startswith(("data:", "about:")):
-                    await route.continue_()
-                else:
-                    await route.abort()
-
-            await page.route("**/*", only_inline)
+            await page.route("**/*", _only_inline)
             await page.set_content(html, wait_until="load", timeout=_LOAD_TIMEOUT_MS)
             await page.evaluate("document.fonts.ready.then(() => true)")
             return await page.pdf(prefer_css_page_size=True, print_background=True)
+        finally:
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(context.close(), 5)
+
+    async def _inspect_once(self, html: str, script: str):
+        browser = await self._get_browser()
+        context = await browser.new_context(service_workers="block")
+        try:
+            page = await context.new_page()
+            await page.route("**/*", _only_inline)
+            await page.set_content(html, wait_until="load", timeout=_LOAD_TIMEOUT_MS)
+            await page.evaluate("document.fonts.ready.then(() => true)")
+            return await page.evaluate(script)
         finally:
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(context.close(), 5)
@@ -221,6 +234,11 @@ class ChromiumPool:
     async def print_pdf_async(self, html: str) -> bytes:
         return await asyncio.wrap_future(self._submit(self._print_with_timeout(html)))
 
+    def inspect_page(self, html: str, script: str):
+        """Blocking: load ``html`` as the renderer does and return the JSON of ``script``
+        evaluated in the page. Used by the build-time font audit, not by requests."""
+        return self._submit(self._inspect_once(html, script)).result()
+
     def status(self) -> str:
         """``ready`` (running), ``idle`` (installed, not started yet) or ``unavailable``."""
         browser = self._browser
@@ -246,6 +264,10 @@ _pool = ChromiumPool()
 
 def print_pdf(html: str) -> bytes:
     return _pool.print_pdf(html)
+
+
+def inspect_page(html: str, script: str):
+    return _pool.inspect_page(html, script)
 
 
 async def print_pdf_async(html: str) -> bytes:

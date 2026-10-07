@@ -1,0 +1,31 @@
+/* Shared by every CV template; inlined ahead of the template's own CSS.
+   The render supplies these custom properties on :root (see cv_html.render_cv_html):
+     --font-body, --font-heading      family stacks (template pairing or the typeface override)
+     --accent, --accent-tint, --on-accent   the chosen accent, 12% of it in white, and the
+                                      text colour (white or ink) that reads on a fill of it
+     --type, --gap                    density scales (compact .88/.70, normal 1, spacious 1.15/1.40)
+   Templates size text as `calc(Npt * var(--type))` or em of the body size, and space blocks
+   with the --space-* scale, so density moves type and spacing together. */
+:root {
+  --space-1: calc(1.5pt * var(--gap));
+  --space-2: calc(3pt * var(--gap));
+  --space-3: calc(6pt * var(--gap));
+  --space-4: calc(8pt * var(--gap));
+  --space-5: calc(14pt * var(--gap));
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+}
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--ink);
+  font-variant-ligatures: none;
+  overflow-wrap: anywhere;
+}
+a { color: inherit; text-decoration: underline; text-underline-offset: 0.12em; }
+/* Every weight and style a template uses is a real @font-face; nothing may be synthesised.
+   (tests/test_cv_fonts.py renders each template and fails on a face that has no file.) */
+b, strong, h1, h2, h3, h4, h5, h6, th { font-weight: inherit; }
+em, i { font-style: inherit; }

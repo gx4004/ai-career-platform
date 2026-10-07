@@ -58,7 +58,7 @@ from app.services.cv_documents import (
     update_document,
     update_variant,
 )
-from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR
+from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR, TYPEFACES
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
 from app.services.cv_quality import analyze_cv_quality
 from app.services.cv_rendering import (
@@ -193,6 +193,8 @@ _ALLOWED_FONT_FILES: dict[str, Path] = {
     filename: FONTS_DIR / family.dir_name / filename
     for family in FONT_FAMILIES.values()
     for filename in (family.regular_file, family.bold_file)
+} | {
+    face.path.name: face.path for typeface in TYPEFACES.values() for face in typeface.faces
 }
 
 

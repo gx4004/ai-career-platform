@@ -7,8 +7,8 @@ import fitz
 
 from app.schemas.cv_documents import CV_ACCENT_PALETTE, CvDocumentCreate, CvStyle
 from app.services.cv_documents import create_document
-from app.services.cv_fonts import FONT_FAMILIES, register_fonts
-from app.services.cv_html import load_manifest
+from app.services.cv_fonts import FONT_FAMILIES, OVERRIDE_FONT_IDS, register_fonts
+from app.services.cv_html import effective_families, load_manifest
 from app.services.cv_pdf import embedded_fonts, font_problems
 from app.services.cv_rendering import (
     TEMPLATES,
@@ -76,7 +76,7 @@ def _structured_document(db, test_user):
 def test_all_bundled_fonts_register_and_render_deterministically(db, test_user):
     register_fonts()
     document = _structured_document(db, test_user)
-    for font_id in FONT_FAMILIES:
+    for font_id in OVERRIDE_FONT_IDS:
         style = CvStyle(template_id="classic", font_id=font_id, accent_color="#111827")
         model = build_render_model(document, "classic", style)
         pdf_a = render_pdf(model)
@@ -103,9 +103,8 @@ def test_unstyled_cv_exports_in_the_font_its_preview_shows(client, auth_headers,
     docx = client.get(f"{PREFIX}/{document.id}/artifacts/docx", headers=auth_headers)
 
     assert pdf.status_code == 200 and docx.status_code == 200
-    # TODO(#461, T4): the PDF's typeface comes from the template until the typeface
-    # override lands; it is `classic`'s pair whatever `font_id` says. Only fonts of the
-    # template are embedded (no Type 3, no fallback face).
+    # No override: the PDF prints classic's own pair. Only fonts of the template are
+    # embedded (no Type 3, no fallback face).
     assert embedded_fonts(pdf.content)
     assert font_problems(pdf.content, load_manifest("classic").families) == []
     with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
@@ -199,7 +198,8 @@ def test_style_catalog_is_the_single_source_of_design_values(client, auth_header
     assert list(templates) == list(TEMPLATES)
     assert list(templates) == ["classic"]  # until T6-T8 add template directories
     assert templates["classic"]["name"] == "Classic"
-    assert {f["id"] for f in body["fonts"]} == set(FONT_FAMILIES)
+    assert [f["id"] for f in body["fonts"]] == list(OVERRIDE_FONT_IDS)
+    assert len(body["palette"]) == 10
     assert all(f["css_family"].startswith(f"'{f['name']}'") for f in body["fonts"])
     assert [d["id"] for d in body["densities"]] == ["compact", "normal", "spacious"]
     assert {c["value"] for c in body["palette"]} == set(CV_ACCENT_PALETTE)
@@ -250,7 +250,8 @@ def test_patch_style_persists_and_defaults_for_legacy_documents(client, auth_hea
     )
     assert patched.status_code == 200
     assert patched.json()["style"]["template_id"] == "executive"
-    assert patched.json()["style"]["font_id"] == "pt-serif"
+    # A legacy typeface id is stored as the nearest curated family.
+    assert patched.json()["style"]["font_id"] == "source-serif-4"
 
     fetched = client.get(f"{PREFIX}/{created['id']}", headers=auth_headers).json()
     assert fetched["style"]["accent_color"] == "#166534"
@@ -267,8 +268,10 @@ def test_artifact_export_uses_the_saved_style(client, auth_headers, db, test_use
     assert response.status_code == 200
     # executive has no template directory yet (T7), so it prints, and is named, as classic.
     assert "Structured-CV-classic.pdf" in response.headers["content-disposition"]
-    # TODO(T4): the saved `font_id` does not change the PDF's typeface yet.
-    assert font_problems(response.content, load_manifest("classic").families) == []
+    # crimson-text maps to Lora: the saved typeface prints (body; classic's heading stays serif too).
+    assert effective_families("classic", "lora") == frozenset({"Lora"})
+    assert font_problems(response.content, effective_families("classic", "lora")) == []
+    assert {font.name.split("-")[0] for font in embedded_fonts(response.content)} == {"Lora"}
 
 
 def test_style_rejects_the_removed_section_order_field():

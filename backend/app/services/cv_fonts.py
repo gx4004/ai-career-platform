@@ -1,6 +1,11 @@
-"""Bundled OFL font registration for CV rendering.
+"""Bundled font registry for CV rendering.
 
-Fonts are static (non-variable) TTFs pulled from the official google/fonts OFL
+Two registries live here. ``TYPEFACES`` (below) is the one the HTML/Chromium templates use:
+static TTFs (OFL, plus Apache 2.0 Roboto Slab and Ubuntu's UFL) with Cyrillic and Latin
+Extended, one entry per family listing a real file for every weight and style that is
+shipped. ``FONT_FAMILIES`` is the older ReportLab set (cover letters, DOCX default name).
+
+The ReportLab fonts are static (non-variable) TTFs pulled from the official google/fonts OFL
 directory so reportlab can address a true bold face per family. Registration is
 idempotent and process-wide: reportlab's font table is a global, so repeated
 calls (every render request) must be safe no-ops after the first.
@@ -12,6 +17,7 @@ import functools
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -72,6 +78,146 @@ FONT_FAMILIES: dict[str, FontFamily] = {
     ),
 }
 
+# -- the CV template typefaces ----------------------------------------------------------
+
+Category = Literal["sans-serif", "serif", "monospace"]
+
+
+@dataclass(frozen=True)
+class Face:
+    weight: int
+    style: Literal["normal", "italic"]
+    file: str  # relative to FONTS_DIR
+
+    @property
+    def path(self) -> Path:
+        return FONTS_DIR / self.file
+
+
+@dataclass(frozen=True)
+class Typeface:
+    id: str
+    name: str  # the CSS family name, and the PDF font name once spaces are removed
+    category: Category
+    faces: tuple[Face, ...]
+    cyrillic: bool = True
+    license: str = "OFL"
+
+    def face(self, weight: int, style: str = "normal") -> Face:
+        """The shipped face nearest to ``weight`` in ``style`` (a real file, never synthesised).
+
+        A style the family does not ship (italic of Manrope) falls back to its upright face.
+        """
+        pool = [f for f in self.faces if f.style == style] or [
+            f for f in self.faces if f.style == "normal"
+        ]
+        return min(pool, key=lambda f: (abs(f.weight - weight), -f.weight))
+
+    @property
+    def pdf_prefix(self) -> str:
+        return self.name.replace(" ", "")
+
+
+def _faces(directory: str, prefix: str, spec: dict[tuple[int, str], str]) -> tuple[Face, ...]:
+    return tuple(
+        Face(weight, style, f"{directory}/{prefix}-{suffix}.ttf")
+        for (weight, style), suffix in spec.items()
+    )
+
+
+_UPRIGHT = {(400, "normal"): "Regular", (500, "normal"): "Medium", (600, "normal"): "SemiBold", (700, "normal"): "Bold"}
+_ITALIC_MINOR = {(400, "italic"): "Italic"}
+_ITALIC = {**_ITALIC_MINOR, (700, "italic"): "BoldItalic"}
+
+
+def _typeface(id, name, category, directory, prefix, spec, **extra) -> Typeface:
+    return Typeface(id, name, category, _faces(directory, prefix, spec), **extra)
+
+
+TYPEFACES: dict[str, Typeface] = {
+    face.id: face
+    for face in (
+        _typeface("inter", "Inter", "sans-serif", "inter", "Inter", {**_UPRIGHT, **_ITALIC}),
+        _typeface(
+            "source-sans-3", "Source Sans 3", "sans-serif", "source-sans-3", "SourceSans3",
+            {(300, "normal"): "Light", (400, "normal"): "Regular", (500, "normal"): "Medium",
+             (600, "normal"): "Semibold", (700, "normal"): "Bold", (400, "italic"): "It",
+             (700, "italic"): "BoldIt"},
+        ),
+        _typeface("ibm-plex-sans", "IBM Plex Sans", "sans-serif", "ibm-plex-sans", "IBMPlexSans", {**_UPRIGHT, **_ITALIC}),
+        _typeface(
+            "source-serif-4", "Source Serif 4", "serif", "source-serif-4", "SourceSerif4",
+            {(400, "normal"): "Regular", (500, "normal"): "Medium", (600, "normal"): "Semibold",
+             (700, "normal"): "Bold", (400, "italic"): "It", (700, "italic"): "BoldIt"},
+        ),
+        _typeface("lora", "Lora", "serif", "lora", "Lora", {**_UPRIGHT, **_ITALIC}),
+        _typeface("eb-garamond", "EB Garamond", "serif", "eb-garamond", "EBGaramond", {**_UPRIGHT, **_ITALIC}),
+        _typeface("ibm-plex-serif", "IBM Plex Serif", "serif", "ibm-plex-serif", "IBMPlexSerif", {**_UPRIGHT, **_ITALIC}),
+        _typeface("ibm-plex-mono", "IBM Plex Mono", "monospace", "ibm-plex-mono", "IBMPlexMono", {**_UPRIGHT, **_ITALIC}),
+        _typeface("cormorant-garamond", "Cormorant Garamond", "serif", "cormorant-garamond", "CormorantGaramond", {**_UPRIGHT, **_ITALIC_MINOR}),
+        _typeface("nunito", "Nunito", "sans-serif", "nunito", "Nunito", {**_UPRIGHT, **_ITALIC_MINOR}),
+        _typeface(
+            "ubuntu", "Ubuntu", "sans-serif", "ubuntu", "Ubuntu",
+            {(400, "normal"): "Regular", (500, "normal"): "Medium", (700, "normal"): "Bold",
+             (400, "italic"): "Italic", (700, "italic"): "BoldItalic"},
+            license="UFL",
+        ),
+        _typeface(
+            "roboto-slab", "Roboto Slab", "serif", "roboto-slab", "RobotoSlab", _UPRIGHT,
+            license="Apache-2.0",
+        ),
+        _typeface("raleway", "Raleway", "sans-serif", "raleway", "Raleway", {**_UPRIGHT, **_ITALIC_MINOR}),
+        _typeface("fira-sans", "Fira Sans", "sans-serif", "fira-sans", "FiraSans", {**_UPRIGHT, **_ITALIC}),
+        _typeface("manrope", "Manrope", "sans-serif", "manrope", "Manrope", _UPRIGHT),
+    )
+}
+TYPEFACES_BY_NAME: dict[str, Typeface] = {face.name: face for face in TYPEFACES.values()}
+
+# The curated typeface overrides offered in the Design panel (docs/cv-templates-spec.md 3.4).
+OVERRIDE_FONT_IDS: tuple[str, ...] = (
+    "inter", "source-sans-3", "ibm-plex-sans", "source-serif-4", "lora", "eb-garamond",
+)
+# Ids stored before the 16-template catalog map to the nearest curated family.
+LEGACY_FONT_IDS: dict[str, str] = {
+    "lato": "inter",
+    "pt-sans": "source-sans-3",
+    "pt-serif": "source-serif-4",
+    "crimson-text": "lora",
+    "ibm-plex-mono": "ibm-plex-sans",
+}
+
+
+def typeface_for_name(name: str) -> Typeface:
+    return TYPEFACES_BY_NAME[name]
+
+
+def heading_family(template_heading: str, override: Typeface | None) -> Typeface:
+    """The heading family for a template whose own heading font is ``template_heading``.
+
+    Rule: an override replaces the body family always, and the heading family only when
+    the override and the template's heading font are the same category (serif or sans), so
+    a serif-headed template keeps its serif headings under a sans override and vice versa.
+    """
+    own = typeface_for_name(template_heading)
+    return override if override is not None and override.category == own.category else own
+
+
+@functools.cache
+def typeface_codepoints(face_file: str) -> frozenset[int]:
+    import fitz
+
+    return frozenset(fitz.Font(fontfile=str(FONTS_DIR / face_file)).valid_codepoints())
+
+
+def typeface_covered(typeface: Typeface) -> frozenset[int]:
+    """Codepoints every shipped face of the family draws (a gap in one weight is a gap)."""
+    covered: frozenset[int] | None = None
+    for face in typeface.faces:
+        points = typeface_codepoints(face.file)
+        covered = points if covered is None else covered & points
+    return covered or frozenset()
+
+
 _registered = False
 
 
@@ -92,6 +238,8 @@ def register_fonts() -> None:
 
 
 def docx_font_name(font_id: str) -> str:
+    if font_id in TYPEFACES:
+        return TYPEFACES[font_id].name
     return FONT_FAMILIES[font_id].name
 
 
@@ -110,8 +258,8 @@ _CSS_FALLBACKS = {
 
 def css_family(font_id: str) -> str:
     """CSS font stack for the live preview; the frontend's @font-face rules load
-    the same bundled TTFs under ``family.name``."""
-    family = FONT_FAMILIES[font_id]
+    the same bundled TTFs under the family name."""
+    family = TYPEFACES.get(font_id) or FONT_FAMILIES[font_id]
     return f"'{family.name}', {_CSS_FALLBACKS[family.category]}"
 
 
