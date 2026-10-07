@@ -9,7 +9,7 @@ const searchSchema = z.object({
 export const Route = createFileRoute('/reset-password')({
   validateSearch: searchSchema,
   head: () => ({
-    meta: [{ title: 'Reset Password | Career Workbench' }],
+    meta: [{ title: 'Reset password | Career Workbench' }],
   }),
   component: ResetPasswordPage,
 })

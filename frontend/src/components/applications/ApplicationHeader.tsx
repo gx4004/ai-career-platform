@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -11,9 +11,10 @@ import { applicationTitle, roleOnly } from './stages'
 
 /**
  * Title, company, name and pin for one application (an application is its workspace row, so
- * rename and pin are the workspace ones that used to live on History). Renaming swaps the title
- * for a field of the same width; the stage control stays where it is. A failed save is reported
- * through `onError`, so the page can show it as a notice.
+ * rename and pin are the workspace ones that used to live on History). Renaming swaps the visible title for
+ * the name field with Save name and Cancel beside it, at its height (they wrap under it on a phone);
+ * the stage control steps aside meanwhile. Closing the field puts focus back on the pencil. A failed
+ * save is reported through `onError`, so the page can show it as a notice.
  */
 export function ApplicationHeader({
   application,
@@ -45,6 +46,14 @@ export function ApplicationHeader({
   const pinned = application.is_pinned
   const cancel = () => setEditing(false)
 
+  // Saving, Cancel and Escape unmount the field; without this, keyboard focus fell to <body> (F31).
+  const renameRef = useRef<HTMLButtonElement>(null)
+  const wasEditing = useRef(false)
+  useEffect(() => {
+    if (wasEditing.current && !editing) renameRef.current?.focus()
+    wasEditing.current = editing
+  }, [editing])
+
   return (
     // One form around the header, so Enter in the name field saves; it adds no box of its own.
     <form
@@ -61,28 +70,42 @@ export function ApplicationHeader({
     >
       <PageHeader
         back={
-          <Button asChild variant="ghost" size="sm" className="camp-flush">
-            <Link to="/campaigns"><ArrowLeft aria-hidden="true" /> All applications</Link>
+          <Button asChild variant="ghost" size="sm" flush="start">
+            {/* Exact: on /campaigns/$id the list counts as active and the way back would say aria-current="page". */}
+            <Link to="/campaigns" activeOptions={{ exact: true }}><ArrowLeft aria-hidden="true" /> All applications</Link>
           </Button>
         }
-        title={
+        title={roleOnly(applicationTitle(application), application.company)}
+        // The rename form replaces the visible title beside the heading, not inside it: nested in the h1 its buttons
+        // took the display tracking and the heading read "CancelSave name" (consistency-F31).
+        titleEditor={
           editing ? (
-            <Input
-              autoFocus
-              aria-label="Application name"
-              value={draft}
-              maxLength={200}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  cancel()
-                }
-              }}
-            />
-          ) : (
-            roleOnly(applicationTitle(application), application.company)
-          )
+            <Cluster gap={2} className="camp-rename">
+              <Input
+                autoFocus
+                aria-label="Application name"
+                value={draft}
+                maxLength={200}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    cancel()
+                  }
+                }}
+              />
+              {/* md: the field's 44px, so the three line up. Cancel first, then the save action: the order of every
+                  dialog footer and inline confirm (consistency-F22). */}
+              <Cluster gap={2} nowrap>
+                <Button type="button" variant="ghost" onClick={cancel}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="secondary" disabled={!trimmed} loading={save.isPending}>
+                  Save name
+                </Button>
+              </Cluster>
+            </Cluster>
+          ) : null
         }
         meta={[
           application.company ? (
@@ -92,20 +115,12 @@ export function ApplicationHeader({
           ) : null,
         ]}
         actions={
-          <Cluster gap={2} justify="end">
-            {editing ? (
-              <>
-                <Button type="submit" size="sm" variant="secondary" disabled={!trimmed} loading={save.isPending}>
-                  Save name
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={cancel}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
+          editing ? undefined : (
+            <Cluster gap={2} justify="end">
               <Cluster gap={1}>
                 <Tooltip content="Rename application">
                   <Button
+                    ref={renameRef}
                     type="button"
                     iconOnly
                     variant="ghost"
@@ -134,9 +149,9 @@ export function ApplicationHeader({
                   </Button>
                 </Tooltip>
               </Cluster>
-            )}
-            {stageControl}
-          </Cluster>
+              {stageControl}
+            </Cluster>
+          )
         }
       />
     </form>

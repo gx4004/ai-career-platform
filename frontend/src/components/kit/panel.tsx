@@ -93,11 +93,27 @@ export const PanelBody = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'di
   )
 })
 
-export const PanelFooter = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(function PanelFooter(
-  { className, ...rest },
+export type PanelFooterProps = ComponentPropsWithoutRef<'div'> & {
+  /**
+   * On phones (under 480px): stack (default) puts the buttons under each other, full width, in DOM order: the primary (last) at the bottom.
+   * row keeps two buttons side by side at equal widths, for a stepper's Back and Continue that would otherwise
+   * take two full rows from a short screen.
+   */
+  phoneLayout?: 'stack' | 'row'
+}
+
+export const PanelFooter = forwardRef<HTMLDivElement, PanelFooterProps>(function PanelFooter(
+  { className, phoneLayout = 'stack', ...rest },
   ref,
 ) {
-  return <div ref={ref} className={cn('kit-panel__footer', className)} {...rest} />
+  return (
+    <div
+      ref={ref}
+      className={cn('kit-panel__footer', className)}
+      data-phone-layout={phoneLayout === 'row' ? 'row' : undefined}
+      {...rest}
+    />
+  )
 })
 
 /** Wrapper for form dialogs: the form carries header, body and footer so Enter submits and the body still scrolls. */
@@ -119,6 +135,30 @@ export function isToastInteraction(event: Event) {
 
 const FOCUSABLE = 'a[href], button:not(:disabled), input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
+/** Controls that raise a phone's keyboard or picker when they take focus (a checkbox, radio or button does not). */
+const RAISES_KEYBOARD = 'input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="reset"], [type="range"], [type="color"], [type="file"]), select, textarea, [contenteditable=""], [contenteditable="true"]'
+
+function isCoarsePointer() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+}
+
+/**
+ * For a dialog's own onOpenAutoFocus that picks a field to start in (the first empty required field, a sign-in form's
+ * email): focuses that field, except on a touch screen, where a field that raises the keyboard would cover the
+ * dialog's title, notice and footer before they are read; there the panel takes focus, as the kit default does
+ * (consistency-F09, F24). A search box whose keyboard is the point (the command palette) focuses itself instead.
+ */
+export function focusFieldOnOpen(event: Event, field: HTMLElement | null | undefined) {
+  if (!field) return
+  event.preventDefault()
+  const content = event.target
+  if (isCoarsePointer() && field.matches(RAISES_KEYBOARD) && content instanceof HTMLElement) {
+    content.focus({ preventScroll: true })
+  } else {
+    field.focus({ preventScroll: true })
+  }
+}
+
 type AutoFocusHandlers = Pick<
   ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
   'onOpenAutoFocus' | 'onCloseAutoFocus'
@@ -126,7 +166,11 @@ type AutoFocusHandlers = Pick<
 
 /**
  * Focus handling Radix leaves to the page:
- *  - open: focus the first real control, not the scrolling body (which is only focusable so it can be scrolled);
+ *  - open: focus the first real control, not the scrolling body (which is only focusable so it can be scrolled).
+ *    On a touch screen, when that control is a field, the panel itself takes focus instead: a focused field raises
+ *    the keyboard or the native picker over half the dialog before it has been read. Keyboard users are one Tab away
+ *    from the field. A caller that wants the field anyway (a search box, a sign-in form) focuses it in its own
+ *    onOpenAutoFocus and calls event.preventDefault();
  *  - close: give focus back to whatever had it before opening, also when the dialog was opened from a plain
  *    button or state instead of a DialogTrigger (Radix only restores to a DialogTrigger).
  * A handler passed by the caller runs first and wins by calling event.preventDefault().
@@ -141,10 +185,14 @@ export function usePanelFocus({ onOpenAutoFocus, onCloseAutoFocus }: AutoFocusHa
       if (event.defaultPrevented) return
       const content = event.target
       if (!(content instanceof HTMLElement)) return
-      const first = Array.from(content.querySelectorAll<HTMLElement>(FOCUSABLE)).find(
-        (element) => !element.classList.contains('kit-panel__body'),
-      )
-      if (first) {
+      // Document order, explicitly: some DOM implementations return a selector list's matches grouped by selector.
+      const first = Array.from(content.querySelectorAll<HTMLElement>(FOCUSABLE))
+        .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+        .find((element) => !element.classList.contains('kit-panel__body'))
+      if (first && isCoarsePointer() && first.matches(RAISES_KEYBOARD)) {
+        event.preventDefault()
+        content.focus({ preventScroll: true })
+      } else if (first) {
         event.preventDefault()
         first.focus({ preventScroll: true })
       }

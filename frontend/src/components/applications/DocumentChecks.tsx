@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Check, CircleAlert, ListPlus } from 'lucide-react'
+import { Check, CircleAlert, CircleDashed, ListPlus } from 'lucide-react'
 import {
   Button,
-  Card,
   Disclosure,
   Highlight,
   KeyValue,
@@ -24,19 +23,59 @@ import { createDevelopmentItem } from '#/lib/api/development'
 import type { GapClassification } from '#/lib/api/gapClassificationSchemas'
 import { GAP_KIND_LABELS, RESPONSE_KIND_LABELS, commercialRelationshipLabel } from '#/lib/development/plan'
 import { DEVELOPMENT_PLAN_QUERY_KEY } from '#/lib/query/evidenceCaches'
-import { PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
+import { KIND_LABELS, PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
+import type { EvidenceKind } from '#/lib/api/schemas'
 import { ApplicationPanel } from './ApplicationPanel'
 
 type Finding = Awaited<ReturnType<typeof reviewApplication>>['findings'][number]
 
-const CHECKS: Array<{ category: Finding['category']; title: string; short: string; detail: string }> = [
-  { category: 'unsupported_claim', title: 'Everything you claim is backed up', short: 'claims backed up', detail: 'Numbers, names and results also appear in your CV or profile.' },
+/**
+ * `reads`: the content a check needs. "either" reads whichever document has text; "both" compares the two. A check
+ * whose documents are near-empty has nothing to read, so it is "Not checked" (not a vacuous pass) and leaves the tally.
+ */
+const CHECKS: Array<{ category: Finding['category']; title: string; short: string; detail: string; reads?: 'either' | 'both' }> = [
+  { category: 'unsupported_claim', title: 'Everything you claim is backed up', short: 'claims backed up', detail: 'Numbers, names and results also appear in your CV or profile.', reads: 'either' },
   { category: 'missed_requirement', title: 'You cover what the job asks for', short: 'job requirements covered', detail: 'The key skills in the job posting show up in your documents.' },
-  { category: 'contradiction', title: 'Your documents agree', short: 'documents agree', detail: 'Your CV and cover letter tell the same story, like years of experience.' },
-  { category: 'generic_language', title: 'No stock phrases', short: 'no stock phrases', detail: 'Lines like “team player” are swapped for specifics.' },
-  { category: 'repetition', title: 'Nothing is repeated', short: 'nothing repeated', detail: 'Each sentence earns its place.' },
+  { category: 'contradiction', title: 'Your documents agree', short: 'documents agree', detail: 'Your CV and cover letter tell the same story, like years of experience.', reads: 'both' },
+  { category: 'generic_language', title: 'No stock phrases', short: 'no stock phrases', detail: 'Lines like “team player” are swapped for specifics.', reads: 'either' },
+  { category: 'repetition', title: 'Nothing is repeated', short: 'nothing repeated', detail: 'Each sentence earns its place.', reads: 'either' },
   { category: 'document_defect', title: 'No placeholders or near-empty documents', short: 'no placeholders', detail: 'No leftover [Company] or TODO, and both documents have real content.' },
 ]
+
+type CheckState = 'pass' | 'warn' | 'skip'
+type Chosen = { cv: boolean; cover_letter: boolean }
+
+/** The reviewer reports a near-empty CV or cover letter as a document_defect on "<document>:entire document". */
+function nearEmpty(findings: Finding[], document: 'CV' | 'Cover letter') {
+  return findings.some((item) => item.category === 'document_defect' && item.locations.includes(`${document}:entire document`))
+}
+
+/** A document not chosen has nothing to read, like a near-empty one; the review says which were chosen. */
+function checkStates(findings: Finding[], chosen: Chosen): CheckState[] {
+  const emptyCv = !chosen.cv || nearEmpty(findings, 'CV')
+  const emptyCover = !chosen.cover_letter || nearEmpty(findings, 'Cover letter')
+  return CHECKS.map((check) => {
+    if (findings.some((item) => item.category === check.category)) return 'warn'
+    if (check.reads === 'both' && (emptyCv || emptyCover)) return 'skip'
+    if (check.reads === 'either' && emptyCv && emptyCover) return 'skip'
+    return 'pass'
+  })
+}
+
+/** Why a check was not run: the comparison misses a document nobody chose; otherwise there is no content yet. */
+function skipReason(check: (typeof CHECKS)[number], chosen: Chosen) {
+  if (check.reads === 'both' && chosen.cv && !chosen.cover_letter) return 'Not checked: no cover letter chosen.'
+  if (check.reads === 'both' && !chosen.cv && chosen.cover_letter) return 'Not checked: no CV chosen.'
+  return 'Not checked: add content first.'
+}
+
+/** The check's line, speaking only of the documents chosen. */
+function checkDetail(check: (typeof CHECKS)[number], chosen: Chosen) {
+  if (check.category !== 'document_defect' || (chosen.cv && chosen.cover_letter)) return check.detail
+  if (chosen.cv) return 'No leftover [Company] or TODO, and your CV has real content.'
+  if (chosen.cover_letter) return 'No leftover [Company] or TODO, and your cover letter has real content.'
+  return check.detail
+}
 
 const hiddenKey = (applicationId: string) => `cw:hidden-findings:${applicationId}`
 
@@ -89,26 +128,37 @@ export function DocumentChecks({
   const all = result?.findings ?? []
   // Hiding a finding only tidies the list: the tally and the marks still count what the checks found.
   const findings = all.filter((item) => !hidden.has(item.id))
-  const clear = CHECKS.filter((check) => !all.some((item) => item.category === check.category)).length
+  // A result from before the review named its documents counts both as chosen.
+  const chosen: Chosen = result?.documents ?? { cv: true, cover_letter: true }
+  const states = checkStates(all, chosen)
+  const clear = states.filter((state) => state === 'pass').length
+  const counted = states.filter((state) => state !== 'skip').length
+
+  // Sent with nothing attached: the pickers above are locked, so there is nothing to pick and nothing to run.
+  const nothingSent = sent && !hasDocuments
 
   return (
     <ApplicationPanel
       title="Check your documents"
       description={
-        sent
-          ? 'Quick rule-based checks on the CV and cover letter chosen now. What you sent stays as it was; use what they find for your next application.'
-          : 'Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you.'
+        nothingSent
+          ? undefined
+          : sent
+            ? 'Quick rule-based checks on the CV and cover letter chosen now. What you sent stays as it was; use what they find for your next application.'
+            : 'Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you.'
       }
       actions={
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => review.mutate()}
-          loading={review.isPending}
-          disabled={review.isPending || !hasDocuments}
-        >
-          {review.isPending ? 'Checking…' : result ? 'Check again' : 'Run the checks'}
-        </Button>
+        nothingSent ? undefined : (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => review.mutate()}
+            loading={review.isPending}
+            disabled={review.isPending || !hasDocuments}
+          >
+            {review.isPending ? 'Checking…' : result ? 'Check again' : 'Run the checks'}
+          </Button>
+        )
       }
     >
       <Stack gap={3}>
@@ -128,10 +178,10 @@ export function DocumentChecks({
             </p>
             {/* How much of the checklist is clear: a plain count of checks, not a quality score. */}
             <ScoreBar
-              aria-label={`${clear} of ${CHECKS.length} checks clear`}
+              aria-label={`${clear} of ${counted} checks clear`}
               value={clear}
-              max={CHECKS.length}
-              valueLabel={`${clear}/${CHECKS.length}`}
+              max={counted}
+              valueLabel={`${clear}/${counted}`}
               tone="success"
             />
           </>
@@ -149,7 +199,13 @@ export function DocumentChecks({
           </Notice>
         ) : null}
         {classify.isError ? <Notice tone="danger">Next steps couldn't be suggested. Nothing was added.</Notice> : null}
-        {!hasDocuments ? (
+        {nothingSent ? (
+          // Said without "when you marked it applied": what was sent may have been recorded later, on a card that
+          // had already moved on ("Record what I sent").
+          <p className="camp-note" data-testid="checks-idle">
+            No CV or cover letter was in what you sent, so there is nothing to check.
+          </p>
+        ) : !hasDocuments ? (
           <p className="camp-note" data-testid="checks-idle">
             Pick a CV version or cover letter above to check them.
           </p>
@@ -159,9 +215,9 @@ export function DocumentChecks({
           </p>
         ) : (
           <List aria-label="Document checks">
-            {CHECKS.map((check) => {
+            {CHECKS.map((check, index) => {
               const matches = findings.filter((item) => item.category === check.category)
-              const state = all.some((item) => item.category === check.category) ? 'warn' : 'pass'
+              const state = states[index]
               return (
                 <Row key={check.category} className={matches.length ? 'camp-check-row' : undefined}>
                   <RowLeading>
@@ -169,27 +225,32 @@ export function DocumentChecks({
                   </RowLeading>
                   <RowBody>
                     <RowTitle>{check.title}</RowTitle>
-                    <RowSubtitle>{check.detail}</RowSubtitle>
+                    <RowSubtitle>{state === 'skip' ? skipReason(check, chosen) : checkDetail(check, chosen)}</RowSubtitle>
                     {matches.length ? (
-                      <Stack gap={2} className="camp-findings">
+                      // Flat rows under the check (2px --line rules), not Cards: a Card is a sticker for a real object.
+                      <List aria-label={`${check.title}: findings`} framed={false} flush className="camp-findings">
                         {matches.map((item) => (
-                          <Card key={item.id} padding="sm">
-                            <p className="camp-prose">{item.message}</p>
-                            <p className="camp-note">Where: {where(item.locations)}</p>
-                            <Quotes locations={item.locations} />
-                            <FindingNextStep
-                              applicationId={applicationId}
-                              classification={classify.data?.classifications.find((candidate) => candidate.finding_id === item.id)}
-                              classificationComplete={classify.isSuccess}
-                            />
-                            <div>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => hide(item.id)}>
-                                Hide
-                              </Button>
-                            </div>
-                          </Card>
+                          <Row key={item.id} className="camp-finding">
+                            <RowBody>
+                              <Stack gap={2}>
+                                <p className="camp-prose">{item.message}</p>
+                                <p className="camp-note">Where: {where(item.locations)}</p>
+                                <Quotes locations={item.locations} />
+                                <FindingNextStep
+                                  applicationId={applicationId}
+                                  classification={classify.data?.classifications.find((candidate) => candidate.finding_id === item.id)}
+                                  classificationComplete={classify.isSuccess}
+                                />
+                                <div>
+                                  <Button type="button" variant="ghost" size="sm" flush="start" onClick={() => hide(item.id)}>
+                                    Hide this finding
+                                  </Button>
+                                </div>
+                              </Stack>
+                            </RowBody>
+                          </Row>
                         ))}
-                      </Stack>
+                      </List>
                     ) : null}
                   </RowBody>
                 </Row>
@@ -226,10 +287,17 @@ function Quotes({ locations }: { locations: string[] }) {
   )
 }
 
-function CheckMark({ state }: { state: 'pass' | 'warn' }) {
+const CHECK_MARKS: Record<CheckState, { label: string; Icon: typeof Check }> = {
+  pass: { label: 'Done', Icon: Check },
+  warn: { label: 'Needs a look', Icon: CircleAlert },
+  skip: { label: 'Not checked', Icon: CircleDashed },
+}
+
+function CheckMark({ state }: { state: CheckState }) {
+  const { label, Icon } = CHECK_MARKS[state]
   return (
-    <span className="camp-check" data-state={state} role="img" aria-label={state === 'pass' ? 'Done' : 'Needs a look'}>
-      {state === 'pass' ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}
+    <span className="camp-check" data-state={state} role="img" aria-label={label}>
+      <Icon aria-hidden="true" />
     </span>
   )
 }
@@ -237,6 +305,74 @@ function CheckMark({ state }: { state: 'pass' | 'warn' }) {
 function where(locations: string[]) {
   const places = [...new Set(locations.map((location) => location.split(':')[0]))]
   return places.join(', ') || 'Your documents'
+}
+
+/**
+ * The classifier's cited trace ("listing_requirement:Kubernetes", "profile_lookup:Kubernetes:absent",
+ * "classified:missing_skill") as the plain sentences the owner reads under "Why?". A step with no wording here (a
+ * per-source lookup the result line already sums up, or a step a newer backend adds) is left out, never printed raw.
+ */
+const CLASSIFIED_SENTENCES: Record<string, string> = {
+  missing_skill: 'So it counts as a missing skill.',
+  evidence_not_yet_produced: 'So it counts as a skill you still need to show.',
+  uncaptured_evidence: "So the proof exists; it just isn't in this application.",
+  'uncaptured_evidence:claim_present_unconfirmed': "So it counts as evidence you have but haven't added to your profile yet.",
+  presentation_weakness: "So it's about how it reads, not what you can do.",
+}
+
+const RESULT_SENTENCES: Record<string, string> = {
+  // Neutral: an application may have only a CV (or only a cover letter) chosen (applications-discovery-F37).
+  not_found_in_selected_materials: "The documents you chose don't mention it.",
+  unsupported: "Your CV and profile don't back it up.",
+  conflict: "They don't match.",
+}
+
+const DEMONSTRATED_IN = ':demonstrated_in:'
+
+function traceSentence(step: string): string | null {
+  const colon = step.indexOf(':')
+  if (colon < 0) return null
+  const kind = step.slice(0, colon)
+  const rest = step.slice(colon + 1)
+  if (!rest) return null
+  switch (kind) {
+    case 'listing_requirement':
+      return `The job asks for ${rest}.`
+    case 'claim':
+      return `Your documents say “${rest}”.`
+    case 'result':
+      return RESULT_SENTENCES[rest] ?? null
+    case 'comparison':
+      return rest === 'years_of_experience' ? 'Your CV and cover letter both give years of experience.' : null
+    case 'matched_phrase':
+      return `“${rest}” is a stock phrase.`
+    case 'repeated_text':
+      return 'The same sentence appears more than once.'
+    case 'placeholder':
+      return `“${rest}” is a leftover placeholder.`
+    case 'classified':
+      return CLASSIFIED_SENTENCES[rest] ?? null
+    case 'profile_lookup': {
+      if (rest.endsWith(':absent')) return `Your profile has no entry for ${rest.slice(0, -':absent'.length)} either.`
+      if (rest.endsWith(':skill_claimed_undemonstrated')) {
+        const skill = rest.slice(0, -':skill_claimed_undemonstrated'.length)
+        return `Your profile lists ${skill} as a skill, but nothing in it shows you using it yet.`
+      }
+      const at = rest.lastIndexOf(DEMONSTRATED_IN)
+      if (at > 0) {
+        const section = KIND_LABELS[rest.slice(at + DEMONSTRATED_IN.length) as EvidenceKind]
+        const skill = rest.slice(0, at)
+        return section ? `Your profile already shows ${skill} under ${section}.` : `Your profile already shows ${skill}.`
+      }
+      return null
+    }
+    default:
+      return null
+  }
+}
+
+function traceSentences(trace: string[]): string[] {
+  return trace.map(traceSentence).filter((sentence): sentence is string => sentence !== null)
 }
 
 function FindingNextStep({
@@ -264,12 +400,19 @@ function ClassifiedNextStep({ applicationId, classification }: { applicationId: 
     },
   })
   const offer = response.data
+  const why = traceSentences(classification.cited_trace)
   return (
     <section className="camp-step" aria-label={`Next step for ${GAP_KIND_LABELS[classification.gap_kind]}`}>
       <KeyValue layout="stacked" divided={false} items={[{ label: 'What kind of gap', value: GAP_KIND_LABELS[classification.gap_kind] }]} />
-      <Disclosure variant="inline" title="Why?">
-        <ul className="camp-step__trace">{classification.cited_trace.map((step) => <li key={step}>{step}</li>)}</ul>
-      </Disclosure>
+      {why.length > 0 ? (
+        <Disclosure variant="inline" title="Why?">
+          <ul className="camp-step__trace" aria-label="Why it counts as this kind of gap">
+            {why.map((sentence, index) => (
+              <li key={`${index}:${sentence}`}>{sentence}</li>
+            ))}
+          </ul>
+        </Disclosure>
+      ) : null}
       {!offer ? (
         <div>
           <Button variant="secondary" size="sm" disabled={response.isPending} onClick={() => response.mutate()}>
@@ -278,7 +421,9 @@ function ClassifiedNextStep({ applicationId, classification }: { applicationId: 
         </div>
       ) : (
         <Stack gap={3}>
-          <Section headingLevel={4} title={offer.headline} rule={false}>
+          {/* xs: a row-title sub-heading (UI 15/700), a step below the check title it sits under; display 24 made it
+              outrank the panel's own heading. */}
+          <Section headingLevel={4} size="xs" title={offer.headline} rule={false}>
             <p className="camp-prose">{offer.detail}</p>
           </Section>
           <KeyValue
@@ -293,10 +438,15 @@ function ClassifiedNextStep({ applicationId, classification }: { applicationId: 
             <ul className="camp-step__sources" aria-label="Where to go next">
               {offer.sources.map((source) => (
                 <li key={`${source.label}:${source.route ?? source.url ?? ''}`}>
+                  {/* Kit link buttons: plain indented text gave no hint that a source opens anything. */}
                   {source.route ? (
-                    <Link to={source.route}>{source.label}</Link>
+                    <Button asChild variant="link" size="sm">
+                      <Link to={source.route}>{source.label}</Link>
+                    </Button>
                   ) : source.url ? (
-                    <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a>
+                    <Button asChild variant="link" size="sm">
+                      <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a>
+                    </Button>
                   ) : (
                     source.label
                   )}
@@ -305,7 +455,7 @@ function ClassifiedNextStep({ applicationId, classification }: { applicationId: 
             </ul>
           ) : null}
           {offer.capture_proposal ? (
-            <Card as="div" padding="sm" aria-label="Suggested profile entry" role="group">
+            <div className="camp-proposal" aria-label="Suggested profile entry" role="group">
               <strong>Suggested profile entry</strong>
               <ul className="camp-step__trace">
                 {contentEntries(offer.capture_proposal.content).map(({ key, value }) => (
@@ -315,12 +465,13 @@ function ClassifiedNextStep({ applicationId, classification }: { applicationId: 
               <p className="camp-note">
                 Source: {PROVENANCE_LABELS[offer.capture_proposal.provenance]} · Not saved yet. Only you can add it to your profile.
               </p>
-            </Card>
+            </div>
           ) : null}
           <div>
             <Button size="sm" variant="secondary" disabled={addToPlan.isPending || addToPlan.isSuccess} onClick={() => addToPlan.mutate()}>
               <ListPlus aria-hidden="true" />
-              {addToPlan.isPending ? 'Adding…' : addToPlan.isSuccess ? 'Added to your plan' : 'Add to my development plan'}
+              {/* Short enough for one line in a 320px finding column; the status line below names the development plan. */}
+              {addToPlan.isPending ? 'Adding…' : addToPlan.isSuccess ? 'Added to your plan' : 'Add to my plan'}
             </Button>
           </div>
           {addToPlan.isSuccess ? <p role="status" className="camp-note">Added to your development plan.</p> : null}

@@ -31,12 +31,17 @@ export function checklistSummary(checks: CvQualityResponse['checks']) {
 /** The backend's "sections" check passes only when Experience and Skills are both visible. */
 const REQUIRED_KINDS = ['experience', 'skills'] as const
 
+/** "Projects" / "Projects and Awards" / "Projects, Awards and Volunteering". */
+const listNames = (names: string[]) => names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+
 export function CvAtsPanel({
-  quality, sections, atsMode, density, onTurnOnAtsMode, onCompactSpacing, onAddSection, onShowSection, onExportPdf, exporting, canExport,
+  quality, sections, atsMode, density, onTurnOnAtsMode, onCompactSpacing, onAddSection, onShowSection, onOpenSection, onExportPdf, exporting, canExport,
 }: {
   quality: ReturnType<typeof useCvQuality>; sections: CvSection[]; atsMode: boolean; density: string
   onTurnOnAtsMode: () => void; onCompactSpacing: () => void
   onAddSection: (kind: CvSection['kind']) => void; onShowSection: (sectionId: string) => void
+  /** Opens a section's editor (an empty section to fill). */
+  onOpenSection: (sectionId: string) => void
   /** The one-click PDF once every check passes. */
   onExportPdf: () => void; exporting: boolean; canExport: boolean
 }) {
@@ -60,9 +65,14 @@ export function CvAtsPanel({
   const failing = checks.filter((check) => !check.passed)
   const ready = failing.length === 0
   const failed = (id: string) => failing.some((check) => check.id === id)
+  // A section is in the file only when it is visible and has something in it: an empty one is left out of the PDF.
+  const inFile = (section: CvSection) => section.visible && section.entries.length > 0
+  const empty = sections.filter((section) => section.visible && section.entries.length === 0)
   const sectionFixes = failed('sections')
-    ? REQUIRED_KINDS.filter((kind) => !sections.some((section) => section.kind === kind && section.visible)).map((kind) => ({
-      kind, hidden: sections.find((section) => section.kind === kind && !section.visible),
+    ? REQUIRED_KINDS.filter((kind) => !sections.some((section) => section.kind === kind && inFile(section))).map((kind) => ({
+      kind,
+      hidden: sections.find((section) => section.kind === kind && !section.visible),
+      unfilled: sections.find((section) => section.kind === kind && section.visible && section.entries.length === 0),
     }))
     : []
   const needsAtsMode = !atsMode && (failed('layout') || failed('reads_back'))
@@ -70,7 +80,11 @@ export function CvAtsPanel({
   /** The fix a failing check can apply by itself: it names what it will change. */
   function actions(id: string) {
     if (id === 'sections') {
-      return sectionFixes.map(({ kind, hidden }) => (
+      return sectionFixes.map(({ kind, hidden, unfilled }) => unfilled ? (
+        <Button key={kind} type="button" size="sm" variant="secondary" onClick={() => onOpenSection(unfilled.id)}>
+          Open {unfilled.title.trim() || sectionLabels[kind]}
+        </Button>
+      ) : (
         <Button key={kind} type="button" size="sm" variant="secondary" onClick={() => hidden ? onShowSection(hidden.id) : onAddSection(kind)}>
           {hidden ? 'Show' : 'Add'} {sectionLabels[kind]} section
         </Button>
@@ -120,6 +134,20 @@ export function CvAtsPanel({
           })}
         </List>
       </Section>
+      {empty.length > 0 ? (
+        // The paper still draws an empty section's heading; the file does not (cv-studio-G04).
+        <Notice
+          tone="warning"
+          action={(
+            <Button type="button" size="sm" variant="secondary" onClick={() => onOpenSection(empty[0].id)}>
+              Open {empty[0].title.trim() || sectionLabels[empty[0].kind]}
+            </Button>
+          )}
+        >
+          {listNames(empty.map((section) => section.title.trim() || sectionLabels[section.kind]))}{' '}
+          {empty.length === 1 ? 'is empty, so it is' : 'are empty, so they are'} left out of your PDF.
+        </Notice>
+      ) : null}
       {ready ? (
         <Notice
           tone="success" title="Ready to send"

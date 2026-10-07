@@ -2,38 +2,39 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { JumpNav } from '#/components/kit'
 
-type Callback = (records: Array<{ isIntersecting: boolean; target: Element }>) => void
-let observers: Array<{ callback: Callback; options?: IntersectionObserverInit; observed: Element[]; disconnected: boolean }> = []
-
-class MockObserver {
-  record: (typeof observers)[number]
-  constructor(callback: Callback, options?: IntersectionObserverInit) {
-    this.record = { callback, options, observed: [], disconnected: false }
-    observers.push(this.record)
-  }
-  observe(node: Element) {
-    this.record.observed.push(node)
-  }
-  disconnect() {
-    this.record.disconnected = true
-  }
-  unobserve() {}
-  takeRecords() {
-    return []
-  }
-}
-
 const ITEMS = [
   { id: 'fix-first', label: 'Fix first' },
   { id: 'breakdown', label: 'Score breakdown' },
   { id: 'strengths', label: 'Major strengths' },
 ]
 
+/** Lays the sections out: each id's top edge, in viewport pixels (jsdom lays nothing out by itself). */
+function layout(tops: Record<string, number>) {
+  for (const [id, top] of Object.entries(tops)) {
+    document.getElementById(id)!.getBoundingClientRect = () => ({ top, bottom: top + 120, height: 120, left: 0, right: 800, width: 800, x: 0, y: top, toJSON() {} }) as DOMRect
+  }
+}
+
+/** Scrolls the window to `y` of a `height`-tall page and lets the scroll-spy read it. */
+function scrollWindowTo(y: number, height = 4000) {
+  Object.defineProperty(window, 'scrollY', { value: y, configurable: true })
+  Object.defineProperty(document.documentElement, 'scrollHeight', { value: height, configurable: true })
+  act(() => {
+    fireEvent.scroll(window)
+  })
+}
+
+const current = () => screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'true').map((a) => a.textContent)
+
 describe('kit JumpNav', () => {
-  const original = globalThis.IntersectionObserver
   beforeEach(() => {
-    observers = []
-    globalThis.IntersectionObserver = MockObserver as unknown as typeof IntersectionObserver
+    // The spy reads the layout once per frame; run frames at once so a scroll is read before the assertion.
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true })
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
     for (const item of ITEMS) {
       const node = document.createElement('section')
       node.id = item.id
@@ -42,7 +43,8 @@ describe('kit JumpNav', () => {
     }
   })
   afterEach(() => {
-    globalThis.IntersectionObserver = original
+    vi.restoreAllMocks()
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
     document.body.querySelectorAll('section').forEach((node) => node.remove())
   })
 
@@ -61,28 +63,73 @@ describe('kit JumpNav', () => {
     expect(screen.getByRole('navigation').hasAttribute('data-sticky')).toBe(false)
   })
 
-  it('observes every target with the 15% / 70% band and follows the section that enters it', () => {
+  // The spy reads where the sections are on every scroll (sign-off public-R2-N2): the current item is the last
+  // section whose top has passed 30% of the viewport, and the last item at the very end of the page.
+  it('follows the last section whose top has passed 30% of the viewport', () => {
     render(<JumpNav aria-label="On this page" items={ITEMS} />)
-    expect(observers).toHaveLength(1)
-    expect(observers[0].options?.rootMargin).toBe('-15% 0px -70% 0px')
-    expect(observers[0].observed.map((node) => node.id)).toEqual(['fix-first', 'breakdown', 'strengths'])
-    act(() => {
-      observers[0].callback([{ isIntersecting: true, target: document.getElementById('strengths')! }])
-    })
-    const current = screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'true')
-    expect(current.map((a) => a.textContent)).toEqual(['Major strengths'])
-    act(() => {
-      observers[0].callback([{ isIntersecting: false, target: document.getElementById('breakdown')! }])
-    })
-    expect(screen.getByRole('link', { name: 'Major strengths' }).getAttribute('aria-current')).toBe('true')
+    layout({ 'fix-first': 300, breakdown: 900, strengths: 1500 })
+    scrollWindowTo(10)
+    expect(current()).toEqual(['Fix first'])
+    layout({ 'fix-first': -400, breakdown: 200, strengths: 800 })
+    scrollWindowTo(700)
+    expect(current()).toEqual(['Score breakdown'])
   })
 
-  it('does not rebuild the observer for a new array with the same ids, and disconnects on unmount', () => {
+  it('marks the last item at the end of the page, where its heading never reaches the line', () => {
+    render(<JumpNav aria-label="On this page" items={ITEMS} />)
+    // The last two sections are short and on screen together, both below the 30% line.
+    layout({ 'fix-first': -900, breakdown: 300, strengths: 600 })
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true })
+    scrollWindowTo(4000 - 768)
+    expect(current()).toEqual(['Major strengths'])
+  })
+
+  it('follows a long jump (find in page, a link) to the section in view, not the one before it', () => {
+    render(<JumpNav aria-label="On this page" items={ITEMS} />)
+    layout({ 'fix-first': -2400, breakdown: -1500, strengths: -200 })
+    scrollWindowTo(2600)
+    expect(current()).toEqual(['Major strengths'])
+  })
+
+  // Content above can grow or shrink with no scroll at all (a live table re-read on the cookie page, a notice):
+  // the spy reads the sections again whenever the page's size changes (sign-off public, legal scroll-spy leftover).
+  it('reads the sections again when the page changes size without scrolling', () => {
+    const observers: Array<() => void> = []
+    const original = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class {
+      constructor(callback: () => void) {
+        observers.push(callback)
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+    try {
+      render(<JumpNav aria-label="On this page" items={ITEMS} />)
+      layout({ 'fix-first': -400, breakdown: 200, strengths: 800 })
+      scrollWindowTo(700)
+      expect(current()).toEqual(['Score breakdown'])
+      // A block above shrank: the next section moved up past the line, and no scroll event fired.
+      layout({ 'fix-first': -600, breakdown: -100, strengths: 150 })
+      act(() => observers.forEach((callback) => callback()))
+      expect(current()).toEqual(['Major strengths'])
+    } finally {
+      globalThis.ResizeObserver = original
+    }
+  })
+
+  it('stops reading the scroll once unmounted, and does not re-subscribe for a new array with the same ids', () => {
+    const add = vi.spyOn(window, 'addEventListener')
+    const remove = vi.spyOn(window, 'removeEventListener')
     const { rerender, unmount } = render(<JumpNav aria-label="On this page" items={ITEMS} />)
+    const scrolls = () => add.mock.calls.filter(([type]) => type === 'scroll').length
+    const before = scrolls()
     rerender(<JumpNav aria-label="On this page" items={ITEMS.map((item) => ({ ...item }))} />)
-    expect(observers).toHaveLength(1)
+    expect(scrolls()).toBe(before)
     unmount()
-    expect(observers[0].disconnected).toBe(true)
+    expect(remove.mock.calls.some(([type]) => type === 'scroll')).toBe(true)
+    add.mockRestore()
+    remove.mockRestore()
   })
 
   it('click scrolls to the section (instantly under reduced motion, which is the test default) and marks it current', () => {
@@ -101,20 +148,19 @@ describe('kit JumpNav', () => {
     expect(notPrevented).toBe(true)
   })
 
-  it('ignores the observer while a click scroll settles, then follows it again', () => {
+  it('ignores the scroll while a click scroll settles, then follows it again', () => {
     vi.useFakeTimers()
     try {
       render(<JumpNav aria-label="On this page" items={ITEMS} />)
       fireEvent.click(screen.getByRole('link', { name: 'Major strengths' }))
-      act(() => {
-        observers[0].callback([{ isIntersecting: true, target: document.getElementById('breakdown')! }])
-      })
-      expect(screen.getByRole('link', { name: 'Major strengths' }).getAttribute('aria-current')).toBe('true')
+      layout({ 'fix-first': -400, breakdown: 100, strengths: 900 })
+      scrollWindowTo(500)
+      expect(current()).toEqual(['Major strengths'])
       act(() => {
         vi.advanceTimersByTime(800)
-        observers[0].callback([{ isIntersecting: true, target: document.getElementById('breakdown')! }])
       })
-      expect(screen.getByRole('link', { name: 'Score breakdown' }).getAttribute('aria-current')).toBe('true')
+      scrollWindowTo(510)
+      expect(current()).toEqual(['Score breakdown'])
     } finally {
       vi.useRealTimers()
     }
@@ -150,15 +196,14 @@ describe('kit JumpNav', () => {
     const nav = screen.getByRole('navigation', { name: 'Report sections' })
     Object.defineProperty(nav, 'scrollWidth', { value: 600, configurable: true })
     Object.defineProperty(nav, 'clientWidth', { value: 320, configurable: true })
-    const scrollTo = vi.fn()
-    nav.scrollTo = scrollTo as unknown as typeof nav.scrollTo
+    const stripScrollTo = vi.fn()
+    nav.scrollTo = stripScrollTo as unknown as typeof nav.scrollTo
     nav.getBoundingClientRect = () => ({ left: 0 }) as DOMRect
     const strengths = screen.getByRole('link', { name: 'Major strengths' })
     strengths.getBoundingClientRect = () => ({ left: 420 }) as DOMRect
-    act(() => {
-      observers[0].callback([{ isIntersecting: true, target: document.getElementById('strengths')! }])
-    })
-    expect(scrollTo).toHaveBeenCalledWith({ left: 404, behavior: 'auto' })
+    layout({ 'fix-first': -2000, breakdown: -1000, strengths: 100 })
+    scrollWindowTo(2200)
+    expect(stripScrollTo).toHaveBeenCalledWith({ left: 404, behavior: 'auto' })
     expect(document.getElementById('strengths')!.scrollIntoView).not.toHaveBeenCalled()
   })
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToastProvider, useToast, type ToastOptions } from '#/components/kit'
@@ -41,6 +43,97 @@ describe('kit Toast', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     expect(() => render(<Harness options={{ title: 'x' }} />)).toThrow('useToast must be used inside <ToastProvider>')
     spy.mockRestore()
+  })
+
+  // Sign-off r4 chrome-F01 (WCAG 2.4.11): a page that moves focus in the same render that opens a toast scrolls with
+  // the stack height of the moment before it; once the new height is published, a focused control under a toast is
+  // scrolled clear (the root's scroll padding now includes it).
+  describe('keeps the focused control clear of a toast that opens over it', () => {
+    const originalObserver = globalThis.ResizeObserver
+    const originalRect = Element.prototype.getBoundingClientRect
+    const hadScroll = Object.prototype.hasOwnProperty.call(Element.prototype, 'scrollIntoView')
+    const originalScroll = Element.prototype.scrollIntoView
+    let notify = () => {}
+    let scrolled: Array<[Element, unknown]> = []
+    const rect = (left: number, top: number, width: number, height: number) =>
+      ({ left, top, right: left + width, bottom: top + height, width, height, x: left, y: top }) as DOMRect
+
+    beforeEach(() => {
+      scrolled = []
+      globalThis.ResizeObserver = class {
+        constructor(callback: ResizeObserverCallback) {
+          notify = () => callback([], this as unknown as ResizeObserver)
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver
+      Element.prototype.scrollIntoView = function scrollIntoView(this: Element, options?: unknown) {
+        scrolled.push([this, options])
+      } as typeof Element.prototype.scrollIntoView
+    })
+
+    afterEach(() => {
+      globalThis.ResizeObserver = originalObserver
+      Element.prototype.getBoundingClientRect = originalRect
+      if (hadScroll) Element.prototype.scrollIntoView = originalScroll
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    })
+
+    function renderWithProbe(probeRect: DOMRect) {
+      Element.prototype.getBoundingClientRect = function (this: Element) {
+        if (this.matches('.kit-toast')) return rect(624, 640, 380, 108)
+        if (this.matches('[data-probe]')) return probeRect
+        return originalRect.call(this)
+      }
+      let api: ReturnType<typeof useToast> | null = null
+      function Grab() {
+        api = useToast()
+        return null
+      }
+      render(
+        <ToastProvider>
+          <Grab />
+          <button data-probe="">Probe</button>
+        </ToastProvider>,
+      )
+      const probe = screen.getByRole('button', { name: 'Probe' })
+      // Focus moved by the page (no click in between, which would make it a pointer focus), then a toast opens.
+      probe.focus()
+      act(() => void api?.toast({ title: 'Added to your applications' }))
+      act(() => notify())
+      return probe
+    }
+
+    it('scrolls it into view (nearest) when the toast covers it', () => {
+      const probe = renderWithProbe(rect(900, 700, 80, 36))
+      expect(scrolled).toContainEqual([probe, { block: 'nearest' }])
+    })
+
+    it('leaves the page alone when the toast does not cover it', () => {
+      renderWithProbe(rect(100, 700, 80, 36))
+      expect(scrolled).toEqual([])
+    })
+  })
+
+  it('publishes the region height as --kit-toast-stack, so a bottom sheet on a phone can stop below the toasts', () => {
+    const original = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.matches('[data-kit-toast-region]')) return { height: 123.4 } as DOMRect
+      return original.call(this)
+    }
+    try {
+      const { unmount } = render(
+        <ToastProvider>
+          <span />
+        </ToastProvider>,
+      )
+      expect(document.documentElement.style.getPropertyValue('--kit-toast-stack')).toBe('124px')
+      unmount()
+      expect(document.documentElement.style.getPropertyValue('--kit-toast-stack')).toBe('')
+    } finally {
+      Element.prototype.getBoundingClientRect = original
+    }
   })
 
   it('shows a neutral toast with the text and a dismiss button', () => {
@@ -223,6 +316,51 @@ describe('kit Toast', () => {
     show()
     expect(screen.getByRole('button', { name: 'Undo' }).className).toContain('kit-button--link')
     expect(document.querySelector('.kit-toast__icon > svg')).toBeTruthy()
+  })
+
+  // Sign-off chrome-F08: "Added to your applications" offers View application and Undo (STICKER 4.D).
+  it('takes a second quiet action after the first; either one runs and dismisses', () => {
+    const view = vi.fn()
+    const undo = vi.fn()
+    setup({
+      tone: 'success',
+      title: 'Added to your applications',
+      action: { label: 'View application', onClick: view },
+      secondaryAction: { label: 'Undo', onClick: undo },
+    })
+    show()
+    const [first, second] = [...toasts()[0].querySelectorAll('.kit-toast__actions > button')]
+    expect(first.textContent).toBe('View application')
+    expect(second.textContent).toBe('Undo')
+    expect(second.className).toContain('kit-button--link')
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(undo).toHaveBeenCalledTimes(1)
+    expect(view).not.toHaveBeenCalled()
+    expect(toasts()[0].getAttribute('data-state')).toBe('closed')
+  })
+
+  // Sign-off r5 chrome-F14: the root scroll padding that keeps a focused control clear of the toasts used to apply with
+  // no toast up too (36px), so focusing a sticky sidebar control near the viewport bottom (the rail avatar, the legal
+  // links) scrolled the page under it. With no toast there is no padding, so that focus cannot scroll; with one there is.
+  // jsdom has no layout, so this reads the cascade of the real stylesheet, which is what decides whether focus scrolls.
+  it('pads the page scroll above the toasts only while a toast is up, so focus near the bottom never scrolls otherwise', () => {
+    const style = document.createElement('style')
+    style.textContent = readFileSync(path.resolve(__dirname, '../../../styles/kit/toast.css'), 'utf8')
+    document.head.append(style)
+    const padding = () => getComputedStyle(document.documentElement).getPropertyValue('scroll-padding-block-end').trim()
+    try {
+      setup({ title: 'Saved' })
+      expect(padding()).toBe('')
+      show()
+      expect(toasts()).toHaveLength(1)
+      expect(padding()).toContain('var(--kit-toast-stack')
+      fireEvent.click(screen.getByRole('button', { name: 'dismiss all' }))
+      advance(1000)
+      expect(toasts()).toHaveLength(0)
+      expect(padding()).toBe('')
+    } finally {
+      style.remove()
+    }
   })
 
   it('keeps a persistent live-region marker on the container so a modal never hides it from assistive tech', () => {

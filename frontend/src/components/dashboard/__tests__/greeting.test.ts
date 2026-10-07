@@ -33,25 +33,39 @@ describe('greetingTitle', () => {
 describe('greetingLead', () => {
   const now = at(9)
 
+  // Sign-off r4 chrome-F11: the date broke between the day and the month on phones ("Wednesday 7 / October"): the
+  // day and month, and a run's "Oct 2", are joined by no-break spaces.
   it('says how many things need the user, today, and the last runs', () => {
-    expect(longDate(now)).toBe('Sunday 4 October')
-    expect(greetingLead(now, { needsTotal: 2, runDates: ['2026-10-03T10:00:00', '2026-10-03T09:00:00'] })).toBe(
-      'Two things need you today. Sunday 4 October; your last two runs were on Oct 3.',
+    expect(longDate(now)).toBe('Sunday 4\u00a0October')
+    expect(greetingLead(now, { needsTotal: 2, runDates: ['2026-10-02T10:00:00', '2026-10-02T09:00:00'] })).toBe(
+      'Two things need you today. Sunday 4\u00a0October; your last two runs were on Oct\u00a02.',
+    )
+  })
+
+  it('says today and yesterday instead of the date for those days', () => {
+    expect(greetingLead(now, { needsTotal: 0, runDates: ['2026-10-04T08:00:00', '2026-10-04T07:00:00'] })).toBe(
+      'Nothing needs you today. Sunday 4\u00a0October; your last two runs were today.',
+    )
+    expect(greetingLead(now, { needsTotal: null, runDates: ['2026-10-04T08:00:00', '2026-10-03T07:00:00'] })).toBe(
+      'Sunday 4\u00a0October; your last two runs were today and yesterday.',
+    )
+    expect(greetingLead(now, { needsTotal: null, runDates: ['2026-10-03T08:00:00', '2026-10-01T07:00:00'] })).toBe(
+      'Sunday 4\u00a0October; your last two runs were yesterday and on Oct\u00a01.',
     )
   })
 
   it('names both days when the last two runs are on different days, and one run alone', () => {
-    expect(greetingLead(now, { needsTotal: 1, runDates: ['2026-10-03T10:00:00', '2026-10-01T09:00:00'] })).toBe(
-      'One thing needs you today. Sunday 4 October; your last two runs were on Oct 3 and Oct 1.',
+    expect(greetingLead(now, { needsTotal: 1, runDates: ['2026-10-02T10:00:00', '2026-10-01T09:00:00'] })).toBe(
+      'One thing needs you today. Sunday 4\u00a0October; your last two runs were on Oct\u00a02 and Oct\u00a01.',
     )
-    expect(greetingLead(now, { needsTotal: 0, runDates: ['2026-10-03T10:00:00'] })).toBe(
-      'Nothing needs you today. Sunday 4 October; your last run was on Oct 3.',
+    expect(greetingLead(now, { needsTotal: 0, runDates: ['2026-10-02T10:00:00'] })).toBe(
+      'Nothing needs you today. Sunday 4\u00a0October; your last run was on Oct\u00a02.',
     )
   })
 
   it('leaves the runs clause out with no runs, and the count out while it is unknown', () => {
-    expect(greetingLead(now, { needsTotal: 12, runDates: [] })).toBe('12 things need you today. Sunday 4 October.')
-    expect(greetingLead(now, { needsTotal: null, runDates: [] })).toBe('Sunday 4 October.')
+    expect(greetingLead(now, { needsTotal: 12, runDates: [] })).toBe('12 things need you today. Sunday 4\u00a0October.')
+    expect(greetingLead(now, { needsTotal: null, runDates: [] })).toBe('Sunday 4\u00a0October.')
   })
 })
 

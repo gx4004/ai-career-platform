@@ -59,7 +59,8 @@ export function DashboardPipeline() {
       ) : board.isPending ? (
         <Panel flush role="status" aria-label="Loading your pipeline">
           <List framed={false} aria-busy>
-            <Skeleton variant="row" as="li" count={STAGES.length} density="compact" />
+            {/* Led by the 40px square of the stage mark, as the loaded rows are. */}
+            <Skeleton variant="row" as="li" count={STAGES.length} density="compact" leading="tile" />
           </List>
         </Panel>
       ) : (

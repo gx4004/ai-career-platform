@@ -24,12 +24,13 @@ export function PortfolioToolPage() {
           toolId="portfolio"
           label={`${tool.label} input form`}
           onSubmit={handleSubmit}
-          submitLabel="Generate roadmap"
+          submitLabel={tool.entryPointLabel}
           error={mutation.error}
           pending={mutation.isPending}
         >
           <ResumeSource
             id="portfolio-resumeText"
+            toolId="portfolio"
             label={resumeField.label}
             placeholder={resumeField.placeholder}
             rows={resumeField.rows}

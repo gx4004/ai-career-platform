@@ -89,6 +89,11 @@ describe('kit Avatar', () => {
     expect(initialsOf('Cher')).toBe('C')
     expect(initialsOf('grace.hopper@example.com')).toBe('GH')
     expect(initialsOf('   ')).toBe('?')
+    // A hyphenated surname is one word: the first letter of the first and last words (AA-F09).
+    expect(initialsOf('Ana García-López')).toBe('AG')
+    expect(initialsOf('Nora Inspect-Renamed')).toBe('NI')
+    expect(initialsOf('Jean-Luc Picard')).toBe('JP')
+    expect(initialsOf('ana_garcia-lopez@example.com')).toBe('AL')
   })
 
   it('is an image named after the person, or hidden when decorative', () => {

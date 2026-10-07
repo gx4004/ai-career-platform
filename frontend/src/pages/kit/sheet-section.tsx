@@ -17,6 +17,7 @@ import {
   SheetTrigger,
   type SheetSide,
   type SheetSize,
+  useToast,
 } from '#/components/kit'
 import { GallerySection, Grid, Group, Row, Specimen, Stage } from './gallery-parts'
 
@@ -123,11 +124,28 @@ const PLACES = [
   { label: 'Settings', icon: Settings },
 ]
 
-function ToolsSheet() {
+/**
+ * withToast: the sheet opens while a two-action toast is up (the dashboard's "+ Add", then More). On a phone the toast
+ * sits at the top, compact, and the sheet stops below it; check it at 320x640.
+ */
+function ToolsSheet({ withToast = false }: { withToast?: boolean }) {
+  const { toast } = useToast()
   return (
-    <Sheet>
+    <Sheet
+      onOpenChange={(open) => {
+        if (open && withToast) {
+          toast({
+            tone: 'success',
+            title: 'Added to your applications',
+            description: 'Backend Engineer, Inference',
+            action: { label: 'View application', onClick: () => undefined },
+            secondaryAction: { label: 'Undo', onClick: () => undefined },
+          })
+        }
+      }}
+    >
       <SheetTrigger asChild>
-        <Button variant="secondary">Tools sheet (tiles)</Button>
+        <Button variant="secondary">{withToast ? 'Tools sheet under a toast' : 'Tools sheet (tiles)'}</Button>
       </SheetTrigger>
       <SheetContent side="bottom" size="sm">
         <SheetHeader>
@@ -246,6 +264,7 @@ export function SheetSection() {
           <DrawerDemo side="bottom" label="Bottom sheet, long content" />
           <FiltersSheet />
           <ToolsSheet />
+          <ToolsSheet withToast />
         </Row>
       </Group>
     </GallerySection>

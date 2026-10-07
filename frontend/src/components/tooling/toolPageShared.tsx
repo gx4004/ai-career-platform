@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Clock } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import {
   Badge,
@@ -14,7 +15,6 @@ import {
   PanelBody,
   Row,
   RowBody,
-  RowMeta,
   RowSubtitle,
   RowTitle,
   Section,
@@ -26,15 +26,15 @@ import {
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
-import { rememberResume } from '#/components/tooling/sampleResume'
+import { isSampleResume, rememberResume } from '#/components/tooling/sampleResume'
 import { useHistory } from '#/hooks/useHistory'
 import { usePrefersReducedMotion } from '#/hooks/use-prefers-reduced-motion'
 import { useSession } from '#/hooks/useSession'
 import { readRegenFeedback, readWorkflowContext } from '#/lib/tools/drafts'
 import { getResumeCarryText } from '#/lib/tools/resumeCarryStore'
-import { getWorkflowTargetRole } from '#/lib/tools/workflowContext'
+import { getWorkflowTargetRole, roleFromRegeneratedRun } from '#/lib/tools/workflowContext'
 import { historyRunHref } from '#/lib/tools/historyToolLabel'
-import { formatRunDate, splitScore } from '#/lib/tools/runLabel'
+import { formatRunDate, runSubject, splitScore } from '#/lib/tools/runLabel'
 import { useToolDraft } from '#/hooks/useToolDraft'
 import { useToolMutation } from '#/hooks/useToolMutation'
 import { useWorkflowBridge } from '#/hooks/useWorkflowBridge'
@@ -56,10 +56,16 @@ export function useToolPageState(toolId: ToolId) {
   const tool = tools[toolId]
   const config = workflowConfigs[toolId]
   const { status, openAuthDialog } = useSession()
-  const { draft, setDraft, setField } = useToolDraft(toolId, config.defaults)
+  const { draft, setDraft, setField: setDraftField } = useToolDraft(toolId, config.defaults)
   const mutation = useToolMutation(tool)
   const bridge = useWorkflowBridge(toolId, draft, setDraft)
   const [errors, setErrors] = useState<Partial<Record<keyof typeof draft, string>>>({})
+  // An error describes what the field held at submit: once the user changes that field, the error goes with it
+  // (an upload, a paste or the sample must not sit under "Add your resume"). The other fields keep theirs.
+  const setField: typeof setDraftField = (name, value) => {
+    setDraftField(name, value)
+    setErrors((previous) => (previous[name] ? { ...previous, [name]: undefined } : previous))
+  }
 
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
   const parentRunId = urlParams?.get('parent_run_id') ?? undefined
@@ -73,7 +79,7 @@ export function useToolPageState(toolId: ToolId) {
       return
     }
     // A resume pasted or carried in (not only an uploaded one) stays available to Evidence Profile import and the other tools.
-    rememberResume(String(draft.resumeText ?? ''))
+    rememberResume(String(draft.resumeText ?? ''), undefined, toolId)
     mutation.mutate({
       payload: config.buildPayload(draft),
       draft,
@@ -135,20 +141,36 @@ function RegenerateNote({ toolId }: { toolId: ToolId }) {
     const resume = (context?.resumeText || carried).trim()
     const job = (context?.jobDescription ?? '').trim()
     const role = needsRole ? getWorkflowTargetRole(context) : undefined
-    const filled: string[] = []
+    // Each filled item says whether it came from this tab; "from this tab" is then said once when all of them did,
+    // instead of after every item.
+    const items: { name: string; fromTab: boolean; quiet?: boolean }[] = []
     const missing: string[] = []
     if (needsResume) {
-      if (resume) filled.push(context?.resumeSource && context.resumeText ? context.resumeSource : 'your resume from this tab')
-      else missing.push('your resume')
+      if (resume) {
+        items.push(
+          context?.resumeSource && context.resumeText
+            ? { name: context.resumeSource, fromTab: false }
+            : { name: isSampleResume(resume) ? 'the sample resume' : 'your resume', fromTab: true },
+        )
+      } else missing.push('your resume')
     }
     if (needsJob) {
-      if (job) filled.push(context?.jobSource ?? 'the job description from this tab')
+      if (job) items.push(context?.jobSource ? { name: context.jobSource, fromTab: false } : { name: 'the job description', fromTab: true })
       else missing.push(context?.jobLabel ? `the job description for ${context.jobLabel}` : 'the job description')
     }
     if (needsRole) {
-      if (role) filled.push('the target role')
+      const fromRun = roleFromRegeneratedRun(toolId, context, parentRunId)
+      // Opening the result wrote its role into the tab, so the role is that run's (sign-off tool-inputs-F30): said so.
+      // Otherwise it is read from the tab, but never named that on its own: it only joins an all-from-the-tab line.
+      if (role && fromRun)
+        items.push({ name: fromRun === 'recommended' ? 'the role the earlier run recommended' : 'the earlier run’s target role', fromTab: false })
+      else if (role) items.push({ name: 'the target role', fromTab: true, quiet: true })
       else missing.push('a target role')
     }
+    const allFromTab = items.length > 0 && items.every((item) => item.fromTab)
+    const filled = allFromTab
+      ? [`${joinWords(items.map((item) => item.name))} from this tab`]
+      : items.map((item) => (item.fromTab && !item.quiet ? `${item.name} from this tab` : item.name))
     setNote({ feedback: readRegenFeedback(parentRunId) ?? null, filled, missing })
   }, [toolId])
   if (!note) return null
@@ -173,7 +195,8 @@ function RegenerateNote({ toolId }: { toolId: ToolId }) {
 /**
  * A tool input page: the compact header, then the form column (notices, then the form or the working panel)
  * beside a rail with the user's recent runs of this tool and what the tool gives back. Side by side when the
- * content is at least 56rem wide (Split asks its own width); below that the rail follows the form.
+ * content is at least 52rem wide (Split breakpoint="compact": the form still has about 35rem, so 1024 with the
+ * sidebar collapsed keeps the rail beside it); below that the rail follows the form.
  */
 export function ToolPageShell({
   toolId,
@@ -193,6 +216,7 @@ export function ToolPageShell({
       />
       <Split
         className="tool-split"
+        breakpoint="compact"
         railLabel={`About ${tool.label}`}
         rail={
           <>
@@ -202,7 +226,7 @@ export function ToolPageShell({
         }
       >
         <div className="tool-notices">
-          <GuestSaveBanner />
+          <GuestSaveBanner toolId={toolId} />
           <WorkflowHandoffBanner toolId={toolId} />
           <RegenerateNote toolId={toolId} />
         </div>
@@ -231,16 +255,27 @@ export function WhatYouGet({ toolId }: { toolId: ToolId }) {
   )
 }
 
-/** Two runs can carry the same label: say what each one was about (role and company, or its headline). */
-function aboutOf(item: {
-  workspace?: { role?: string | null; company?: string | null } | null
-  metadata?: { summary_headline?: string | null } | null
-}) {
-  return (
-    [item.workspace?.role, item.workspace?.company].filter(Boolean).join(' at ') ||
-    item.metadata?.summary_headline ||
-    ''
-  )
+/**
+ * What a run was about, as its title in the narrow rail: the tool's own name ("Career Plan", "Job Match") is already the
+ * page title, so it says nothing there. A name the user gave the run wins; then the application's role and company; then
+ * the role a Career Path or Portfolio label names ("Career Plan (X)" gives X); then what any other default label wraps
+ * (a tone, "4 questions"). The result's headline is never the title (consistency-F06: clamped in 280px it read
+ * "Strong foundation: 2…" and was not the name History shows); it is the line under the title, as in History. A run with
+ * none of these (a plain "Resume Analysis (77/100)") returns null: the rail titles it by when it ran (consistency-F23:
+ * three Resume Analyzer runs read "Resume Analysis" three times).
+ */
+function runTitle(
+  item: {
+    workspace?: { role?: string | null; company?: string | null } | null
+  },
+  name: string,
+  toolId: ToolId,
+): string | null {
+  const subject = runSubject(name, tools[toolId])
+  if (subject && subject === name.trim()) return subject
+  const application = [item.workspace?.role, item.workspace?.company].filter(Boolean).join(' at ')
+  const questions = /\((\d+ questions?)\)\s*$/i.exec(name)?.[1]
+  return application || subject || questions || null
 }
 
 /** "9:41 AM", or "9:41:12 AM" when a run it could be mistaken for started in the same minute. */
@@ -257,11 +292,13 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
   const { status } = useSession()
   const query = useHistory({ tool: toolId, page: 1, page_size: 3 }, status === 'authenticated')
   const items = query.data?.items ?? []
-  // Two runs that would read the same (label, subject, day) also show their time, so they can be told apart.
-  const rowKey = (item: (typeof items)[number]) =>
-    [item.label, aboutOf(item), formatRunDate(item.created_at)].join('|')
+  const titleOf = (item: (typeof items)[number]) => runTitle(item, splitScore(item.label || 'Untitled run').name, toolId)
+  // Two runs that would read the same (subject and day) also show their time, so they can be told apart.
+  const rowKey = (item: (typeof items)[number]) => [titleOf(item) ?? '', formatRunDate(item.created_at)].join('|')
   const seen = new Map<string, number>()
   for (const item of items) seen.set(rowKey(item), (seen.get(rowKey(item)) ?? 0) + 1)
+  // Runs titled by when they ran: their times, to the second when two share a minute.
+  const dated = items.filter((item) => titleOf(item) === null)
 
   if (status !== 'authenticated') return null
 
@@ -288,8 +325,13 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
           retrying={query.isFetching}
         />
       ) : !query.isPending && items.length === 0 ? (
-        // Signed in, nothing run yet: the section stays (no skeleton that then vanishes) and says what will appear.
-        <EmptyState size="inline" title="No runs yet" description={`Your ${tools[toolId].label} results will be listed here.`} />
+        // Signed in, nothing run yet: the section stays (no skeleton that then vanishes) and says what will appear,
+        // as the Sticker die-cut empty state.
+        <EmptyState
+          icon={<Clock />}
+          title="No runs yet"
+          description={`Your ${tools[toolId].label} results will be listed here.`}
+        />
       ) : (
         <List aria-labelledby="recent-runs-heading" aria-busy={query.isPending || undefined}>
           {query.isPending ? (
@@ -297,41 +339,60 @@ export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
           ) : (
             items.map((item) => {
               const href = historyRunHref(item)
-              const { name, score } = splitScore(item.label || 'Untitled run')
-              const about = aboutOf(item)
+              const { score } = splitScore(item.label || 'Untitled run')
+              const subject = titleOf(item)
+              const headline = item.metadata?.summary_headline?.trim()
               const date = formatRunDate(item.created_at)
+              // No subject: the date and time are the title, and the line under it is the headline alone.
+              const title = subject ?? `${date}, ${timeOf(item.created_at, dated)}`
               const time =
-                (seen.get(rowKey(item)) ?? 0) > 1
+                subject !== null && (seen.get(rowKey(item)) ?? 0) > 1
                   ? timeOf(item.created_at, items.filter((other) => rowKey(other) === rowKey(item)))
                   : ''
               const detailsId = `recent-run-${item.id}`
+              const headlineId = `${detailsId}-headline`
+              const describedBy = [subject !== null || !headline ? detailsId : null, headline ? headlineId : null].filter(Boolean).join(' ')
+              // The pill is decorative to assistive tech; the score is read with the link's description, at its end.
+              const srScore = score ? <span className="kit-sr-only">, score {score}</span> : null
+              // On the title's line (kit RowTitle aside): as a RowMeta column it squeezed the headline under the title to
+              // ~150px, which then cut before the role (consistency-F23).
+              const pill = score ? (
+                <Badge tone={tools[toolId].tone} score aria-hidden="true">
+                  {score}
+                </Badge>
+              ) : null
               return (
-                <Row key={item.id} overflow="truncate">
+                // The subject wraps to two lines (a rail is 280px); the date keeps one line under it, the headline two.
+                <Row key={item.id} overflow="clamp">
                   <RowBody>
-                    {/* Several runs share a name ("Job Match"): the date, subject and score describe each link. */}
                     {href ? (
-                      <RowTitle asChild>
-                        <Link to={href} aria-describedby={detailsId}>
-                          {name}
+                      <RowTitle asChild aside={pill}>
+                        <Link to={href} aria-describedby={describedBy} title={title}>
+                          {title}
                         </Link>
                       </RowTitle>
                     ) : (
-                      <RowTitle>{name}</RowTitle>
+                      <RowTitle title={title} aside={pill}>{title}</RowTitle>
                     )}
-                    {/* Plain text, date first: in the narrow rail the subject is what gets cut, with a clean ellipsis. */}
-                    <RowSubtitle id={detailsId} title={about || undefined}>
-                      {[time ? `${date}, ${time}` : date, about].filter(Boolean).join(' · ')}
-                      {/* The pill is decorative to assistive tech; the score is read here, with the link's description. */}
-                      {score ? <span className="kit-sr-only">, score {score}</span> : null}
-                    </RowSubtitle>
+                    {/* Runs can share a subject: the date (and the time when two collide), the headline and the score
+                        describe each link. A run titled by its date has no date line. */}
+                    {subject !== null ? (
+                      <RowSubtitle id={detailsId}>
+                        {time ? `${date}, ${time}` : date}
+                        {headline ? null : srScore}
+                      </RowSubtitle>
+                    ) : !headline && srScore ? (
+                      <span id={detailsId} className="kit-sr-only">score {score}</span>
+                    ) : null}
+                    {/* The headline (History's summary line) has its own two lines, the body's full width (consistency-F17,
+                        F23). */}
+                    {headline ? (
+                      <RowSubtitle id={headlineId} lines={2}>
+                        {headline}
+                        {srScore}
+                      </RowSubtitle>
+                    ) : null}
                   </RowBody>
-                  {score ? (
-                    <RowMeta aria-hidden="true">
-                      <Badge tone={tools[toolId].tone} score>
-                        {score}
-                      </Badge>
-                    </RowMeta>
-                  ) : null}
                 </Row>
               )
             })
@@ -362,39 +423,51 @@ export function ToolPageLoading({
   const panelRef = useRef<HTMLDivElement | null>(null)
   const reduceMotion = usePrefersReducedMotion()
 
-  // Submitting from the foot of a long form (a phone) leaves the panel's status and track above the viewport: bring its top into view.
+  // Submitting from the foot of a long form (a phone) can leave the panel's status under the sticky app header, or its
+  // Cancel under the floating tab tray. Its scroll margins are exactly those bars (tooling.css; 16px and 0 on desktop):
+  // when the panel crosses either, bring its top to sit just under the header.
   useEffect(() => {
     const panel = panelRef.current
-    if (!panel || panel.getBoundingClientRect().top >= 0) return
+    if (!panel) return
+    const style = window.getComputedStyle(panel)
+    const clearTop = parseFloat(style.scrollMarginTop) || 0
+    const clearBottom = parseFloat(style.scrollMarginBottom) || 0
+    const { top, bottom } = panel.getBoundingClientRect()
+    if (top >= clearTop && bottom <= window.innerHeight - clearBottom) return
     panel.scrollIntoView?.({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the panel takes the form's place
   }, [])
 
+  // The form's height is the panel's floor (tooling.css): on a phone it is capped to one screen, so the status, the
+  // steps and Cancel are all in view instead of a long empty panel.
+  const style = height ? ({ '--tool-form-h': `${Math.round(height)}px` } as CSSProperties) : undefined
+
   return (
-    <Panel ref={panelRef} className="tool-loading" style={height ? { minBlockSize: `${Math.round(height)}px` } : undefined}>
+    <Panel ref={panelRef} className="tool-loading" style={style}>
       <PanelBody className="tool-loading__body">
         <CinematicLoader
           toolId={toolId}
           mutationDone={mutationDone}
           onReady={onReady}
           accessMode={status === 'authenticated' ? 'authenticated' : 'guest_demo'}
+          action={
+            onCancel ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="tool-loading__cancel"
+                onClick={() => {
+                  // Cancel unmounts with this panel: the form that takes its place picks the focus up (see ToolForm).
+                  focusSubmitAfterCancel = toolId
+                  onCancel()
+                }}
+              >
+                Cancel
+              </Button>
+            ) : null
+          }
         />
-        {onCancel ? (
-          <div className="tool-loading__cancel">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                // Cancel unmounts with this panel: the form that takes its place picks the focus up (see ToolForm).
-                focusSubmitAfterCancel = toolId
-                onCancel()
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : null}
       </PanelBody>
     </Panel>
   )
@@ -419,11 +492,22 @@ export function ToolForm({
   children: ReactNode
 }) {
   const formRef = useRef<HTMLFormElement | null>(null)
+  const errorRef = useRef<HTMLDivElement | null>(null)
+  const reduceMotion = usePrefersReducedMotion()
   useEffect(() => {
     if (focusSubmitAfterCancel !== toolId) return
     focusSubmitAfterCancel = null
     formRef.current?.querySelector<HTMLElement>('button[type="submit"]')?.focus()
   }, [toolId])
+  // A failed run: the working panel had scrolled to its own top, so on a phone the error by the submit would sit below
+  // the fold (or under the tab tray) with focus on <body>. Bring it into view and focus the way to retry; the notice is
+  // an alert, so it is announced once on its own and the focus does not read it a second time.
+  useEffect(() => {
+    if (!error) return
+    errorRef.current?.scrollIntoView?.({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' })
+    formRef.current?.querySelector<HTMLElement>('button[type="submit"]')?.focus({ preventScroll: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per failed run, not when motion settings change
+  }, [error])
   return (
     <form
       ref={formRef}
@@ -439,7 +523,9 @@ export function ToolForm({
           {children}
           <Stack gap={3}>
             {error ? (
-              <Notice tone="danger">{error instanceof Error ? error.message : 'This run failed.'}</Notice>
+              <Notice ref={errorRef} tone="danger" className="tool-form__error">
+                {error instanceof Error ? error.message : 'This run failed.'}
+              </Notice>
             ) : null}
             <div>
               <Button type="submit" size="lg" loading={pending}>
@@ -461,6 +547,11 @@ export function getSeededFieldNote(
     seededTargetRole: boolean
     carriedJobDescription?: string
     carriedTargetRole?: string
+    /** Set when the value came from one of the user's applications: it is named, and the run is filed under it. */
+    jobApplicationLabel?: string
+    roleApplicationLabel?: string
+    /** Set on a Re-generate whose role is the earlier run's: its input role, or the role it recommended. */
+    roleFromRun?: 'target' | 'recommended'
   },
   value: string,
 ): string {
@@ -468,10 +559,17 @@ export function getSeededFieldNote(
   if (!current) return ''
 
   if (fieldName === 'jobDescription' && bridge.seededJob && current === (bridge.carriedJobDescription ?? '').trim()) {
-    return 'Job description carried in from your recent workflow.'
+    return bridge.jobApplicationLabel
+      ? `Job description from your application ${bridge.jobApplicationLabel}. This run is saved to it.`
+      : 'Job description carried in from your recent workflow.'
   }
 
   if (fieldName === 'targetRole' && bridge.seededTargetRole && current === (bridge.carriedTargetRole ?? '').trim()) {
+    if (bridge.roleApplicationLabel) {
+      return `Target role from your application ${bridge.roleApplicationLabel}. This run is saved to it.`
+    }
+    if (bridge.roleFromRun === 'recommended') return 'The role the run you are re-generating recommended.'
+    if (bridge.roleFromRun === 'target') return 'Target role from the run you are re-generating.'
     return 'Target role carried in from your recent workflow.'
   }
 

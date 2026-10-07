@@ -21,6 +21,12 @@ export type NoticeProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & {
   icon?: ReactNode | false
   /** One action at the end of the strip: a Button size="sm" variant="secondary" or a link. */
   action?: ReactNode
+  /**
+   * Where the action sits. end (default): beside the text, dropping under it on a phone. below: on its own
+   * line under the text at every width, aligned with it, and spanning the notice under 480px. Use below for
+   * a choice of two buttons (pass both as the action), which beside the text would squeeze it.
+   */
+  actionPlacement?: 'end' | 'below'
   /** Shows a close button that calls this. */
   onDismiss?: () => void
   dismissLabel?: string
@@ -32,7 +38,7 @@ export type NoticeProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & {
  * banners, .result-notice, .tool-notice, .camp-alert, .history-alert, .disc-error and loose error text.
  */
 export const Notice = forwardRef<HTMLDivElement, NoticeProps>(function Notice(
-  { tone = 'info', title, icon, action, onDismiss, dismissLabel = 'Dismiss', role, className, children, ...rest },
+  { tone = 'info', title, icon, action, actionPlacement = 'end', onDismiss, dismissLabel = 'Dismiss', role, className, children, ...rest },
   ref,
 ) {
   const glyph = icon === undefined ? ICONS[tone] : icon
@@ -42,6 +48,7 @@ export const Notice = forwardRef<HTMLDivElement, NoticeProps>(function Notice(
       role={role ?? (tone === 'danger' ? 'alert' : 'status')}
       className={cn('kit-notice', className)}
       data-tone={tone}
+      data-action-placement={action && actionPlacement === 'below' ? 'below' : undefined}
       {...rest}
     >
       {glyph ? <span className="kit-notice__icon">{glyph}</span> : null}

@@ -164,6 +164,19 @@ describe('LoginForm', () => {
     expect((screen.getByRole('button', { name: 'Sign in' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('moves focus to the rate-limit notice, so a keyboard user does not drop to the page body', async () => {
+    const limited = Object.assign(new Error('Rate limit exceeded: 5 per 1 minute'), { status: 429, detail: 'Rate limit exceeded: 5 per 1 minute' })
+    loginMock.mockRejectedValue(limited)
+    render(<LoginForm />)
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'correct horse' } })
+    const submit = screen.getByRole('button', { name: 'Sign in' })
+    submit.focus()
+    fireEvent.click(submit)
+    const alert = await screen.findByRole('alert')
+    await waitFor(() => expect(document.activeElement).toBe(alert))
+  })
+
   it('offers the reset link itself when the server hands one back in development', async () => {
     requestPasswordResetMock.mockResolvedValue({
       message: 'A reset link is on its way.',
@@ -175,6 +188,71 @@ describe('LoginForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
     const link = await screen.findByRole('link', { name: 'Open reset link' })
     expect(link.getAttribute('href')).toBe('/reset-password#token=abc')
+  })
+
+  it('carries the email typed into sign in over to the reset step', () => {
+    render(<LoginForm />)
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('ada@example.com')
+  })
+
+  it('drops an earlier failed sign-in once the visitor has asked for a reset', async () => {
+    loginMock.mockRejectedValue(new Error('Invalid email or password'))
+    render(<LoginForm />)
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('Invalid email or password')
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
+    await screen.findByRole('status')
+    fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('ada@example.com')
+  })
+
+  it('keeps keyboard focus in the form when a step replaces the button that was pressed', async () => {
+    render(<LoginForm />)
+    // Forgot password? unmounts with the sign-in form: focus goes to the field the visitor fills next.
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'))
+    expect(document.activeElement?.id).toBe('reset-email')
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
+    await screen.findByRole('status')
+    // The send button gave way to the confirmation: the way back is the next thing to press.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Back to sign in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
+    // Back on sign in with the email kept, so the password is next.
+    expect(document.activeElement).toBe(screen.getByLabelText('Password'))
+  })
+
+  it('does not take focus from where it already is', () => {
+    render(
+      <>
+        <button type="button">Elsewhere</button>
+        <LoginForm />
+      </>,
+    )
+    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' })
+    elsewhere.focus()
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
+  it('takes focus to the password after a handoff that fills the email in, but not on a plain page load', () => {
+    const { unmount } = render(<LoginForm />)
+    expect(document.activeElement).toBe(document.body)
+    unmount()
+    render(<LoginForm initialEmail="ada@example.com" />)
+    expect(document.activeElement).toBe(screen.getByLabelText('Password'))
+  })
+
+  it('takes focus to the reset email after a handoff that opens on the reset step', () => {
+    render(<LoginForm initialEmail="ada@example.com" startInReset />)
+    expect(document.activeElement?.id).toBe('reset-email')
   })
 
   it('never offers a reset link that leaves this site', async () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Count, Disclosure, Panel } from '#/components/kit'
+import { Count, Disclosure, Panel, PanelBody, PanelHeader } from '#/components/kit'
 import { GallerySection, Group, Specimen } from './gallery-parts'
 
 function ControlledDemo() {
@@ -40,6 +40,57 @@ export function DisclosureSection() {
             <p className="kit-gallery__paragraph">Private notes for this application.</p>
           </Disclosure>
         </Panel>
+      </Group>
+
+      <Group title='size="lg": a foldable panel heading, in the PanelHeader title face (display 20/800)'>
+        <Panel flush>
+          <Disclosure title="What's working" size="lg" defaultOpen headingLevel={2}>
+            <p className="kit-gallery__paragraph">A reply is an interview or an offer.</p>
+          </Disclosure>
+        </Panel>
+      </Group>
+
+      <Group title='ruled: a Panel headed by a foldable row, beside a PanelHeader panel (open: the 2px ink rule under the row; the hover fill keeps the panel&apos;s rounded corners, all four while closed)'>
+        <div className="kit-gallery__grid">
+          <Specimen label="open, in a plain Panel">
+            <Panel as="section">
+              <Disclosure title="What's working" size="lg" ruled defaultOpen headingLevel={3}>
+                <p className="kit-gallery__paragraph">A reply is an interview or an offer.</p>
+              </Disclosure>
+            </Panel>
+          </Specimen>
+          <Specimen label="closed: hover it to see the corners">
+            <Panel as="section">
+              <Disclosure title="What's working" size="lg" ruled headingLevel={3}>
+                <p className="kit-gallery__paragraph">A reply is an interview or an offer.</p>
+              </Disclosure>
+            </Panel>
+          </Specimen>
+          <Specimen label="the PanelHeader panel it sits beside">
+            <Panel as="section">
+              <PanelHeader title="Prepare applications for me" headingLevel={3} />
+              <PanelBody>
+                <p className="kit-gallery__paragraph">Pick the jobs you want and we draft the documents.</p>
+              </PanelBody>
+            </Panel>
+          </Specimen>
+        </div>
+      </Group>
+
+      <Group title="In a 288px column (a 320px phone): a long title wraps beside the chevron, a short title keeps one line beside a long meta, and a meta that cannot fit beside its title takes the line under it">
+        <div style={{ maxInlineSize: '18rem' }} data-specimen="disclosure-long-title">
+          <Panel flush>
+            <Disclosure title="Can I use Career Workbench without uploading my resume to a third-party service?" headingLevel={3}>
+              <p className="kit-gallery__paragraph">Yes. Paste the text instead; nothing leaves your account.</p>
+            </Disclosure>
+            <Disclosure title="Attempt 1" meta="No weak spots · 1 suggestion" headingLevel={3}>
+              <p className="kit-gallery__paragraph">Feedback for the first attempt.</p>
+            </Disclosure>
+            <Disclosure title="Earlier round · attempt 2" meta="Quantify the outcome" headingLevel={3}>
+              <p className="kit-gallery__paragraph">Feedback for an earlier attempt.</p>
+            </Disclosure>
+          </Panel>
+        </div>
       </Group>
 
       <Group title="Section rows on their own, and disabled">

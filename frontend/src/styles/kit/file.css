@@ -92,6 +92,11 @@
   transition: background-color var(--dur-1) var(--ease-out);
 }
 
+/* The whole area opens the picker (FileInput), so it shows a pointer. */
+.kit-file[data-variant='dropzone']:not([data-disabled]) {
+  cursor: pointer;
+}
+
 @media (hover: hover) {
   .kit-file[data-variant='dropzone']:hover:not([data-disabled], [data-dragging], [data-has-file]) {
     background: var(--lemon-soft);

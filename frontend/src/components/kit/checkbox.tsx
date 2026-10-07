@@ -39,6 +39,11 @@ export type CheckboxProps = ChoiceInputProps &
   Named & {
     /** Mixed state for a "select all" parent. Visual only: `checked` still drives the value. */
     indeterminate?: boolean
+    /**
+     * Checked fill. `accent` (default) is the tangerine of a choice being made; `success` is mint, for a box that
+     * records something done (a finished task), since mint means "good".
+     */
+    tone?: 'accent' | 'success'
   }
 
 export type SwitchProps = ChoiceInputProps & ChoiceOwnProps & Named
@@ -48,6 +53,7 @@ type ChoiceProps = ChoiceInputProps &
     label?: ReactNode
     kind: 'checkbox' | 'switch'
     indeterminate?: boolean
+    tone?: 'accent' | 'success'
   }
 
 const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(props, ref) {
@@ -60,6 +66,7 @@ const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(props, 
     size = 'md',
     controlPosition = 'start',
     indeterminate = false,
+    tone = 'accent',
     onCheckedChange,
     onChange,
     className,
@@ -103,6 +110,7 @@ const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(props, 
       data-control-position={controlPosition === 'end' ? 'end' : undefined}
       data-invalid={field.invalid || undefined}
       data-disabled={field.disabled || undefined}
+      data-tone={kind === 'checkbox' && tone !== 'accent' ? tone : undefined}
     >
       <input
         {...rest}

@@ -61,7 +61,7 @@ export function SettingsPage() {
             </RowLeading>
             <RowBody>
               <RowTitle>Onboarding</RowTitle>
-              <RowSubtitle>Replay the welcome tour.</RowSubtitle>
+              <RowSubtitle>A five-step introduction: the six tools, and where to start for your goal.</RowSubtitle>
             </RowBody>
             <RowActions reveal={false}>
               <Button
@@ -90,7 +90,7 @@ export function SettingsPage() {
                 size="sm"
                 onClick={() => {
                   clearSensitiveBrowserData()
-                  toast({ tone: 'success', title: 'Local drafts and demo state were cleared.' })
+                  toast({ tone: 'success', title: 'Local drafts cleared', description: 'Drafts, demos and workflow context on this device' })
                 }}
               >
                 Clear local drafts
@@ -102,12 +102,12 @@ export function SettingsPage() {
               <Clock aria-hidden />
             </RowLeading>
             <RowBody>
-              <RowTitle>Saved workspace history</RowTitle>
-              <RowSubtitle>Review, favorite, pin and delete saved runs in the timeline.</RowSubtitle>
+              <RowTitle>History</RowTitle>
+              <RowSubtitle>Review, star, rename and delete your saved runs.</RowSubtitle>
             </RowBody>
             <RowActions reveal={false}>
               <Button asChild variant="secondary" size="sm">
-                <Link to="/history">Open timeline</Link>
+                <Link to="/history">Open history</Link>
               </Button>
             </RowActions>
           </Row>
@@ -118,7 +118,8 @@ export function SettingsPage() {
             <RowBody>
               <RowTitle>Connection</RowTitle>
             </RowBody>
-            <RowMeta>
+            {/* below: on a phone the long outage badge takes its own line instead of squeezing the title mid-word. */}
+            <RowMeta placement="below">
               <Badge tone={connection === 'ok' ? 'success' : connection === 'checking' ? 'neutral' : 'danger'} dot>
                 {connection === 'ok'
                   ? 'Connected'

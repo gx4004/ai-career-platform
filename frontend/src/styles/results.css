@@ -16,8 +16,21 @@
    The title and meta keep their natural width; when the actions do not fit beside them they drop to a
    row of their own, right-aligned, instead of squeezing "Resume Analyzer" onto two lines. */
 .kit-page-header:has(.result-actions) .kit-page-header__identity {
-  flex: 1 0 auto;
+  flex: 1 1 22rem;
   max-inline-size: 100%;
+}
+
+/* Side by side (F61): the identity is never narrower than its one-line title, but a long meta line (a tracked Job
+   Match's "In applications: <role> at <company>") wraps beside the actions instead of widening the identity and
+   pushing all five actions onto a row of their own. */
+@media (min-width: 861px) {
+  .kit-page-header:has(.result-actions) .kit-page-header__identity {
+    min-inline-size: min-content;
+  }
+
+  .kit-page-header:has(.result-actions) .kit-page-header__title {
+    white-space: nowrap;
+  }
 }
 
 .kit-page-header:has(.result-actions) .kit-page-header__identity > .kit-page-header__text {
@@ -28,6 +41,27 @@
   .kit-page-header__actions:has(> .result-actions) {
     margin-inline-start: auto;
   }
+}
+
+/* Copy / Copied: both icons and both words share one grid cell and only one is visible, so the button keeps the
+   width of its wider state and Star, Export and the rest never jump when it flips for 1.6s. */
+.result-copy__swap {
+  display: inline-grid;
+  place-items: center;
+}
+
+.result-copy__swap > * {
+  grid-area: 1 / 1;
+}
+
+.result-copy__swap > [data-shown='false'] {
+  visibility: hidden;
+}
+
+/* The icon cell holds the 20px "Copied" disc and the button's own 16px icon. */
+.result-copy__swap--icon > svg {
+  inline-size: var(--kit-button-icon);
+  block-size: var(--kit-button-icon);
 }
 
 /* The loading state keeps the seal's place so the report does not jump when it arrives. */
@@ -47,7 +81,8 @@
   border-radius: var(--r-lg);
 }
 
-/* The actions' place in the header while the run loads: as wide as the five buttons, never wider than the page. */
+/* The actions' place in the header while the run loads: as wide as the five buttons (36rem in ToolResultScreen,
+   the loaded cluster measures 571px at 1440), never wider than the page. */
 .result-loading__actions {
   max-inline-size: 100%;
   block-size: 44px;
@@ -65,38 +100,27 @@
   }
 }
 
-/* Phones: the seal is 220px and the unscored tool tile is not shown (useBreakpoint's mobile is <= 639px). */
-@media (max-width: 639px) {
-  .result-seal-skeleton {
-    inline-size: min(220px, 100%);
-  }
-
+/* A stacked hero (<= 860px) does not repeat the header's tool tile as a 120px block in the middle of the
+   content (between the Fix-first stickers and the facts); neither does its placeholder. */
+@media (max-width: 860px) {
+  .result-hero__side > .kit-tool-tile--xl,
   .result-hero__side > .result-tile-skeleton {
     display: none;
   }
+}
 
-  /* Phones: the actions take two rows (Re-generate and New input, then Star, Copy and Export: 56 + 8 + 44,
-     New input keeps its 56px touch height), measured against the loaded header. */
-  .result-loading__actions {
-    block-size: 108px;
-  }
-
-  /* The one primary leads on a phone and takes the first row's free width, with New input beside it; Star,
-     Copy and Export follow on the next row. DOM order is unchanged, so the keyboard order matches desktop. */
-  .result-actions > .result-actions__primary {
-    order: -2;
-    flex: 1 1 auto;
-  }
-
-  .result-actions > .result-actions__new {
-    order: -1;
+/* A stacked hero (<= 860px: phones and tablets) has the 220px seal (ToolResultScreen's stackedHero). */
+@media (max-width: 860px) {
+  .result-seal-skeleton {
+    inline-size: min(220px, 100%);
   }
 }
 
-/* Below ~354px Star, Copy and Export no longer share a row: three rows (56 + 8 + 44 + 8 + 44). */
-@media (max-width: 353px) {
+@media (max-width: 639px) {
+  /* Phones: the actions take two rows (Star, Copy and Export, then New input and Re-generate at 375; at 320 the
+     icon-only three and New input, then Re-generate: 44 + 8 + 44), measured against the loaded header. */
   .result-loading__actions {
-    block-size: 160px;
+    block-size: calc(2 * var(--touch-target) + var(--s2));
   }
 }
 
@@ -126,9 +150,18 @@
   gap: var(--s9);
 }
 
+/* Anchors clear the sticky jump-nav strip (theme --jump-nav-h: 58px, 62px on touch) with 16px to spare. */
 .result-report [data-toc-title],
 .result-report #what-next {
-  scroll-margin-top: 72px;
+  scroll-margin-top: calc(var(--jump-nav-h) + var(--s4));
+}
+
+/* Phones: the strip sticks under the 70px app bar (kit jump-nav.css), so an anchor clears both. */
+@media (max-width: 639px) {
+  .result-report [data-toc-title],
+  .result-report #what-next {
+    scroll-margin-top: calc(var(--kit-jump-offset, var(--phone-header-h)) + var(--jump-nav-h) + var(--s3));
+  }
 }
 
 /* ── Hero: the seal and what it says (left), the lead and the Fix-first stickers (right) ── */
@@ -148,12 +181,32 @@
   min-width: 0;
 }
 
-/* The score's "?" sits in the side's top corner, clear of the round seal: it reaches into the column gap
-   (or the page gutter on phones) so 16px of clear space stay between it and the seal (STICKER 1.9). */
+/* The seal and its "?". On a stacked hero (<= 860px) the box is the seal's own size and anchors the help, so the
+   "?" stays beside the seal (the side column then spans the page, and its corner is the far edge of the screen). */
+.result-hero__seal {
+  display: grid;
+  max-inline-size: 100%;
+}
+
+/* Side by side the "?" sits in the side column's top corner, reaching 20px into the column gap so 16px of clear
+   space stay between its 44px target and the seal's circle and shadow (STICKER 1.9). */
 .result-hero__help {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-end: calc(-1 * var(--s3));
+  inset-inline-end: calc(-1 * var(--s5));
+}
+
+@media (max-width: 860px) {
+  .result-hero__seal {
+    position: relative;
+  }
+}
+
+/* The 220px seal of a stacked hero leaves less of its box's corner free: the target sits 40px out, within the gutter. */
+@media (max-width: 860px) {
+  .result-hero__help {
+    inset-inline-end: calc(-1 * var(--s8));
+  }
 }
 
 .result-hero__tags {
@@ -177,7 +230,9 @@
 }
 
 .result-verdict {
-  white-space: nowrap;
+  /* A long verdict ("Best next move identified") wraps, balanced, rather than pushing past the 16px gutter at 320. */
+  text-wrap: balance;
+  text-align: center;
   font-family: var(--font-display);
   font-size: 1.375rem;
   font-weight: 800;
@@ -186,10 +241,13 @@
 }
 
 .result-issues {
+  font-weight: 700;
+}
+
+.result-issues__body {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  font-weight: 700;
 }
 
 .result-issues b {
@@ -203,6 +261,7 @@
 .result-delta {
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
   gap: var(--s1);
   font-family: var(--font-display);
   font-size: 1.125rem;
@@ -323,7 +382,7 @@
 .result-refine__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.375rem;
+  font-size: var(--fs-title); /* the card heading, as every sub-section title (consistency-F04) */
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.01em;
@@ -445,11 +504,6 @@
   font-weight: 700;
 }
 
-.result-sheet__text {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-}
-
 .result-sheet__why {
   font-size: var(--fs-meta);
   line-height: 1.5;
@@ -476,6 +530,16 @@
   max-inline-size: 100%;
 }
 
+/* In a KeyValue value cell the chips start on the label's line. */
+.result-chips--flush {
+  margin-block-start: 0;
+}
+
+/* An interview question's focus-area and Practice-first tags: a block under the question, 8px clear of it. */
+.result-q-tags {
+  margin-block-start: var(--s2);
+}
+
 .result-sheet__reqs .kit-badge,
 .result-chips .kit-badge {
   white-space: normal;
@@ -483,7 +547,7 @@
 }
 
 .result-sheet__sign {
-  margin: var(--s3) 0 0;
+  margin: 0;
   color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: 1.5;
@@ -531,27 +595,116 @@
 .result-path__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.375rem;
+  font-size: var(--fs-title); /* the card heading, as every sub-section title (consistency-F04) */
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
 
+/* The number disc inside a card's head: only on the narrowest phones, where the rail goes (below). Two classes:
+   the kit's own .kit-number-disc display must not win. */
+.result-path__head > .result-path__disc-inline {
+  display: none;
+}
+
+/* Under 400px the 44px number rail and its line cost a fifth of the width: the disc moves into the card's head,
+   beside the title, and the card takes the full width. */
+@media (max-width: 399px) {
+  .result-path__step {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .result-path__step:not(:last-child)::before,
+  .result-path__step > .result-path__disc.kit-number-disc {
+    display: none;
+  }
+
+  .result-path__head {
+    justify-content: flex-start;
+  }
+
+  .result-path__head > .result-path__disc-inline {
+    display: inline-grid;
+  }
+
+  .result-path__head > .result-path__title {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  /* The badges ("Start here", the complexity) take the next line, so the title keeps the row beside its disc. */
+  .result-path__head > :last-child:not(.result-path__title) {
+    flex-basis: 100%;
+  }
+}
+
+/* Career: an alternative path's rationale, the second line of its Role cell (not a narrow last column). */
+.result-path-why {
+  display: block;
+  max-inline-size: 72ch;
+  margin-block-start: var(--s1);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
 /* ── Narrow screens: everything stacks; the seal is centred over the lead ── */
+/*
+ * Rail-shell widths (861-1100px): a narrower seal column gives the lead room, and the Fix-first pair turns into one
+ * column of full-width, level stickers once the lead is too narrow for two (28px titles were breaking over 4 lines).
+ */
+@media (max-width: 1100px) {
+  .result-hero {
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    gap: var(--s7);
+  }
+}
+
+.result-hero__lead {
+  container-type: inline-size;
+}
+
+@container (max-width: 560px) {
+  .result-fixes {
+    grid-template-columns: minmax(0, 1fr);
+    --kit-tilt-scale: 0;
+  }
+}
+
 @media (max-width: 860px) {
   .result-report {
     gap: var(--s8);
   }
 
+  /* Stacked: every sticker in the hero (verdict, issues, delta, Fix first) is level (STICKER 4.R.10, 1.15). */
   .result-hero {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s6);
+    --kit-tilt-scale: 0;
   }
 
-  /* No score to show first: the headline and the work lead, the facts follow. */
-  .result-hero:not([data-scored]) .result-hero__side {
+  /* Stacked (STICKER 4.R.10, F54): the seal, the verdict row, the lead and Fix first, then the facts. The side column
+     dissolves into the hero's one column so its facts panel can follow the work instead of sitting between the
+     verdict and the headline (it pushed Fix first below the fold at 768). Without a score, the headline leads. */
+  .result-hero__side {
+    display: contents;
+  }
+
+  .result-hero__seal,
+  .result-hero__tags,
+  .result-seal-skeleton {
+    justify-self: center;
+  }
+
+  .result-hero__lead {
     order: 1;
+  }
+
+  .result-hero__facts {
+    order: 2;
   }
 
   .result-fixes {
@@ -581,7 +734,17 @@
   }
 }
 
-/* Practice mode scrolls its block to the top on entry: clear the sticky jump nav. */
+/*
+ * Practice mode scrolls its block to the top on entry, on Next/Previous and on the summary. It replaces the report, so
+ * the jump nav is gone: keep only a small breath above (a 72px offset left a sliver of the report showing). Phones
+ * clear the sticky app header.
+ */
 .result-practice {
-  scroll-margin-top: 72px;
+  scroll-margin-top: var(--s6);
+}
+
+@media (max-width: 639px) {
+  .result-practice {
+    scroll-margin-top: calc(var(--phone-header-h) + var(--s4));
+  }
 }

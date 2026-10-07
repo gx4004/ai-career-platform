@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolRouteScreen } from '#/components/tooling/ToolRouteScreen'
+import { SAMPLE_RESUME_TEXT } from '#/components/tooling/sampleResume'
 import { tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 
@@ -33,8 +34,14 @@ vi.mock('#/components/tooling/JobImportCard', () => ({
   JobImportCard: () => <div data-testid="job-import-card">Import from job URL</div>,
 }))
 
+// The working panel hands its Cancel to the loader (it sits under the status and track), so the stand-in renders it.
 vi.mock('#/components/tooling/CinematicLoader', () => ({
-  CinematicLoader: () => <div data-testid="cinematic-loader">Scanning resume...</div>,
+  CinematicLoader: ({ action }: { action?: ReactNode }) => (
+    <div data-testid="cinematic-loader">
+      Scanning resume...
+      {action}
+    </div>
+  ),
 }))
 
 vi.mock('#/components/tooling/GuestSaveBanner', () => ({
@@ -122,7 +129,10 @@ describe('ToolRouteScreen', () => {
     renderScreen('resume')
 
     expect(screen.getByRole('heading', { level: 1, name: 'Resume Analyzer' })).toBeTruthy()
-    expect(screen.getByText(/Drop a PDF or DOCX here/i)).toBeTruthy()
+    // The hint names the file, not a drag gesture phones do not have (the whole area opens the picker).
+    expect(screen.getByText('PDF or DOCX, up to 10 MB')).toBeTruthy()
+    // The number and its unit never part at a line end (a lone "MB" on the second line, account-admin-F19).
+    expect(screen.getByText('PDF or DOCX, up to 10 MB').textContent).toContain('10\u00a0MB')
     expect(screen.getByText(tools.resume.summary)).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: /^Resume text$/i })).toBeNull()
 
@@ -133,10 +143,23 @@ describe('ToolRouteScreen', () => {
     expect(screen.queryByText(/Guidance/i)).toBeNull()
   })
 
+  it('lets the user take the optional job back out of a Resume review', () => {
+    seededJob = false
+    renderScreen('resume')
+    // The draft holds a job description, so the optional section is open, with one help line and a plain placeholder.
+    const job = screen.getByLabelText(/^Job description/) as HTMLTextAreaElement
+    expect(job.placeholder).toBe('Paste the job posting…')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove job description' }))
+    expect(setFieldMock).toHaveBeenCalledWith('jobDescription', '')
+    expect(screen.queryByLabelText(/^Job description/)).toBeNull()
+    expect(screen.getByRole('button', { name: /Add target job description/i })).toBeTruthy()
+  })
+
   it('keeps an existing resume as a compact row until the user chooses to edit it', () => {
     renderScreen('resume')
 
-    expect(screen.getByText(/Resume carried from previous tool/i)).toBeTruthy()
+    // A carried resume whose source the tab does not record is named plainly, never "from a previous tool" (it may be this one).
+    expect(screen.getByText('Your resume from this session')).toBeTruthy()
     expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
     expect(screen.getByText('Upload').closest('label')).toBeTruthy()
 
@@ -165,7 +188,7 @@ describe('ToolRouteScreen', () => {
 
     renderScreen('job-match')
 
-    expect(screen.getByText(/Resume carried from previous tool/i)).toBeTruthy()
+    expect(screen.getByText('Your resume from this session')).toBeTruthy()
     expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
   })
 
@@ -176,13 +199,13 @@ describe('ToolRouteScreen', () => {
     bridgeBanner = ''
 
     const { rerender } = renderScreen('job-match')
-    expect(screen.getByText(/Drop a PDF or DOCX here/i)).toBeTruthy()
+    expect(screen.getByText('PDF or DOCX, up to 10 MB')).toBeTruthy()
 
     seededResume = true
     bridgeBanner = 'Resume carried from your recent workflow.'
     rerender(<ToolRouteScreen toolId="job-match" />)
 
-    expect(screen.getByText(/Resume carried from previous tool/i)).toBeTruthy()
+    expect(screen.getByText('Your resume from this session')).toBeTruthy()
   })
 
   it('shows the loader while the resume run is pending', () => {
@@ -191,7 +214,7 @@ describe('ToolRouteScreen', () => {
     renderScreen('resume')
 
     expect(screen.getByTestId('cinematic-loader')).toBeTruthy()
-    expect(screen.queryByText(/Drop a PDF or DOCX here/i)).toBeNull()
+    expect(screen.queryByText('PDF or DOCX, up to 10 MB')).toBeNull()
   })
 
   it.each(['resume', 'job-match', 'career', 'cover-letter', 'interview', 'portfolio'] as const)(
@@ -342,6 +365,61 @@ describe('ToolRouteScreen', () => {
         await screen.findByText(
           /Filled in: your CV Studio CV “Platform CV”\. Runs don’t keep their inputs, so add the job description for Staff Engineer at Northwind below\./,
         ),
+      ).toBeTruthy()
+    } finally {
+      window.sessionStorage.clear()
+      window.history.pushState({}, '', '/')
+    }
+  })
+
+  // "from this tab" once, not after every item, and the made-up sample is never called "your resume" (sign-off F35).
+  it.each([
+    [SAMPLE_RESUME_TEXT, 'the sample resume'],
+    ['Alex Morgan. Platform engineer, eight years of Python, Go and Kubernetes work.', 'your resume'],
+  ])('names what this tab filled in once, and the sample as the sample', async (resumeText, resumeName) => {
+    window.sessionStorage.clear()
+    window.sessionStorage.setItem(
+      'career-workbench:workflow-context',
+      JSON.stringify({
+        resumeText,
+        jobDescription: 'Staff Engineer at Northwind. Own the platform roadmap and mentor the team.',
+        updatedAt: Date.now(),
+      }),
+    )
+    window.history.pushState({}, '', '/job-match?parent_run_id=run-1')
+    try {
+      renderScreen('job-match')
+      expect(
+        await screen.findByText(new RegExp(`Filled in: ${resumeName} and the job description from this tab\\. Change anything`)),
+      ).toBeTruthy()
+    } finally {
+      window.sessionStorage.clear()
+      window.history.pushState({}, '', '/')
+    }
+  })
+
+  // Sign-off tool-inputs-F30: opening the result wrote its role into the tab, so the role is the earlier run's, not
+  // something "from this tab" (and not from a workflow).
+  it.each([
+    ['portfolio', 'the earlier run’s target role'],
+    ['career', 'the role the earlier run recommended'],
+  ] as const)('names the earlier run as where a re-generated %s role came from', async (toolId, roleName) => {
+    window.sessionStorage.clear()
+    window.sessionStorage.setItem(
+      'career-workbench:workflow-context',
+      JSON.stringify({
+        resumeText: 'Alex Morgan. Platform engineer, eight years of Python, Go and Kubernetes work.',
+        targetRole: 'Staff Backend Engineer',
+        roleOrigin: toolId,
+        historyId: 'run-1',
+        updatedAt: Date.now(),
+      }),
+    )
+    window.history.pushState({}, '', `/${toolId}?parent_run_id=run-1`)
+    try {
+      renderScreen(toolId)
+      expect(
+        await screen.findByText(new RegExp(`Filled in: your resume from this tab and ${roleName}\\. Change anything`)),
       ).toBeTruthy()
     } finally {
       window.sessionStorage.clear()

@@ -1,4 +1,4 @@
-import { Undo2 } from 'lucide-react'
+import { CircleAlert, Undo2 } from 'lucide-react'
 import {
   Button,
   EmptyState,
@@ -53,13 +53,15 @@ export function HiddenJobsSheet({
             Jobs you hid stay out of Discover and your best matches. Restore one to see it again.
           </SheetDescription>
         </SheetHeader>
+        {/* flush lists: the rows start on the sheet title's edge; with no frame there is nothing to inset them from. */}
         <SheetBody>
           {loading ? (
-            <List aria-label="Hidden jobs" aria-busy="true" framed={false}>
+            <List aria-label="Hidden jobs" aria-busy="true" framed={false} flush>
               <Skeleton variant="row" as="li" count={3} />
             </List>
           ) : failed ? (
             <ErrorState
+              icon={<CircleAlert aria-hidden="true" />}
               headingLevel={3}
               title="Hidden jobs could not be loaded"
               description="Something went wrong on our side."
@@ -73,7 +75,7 @@ export function HiddenJobsSheet({
               description="Jobs you hide from Discover show up here."
             />
           ) : (
-            <List aria-label="Hidden jobs" framed={false}>
+            <List aria-label="Hidden jobs" framed={false} flush>
               {items.map((job) => (
                 <Row key={job.listing_id}>
                   <RowBody>

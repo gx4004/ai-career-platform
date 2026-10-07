@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommandPalette, openCommandPalette } from '#/components/app/CommandPalette'
+import { getHistory } from '#/lib/api/client'
+import { SidebarProvider } from '#/components/ui/sidebar'
 
 const navigate = vi.hoisted(() => vi.fn())
 const logout = vi.hoisted(() => vi.fn())
@@ -102,6 +104,8 @@ describe('CommandPalette', () => {
 
     fireEvent.change(await screen.findByRole('combobox', { name: 'Search' }), { target: { value: 'discover' } })
     expect(screen.getByText(/No results for/)).toBeTruthy()
+    // A die-cut empty state carries the tilted lemon icon disc, as every other compact one does (STICKER 1.16).
+    expect(screen.getByText(/No results for/).closest('.kit-empty')?.querySelector('.kit-empty__icon svg')).toBeTruthy()
   })
 
   it('groups results under Go to, Tools and Applications headings', async () => {
@@ -194,6 +198,22 @@ describe('CommandPalette', () => {
     expect(navigate).toHaveBeenCalledWith({ to: '/resume/result/run-1' })
   })
 
+  it('finds pages by what they hold: "run" finds History and the recent runs, "pipeline" finds Applications', async () => {
+    renderPalette()
+    act(() => openCommandPalette())
+
+    const input = await screen.findByRole('combobox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'run' } })
+    const pages = await screen.findByRole('group', { name: 'Go to' })
+    expect(within(pages).getByRole('option', { name: /History/ })).toBeTruthy()
+    expect(await screen.findByRole('group', { name: 'Recent runs' })).toBeTruthy()
+
+    fireEvent.change(input, { target: { value: 'pipeline' } })
+    expect(within(await screen.findByRole('group', { name: 'Go to' })).getByRole('option', { name: /Applications/ })).toBeTruthy()
+    fireEvent.change(input, { target: { value: 'skills' } })
+    expect(within(await screen.findByRole('group', { name: 'Go to' })).getByRole('option', { name: /Profile/ })).toBeTruthy()
+  })
+
   it('offers Sign in instead of Sign out to guests', async () => {
     sessionUser.current = null
     renderPalette()
@@ -202,5 +222,64 @@ describe('CommandPalette', () => {
     const actions = await screen.findByRole('group', { name: 'Actions' })
     expect(within(actions).getByRole('option', { name: /Sign in/ })).toBeTruthy()
     expect(within(actions).queryByRole('option', { name: /Sign out/ })).toBeNull()
+  })
+
+  // Sign-off r4 chrome-F04: Esc pressed while the dialog's chunk was still loading was lost, and the palette opened
+  // a second later although it had been dismissed.
+  it('stays shut when Esc comes before the dialog has loaded', async () => {
+    renderPalette()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    await act(async () => {
+      await import('#/components/app/CommandPaletteDialog')
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect(screen.queryByRole('combobox')).toBeNull()
+
+    // The shortcut still opens it afterwards.
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    expect(await screen.findByRole('combobox', { name: 'Search' })).toBeTruthy()
+  })
+
+  // Sign-off r4 chrome-F05: every run carried the keyword "result", so "res" (looking for Resume) listed every run.
+  it('finds runs by their tool: "res" lists the Resume runs, not every run', async () => {
+    vi.mocked(getHistory).mockResolvedValueOnce({
+      items: [
+        { id: 'run-1', tool_name: 'resume', label: 'Resume Analysis (77/100)', is_favorite: false, created_at: '2026-10-03T10:00:00Z', metadata: {} },
+        { id: 'run-2', tool_name: 'portfolio', label: 'Portfolio Roadmap', is_favorite: false, created_at: '2026-10-02T10:00:00Z', metadata: {} },
+        { id: 'run-3', tool_name: 'interview', label: 'Interview Prep', is_favorite: false, created_at: '2026-10-01T10:00:00Z', metadata: {} },
+      ],
+      total: 3,
+      page: 1,
+      page_size: 12,
+    } as never)
+    renderPalette()
+    act(() => openCommandPalette())
+
+    const input = await screen.findByRole('combobox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'res' } })
+    const runs = await screen.findByRole('group', { name: 'Recent runs' })
+    expect(within(runs).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      expect.stringContaining('Resume Analysis (77/100)'),
+    ])
+  })
+
+  // Sign-off r4 chrome-F06: the sidebar row's ⌘B is a keyboard hint, set apart so a touch screen can hide it.
+  it('sets the sidebar shortcut apart from the row text', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <SidebarProvider defaultOpen>
+          <CommandPalette />
+        </SidebarProvider>
+      </QueryClientProvider>,
+    )
+    act(() => openCommandPalette())
+
+    const input = await screen.findByRole('combobox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'collapse' } })
+    const row = await screen.findByRole('option', { name: /Collapse the sidebar/ })
+    expect(row.querySelector('.app-palette__shortcut')?.textContent).toMatch(/B$/)
   })
 })

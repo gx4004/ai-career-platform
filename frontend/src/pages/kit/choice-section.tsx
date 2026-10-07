@@ -128,6 +128,12 @@ export function ChoiceSection() {
           <Specimen label="checked">
             <Checkbox label="Remember me" defaultChecked />
           </Specimen>
+          <Specimen label='tone="success" (a done task: mint)'>
+            <Checkbox label="Send thank-you note" tone="success" defaultChecked />
+          </Specimen>
+          <Specimen label='tone="success", disabled: stone like every disabled box, not mint (a write in flight)'>
+            <Checkbox label="Sent thank-you note (locked)" tone="success" defaultChecked disabled />
+          </Specimen>
           <Specimen label="indeterminate / select all (interactive)">
             <SelectAllDemo />
           </Specimen>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpToLine, ClipboardPaste, FileUp, MoveRight, Trash2 } from 'lucide-react'
+import { ArrowUpToLine, ClipboardPaste, FileUp, MoveRight, Trash2, Upload } from 'lucide-react'
 import {
   Badge, Button, Card, CardHeader, CardTitle, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
@@ -43,10 +43,13 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
   onMerge: () => void; onMove: (toSectionId: string) => void; onRemove: () => void
 }) {
   const structured = isStructuredKind(section.kind)
-  const [lines, setLines] = useState(() => (entry.bullets ?? []).join('\n'))
+  // One highlight per line; read from the entry itself, so a merge into this card shows at once.
+  const lines = (entry.bullets ?? []).join('\n')
   const hasBullets = (entry.bullets?.length ?? 0) > 0
   const title = entry.heading?.trim() || (structured ? `Unnamed ${sectionNoun(section.kind)}` : `Entry ${index + 1}`)
-  const others = sections.filter((candidate) => candidate.id !== section.id)
+  // Only a section of the same shape can take the entry: a role moved into Summary kept a title, company and dates that
+  // Summary cannot show or edit, yet printed them (cv-studio-G08).
+  const others = sections.filter((candidate) => candidate.id !== section.id && isStructuredKind(candidate.kind) === structured)
   const text = (key: 'heading' | 'subheading' | 'start_date' | 'end_date', label: string, placeholder?: string, wide = false) => (
     <Field label={label} className={wide ? 'cvs-review__wide' : undefined}>
       <Input value={entry[key] ?? ''} maxLength={key.endsWith('date') ? 40 : 200} placeholder={placeholder} onChange={(event) => onChange({ [key]: event.target.value })} />
@@ -54,7 +57,7 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
   )
 
   return (
-    <Card className="cvs-review__card" padding="sm" aria-label={title}>
+    <Card className="cvs-review__card" padding="sm" aria-label={title} data-entry-id={entry.id}>
       <CardHeader>
         <CardTitle headingLevel={4}>{title}</CardTitle>
         {entry.claim ? <Badge size="sm" tone="lilac">Fact for your profile</Badge> : null}
@@ -71,7 +74,7 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
         <Field label="Highlights" help="One per line.">
           <Textarea
             autosize rows={3} maxRows={8} value={lines} maxLength={30_000}
-            onChange={(event) => { setLines(event.target.value); onChange({ bullets: event.target.value.split('\n') }) }}
+            onChange={(event) => onChange({ bullets: event.target.value.split('\n') })}
           />
         </Field>
       ) : (
@@ -86,15 +89,17 @@ function EntryCard({ section, entry, index, sections, onChange, onMerge, onMove,
         <Button type="button" size="sm" variant="secondary" disabled={index === 0} onClick={onMerge}>
           <ArrowUpToLine aria-hidden="true" /> Merge into previous
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" size="sm" variant="secondary" disabled={others.length === 0}><MoveRight aria-hidden="true" /> Move to section</Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>Move to</DropdownMenuLabel>
-            {others.map((target) => <DropdownMenuItem key={target.id} onSelect={() => onMove(target.id)}>{target.title}</DropdownMenuItem>)}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {others.length > 0 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="sm" variant="secondary"><MoveRight aria-hidden="true" /> Move to section</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Move to</DropdownMenuLabel>
+              {others.map((target) => <DropdownMenuItem key={target.id} onSelect={() => onMove(target.id)}>{target.title}</DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
         <Button type="button" size="sm" variant="ghost" onClick={onRemove}><Trash2 aria-hidden="true" /> Leave out</Button>
       </div>
     </Card>
@@ -115,8 +120,21 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
   const [pasted, setPasted] = useState('')
   // FileInput cannot be reset from outside; a new key starts it empty again after a failed read.
   const [pickerKey, setPickerKey] = useState(0)
-  /** Bumps when entries are merged or moved, so every card re-reads its entry. */
-  const [revision, setRevision] = useState(0)
+  /**
+   * The card focus goes to after a move (the moved entry, in its new section) or a merge (the entry it joined): the
+   * control that was used went with the old card.
+   */
+  const [moved, setMoved] = useState<string | null>(null)
+  useEffect(() => {
+    if (!moved) return
+    // After the closed menu has handed focus back to its trigger, which went with the old card.
+    const timer = window.setTimeout(() => {
+      const card = Array.from(document.querySelectorAll<HTMLElement>('[data-entry-id]')).find((element) => element.dataset.entryId === moved)
+      card?.querySelector<HTMLElement>('input, textarea')?.focus()
+      setMoved(null)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [moved])
 
   useEffect(() => {
     if (!open) return
@@ -191,8 +209,9 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
                     <FileInput
                       key={pickerKey}
                       variant="dropzone"
-                      label="Choose a PDF or DOCX"
-                      hint="Up to 10 MB"
+                      // The tool pages' dropzone (consistency-F08): icon disc, the formats as the hint, then "Choose file".
+                      icon={<Upload />}
+                      hint={'PDF or DOCX, up to 10\u00a0MB'}
                       accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       onFilesChange={([file]) => void read(file)}
                     />
@@ -231,11 +250,11 @@ export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocu
                       <Stack gap={3}>
                         {section.entries.map((entry, index) => (
                           <EntryCard
-                            key={`${entry.id}-${revision}`}
+                            key={entry.id}
                             section={section} entry={entry} index={index} sections={proposal.sections}
                             onChange={(patch) => edit((current) => updateImportEntry(current, section.id, entry.id, patch))}
-                            onMerge={() => { setRevision((value) => value + 1); edit((current) => mergeIntoPrevious(current, section.id, entry.id)) }}
-                            onMove={(toId) => { setRevision((value) => value + 1); edit((current) => moveImportEntry(current, section.id, entry.id, toId)) }}
+                            onMerge={() => { setMoved(section.entries[index - 1]?.id ?? null); edit((current) => mergeIntoPrevious(current, section.id, entry.id)) }}
+                            onMove={(toId) => { setMoved(entry.id); edit((current) => moveImportEntry(current, section.id, entry.id, toId)) }}
                             onRemove={() => edit((current) => removeImportEntry(current, section.id, entry.id))}
                           />
                         ))}

@@ -57,13 +57,19 @@
 .disc-row .kit-row__actions {
   align-items: center;
   justify-content: flex-end;
-  /* Add and "Open" differ in width; one width keeps the skills column and the buttons in line from row to row. */
-  min-inline-size: 8rem;
+  /* "Add" and "View application" differ in width; one width (the widest, "View application" + gap + the 44px menu on a
+     touch screen) keeps the skills column and the buttons in line from row to row. */
+  min-inline-size: 12.5rem;
 }
 
-/* Phones: stamp and full-width title on top, the skills and Add on the line under it (the dashboard's match row). */
-@container kit-list (max-width: 31.9375rem) {
+/* Phones and touch tablets (a list under 44rem, e.g. 41rem at 768): stamp and full-width title on top, the skills and
+   Add on the line under it (the dashboard's match row). Four columns at that width squeezed the title and the reasons
+   into a 190px column, so rows grew to 200px while the tally and action columns held mostly air. */
+@container kit-list (max-width: 43.9375rem) {
   .kit-row.disc-row:has(> .kit-row__actions) {
+    /* The kit turns a row into a grid only under 32rem; between 32 and 44rem this rule does it. */
+    display: grid;
+    align-items: center;
     grid-template-columns: auto minmax(0, 1fr) auto;
     column-gap: var(--s3);
     row-gap: var(--s2);
@@ -89,7 +95,11 @@
   .kit-row.disc-row > .kit-row__actions {
     grid-column: 3;
     grid-row: 2;
+    /* One grid row shared with the tally: centred on it (the kit top-aligns actions that span the text). */
+    align-self: center;
     margin-inline-start: 0;
+    /* The tally starts at the title's edge here, whatever the buttons' width: no shared slot width to hold. */
+    min-inline-size: 0;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
@@ -106,10 +116,11 @@
 
 /* Narrow phones (320, and 375 with the page gutters): the stamp, the tally (up to 10 pips or the bar, 7rem) and Add with
    its menu (8rem) no longer fit on one line, and the nowrap tally would run under the buttons. The tally takes its own
-   line under the title, and the actions the line under it. */
+   line under the title, and the actions the full row width under it: beside the stamp, "View application" and its 44px
+   menu (199px) did not fit the 182px title column at 320, so the menu dropped onto a line of its own. */
 @container kit-list (max-width: 22.4375rem) {
   .kit-row.disc-row:has(> .kit-row__actions) > .kit-row__leading {
-    grid-row: 1 / span 3;
+    grid-row: 1 / span 2;
   }
 
   .kit-row.disc-row:has(> .kit-row__actions) > .kit-row__meta {
@@ -117,8 +128,9 @@
   }
 
   .kit-row.disc-row > .kit-row__actions {
-    grid-column: 2 / -1;
+    grid-column: 1 / -1;
     grid-row: 3;
+    flex-wrap: nowrap;
     justify-content: flex-start;
   }
 
@@ -178,26 +190,32 @@
   padding-inline: 0;
 }
 
-/* Drawer footer: on a phone the primary action takes the first full row; deep match and the menu share the second. */
+/* Drawer footer: on a phone deep match and the menu share the first row and the primary action takes the last full row,
+   as every kit footer stacks its primary last (consistency-F21), in DOM order. */
 @media (max-width: 767px) {
   .kit-panel__footer.disc-footer {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    /* The menu column is the icon button's own 44px: an `auto` track let the kit's phone footer rule (every button
+       100% wide) resolve the icon button to its min-content width, a 20px sliver. */
+    grid-template-columns: var(--kit-h-md) minmax(0, 1fr);
     grid-template-areas:
-      'add add'
-      'more deep';
+      'more deep'
+      'add add';
   }
 
-  .disc-footer__add {
+  /* Footer and button classes together outweigh the kit Button's own inline-size: fit-content. */
+  .kit-panel__footer.disc-footer .kit-button.disc-footer__add {
     grid-area: add;
     inline-size: 100%;
   }
 
-  .disc-footer__more {
+  /* A square: the kit's phone footer rule makes every footer button 100% wide, which here is the 44px column. */
+  .kit-panel__footer.disc-footer .kit-button.disc-footer__more {
     grid-area: more;
+    inline-size: var(--kit-h-md);
   }
 
-  .disc-footer__deep {
+  .kit-panel__footer.disc-footer .kit-button.disc-footer__deep {
     grid-area: deep;
     inline-size: 100%;
   }

@@ -113,10 +113,11 @@
   letter-spacing: -0.04em;
 }
 
+/* 0.075 x the seal, but never under the 12px floor for text: a 132px seal would otherwise print it at 9.9px. */
 .kit-seal__of {
   font-family: var(--font-ui);
   font-weight: var(--fw-bold);
-  font-size: 7.5cqw;
+  font-size: max(var(--fs-micro), 7.5cqw);
   line-height: 1;
 }
 
@@ -129,15 +130,20 @@
   animation: kit-stamp-shadow var(--stamp-ms) var(--ease-out) 150ms backwards;
 }
 
+/*
+ * The ring is an outline (ink overflow, so it never widens the page) on a circle the size of the seal; the
+ * animation holds no end state (no fill-mode), and the resting opacity 0 hides it before and after the pulse.
+ */
 .kit-seal[data-reveal='stamp']::after {
   content: '';
   position: absolute;
   inset: 0;
-  border: var(--bw) solid var(--ink);
   border-radius: 50%;
+  outline: var(--bw) solid var(--ink);
+  outline-offset: 0;
   opacity: 0;
   pointer-events: none;
-  animation: kit-ring 640ms ease-out 560ms forwards; /* forwards: invisible until it starts */
+  animation: kit-ring 640ms ease-out 560ms;
 }
 
 .kit-seal[data-animating='true'] {

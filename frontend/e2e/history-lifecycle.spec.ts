@@ -80,10 +80,10 @@ test('history filtering, favorites, rename and open work through the UI', async 
 
   await gotoHydrated(page, '/history')
   const runs = page.getByRole('list', { name: 'Saved runs' })
-  await page
-    .getByRole('radiogroup', { name: 'Filter by tool' })
-    .getByRole('radio', { name: 'Resume Analyzer' })
-    .click()
+  // Sign-off (History toolbar): the six-option segmented filter needs about 66rem of toolbar; at the e2e viewport
+  // (1280 with the sidebar open) the toolbar is narrower, so the shipped filter there is the "Filter by tool" Select.
+  await page.getByRole('combobox', { name: 'Filter by tool' }).selectOption({ label: 'Resume Analyzer' })
+  await expect(page).toHaveURL(/[?&]tool=resume\b/)
   await expect(runs.getByRole('link')).toHaveCount(2)
 
   await page.getByRole('button', { name: /^Rename / }).first().click()
@@ -91,8 +91,9 @@ test('history filtering, favorites, rename and open work through the UI', async 
   await page.getByRole('textbox', { name: /^Rename / }).press('Enter')
   await expect(page.getByText('Backend application')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Add to favorites' }).first().click()
-  await page.getByRole('button', { name: 'Favorites', exact: true }).click()
+  // consistency-F11: one word app-wide, "Star" / "Starred" (the row's star names its run; the filter reads Starred).
+  await page.getByRole('button', { name: /^Star / }).first().click()
+  await page.getByRole('button', { name: 'Starred', exact: true }).click()
   await expect(runs.getByRole('link')).toHaveCount(1)
 
   await runs.getByRole('link').click()
@@ -120,7 +121,8 @@ test('regeneration through the UI creates a new ToolRun linked by parent_run_id'
 
   await page.getByRole('button', { name: 'Re-generate' }).click()
   await page.getByPlaceholder(/describe what you'd like changed/i).fill('Emphasize impact')
-  await page.getByRole('button', { name: 'Submit' }).click()
+  // The re-generate panel's action was renamed Submit -> Continue (it opens the form; the run starts there).
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/resume\\?parent_run_id=${id1}`))
 
   const status = page.getByRole('list', { name: 'Resume source' })
@@ -145,7 +147,8 @@ test('deleting one run preserves its workspace and deleting the final run remove
   await register(page, 'Del Full')
   const firstId = await submitResume(page)
   await page.getByRole('button', { name: 'Re-generate' }).click()
-  await page.getByRole('button', { name: 'Submit' }).click()
+  // The re-generate panel's action was renamed Submit -> Continue (it opens the form; the run starts there).
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/resume\\?parent_run_id=${firstId}`))
   await page.getByRole('button', { name: 'Review resume' }).click()
   await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)

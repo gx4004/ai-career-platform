@@ -23,7 +23,10 @@ const RAIL_ROUTE_PREFIXES = ['/cv-studio']
 /** Whichever element is the page's main landmark: pages and the fallback wrapper do not all carry the id. */
 function focusMain(event: React.MouseEvent<HTMLAnchorElement>) {
   const main =
-    document.getElementById(MAIN_ID) ?? document.querySelector<HTMLElement>('.app-content main, .app-content [role="main"]')
+    document.getElementById(MAIN_ID) ??
+    document.querySelector<HTMLElement>('.app-content main, .app-content [role="main"]') ??
+    // A shell-less public page has no .app-content: its own main is the target.
+    document.querySelector<HTMLElement>('main, [role="main"]')
   if (!main) return
   event.preventDefault()
   if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1')
@@ -97,6 +100,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <TooltipProvider delayDuration={120}>
         <ToastProvider>
+          {/* The public pages put a nav (landing) or contents (legal) before the body as well. */}
+          <SkipLink />
           <ErrorBoundary>
             <ServiceBanner />
             {children}
@@ -119,7 +124,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   // the page, and the account menu lives in the sidebar footer.
   return (
     <TooltipProvider delayDuration={120}>
-      <ToastProvider>
+      {/* A phone shows one toast at a time: two stacked ones covered most of a 320px screen above the tray. */}
+      <ToastProvider max={bp === 'mobile' ? 1 : 3}>
         <SidebarProvider defaultOpen={bp !== 'tablet'} railRoute={wantsRail}>
           <SkipLink />
           {wide ? <AppSidebar /> : null}

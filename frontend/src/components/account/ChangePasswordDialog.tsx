@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Dialog,
@@ -18,9 +18,9 @@ import {
 } from '#/components/kit'
 import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
 import { PasswordInput } from '#/components/auth/PasswordInput'
+import { focusFirstError, newPasswordError } from '#/components/auth/auth-validation'
 import { changePassword } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
-import { newPasswordSchema } from '#/lib/api/schemas'
 
 /** The server's 400 for an account that signs in with Google only (it has no password to change). */
 const NO_PASSWORD = /no password yet/i
@@ -50,6 +50,9 @@ export function ChangePasswordDialog({
   const [errors, setErrors] = useState<{ current?: string; next?: string; confirm?: string }>({})
   const [noPassword, setNoPassword] = useState(false)
   const [pending, setPending] = useState(false)
+  // Set by a submit that found a problem: once the fields are enabled again, focus goes to the first one to fix,
+  // as on the account details and sign-in forms, instead of staying on the submit button.
+  const focusProblem = useRef(false)
 
   // Every opening starts empty: a password never waits in a closed dialog.
   useEffect(() => {
@@ -68,25 +71,30 @@ export function ChangePasswordDialog({
     failure.clear()
     const found: typeof errors = {}
     if (!current) found.current = 'Enter your current password.'
-    const issue = newPasswordSchema.safeParse(next).error?.issues[0]
-    // The length bound is zod's own wording; the byte and UTF-8 bounds carry sentences of their own.
-    if (issue) found.next = issue.code === 'too_small' ? 'Use at least 8 characters.' : `${issue.message}.`
+    // The same rule and wording as the sign-up and reset forms.
+    const nextProblem = newPasswordError(next)
+    if (nextProblem) found.next = nextProblem
     else if (next !== confirm) found.confirm = 'Passwords do not match.'
     setErrors(found)
-    if (Object.keys(found).length > 0) return
+    if (Object.keys(found).length > 0) {
+      focusProblem.current = true
+      return
+    }
 
     setPending(true)
     try {
       await changePassword({ current_password: current, new_password: next })
       onOpenChange(false)
-      toast({ tone: 'success', title: 'Password changed. Other sessions were signed out.' })
+      toast({ tone: 'success', title: 'Password changed', description: 'Other devices were signed out' })
     } catch (error) {
       if (error instanceof ApiError && error.status === 400 && NO_PASSWORD.test(error.message)) {
         setNoPassword(true)
       } else if (error instanceof ApiError && error.status === 400 && WRONG_CURRENT.test(error.message)) {
         setErrors({ current: "That isn't your current password. Check it and try again." })
+        focusProblem.current = true
       } else {
         failure.fail(error, 'Your password could not be changed. Try again.')
+        focusProblem.current = true
       }
     } finally {
       setPending(false)
@@ -94,6 +102,19 @@ export function ChangePasswordDialog({
   }
 
   const fieldError = (local: string | undefined, api: string) => local || failure.failure?.fields[api] || undefined
+  const currentError = fieldError(errors.current, 'current_password')
+  const nextError = fieldError(errors.next, 'new_password')
+
+  // After every render: the fields are disabled while the request runs, so this waits until they are back.
+  useEffect(() => {
+    if (pending || !focusProblem.current) return
+    focusProblem.current = false
+    focusFirstError([
+      ['current-password', currentError],
+      ['new-password', nextError],
+      ['confirm-new-password', errors.confirm],
+    ])
+  })
 
   return (
     <Dialog open={open} onOpenChange={(value) => !pending && onOpenChange(value)}>
@@ -146,7 +167,7 @@ export function ChangePasswordDialog({
                 <Field
                   label="New password"
                   id="new-password"
-                  help={fieldError(errors.next, 'new_password') ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
+                  help={fieldError(errors.next, 'new_password') ? undefined : 'At least 8 characters.'}
                   error={fieldError(errors.next, 'new_password')}
                 >
                   <Input

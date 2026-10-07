@@ -42,7 +42,7 @@ export const landingExperimentNavbarItems = [
 
 export const landingWorkflowCopy = {
   title: 'Review. Aim. Build.',
-  body: 'A systematic approach to career growth, powered by AI precision.',
+  body: 'Three steps from the resume you have to the applications you send.',
 } as const
 
 export const landingExperimentToolsCopy = {

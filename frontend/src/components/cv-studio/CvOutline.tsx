@@ -12,6 +12,8 @@ import { describeHeader } from '#/lib/cv-studio/header'
 const ADDABLE_KINDS: CvSection['kind'][] = [
   'summary', 'experience', 'education', 'skills', 'projects', 'achievements', 'certifications', 'interview-evidence', 'custom',
 ]
+/** Kinds an application system expects once: Add section stops offering them when the CV has one (shown or hidden). */
+const SINGLE_KINDS: ReadonlySet<CvSection['kind']> = new Set(['summary', 'experience', 'education', 'skills'])
 
 /**
  * Every section as a row, including hidden ones: open, reorder (drag the grip, or the up and down buttons),
@@ -91,7 +93,8 @@ export function CvOutline({ sections, activeId, editor, header, documentName, he
             const open = section.id === activeId
             const count = section.visible
               ? `${section.entries.length} ${section.entries.length === 1 ? 'entry' : 'entries'}`
-              : 'Hidden from CV'
+              // Short enough for the 320px sheet's second line: the eye-off control and dimmed name say the rest.
+              : 'Hidden'
             const toggle = (
               <Button
                 type="button" iconOnly variant="ghost" size="sm"
@@ -152,7 +155,7 @@ export function CvOutline({ sections, activeId, editor, header, documentName, he
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuLabel>Add a section</DropdownMenuLabel>
-          {ADDABLE_KINDS.map((kind) => (
+          {ADDABLE_KINDS.filter((kind) => !SINGLE_KINDS.has(kind) || !sections.some((section) => section.kind === kind)).map((kind) => (
             <DropdownMenuItem key={kind} onSelect={() => onAdd(kind)}>{sectionLabels[kind]}</DropdownMenuItem>
           ))}
         </DropdownMenuContent>

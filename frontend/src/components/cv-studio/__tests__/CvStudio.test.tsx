@@ -1,7 +1,9 @@
+import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
+import { ApiError } from '#/lib/api/errors'
 import type { CvDocument } from '#/lib/api/schemas'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
@@ -19,6 +21,9 @@ const api = vi.hoisted(() => ({
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn(), user: null as { full_name?: string | null } | null }))
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => session }))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children, ...rest }: { to: string; children: ReactNode } & AnchorHTMLAttributes<HTMLAnchorElement>) => <a href={to} {...rest}>{children}</a>,
+}))
 
 const experience = {
   id: 's1', kind: 'experience' as const, title: 'Experience', visible: true, position: 0,
@@ -102,12 +107,33 @@ describe('CV Studio empty state', { timeout: 15_000 }, () => {
     api.listCvDocuments.mockResolvedValue({ items: [] })
     view()
     expect(await screen.findByText('Let’s start with your CV')).toBeTruthy()
+    // Empty-state buttons are md on every page (History, Profile, Applications), the size of the die-cut panel's actions
+    // (consistency-F02: the signed-in and guest History states differed, 36px vs 44px).
+    expect(screen.getByRole('button', { name: /Import your CV/ }).className).toContain('kit-button--md')
+    expect(screen.getByRole('button', { name: 'Start from your profile' }).className).toContain('kit-button--md')
     fireEvent.click(screen.getByRole('button', { name: 'Start from your profile' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create CV' }))
     await waitFor(() => expect(api.createCvDocument).toHaveBeenCalledWith({ name: 'My CV', seed_evidence_item_ids: [] }))
     expect((await screen.findByLabelText('Document name') as HTMLInputElement).value).toBe('Principal CV')
     expect(api.getCvDocument).toHaveBeenCalledWith('d1')
+  })
+
+  it('leads to the profile from Start a new CV when no facts are saved there yet (cv-studio-F12)', async () => {
+    api.listCvDocuments.mockResolvedValue({ items: [] })
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Start from your profile' }))
+    const dialog = await screen.findByRole('dialog')
+    const link = await within(dialog).findByRole('link', { name: 'Add facts on your profile' })
+    expect(link.getAttribute('href')).toBe('/profile')
+  })
+
+  it('shows the load error with the page lead and the error icon disc, as the other states do (cv-studio-F10)', async () => {
+    api.listCvDocuments.mockRejectedValue(new Error('down'))
+    const { container } = view()
+    expect(await screen.findByRole('heading', { name: 'CV Studio didn’t load' })).toBeTruthy()
+    expect(screen.getByText(/Write it once, pick a look/)).toBeTruthy()
+    expect(container.querySelector('.kit-error .kit-empty__icon svg')).toBeTruthy()
   })
 
   it('opens Start a new CV once when the profile sent the owner here', async () => {
@@ -129,6 +155,8 @@ describe('CV Studio empty state', { timeout: 15_000 }, () => {
     const boxes = await within(dialog).findAllByRole('checkbox')
     expect(boxes).toHaveLength(2)
     await waitFor(() => expect(boxes.every((box) => (box as HTMLInputElement).checked)).toBe(true))
+    // history-profile-F38: Select all / Clear stays beside its heading on a 320px phone instead of wrapping under it.
+    expect(within(dialog).getByRole('button', { name: 'Clear' }).closest('.kit-section')?.getAttribute('data-actions-wrap')).toBe('false')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }))
     expect(boxes.some((box) => (box as HTMLInputElement).checked)).toBe(false)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Select all' }))
@@ -148,7 +176,10 @@ describe('CV Studio empty state', { timeout: 15_000 }, () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Import your CV (PDF/DOCX)' }))
     const dialog = await screen.findByRole('dialog')
     const file = new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' })
-    fireEvent.change(within(dialog).getByLabelText(/Choose a PDF or DOCX/), { target: { files: [file] } })
+    // The trigger reads "Choose file", the formats in its hint (cv-studio-F12), and the dropzone leads with the icon disc
+    // like the tool pages and the dashboard (consistency-F08).
+    expect(dialog.querySelector('.kit-file[data-variant="dropzone"]')?.getAttribute('data-icon')).toBe('true')
+    fireEvent.change(within(dialog).getByLabelText(/Choose file/), { target: { files: [file] } })
     expect(await within(dialog).findByText(/We found 1 section and 1 entry in cv.pdf/)).toBeTruthy()
     expect(within(dialog).getByText(/One line could not be read/)).toBeTruthy()
     fireEvent.change(within(dialog).getByLabelText('CV name'), { target: { value: 'Imported CV' } })
@@ -216,6 +247,65 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(saveStatus().textContent).toContain('Saved'), { timeout: 2500 })
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('offers one Try again after a failed save and keeps focus on the save state once it is used', async () => {
+    view()
+    fireEvent.change(await screen.findByLabelText('Document name'), { target: { value: 'Renamed CV' } })
+    api.updateCvDocument.mockRejectedValueOnce(new Error('save failed'))
+    const alert = await screen.findByRole('alert', {}, { timeout: 2500 })
+    // The bar says "Not saved"; the notice holds the only way to retry.
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
+    const retry = within(alert).getByRole('button', { name: 'Try again' })
+    retry.focus()
+    fireEvent.click(retry)
+    await waitFor(() => expect(saveStatus().textContent).toContain('Saved'), { timeout: 2500 })
+    expect(window.document.activeElement).toBe(saveStatus())
+  })
+
+  it('offers only the section kinds a CV can hold twice once it has them', async () => {
+    view()
+    await screen.findByTestId('cv-paper')
+    const menu = await openMenu('Add section')
+    const items = within(menu).getAllByRole('menuitem').map((item) => item.textContent)
+    // The fixture CV already has Experience and Skills.
+    expect(items).not.toContain('Experience')
+    expect(items).not.toContain('Skills')
+    expect(items).toEqual(expect.arrayContaining(['Summary', 'Education', 'Projects', 'Custom section']))
+  })
+
+  it('clears a version notice once the CV is edited again', async () => {
+    view()
+    const versions = await openTool(/^Versions/)
+    fireEvent.change(within(versions).getByLabelText('Version name'), { target: { value: 'Design roles' } })
+    fireEvent.click(within(versions).getByRole('button', { name: /Save version/ }))
+    expect(await screen.findByText('Saved “Design roles” to your versions.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Document name'), { target: { value: 'Renamed CV' } })
+    expect(screen.queryByText('Saved “Design roles” to your versions.')).toBeNull()
+  })
+
+  it('names the gesture by the pointer, not the width: Click with a mouse at 1024px, Tap with a finger', async () => {
+    window.innerWidth = 1024
+    const { unmount } = view()
+    expect(await screen.findByText('Click a section to edit')).toBeTruthy()
+    unmount()
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === '(pointer: coarse)', media: query, onchange: null,
+      addEventListener: () => undefined, removeEventListener: () => undefined, addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
+    }))
+    view()
+    expect(await screen.findByText('Tap a section to edit')).toBeTruthy()
+    matchMedia.mockRestore()
+  })
+
+  it('opens the Versions sheet on a phone without focusing its name field', async () => {
+    window.innerWidth = 375
+    view()
+    await screen.findByTestId('cv-paper')
+    fireEvent.click(within(screen.getByRole('tablist', { name: 'Studio tools' })).getByRole('tab', { name: /^Versions/ }))
+    const sheet = await screen.findByRole('dialog', { name: 'Versions' })
+    // A focused field would raise the phone keyboard over the list of versions.
+    await waitFor(() => expect(window.document.activeElement).toBe(within(sheet).getByRole('heading', { name: 'Versions' })))
   })
 
   it('opens a section with the keyboard and goes back to the sections list', async () => {
@@ -305,20 +395,42 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     view()
     await screen.findByTestId('cv-paper')
     const tabs = screen.getByRole('tablist', { name: 'Studio tools' })
-    expect(within(tabs).getByRole('tab', { name: 'Sections' }).getAttribute('aria-selected')).toBe('true')
+    // cv-studio-F03: on a phone or tablet a tab opens a sheet, so no tab reads as open while only the paper shows
+    // (this test used to assert that Sections stayed selected with its sheet closed).
+    expect(within(tabs).getByRole('tab', { name: 'Sections' }).getAttribute('aria-selected')).toBe('false')
     expect(within(tabs).getByRole('tab', { name: /^Design/ }).getAttribute('aria-selected')).toBe('false')
 
     fireEvent.click(within(tabs).getByRole('tab', { name: /^Design/ }))
     const sheet = await screen.findByRole('dialog', { name: 'Design' })
     expect(within(sheet).getByRole('switch', { name: 'ATS-friendly mode' })).toBeTruthy()
+    // The tab of the open sheet is the selected one.
+    expect(within(screen.getByRole('tablist', { name: 'Studio tools', hidden: true })).getByRole('tab', { name: /^Design/, hidden: true }).getAttribute('aria-selected')).toBe('true')
     fireEvent.click(within(sheet).getByRole('button', { name: 'Close panel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
-    // The tool stays selected after the sheet closes; tapping it again reopens the sheet.
+    // Closed, no tab is drawn open; tapping the tool again reopens its sheet.
     const design = within(screen.getByRole('tablist', { name: 'Studio tools' })).getByRole('tab', { name: /^Design/ })
-    expect(design.getAttribute('aria-selected')).toBe('true')
+    expect(design.getAttribute('aria-selected')).toBe('false')
     fireEvent.click(design)
     expect(await screen.findByRole('dialog', { name: 'Design' })).toBeTruthy()
+  })
+
+  it('takes focus to the editor when a section or the header is chosen in the Sections sheet (cv-studio-F09)', async () => {
+    window.innerWidth = 1024
+    view()
+    await screen.findByTestId('cv-paper')
+    fireEvent.click(within(screen.getByRole('tablist', { name: 'Studio tools' })).getByRole('tab', { name: 'Sections' }))
+    let sheet = await screen.findByRole('dialog', { name: 'Sections' })
+    // A keyboard or screen-reader user is on the row's button when they choose it; the row unmounts.
+    const press = (button: HTMLElement) => { button.focus(); fireEvent.click(button) }
+    press(within(sheet).getByRole('button', { name: 'Skills' }))
+    sheet = await screen.findByRole('dialog', { name: 'Edit Skills' })
+    await waitFor(() => expect(window.document.activeElement).toBe(within(sheet).getByRole('heading', { name: 'Edit Skills' })))
+    press(within(sheet).getByRole('button', { name: 'All sections' }))
+    sheet = await screen.findByRole('dialog', { name: 'Sections' })
+    press(within(sheet).getByRole('button', { name: 'Header' }))
+    sheet = await screen.findByRole('dialog', { name: 'Edit header' })
+    await waitFor(() => expect(window.document.activeElement).toBe(within(sheet).getByRole('heading', { name: 'Edit header' })))
   })
 
   it('asks before removing a section that has entries', async () => {
@@ -586,6 +698,29 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
     fireEvent.click(within(panel()).getByRole('button', { name: 'Restore' }))
     await waitFor(() => expect(api.restoreCvVariant).toHaveBeenCalledWith('d1', 'v1'))
     expect((await screen.findByRole('alert')).textContent).toContain('Restore unavailable')
+  })
+})
+
+describe('CV Studio version names', { timeout: 15_000 }, () => {
+  it('stops a version name the CV already has at the field, in plain words', async () => {
+    view()
+    const versions = await openTool(/^Versions/)
+    const name = within(versions).getByLabelText('Version name')
+    fireEvent.change(name, { target: { value: 'Base' } })
+    fireEvent.click(within(versions).getByRole('button', { name: /Save version/ }))
+    expect((await within(versions).findByRole('alert')).textContent).toContain('You already have a version called “Base”. Pick another name.')
+    expect(api.snapshotCvVariant).not.toHaveBeenCalled()
+    expect(window.document.activeElement).toBe(name)
+  })
+
+  it('words a 409 from the server the same way', async () => {
+    api.snapshotCvVariant.mockRejectedValueOnce(new ApiError('Variant name already exists', 409, 'Variant name already exists'))
+    view()
+    const versions = await openTool(/^Versions/)
+    fireEvent.change(within(versions).getByLabelText('Version name'), { target: { value: 'Design roles' } })
+    fireEvent.click(within(versions).getByRole('button', { name: /Save version/ }))
+    expect((await screen.findByRole('alert')).textContent).toContain('You already have a version called “Design roles”. Pick another name.')
+    expect(screen.queryByText(/Variant/)).toBeNull()
   })
 })
 

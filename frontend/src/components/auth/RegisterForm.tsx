@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Button, Checkbox, Cluster, Field, Input, Notice } from '#/components/kit'
 import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
@@ -16,6 +16,14 @@ import { trackTelemetry } from '#/lib/telemetry/client'
 function resolveSignupSurfaceTool() {
   return readPendingIntent()?.toolId
 }
+
+const TOS_REQUIRED = 'Agree to the Terms and Privacy Policy to continue.'
+
+/** The server's bound on full_name (registerRequestSchema, backend RegisterRequest). */
+const FULL_NAME_MAX = 200
+
+/** The API fields this form shows a message under; a refusal of any other field is said in the notice. */
+const SHOWN_FIELDS = ['full_name', 'email', 'password'] as const
 
 export function RegisterForm({
   onSuccess,
@@ -36,9 +44,19 @@ export function RegisterForm({
   const [showPassword, setShowPassword] = useState(false)
   const [tosAccepted, setTosAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const [errors, setErrors] = useState<{ email?: string; password?: string; tos?: string }>({})
   // The address that came back as already registered (409), so the form can offer the way in instead.
   const [takenEmail, setTakenEmail] = useState<string | null>(null)
+  const signInInsteadRef = useRef<HTMLButtonElement>(null)
+  const takenNoticeRef = useRef<HTMLDivElement>(null)
+
+  // The taken-email notice can open below the fold, with the way forward out of sight: bring the whole notice
+  // into view (only as far as needed) and hand focus to its "Sign in instead".
+  useEffect(() => {
+    if (!takenEmail) return
+    signInInsteadRef.current?.focus({ preventScroll: true })
+    takenNoticeRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [takenEmail])
 
   return (
     <div className="auth-form">
@@ -47,20 +65,25 @@ export function RegisterForm({
         noValidate
         onSubmit={async (event) => {
           event.preventDefault()
-          if (!tosAccepted) return
-          const next = { email: emailError(email), password: newPasswordError(password) }
+          const next = {
+            email: emailError(email),
+            password: newPasswordError(password),
+            tos: tosAccepted ? undefined : TOS_REQUIRED,
+          }
           setErrors(next)
+          // A refusal from the last attempt says nothing about this one.
+          signUp.clear()
           if (
             focusFirstError([
               ['register-email', next.email],
               ['register-password', next.password],
+              ['register-tos', next.tos],
             ])
           ) {
             return
           }
           setLoading(true)
           setTakenEmail(null)
-          signUp.clear()
           onRegistering?.(true)
           // Capture the originating surface before `register` completes — a
           // successful signup consumes and clears the pending intent.
@@ -89,19 +112,25 @@ export function RegisterForm({
             if (error instanceof Error && (error as { status?: number }).status === 409) {
               setTakenEmail(email.trim())
             } else {
-              signUp.fail(error, 'Sign-up failed. Please try again.')
+              const failure = signUp.fail(error, 'Sign-up failed. Please try again.')
+              focusFirstError([
+                ['register-name', failure.fields.full_name],
+                ['register-email', failure.fields.email],
+                ['register-password', failure.fields.password],
+              ])
             }
           } finally {
             setLoading(false)
           }
         }}
       >
-        <Field label="Full name" optional id="register-name">
+        <Field label="Full name" optional id="register-name" error={signUp.failure?.fields.full_name}>
           <Input
             size="lg"
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
             autoComplete="name"
+            maxLength={FULL_NAME_MAX}
           />
         </Field>
         <Field label="Email" id="register-email" error={errors.email || signUp.failure?.fields.email}>
@@ -139,24 +168,37 @@ export function RegisterForm({
             required
           />
         </Field>
-        <Checkbox
-          id="register-tos"
-          checked={tosAccepted}
-          onCheckedChange={setTosAccepted}
-          required
-          label={
-            <>
-              I agree to the <Link to="/terms">Terms of Service</Link> and{' '}
-              <Link to="/privacy">Privacy Policy</Link>.
-            </>
-          }
-        />
+        {/* The checkbox names itself; the Field carries the "agree to continue" message under it. The two
+            documents open in a new tab, so reading them never costs what has been typed here. */}
+        <Field id="register-tos" error={errors.tos}>
+          <Checkbox
+            checked={tosAccepted}
+            onCheckedChange={(checked) => {
+              setTosAccepted(checked)
+              if (checked) setErrors((prev) => ({ ...prev, tos: undefined }))
+            }}
+            required
+            label={
+              <>
+                I agree to the{' '}
+                <Link to="/terms" target="_blank" rel="noopener">
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link to="/privacy" target="_blank" rel="noopener">
+                  Privacy Policy
+                </Link>
+                .
+              </>
+            }
+          />
+        </Field>
         {takenEmail ? (
-          <Notice tone="danger" title="An account already exists for this email.">
+          <Notice ref={takenNoticeRef} tone="danger" title="An account already exists for this email.">
             <p>Sign in with it, or reset its password if you've forgotten it.</p>
             {onExistingAccount ? (
               <Cluster gap={2} className="auth-taken__actions">
-                <Button type="button" size="sm" variant="secondary" onClick={() => onExistingAccount(takenEmail, 'login')}>
+                <Button ref={signInInsteadRef} type="button" size="sm" variant="secondary" onClick={() => onExistingAccount(takenEmail, 'login')}>
                   Sign in instead
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => onExistingAccount(takenEmail, 'reset')}>
@@ -166,8 +208,8 @@ export function RegisterForm({
             ) : null}
           </Notice>
         ) : null}
-        <FormFailureNotice failure={signUp.failure} remaining={signUp.remaining} />
-        <Button type="submit" size="lg" className="auth-wide" loading={loading} disabled={!tosAccepted || signUp.remaining > 0}>
+        <FormFailureNotice failure={signUp.failure} remaining={signUp.remaining} shownFields={SHOWN_FIELDS} />
+        <Button type="submit" size="lg" className="auth-wide" data-cookie-keep-clear="" loading={loading} disabled={signUp.remaining > 0}>
           Create free account
         </Button>
       </form>

@@ -31,9 +31,10 @@
   background: none;
 }
 
+/* Flush with the content it sits under (a heading, a list): no inline padding. */
 .kit-empty[data-size='inline'] {
   gap: var(--space-1);
-  padding: var(--space-1);
+  padding: var(--space-1) 0;
   border: 0;
   border-radius: 0;
   background: none;
@@ -88,6 +89,12 @@
   text-wrap: balance;
 }
 
+/* focusTitle: the heading takes focus only so a screen reader starts at the outcome; it is not a control (tabindex
+   -1, never a tab stop), so it draws no focus ring around the display title. */
+.kit-empty__title[tabindex='-1']:focus {
+  outline: none;
+}
+
 .kit-empty[data-size='page'] .kit-empty__title {
   font-size: 1.75rem;
   line-height: 1.1;
@@ -108,6 +115,8 @@
   font-weight: var(--fw-regular);
   line-height: var(--lh-body);
   letter-spacing: 0;
+  /* A sentence in body type, not a display line: fill the column, only avoid a lone last word. */
+  text-wrap: pretty;
 }
 
 .kit-empty[data-variant='slot'] .kit-empty__title {
@@ -141,6 +150,36 @@
 
 .kit-empty__action {
   margin-block-start: var(--space-2);
+}
+
+/* One button size per empty state (consistency-F02): the actions of a framed or page empty state are md, the size its
+   die-cut frame and display title are drawn for, even where a caller passed size="sm" ("Start with Resume" was 36px on
+   the signed-in History empty state and 44px on the guest one). Only size="inline", a narrow slot, keeps sm. */
+.kit-empty:not([data-size='inline']) > .kit-empty__action .kit-button--sm:not(.kit-button--icon, .kit-button--link) {
+  --kit-button-h: var(--kit-h-md);
+  --kit-button-fs: var(--fs-body);
+  --kit-button-radius: var(--r-md);
+  --kit-button-icon: 1rem;
+}
+
+/* ...and a framed, enabled one takes the md padding and shadow too. A ghost keeps its own padding and no resting
+   shadow, a disabled button stays flat (button.css), so this rule is limited to the buttons that draw them. */
+.kit-empty:not([data-size='inline'])
+  > .kit-empty__action
+  .kit-button--sm:not(.kit-button--icon, .kit-button--link, .kit-button--ghost):not(:disabled, [data-disabled='true']) {
+  --kit-button-px: var(--s5);
+  --kit-button-shadow: var(--sh-2);
+  --kit-button-shadow-hover: var(--sh-3);
+}
+
+/* The md movement, only where motion is allowed: under reduced motion button.css zeroes it at a lower weight. */
+@media (prefers-reduced-motion: no-preference) {
+  .kit-empty:not([data-size='inline'])
+    > .kit-empty__action
+    .kit-button--sm:not(.kit-button--icon, .kit-button--link, .kit-button--ghost):not(:disabled, [data-disabled='true']) {
+    --kit-button-lift: -2px;
+    --kit-button-press: 4px;
+  }
 }
 
 .kit-error__code {

@@ -16,7 +16,9 @@ export function LandingSocialProof() {
             {audience.tail}
           </p>
         </div>
-        <Sticker pin tilt={1.2} className="lp-note">
+        {/* The +1.2deg tilt is set in landing.css, which levels it on tablets and phones. The first-visit cookie
+            card waits until this note is out from under it too (no sticker covers another, STICKER 5.2). */}
+        <Sticker pin className="lp-note" data-cookie-keep-clear="">
           <h3 className="lp-note__title">
             {landingProofCopy.noteTitle}
           </h3>

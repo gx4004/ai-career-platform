@@ -67,7 +67,8 @@ describe('ToolPageShell: form column plus a side rail', () => {
     })
     renderShell()
     const rail = screen.getByRole('complementary', { name: 'About Job Match' })
-    await within(rail).findByRole('link', { name: 'Job Match' })
+    // consistency-F23: a run with no subject is titled by when it ran, not by the tool's name.
+    await within(rail).findByRole('link', { name: /^Oct 3, / })
     const headings = within(rail).getAllByRole('heading').map((h) => h.textContent)
     expect(headings).toEqual(['Recent runs', 'What you get'])
   })

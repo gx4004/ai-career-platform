@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Scan } from 'lucide-react'
@@ -38,6 +40,19 @@ describe('kit ToolTile', () => {
     expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--kit-tilt')).toBe('')
     rerender(<ToolTile tone="tangerine" icon={Scan} size="index" />)
     expect(container.firstElementChild!.classList.contains('kit-tool-tile--index')).toBe(true)
+  })
+
+  it('flat: a tile inside a row, never tilted and without the hard shadow, whatever its size', () => {
+    const { container, rerender } = render(<ToolTile tone="mint" icon={Scan} size="lg" flat />)
+    const tile = () => container.firstElementChild as HTMLElement
+    expect(tile().getAttribute('data-flat')).toBe('true')
+    expect(tile().style.getPropertyValue('--kit-tilt')).toBe('')
+    rerender(<ToolTile tone="mint" icon={Scan} size="lg" flat tilt={-4} />)
+    expect(tile().style.getPropertyValue('--kit-tilt')).toBe('')
+    rerender(<ToolTile tone="mint" icon={Scan} size="lg" />)
+    expect(tile().hasAttribute('data-flat')).toBe(false)
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/tiles.css'), 'utf8')
+    expect(css).toMatch(/\.kit-tool-tile\[data-flat='true'\]\s*\{[^}]*box-shadow:\s*none/)
   })
 })
 
@@ -87,6 +102,14 @@ describe('kit NumberDisc', () => {
     expect(disc.classList.contains('kit-number-disc--lg')).toBe(true)
     expect(disc.getAttribute('data-tone')).toBe('mint')
   })
+
+  it('xs is the 20px disc that fits a button icon slot (a mint check on Copied)', () => {
+    const { container } = render(<NumberDisc n={<Scan />} size="xs" tone="mint" />)
+    const disc = container.firstElementChild as HTMLElement
+    expect(disc.classList.contains('kit-number-disc--xs')).toBe(true)
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/tiles.css'), 'utf8')
+    expect(css).toMatch(/\.kit-number-disc--xs\s*\{[^}]*--kit-disc-size:\s*20px/)
+  })
 })
 
 describe('kit FitStamp', () => {
@@ -110,6 +133,20 @@ describe('kit FitStamp', () => {
     const stamp = screen.getByRole('img', { name: '12% fit' })
     expect(stamp.getAttribute('data-tone')).toBe('white')
     expect(stamp.getAttribute('data-size')).toBe('sm')
+  })
+
+  it('steps a three-digit fit down in the phone stamp so "100%" stays clear of the outline, never under 12px', () => {
+    // jsdom has no layout: the measured check (scrollWidth well under clientWidth) runs in the browser; this pins
+    // the rule that makes it true. 100% at 16px with -0.05em tracking leaves about 5px clear of the outline on each side of the 48px inner box.
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/stamps.css'), 'utf8')
+    const sm3 = css.match(/\.kit-fit-stamp\[data-size='sm'\]\[data-digits='3'\]\s*\{([^}]*)\}/)![1]
+    expect(sm3).toMatch(/font-size:\s*1rem/)
+    const unit = css.match(/\.kit-fit-stamp\[data-digits='3'\] small\s*\{([^}]*)\}/)![1]
+    expect(unit).toMatch(/font-size:\s*var\(--fs-micro\)/)
+    render(<FitStamp value={100} size="sm" />)
+    const stamp = screen.getByRole('img', { name: '100% fit' })
+    expect(stamp.getAttribute('data-size')).toBe('sm')
+    expect(stamp.getAttribute('data-digits')).toBe('3')
   })
 
   it('says so when there is no fit', () => {

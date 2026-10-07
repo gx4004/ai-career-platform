@@ -197,6 +197,11 @@
   max-width: 20rem;
 }
 
+/* The form column of a 320px phone (Button lg specimen). */
+.kit-gallery__phone-column {
+  max-width: 15.75rem;
+}
+
 /* Auto-width layouts that used to squeeze a button's label (Button specimens). */
 .kit-gallery__auto-table {
   width: min(26rem, 100%);
@@ -379,10 +384,12 @@
   width: 16rem;
 }
 
-/* The Tools sheet specimen: a 2-column grid of tone tiles with a white icon disc, then plain link tiles. */
+/* The Tools sheet specimen: a 2-column grid of tone tiles with a white icon disc, then plain link tiles. It follows
+   the shipped More sheet (shell.css .app-more*): minmax(0, 1fr) columns, so a long name wraps inside its tile instead
+   of pushing the right column past the sheet's edge at 320px. */
 .kit-gallery__tool-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s3);
   margin: 0;
   padding: 0;
@@ -417,6 +424,9 @@
   min-height: 4rem;
   background: var(--tone, var(--surface));
   box-shadow: var(--sh-1);
+  /* A word that fits stays whole; only one wider than the tile breaks. */
+  overflow-wrap: break-word;
+  hyphens: manual;
 }
 
 .kit-gallery__tool-disc {
@@ -443,6 +453,31 @@
 .kit-gallery__tool-row:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+/* 320px, as the shipped sheet: a smaller disc, tighter padding and 14px labels keep each word whole, and the plain
+   tiles go one to a row. */
+@media (max-width: 359px) {
+  .kit-gallery__tool-row[data-tone] {
+    gap: var(--s2);
+    padding-inline: var(--s2);
+    font-size: 0.875rem;
+  }
+
+  .kit-gallery__tool-row[data-tone] .kit-gallery__tool-disc {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--r-xs);
+  }
+
+  .kit-gallery__tool-row[data-tone] .kit-gallery__tool-disc > svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .kit-gallery__tool-list--plain {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Overlay previews: a static, in-flow copy on the scrim colour, to judge panels at rest. */
@@ -563,6 +598,11 @@
 
 .kit-gallery__frame--narrow {
   max-width: 34rem;
+}
+
+/* Between Split's compact (52rem) and default (56rem) thresholds. */
+.kit-gallery__frame--split-compact {
+  max-width: 54rem;
 }
 
 .kit-gallery__split-wide {

@@ -3,13 +3,22 @@ import { cn } from '#/lib/utils'
 import { TitleSlot } from './stretched-link'
 
 export type RowDensity = 'compact' | 'comfortable'
-export type RowOverflow = 'wrap' | 'truncate'
+export type RowOverflow = 'wrap' | 'truncate' | 'clamp'
 
 export type ListProps = ComponentPropsWithoutRef<'ul'> & {
   /** Render an <ol> with a number in front of every row ("Fix first"). */
   numbered?: boolean
-  /** Rules above the first row and below the last, for an unframed list that stands alone. A no-op while framed. */
-  boxed?: boolean
+  /**
+   * Rules above the first row and below the last, for an unframed list that stands alone. "end": the rule below the
+   * last row only, for a list right under its own heading: the first row starts at the list's top and a Section
+   * heading sits on it with a field label's gap, the way a label sits on its control. A no-op while framed.
+   */
+  boxed?: boolean | 'end'
+  /**
+   * Rows start at the container's content edge (no inline padding), in line with the heading, field or sheet title
+   * above them. For an unframed list in a Panel, Sheet, Dialog or rail. A no-op while framed.
+   */
+  flush?: boolean
   /**
    * Draw the list as an object: white, 2px ink outline, 24px radius, rows flush inside. Default true.
    * Pass false inside a Panel, Dialog, Sheet, rail or Table cell, which already provide the frame.
@@ -22,7 +31,7 @@ export type ListProps = ComponentPropsWithoutRef<'ul'> & {
  * aria-label (or aria-labelledby) unless a Section heading already does.
  */
 export const List = forwardRef<HTMLUListElement, ListProps>(function List(
-  { numbered = false, boxed = false, framed = true, className, ...rest },
+  { numbered = false, boxed = false, flush = false, framed = true, className, ...rest },
   ref,
 ) {
   const Tag = (numbered ? 'ol' : 'ul') as 'ul'
@@ -33,7 +42,8 @@ export const List = forwardRef<HTMLUListElement, ListProps>(function List(
       role="list"
       className={cn('kit-list', className)}
       data-numbered={numbered ? 'true' : undefined}
-      data-boxed={boxed ? 'true' : undefined}
+      data-boxed={boxed === 'end' ? 'end' : boxed ? 'true' : undefined}
+      data-flush={flush ? 'true' : undefined}
       data-framed={framed ? 'true' : undefined}
       {...rest}
     />
@@ -47,7 +57,10 @@ export type RowProps = HTMLAttributes<HTMLElement> & {
   selected?: boolean
   /** Lemon-soft tint on hover. Rows that contain a StretchedLink get this without asking. */
   interactive?: boolean
-  /** How long titles and subtitles behave: wrap onto more lines (default) or cut with an ellipsis. */
+  /**
+   * How long titles and subtitles behave: wrap onto more lines (default), cut to one line with an ellipsis (truncate), or
+   * clamp: the title wraps to two lines at most and the subtitle keeps one line, for a narrow rail where the subject matters.
+   */
   overflow?: RowOverflow
   /** li inside a List (default), or div/article when the row stands alone. */
   as?: 'li' | 'div' | 'article'
@@ -76,6 +89,30 @@ export const Row = forwardRef<HTMLElement, RowProps>(function Row(
   )
 })
 
+export type ListHeadingProps = ComponentPropsWithoutRef<'li'> & {
+  /** The heading level of the group title. Default 3 (a List under a page or Section h2). */
+  headingLevel?: 2 | 3 | 4 | 5 | 6
+}
+
+/**
+ * A group heading inside a List ("Today", "Yesterday"): a stone-soft strip with the display title (20/800) and a
+ * 2px --line rule under it, so the group reads as a divider, not as a row. Not a Row: it has no hover, no selection
+ * and no number in a numbered List.
+ */
+export const ListHeading = forwardRef<HTMLLIElement, ListHeadingProps>(function ListHeading(
+  { headingLevel = 3, className, children, ...rest },
+  ref,
+) {
+  const Heading = `h${headingLevel}` as 'h3'
+  return (
+    <li ref={ref} className={cn('kit-list-heading', className)} {...rest}>
+      <Heading className="kit-list-heading__title" dir="auto">
+        {children}
+      </Heading>
+    </li>
+  )
+})
+
 /** Icon, avatar, checkbox, FitStamp, ToolTile or StageMark in front of the text. */
 export const RowLeading = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(function RowLeading(
   { className, ...rest },
@@ -99,27 +136,90 @@ export type RowTitleProps = ComponentPropsWithoutRef<'div'> & {
   asChild?: boolean
   /** lg: 17px, for a comfortable match row. Default md (15px). */
   size?: 'md' | 'lg'
+  /**
+   * bold (default, 700): a name (a job, a run, a fix). semibold (600): a statement that is the row's whole
+   * point (a strength). regular (400): a full sentence or a quote (a note, a tip), which set bold reads heavy
+   * and flattens the hierarchy against the real titles.
+   */
+  weight?: 'bold' | 'semibold' | 'regular'
+  /**
+   * A short fact kept on the title's own line, at its end (a score pill in a narrow rail). As RowMeta it took a side
+   * column the height of the whole row, so every line under the title (a two-line headline) lost its width too; here
+   * only the title shares its line. Hide it from assistive tech when the link's description already says it.
+   */
+  aside?: ReactNode
 }
 
 /** Row title. With `asChild` it is also the row's whole-row link. */
-export const RowTitle = forwardRef<HTMLElement, RowTitleProps>(function RowTitle({ size = 'md', ...props }, ref) {
-  return <TitleSlot ref={ref} baseClass="kit-row__title" headingClass="kit-row__heading" data-size={size === 'lg' ? 'lg' : undefined} {...props} />
+export const RowTitle = forwardRef<HTMLElement, RowTitleProps>(function RowTitle({ size = 'md', weight = 'bold', aside, ...props }, ref) {
+  const title = (
+    <TitleSlot
+      ref={ref}
+      baseClass="kit-row__title"
+      headingClass="kit-row__heading"
+      data-size={size === 'lg' ? 'lg' : undefined}
+      data-weight={weight === 'bold' ? undefined : weight}
+      {...props}
+    />
+  )
+  if (aside == null) return title
+  return (
+    <div className="kit-row__title-line">
+      {title}
+      <span className="kit-row__title-aside">{aside}</span>
+    </div>
+  )
 })
+
+export type RowSubtitleProps = ComponentPropsWithoutRef<'div'> & {
+  /** md (default): the 13px meta line. lg: 15px body text, the sentence under a display title (What next). */
+  size?: 'md' | 'lg'
+  /**
+   * 2: at most two lines, then an ellipsis, whatever the row's overflow. A clamped or truncated row keeps its
+   * subtitles to one line; a sentence beside a meta pill in a narrow rail (a run's headline) needs two to say anything.
+   */
+  lines?: 2
+}
 
 /** Second line under the title: plain text, or a MetaRow. */
-export const RowSubtitle = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(function RowSubtitle(
-  { className, ...rest },
+export const RowSubtitle = forwardRef<HTMLDivElement, RowSubtitleProps>(function RowSubtitle(
+  { size = 'md', lines, className, ...rest },
   ref,
 ) {
-  return <div ref={ref} dir="auto" className={cn('kit-row__subtitle', className)} {...rest} />
+  return (
+    <div
+      ref={ref}
+      dir="auto"
+      className={cn('kit-row__subtitle', className)}
+      data-size={size === 'lg' ? 'lg' : undefined}
+      data-lines={lines === 2 ? '2' : undefined}
+      {...rest}
+    />
+  )
 })
 
+export type RowMetaProps = ComponentPropsWithoutRef<'div'> & {
+  /**
+   * end (default): the meta keeps its slot at the end of the row (a lone Badge or Count stays beside the text at
+   * every width). below: on a narrow List (a phone) it drops under the row's text instead of keeping a side column,
+   * so a long title gets the full width (a status Badge after a question). Wide lists keep it at the end.
+   */
+  placement?: 'end' | 'below'
+}
+
 /** Trailing facts: a date, a score, a status. Tabular, quiet, right-aligned. */
-export const RowMeta = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(function RowMeta(
-  { className, ...rest },
+export const RowMeta = forwardRef<HTMLDivElement, RowMetaProps>(function RowMeta(
+  { placement = 'end', className, ...rest },
   ref,
 ) {
-  return <div ref={ref} className={cn('kit-row__meta', className)} {...rest} />
+  return (
+    <div
+      ref={ref}
+      className={cn('kit-row__meta', className)}
+      data-placement={placement === 'below' ? 'below' : undefined}
+      {...rest}
+    />
+  )
 })
 
 export type RowActionsProps = ComponentPropsWithoutRef<'div'> & {
@@ -133,8 +233,11 @@ export type RowActionsProps = ComponentPropsWithoutRef<'div'> & {
    * inline (default): the actions keep their slot at the end of the row. overlay: on a fine pointer the
    * revealed actions float over the row's end edge instead, so a narrow list (a 280px rail) gives the
    * title the full width at rest. Touch devices keep them inline and visible. Only with reveal.
+   * below: on a narrow List (a phone) the actions drop under the row's text instead of keeping a side
+   * column, so a long title gets the full width (a labelled button such as "Add to profile"). Wide
+   * lists keep them inline.
    */
-  placement?: 'inline' | 'overlay'
+  placement?: 'inline' | 'overlay' | 'below'
   /**
    * An overflow menu (a DropdownMenu whose trigger is a ghost icon Button) shown INSTEAD of the children
    * when the List is narrower than 32rem (phones). Use it when a row has three or more secondary actions
@@ -157,7 +260,7 @@ export const RowActions = forwardRef<HTMLDivElement, RowActionsProps>(function R
       ref={ref}
       className={cn('kit-row__actions', className)}
       data-reveal={reveal ? 'true' : undefined}
-      data-placement={placement === 'overlay' && reveal ? 'overlay' : undefined}
+      data-placement={placement === 'overlay' && reveal ? 'overlay' : placement === 'below' ? 'below' : undefined}
       data-collapsible={collapse ? 'true' : undefined}
       {...rest}
     >

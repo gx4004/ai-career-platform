@@ -29,7 +29,13 @@ export function TermsOfServicePage() {
       <ul>
         <li>You are responsible for providing accurate information when creating an account.</li>
         <li>You are responsible for keeping your password safe and for all activity under your account.</li>
-        <li>Please notify us immediately at {LEGAL_CONTACT_EMAIL} if you suspect unauthorized access.</li>
+        <li>
+          Please notify us immediately at{' '}
+          <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="legal-page__link">
+            {LEGAL_CONTACT_EMAIL}
+          </a>{' '}
+          if you suspect unauthorized access.
+        </li>
         <li>You can delete your account at any time from the Settings page.</li>
       </ul>
 

@@ -1,4 +1,4 @@
-import type { ApplicationListing, ApplicationStatus } from '#/lib/api/schemas'
+import type { ApplicationDetail, ApplicationListing, ApplicationStatus } from '#/lib/api/schemas'
 import type { Tone } from '#/components/kit/tone'
 
 /** The five board columns. Rejected and withdrawn share "Closed". */
@@ -105,4 +105,29 @@ export function roleOnly(title: string, company?: string | null) {
     if (stripped) return stripped
   }
   return title
+}
+
+/** "Mark as applied" freezes what was sent ("applied") and moves the card to Applied in the same moment. */
+const SAME_MOMENT_MS = 5_000
+
+/**
+ * True when what was sent was recorded on a card that had already moved past Applied ("Record what I sent" on an
+ * Interviewing, Offer or Closed card). Its applied_at is then the day it was recorded, not the day the owner applied.
+ * The timeline tells: a recording on a later stage has no move to Applied beside it. When the freeze is older than
+ * the events the detail carries, the dates tell, until the card moves again.
+ */
+export function sentRecordedLate(
+  application: Pick<ApplicationDetail, 'applied_at' | 'status_changed_at' | 'events'>,
+): boolean {
+  if (!application.applied_at) return false
+  const time = (value: string) => new Date(value).getTime()
+  const freezes = application.events.filter((event) => event.event_type === 'applied').map((event) => time(event.created_at))
+  if (freezes.length) {
+    const freeze = Math.max(...freezes)
+    return !application.events.some(
+      (event) => event.event_type === 'status_changed' && event.details.to === 'applied'
+        && Math.abs(time(event.created_at) - freeze) < SAME_MOMENT_MS,
+    )
+  }
+  return application.status_changed_at ? time(application.applied_at) > time(application.status_changed_at) : false
 }

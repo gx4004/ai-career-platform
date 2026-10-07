@@ -59,21 +59,15 @@
   gap: var(--s4);
 }
 
-/* Held at the loaded panel's height (chart, axis, facts: 240px wide, 200px on a phone), so Runs by tool does not jump. */
-.admin-activity--loading {
-  min-block-size: 15rem;
-}
-
-@media (max-width: 639px) {
-  .admin-activity--loading {
-    min-block-size: 12.5rem;
-  }
-}
-
+/* The chart takes the panel's full width (a 30rem cap left "Today" 120px short of the edge at 1440). */
 .admin-activity__chart {
   display: grid;
   gap: var(--s1);
-  max-inline-size: 30rem;
+}
+
+/* Loading: the plot's frame at the sparkline's own aspect ratio (run-sparkline.tsx W / H). */
+.admin-activity__plot {
+  aspect-ratio: 320 / 72;
 }
 
 .admin-spark {
@@ -155,10 +149,12 @@
   inline-size: clamp(6rem, 34%, 14rem);
 }
 
-/* Phones: a wider column, so the smallest bar is still a bar and not a glyph before its count. */
-@container kit-list (max-width: 30rem) {
-  .kit-row__meta.admin-bar-col {
-    inline-size: clamp(7.5rem, 40%, 14rem);
+/* Phones (a List under 32rem): RowMeta placement="below" puts the bar and its count on a line of their own under the
+   name, so "Application reviewer" keeps one line and every row has the same height. The bar column then spans the
+   text column. */
+@container kit-list (max-width: 31.9375rem) {
+  .kit-list.admin-tools .kit-row__meta.admin-bar-col {
+    inline-size: 100%;
   }
 }
 
@@ -206,8 +202,10 @@
 
 /* ── Tables ─────────────────────────────────────────────────────────────────────────────── */
 
-/* A date after a right-aligned number: keep them apart so "0  Oct 3" does not read as one cell. */
-@container kit-table (min-width: 40rem) {
+/* A date after a right-aligned number: keep them apart so "0  Oct 3" does not read as one cell. In em of the table
+   wrap, so it follows the table's own stackBelow (Users stacks under 52rem): stacked, the date lines up with the other
+   values. */
+@container kit-table (min-width: 40em) {
   .admin-after-number {
     padding-inline-start: var(--s4);
   }
@@ -252,12 +250,27 @@
   font-size: var(--fs-meta);
 }
 
+/* Long values (emails, URLs, outcomes) may break anywhere as a last resort, so a table column can still shrink (with
+   break-word a long token would set the column's minimum width). Emails carry a <wbr> before the "@" and URLs their own
+   breaks, so the line breaker uses those first and no one-letter orphan ("…@example.co / m") is left. */
 .admin-wrap {
   overflow-wrap: anywhere;
 }
 
 .admin-filter {
   max-inline-size: 18rem;
+}
+
+/* Next/Previous bring the table's top back into view (Pagination scrollTarget): a little air above it, and on a phone
+   clear of the sticky app bar. */
+.admin-paged {
+  scroll-margin-top: var(--s4);
+}
+
+@media (max-width: 639px) {
+  .admin-paged {
+    scroll-margin-top: calc(var(--phone-header-h) + var(--s4));
+  }
 }
 
 .admin-json-viewer {
@@ -272,7 +285,9 @@
   font-family: var(--font-mono);
   font-size: var(--fs-meta);
   line-height: 1.5;
-  white-space: pre;
+  /* Long strings wrap inside the box (indentation kept), so nothing hides past the right edge or scrolls sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* A failed fetch: the reason in words, the recorded error class under it in small mono. */

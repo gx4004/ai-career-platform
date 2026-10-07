@@ -32,6 +32,7 @@ export function CoverLetterToolPage() {
         >
           <ResumeSource
             id="cover-letter-resumeText"
+            toolId="cover-letter"
             label={resumeField.label}
             placeholder={resumeField.placeholder}
             rows={resumeField.rows}
@@ -59,7 +60,8 @@ export function CoverLetterToolPage() {
             />
           </Field>
 
-          <Field label={toneField.label} optional>
+          {/* Not "Optional": the control always holds a tone (Professional unless another is picked), so it cannot be skipped. */}
+          <Field label={toneField.label}>
             <Segmented
               value={String(draft.tone ?? '')}
               options={(toneField.choices ?? []).map((choice) => ({

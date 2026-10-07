@@ -38,6 +38,31 @@
   --kit-dialog-w: 45rem;
 }
 
+/* Anchored near the top: the top edge stays put while the body grows or shrinks (a stepper, a filtered list). */
+.kit-dialog[data-placement='top'] {
+  inset-block: min(12vh, 6rem) auto;
+  margin-block: 0;
+  max-height: calc(100vh - min(12vh, 6rem) - var(--s4));
+  max-height: calc(100dvh - min(12vh, 6rem) - var(--s4));
+}
+
+/*
+ * Phones: while toasts are up they sit at the top edge (toast.css), and the dialog centres in the room left below
+ * them (toast.tsx publishes their height as --kit-toast-stack), so a toast never covers its title or its buttons.
+ */
+@media (max-width: 767px) {
+  :root:has(.kit-toast-region .kit-toast) .kit-dialog {
+    inset-block-start: calc(var(--kit-toast-stack, 0px) + var(--s4) * 2 + env(safe-area-inset-top, 0px));
+    max-height: calc(100vh - var(--kit-toast-stack, 0px) - var(--s4) * 3);
+    max-height: calc(100dvh - var(--kit-toast-stack, 0px) - var(--s4) * 3 - env(safe-area-inset-top, 0px));
+  }
+}
+
+/* A dialog given a fixed block size (a stepper that must not move its buttons) keeps its footer at the bottom. */
+.kit-dialog > .kit-panel__footer {
+  margin-block-start: auto;
+}
+
 .kit-dialog[data-state='open'] {
   animation: kit-pop-in var(--duration-overlay) var(--ease-out);
 }

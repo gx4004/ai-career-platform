@@ -1,16 +1,23 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   countOf,
   breakdownInsight,
+  careerStartLine,
+  careerVerdict,
   FixFirstList,
   formatLetterDate,
   lowestTwo,
   resultDefinitions,
   roleFitLabel,
+  roleFitLevel,
   uniqueRequirementCount,
 } from '#/lib/tools/resultDefinitions'
 import { tools } from '#/lib/tools/registry'
+import { ResultChromeContext } from '#/components/tooling/ResultParts'
+import { ClaimPromotionSection } from '#/components/profile/ClaimPromotionSection'
+import { EVIDENCE_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 
 function makeItem(toolName: string, resultPayload: Record<string, unknown>): ToolRunDetail {
@@ -513,6 +520,141 @@ describe('cover letter helpers', () => {
   })
 })
 
+// Sign-off tool-results-F59: a letter without a sign-off is signed with the signed-in person's name, on the page and
+// in what Copy and Export hand over; the "[Your name]" placeholder is only for a guest or an account without a name.
+describe('cover letter sign-off', () => {
+  const payload = {
+    opening: { text: 'Dear team,' },
+    body_points: [{ text: 'Body.' }],
+    closing: { text: 'Thanks.' },
+    generated_at: '2026-03-13T10:00:00Z',
+  }
+
+  it("signs with the account's name when the letter has no sign-off", () => {
+    const item = { ...makeItem('cover-letter', payload), id: 'run-signed' }
+    const definition = resultDefinitions['cover-letter']
+    render(
+      <ResultChromeContext.Provider value={{ setPracticing: () => {}, reveal: false, signerName: 'Tess Throwaway' }}>
+        {definition.render(payload, item, tools['cover-letter'])}
+      </ResultChromeContext.Provider>,
+    )
+    expect(document.querySelector('.result-sheet__sign')?.textContent).toBe('Sincerely,Tess Throwaway')
+    expect(screen.queryByText(/\[Your name\]/)).toBeNull()
+    expect(definition.copyText(payload, item)).toMatch(/Thanks\.\n\nSincerely,\nTess Throwaway$/)
+    expect(definition.download?.(payload, item)?.content).toMatch(/Sincerely,\nTess Throwaway$/)
+  })
+
+  it('keeps the placeholder for a guest, on the page and in the copy alike', () => {
+    const item = { ...makeItem('cover-letter', payload), id: 'run-guest' }
+    const definition = resultDefinitions['cover-letter']
+    render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
+    expect(document.querySelector('.result-sheet__sign')?.textContent).toBe('Sincerely,[Your name]')
+    expect(definition.copyText(payload, item)).toMatch(/Sincerely,\n\[Your name\]$/)
+  })
+})
+
+// Sign-off tool-results-F58: the Career report closed on a canned "Note" ("...to maximize your timeline"). Its
+// replacement is read from the payload: the most urgent gap and the timeline, or nothing at all.
+describe('careerStartLine', () => {
+  const gap = (skill: string, urgency: string) => ({ skill, urgency })
+
+  it('names the most urgent gap and the timeline', () => {
+    expect(careerStartLine([gap('Delegation', 'medium'), gap('Cloud Architecture', 'high'), gap('SQL', 'low')], '0-3 months')).toBe(
+      'Start with Cloud Architecture: it is the most urgent of the 3 skill gaps above. The move is estimated at 0-3 months.',
+    )
+  })
+
+  it('takes the first listed among equally urgent gaps, and says so', () => {
+    expect(careerStartLine([gap('Delegation', 'high'), gap('Strategy', 'high')], '6-12 months')).toBe(
+      'Start with Delegation: it is listed first of the 2 high-urgency gaps above. The move is estimated at 6-12 months.',
+    )
+  })
+
+  it('handles one gap, a missing timeline, and no gap at all', () => {
+    expect(careerStartLine([gap('Kubernetes', 'low')], 'Timeline not specified')).toBe(
+      'Start with Kubernetes: it is the one skill gap this move names.',
+    )
+    expect(careerStartLine([], '0-3 months')).toBeNull()
+  })
+
+  it('renders as "Where to start" after the gaps, and no "Note" section', () => {
+    const payload = {
+      recommended_direction: { role_title: 'Staff Engineer', fit_score: 80, transition_timeline: '0-3 months', confidence: 'high' },
+      skill_gaps: [{ skill: 'Cloud Architecture', urgency: 'high' }],
+    }
+    render(<>{resultDefinitions.career.render(payload, makeItem('career', payload), tools.career)}</>)
+    expect(screen.getByRole('heading', { name: 'Where to start' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Note' })).toBeNull()
+    expect(screen.getByText(/Start with Cloud Architecture/)).toBeTruthy()
+  })
+})
+
+// Sign-off tool-results-F57: one rule for counted headings. Every report section whose content is a list or a table of
+// N items says N in its count pill (the roadmap's "3-step" title already carries its number).
+describe('counted section headings', () => {
+  const runs: Array<[keyof typeof resultDefinitions, Record<string, unknown>]> = [
+    [
+      'job-match',
+      {
+        match_score: 60,
+        requirements: [{ requirement: 'Python', status: 'matched' }, { requirement: 'Go', status: 'missing' }],
+        top_actions: [],
+        tailoring_actions: [{ keyword: 'Go', action: 'Name the Go service.' }],
+        interview_focus: ['Talk about on-call.'],
+      },
+    ],
+    ['cover-letter', { opening: { text: 'Hi.' }, body_points: [{ text: 'Body.' }], closing: { text: 'Bye.' }, customization_notes: [{ category: 'tone', note: 'Warmer.' }] }],
+    [
+      'interview',
+      {
+        questions: [{ question: 'Q?', answer: 'A.' }],
+        focus_areas: [{ title: 'APIs' }, { title: 'Teams' }],
+        weak_signals_to_prepare: [{ title: 'Scale' }],
+        interviewer_notes: ['Ask about scope.'],
+      },
+    ],
+    [
+      'career',
+      {
+        recommended_direction: { role_title: 'Staff Engineer', fit_score: 70 },
+        paths: [{ role_title: 'Staff Engineer', fit_score: 70 }, { role_title: 'Manager', fit_score: 60 }],
+        skill_gaps: [{ skill: 'Strategy', urgency: 'high' }],
+        next_steps: [{ timeframe: 'Month 1', action: 'Do it.' }],
+      },
+    ],
+    ['portfolio', { projects: [{ project_title: 'P1', deliverables: ['Repo', 'Write-up'] }], sequence_plan: [{ order: 1 }], presentation_tips: ['Lead with the outcome.'] }],
+  ]
+
+  it.each(runs)('%s: every list or table section carries its count', (tool, payload) => {
+    const { container, unmount } = render(<>{resultDefinitions[tool].render(payload, makeItem(tool, payload), tools[tool])}</>)
+    const listed = Array.from(container.querySelectorAll<HTMLElement>('section[data-toc-title]')).filter(
+      (section) => section.querySelector('.kit-list, table, ol') && !/\d/.test(section.dataset.tocTitle ?? ''),
+    )
+    expect(listed.length).toBeGreaterThan(0)
+    const uncounted = listed.filter((section) => !section.querySelector('.kit-section__count')).map((s) => s.dataset.tocTitle)
+    expect(uncounted).toEqual([])
+    unmount()
+  })
+
+  // Sign-off tool-results-F69: "Save to your profile", appended under the report, lists the run's claims too, so it
+  // follows the same rule (it sat uncounted under "Interviewer notes (2)").
+  it.each([
+    ['cover-letter', { body_points: [{ text: 'Shipped the billing rewrite.' }, { text: 'Cut deploy time in half.' }] }, 2],
+    ['interview', { questions: [{ question: 'Q1?', answer: 'A1.' }, { question: 'Q2?', answer: 'A2.' }, { question: 'Q3?', answer: 'A3.' }] }, 3],
+  ] as const)('%s: "Save to your profile" carries the count of its claims', (tool, payload, n) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    client.setQueryData(EVIDENCE_QUERY_KEY, [])
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <ClaimPromotionSection toolId={tool} payload={payload} authenticated />
+      </QueryClientProvider>,
+    )
+    const section = container.querySelector('section')
+    expect(section?.querySelectorAll('.kit-list .kit-row')).toHaveLength(n)
+    expect(section?.querySelector('.kit-section__count')?.textContent).toBe(String(n))
+  })
+})
+
 describe('FixFirstList', () => {
   const actions = [
     { title: 'A', action: 'do a', priority: 'high' },
@@ -536,6 +678,8 @@ describe('FixFirstList', () => {
     expect((more as HTMLElement).style.counterReset).toBe('')
     const rows = Array.from(more.querySelectorAll<HTMLElement>(':scope > .kit-row'))
     expect(rows.map((row) => row.style.counterSet)).toEqual(['kit-row 3'])
+    // On a phone its severity badge drops under the text (kit RowMeta below), so the title keeps the full width.
+    expect(rows[0].querySelector('.kit-row__meta')?.getAttribute('data-placement')).toBe('below')
   })
 
   it('renders nothing without actions', () => {
@@ -594,6 +738,25 @@ describe('result summary', () => {
     })
     expect(summary.bars).toEqual([{ label: 'Requirements met', value: 1, max: 2, valueLabel: '1 of 2' }])
     expect(summary.facts.map((f) => f.label)).toEqual(['Verdict', 'Keywords found', 'Keywords missing'])
+  })
+
+  // Sign-off tool-results-F53: a missing score is not a zero. The seal draws its "not available" state (STICKER 5.9),
+  // the verdict colour comes from the words alone, and the copied text says so instead of "0/100".
+  it('passes a missing resume or match score through as null, never as 0', () => {
+    const resume = { overall_score: null, summary: { verdict: 'Advisory review' } }
+    const summary = resultDefinitions.resume.summary(resume)
+    expect(summary.score).toEqual({ value: null, label: 'Resume score', unit: '/100' })
+    expect(summary.verdict).toEqual({ label: 'Advisory review', tone: 'lemon' })
+    expect(resultDefinitions.resume.summary({ overall_score: null, summary: { verdict: 'Reviewed' } }).verdict?.tone).toBe('white')
+    const item = makeItem('resume', resume)
+    expect(resultDefinitions.resume.copyText(resume, item)).toContain('Resume score: not available')
+    expect(resultDefinitions.resume.copyText(resume, item)).not.toContain('0/100')
+
+    const match = { match_score: null, verdict: 'borderline' }
+    expect(resultDefinitions['job-match'].summary(match).score?.value).toBeNull()
+    expect(resultDefinitions['job-match'].copyText(match, makeItem('job-match', match))).toContain('Match score: not available')
+    // A real zero is still a score.
+    expect(resultDefinitions.resume.summary({ overall_score: 0 }).score?.value).toBe(0)
   })
 
   it('has no score for generative tools', () => {
@@ -782,5 +945,71 @@ describe('cover letter sheet', () => {
     render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
     expect((screen.getByLabelText('Opening paragraph') as HTMLTextAreaElement).value).toBe('My own opening.')
     vi.unstubAllGlobals()
+  })
+})
+
+describe('sign-off r2 wording and tones', () => {
+  // A 74 read "High match" over a rationale saying it was not yet a strong match: the FitStamp bands decide.
+  it('words the role fit on the app fit bands', () => {
+    expect(roleFitLevel(86).label).toBe('Strong match')
+    expect(roleFitLevel(80).label).toBe('Strong match')
+    expect(roleFitLevel(74).label).toBe('Good match')
+    expect(roleFitLevel(65).label).toBe('Good match')
+    expect(roleFitLevel(64).label).toBe('Stretch')
+  })
+
+  // The career verdict sticker is toned by confidence: its words now say the confidence, in one short line.
+  it('says the career confidence on the sticker that is coloured by it', () => {
+    expect(careerVerdict('Best next move identified', 'medium', 76)).toEqual({ label: 'Medium confidence', tone: 'lemon' })
+    expect(careerVerdict('Best next move identified', 'high', 88)).toEqual({ label: 'High confidence', tone: 'mint' })
+    expect(careerVerdict('Strong fit', '', 88)).toEqual({ label: 'Strong fit', tone: 'mint' })
+  })
+
+  it('puts an alternative path rationale under its role, not in a narrow last column', () => {
+    const payload = {
+      summary: { headline: 'h', verdict: 'v', confidence_note: '' },
+      recommended_direction: { role_title: 'Staff Engineer', fit_score: 76, transition_timeline: '6 months', confidence: 'medium' },
+      paths: [
+        { role_title: 'Staff Engineer', fit_score: 76, transition_timeline: '6 months', risk_level: 'medium', rationale: 'Main.' },
+        { role_title: 'Platform Engineer', fit_score: 70, transition_timeline: '3-6 months', risk_level: 'low', rationale: 'Builds on the infra work you already lead.' },
+        { role_title: 'Engineering Manager', fit_score: 60, transition_timeline: '12 months', risk_level: 'high', rationale: 'People leadership is thin so far.' },
+      ],
+    }
+    render(resultDefinitions.career.render(payload, makeItem('career', payload), tools.career))
+    expect(screen.queryByRole('columnheader', { name: 'Rationale' })).toBeNull()
+    const row = screen.getByRole('rowheader', { name: /Platform Engineer/ })
+    expect(row.textContent).toContain('Builds on the infra work you already lead.')
+  })
+
+  it('counts questions and projects with the numeric pill, like every other section', () => {
+    const interview = {
+      summary: { headline: 'h', verdict: 'v', confidence_note: '' },
+      questions: [
+        { question: 'Tell me about a migration.', focus_area: 'Delivery' },
+        { question: 'How do you debug latency?', focus_area: 'Observability' },
+      ],
+    }
+    const { unmount } = render(resultDefinitions.interview.render(interview, makeItem('interview', interview), tools.interview))
+    const section = screen.getByRole('heading', { name: /Question breakdown/ }).closest('section') as HTMLElement
+    expect(section.querySelector('.kit-section__count')?.textContent).toBe('2')
+    unmount()
+  })
+
+  it('gives project complexity no hue: "Start here" is the one coloured badge on a card', () => {
+    const payload = {
+      summary: { headline: 'h', verdict: 'v', confidence_note: '' },
+      projects: [
+        { project_title: 'Intake Service', complexity: 'foundational', hiring_signals: ['Operational clarity under load'] },
+        { project_title: 'Event Pipeline', complexity: 'advanced' },
+      ],
+      recommended_start_project: 'Intake Service',
+    }
+    render(resultDefinitions.portfolio.render(payload, makeItem('portfolio', payload), tools.portfolio))
+    for (const label of ['Foundational', 'Advanced']) {
+      expect(screen.getByText(label).closest('.kit-badge')?.getAttribute('data-tone')).toBe('info')
+    }
+    expect(screen.getByText('Operational clarity under load').closest('.kit-badge')?.getAttribute('data-wrap')).toBe('true')
+    const section = screen.getByRole('heading', { name: /The build sequence/ }).closest('section') as HTMLElement
+    expect(section.querySelector('.kit-section__count')?.textContent).toBe('2')
   })
 })

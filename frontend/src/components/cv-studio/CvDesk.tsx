@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ExternalLink, MousePointer2, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button, Sticker } from '#/components/kit'
+import { useCoarsePointer } from '#/hooks/use-coarse-pointer'
 
 /**
  * The desk the paper lies on: a grey stage with the hint sticker, the way to the exact PDF, and
@@ -15,11 +16,13 @@ export function CvDesk({ children, phone, zoom, onZoomChange, pdfDisabled, onVie
   pdfDisabled: boolean
   onViewPdf: () => void
 }) {
+  // The verb follows the pointer: a 1024px window with a mouse clicks, a phone or tablet taps.
+  const touch = useCoarsePointer()
   return (
     <section className="cvs-desk" aria-label="Live preview" data-zoom={phone ? zoom : 'fit'}>
       <div className="cvs-desk__top">
         <Sticker size="sm" tone="lemon" tilt={-2} className="cvs-desk__hint">
-          <MousePointer2 aria-hidden="true" />{phone ? 'Tap a section to edit' : 'Click a section to edit'}
+          <MousePointer2 aria-hidden="true" />{touch ? 'Tap a section to edit' : 'Click a section to edit'}
         </Sticker>
         <div className="cvs-desk__actions">
           {phone ? (

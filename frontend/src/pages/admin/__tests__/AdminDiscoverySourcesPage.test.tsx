@@ -149,7 +149,33 @@ describe('AdminDiscoverySourcesPage', () => {
     retrySourceFetchMock.mockRejectedValue(new ApiError('Rate limit exceeded: 6 per 1 minute', 429, undefined, { retryAfter: 60 }))
     renderPage([failedBoard()])
     fireEvent.click(await screen.findByRole('button', { name: 'Retry fetch' }))
-    expect(await screen.findByText(/^Too many attempts\. Try again in 60/)).toBeTruthy()
+    const words = await screen.findByText(/^Too many attempts\. Try again in 60/)
+    // account-admin-AAG-F03: said where the click happened (a toast), not in a notice at the top of a long page.
+    expect(words.closest('.kit-toast')?.getAttribute('data-tone')).toBe('danger')
+    expect(screen.getByText('The fetch did not run').closest('.kit-toast')).toBeTruthy()
+    expect(document.querySelector('.kit-notice')).toBeNull()
+  })
+
+  it('says a failed trip in a toast, with the server\'s words and no terms-review explanation (AAG-F03, F07)', async () => {
+    setDiscoverySourceKillSwitchMock.mockRejectedValue(new ApiError('The server ran into a problem.', 503))
+    renderPage([source({ kill_switch: false })])
+    fireEvent.click(await screen.findByRole('button', { name: 'Trip kill switch' }))
+    const title = await screen.findByText('The kill switch was not tripped')
+    const toast = title.closest('.kit-toast')
+    expect(toast?.getAttribute('data-tone')).toBe('danger')
+    expect(toast?.textContent).toContain('The server ran into a problem.')
+    expect(toast?.textContent).not.toContain('terms review')
+    expect(document.querySelector('.kit-notice')).toBeNull()
+  })
+
+  it('says a refused clear in a toast, in the server\'s own reason', async () => {
+    setDiscoverySourceKillSwitchMock.mockRejectedValue(
+      new ApiError('A source cannot activate before its terms review is accepted', 409),
+    )
+    renderPage([source({ kill_switch: true, ingestion_allowed: false })])
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear kill switch' }))
+    const toast = (await screen.findByText('The kill switch was not cleared')).closest('.kit-toast')
+    expect(toast?.textContent).toContain('A source cannot activate before its terms review is accepted')
   })
 
   it('offers no fetch for a source the server would refuse (not a board, kill switch on, terms pending)', async () => {
@@ -183,6 +209,12 @@ describe('AdminDiscoverySourcesPage', () => {
     await waitFor(() =>
       expect(setDiscoverySourceKillSwitchMock).toHaveBeenCalledWith('source-1', true),
     )
+  })
+
+  it('stacks the kill-switch control on a line of its own, so the source and its policy keep the full width (account-admin-AA-F15)', async () => {
+    renderPage([source({ kill_switch: false })])
+    const trip = await screen.findByRole('button', { name: 'Trip kill switch' })
+    expect(trip.closest('td')?.getAttribute('data-stack-actions')).toBe('below')
   })
 
   it('offers a clear control when the kill switch is tripped', async () => {
@@ -234,6 +266,32 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(screen.queryByText('Show source name and original link')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Policy' }))
     expect(screen.getByText('Show source name and original link')).toBeTruthy()
+  })
+
+  it('says in words what a source may do, labelled, never the raw enum', async () => {
+    renderPage([source({ allowed_behavior: 'ats_integration' })])
+    expect(await screen.findByText('Licensed Example Feed')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Policy' }))
+    expect(screen.queryByText('ats_integration')).toBeNull()
+    expect(screen.getByText('Allowed', { selector: 'dt' }).nextElementSibling?.textContent).toBe('Reads the employer’s public job-board API')
+    expect(screen.getByText('Attribution', { selector: 'dt' }).nextElementSibling?.textContent).toBe('Show source name and original link')
+  })
+
+  it('shows a load failure with the rose icon disc and a sentence on what it means', async () => {
+    getAdminDiscoverySourcesMock.mockRejectedValue(new Error('500'))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <AdminDiscoverySourcesPage />
+        </ToastProvider>
+      </QueryClientProvider>,
+    )
+    // The toast region is also a live alert region: find the error state by its title.
+    const alert = (await screen.findByText("Couldn't load discovery sources")).closest('.kit-error') as HTMLElement
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(alert.textContent).toContain("The server didn't send the list. Nothing was changed.")
+    expect(alert.querySelector('.kit-empty__icon svg')).toBeTruthy()
   })
 
   it('names a refused ingestion and a tripped kill switch', async () => {

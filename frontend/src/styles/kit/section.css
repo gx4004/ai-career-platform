@@ -46,8 +46,31 @@
   overflow-wrap: anywhere;
 }
 
-/* A group inside another section or a disclosure: its title steps down to UI type so the outer heading stays the loudest. */
+/* A group inside another section or a disclosure: its title steps down to the card heading (20px, under the 24px section
+   heading) so the outer heading stays the loudest, but keeps the display face so it still reads as a heading over 14px
+   field labels and row titles (account-admin-F21: at 15px Onest bold it read as one more field label). 20px, not 19:
+   every sub-section and card heading is --fs-title, so Profile's "Experience" matches the panel title beside it
+   (consistency-F04). */
 .kit-section[data-size='sm'] > .kit-section__head .kit-section__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-title);
+  letter-spacing: var(--ls-title);
+}
+
+/* card: the h-card face (display 20/800, STICKER 1.4) for a narrow column's heading set beside a mark, the applications
+   board's stage name next to its StageMark count. */
+.kit-section[data-size='card'] > .kit-section__head .kit-section__title {
+  font-size: var(--fs-title);
+  line-height: 1.1;
+  letter-spacing: var(--ls-title);
+}
+
+/* The name of an object in a narrow card (a CV entry beside its move and delete tools): the row title's type
+   (.kit-row__title, UI 15/700). The display face at 19px broke "B.S. Computer Science, University of Texas" into four
+   lines in the ~170px beside the tools (cv-studio-F05); at row-title size it wraps in two. */
+.kit-section[data-size='xs'] > .kit-section__head .kit-section__title {
   font-family: var(--font-ui);
   font-size: var(--fs-body);
   font-weight: var(--fw-bold);
@@ -78,6 +101,54 @@
   }
 }
 
+/* actionsWrap={false}: one short control that belongs to its heading stays beside it at every width; the title takes
+   the room that is left and wraps (history-profile-F38: a ghost "Clear" on a line of its own read as a stray control). */
+.kit-section[data-actions-wrap='false'] > .kit-section__head > .kit-section__row {
+  flex-wrap: nowrap;
+}
+
+.kit-section[data-actions-wrap='false'] > .kit-section__head > .kit-section__row > .kit-section__title {
+  flex: 1 1 auto;
+}
+
+.kit-section[data-actions-wrap='false'] > .kit-section__head > .kit-section__row > .kit-section__actions {
+  flex: none;
+  flex-wrap: nowrap;
+  margin-inline-start: auto;
+}
+
+/* xs + actionsWrap={false}: an object's name in a narrow card beside its tools (a CV entry beside move up, move down
+   and delete). A name that wraps keeps the tools at its first line, and under a mouse the ghost icons sit 4px apart
+   (their 16px glyphs are still 24px apart), leaving the name the width a 22-character line needs; touch keeps 8px
+   between its 44px targets (cv-studio-F05). */
+.kit-section[data-size='xs'][data-actions-wrap='false'] > .kit-section__head > .kit-section__row {
+  align-items: flex-start;
+}
+
+@media (pointer: fine) {
+  .kit-section[data-size='xs'][data-actions-wrap='false'] > .kit-section__head > .kit-section__row > .kit-section__actions {
+    gap: var(--space-1);
+  }
+}
+
+/* Phones: a head with a description and actions stacks as heading, description, actions. Wrapping the row put the
+   action between the heading and the sentence that explains it. actionsWrap={false} keeps its one control beside
+   the title here too, with the description under both. */
+@media (max-width: 639px) {
+  .kit-section:not([data-actions-wrap='false']) > .kit-section__head:has(> .kit-section__description):has(> .kit-section__row > .kit-section__actions) > .kit-section__row {
+    display: contents;
+  }
+
+  .kit-section:not([data-actions-wrap='false']) > .kit-section__head:has(> .kit-section__description) > .kit-section__row > .kit-section__actions {
+    order: 2;
+    margin-block-start: var(--space-2);
+  }
+
+  .kit-section:not([data-actions-wrap='false']) > .kit-section__head:has(> .kit-section__row > .kit-section__actions) > .kit-section__description {
+    order: 1;
+  }
+}
+
 .kit-section__description {
   max-width: 46rem;
   margin: 0;
@@ -93,6 +164,11 @@
 /* A list, table or key-value block sits directly under the rule: its rows bring their own padding. */
 .kit-section[data-rule]:has(> .kit-section__body > :is(.kit-list:not([data-framed]), .kit-kv):first-child) {
   gap: 0;
+}
+
+/* A list right under its own heading (List boxed="end"): the heading sits on its first row, a field label's gap. */
+.kit-section:has(> .kit-section__body > .kit-list[data-boxed='end']:not([data-framed]):first-child) {
+  gap: var(--s2);
 }
 
 /* ── Notice ─────────────────────────────────────────────────────────── */
@@ -184,6 +260,27 @@
   margin-inline-end: calc(var(--space-2) * -1);
 }
 
+/*
+ * actionPlacement="below": a choice (two buttons) on its own line under the text at every width, lined up
+ * with the text past the icon. Beside the text it squeezed the sentence to a 190px column on a tablet.
+ */
+.kit-notice[data-action-placement='below'] {
+  flex-wrap: wrap;
+}
+
+.kit-notice[data-action-placement='below'] .kit-notice__action {
+  order: 2;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  box-sizing: border-box;
+  gap: var(--space-2);
+  margin-block: 0;
+}
+
+.kit-notice[data-action-placement='below'] .kit-notice__icon ~ .kit-notice__action {
+  padding-inline-start: calc(1.25rem + var(--space-3));
+}
+
 /* On a phone the action drops under the text instead of squeezing it. */
 @media (max-width: 479px) {
   .kit-notice {
@@ -203,6 +300,19 @@
     order: 2;
     flex-basis: 100%;
     margin-block: 0;
+  }
+
+  /* A choice spans the notice like a single action: under the icon too, so two buttons keep one row at 320px. */
+  .kit-notice[data-action-placement='below'] .kit-notice__icon ~ .kit-notice__action {
+    padding-inline-start: 0;
+  }
+}
+
+/* The narrowest phones: a notice nested in a form panel keeps a usable text column (12px padding, 8px to the icon). */
+@media (max-width: 359px) {
+  .kit-notice {
+    gap: var(--space-2);
+    padding: var(--s3);
   }
 }
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ScoreSeal } from '#/components/kit'
@@ -166,5 +168,36 @@ describe('ScoreSeal under reduced motion', () => {
   it('shows the final number at once even when a reveal is requested (the jsdom default is reduced motion)', () => {
     const { container } = render(<ScoreSeal value={77} label="Resume score" reveal="stamp" />)
     expect(container.querySelector('.kit-seal__num')?.textContent).toBe('77')
+  })
+})
+
+describe('kit ScoreSeal type floor', () => {
+  // A 132px seal (the landing closer on phones) put "/100" at 7.5% = 9.9px (sign-off public-F08).
+  it('keeps the unit at 0.075 x the seal but never under the 12px text minimum', () => {
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/seal.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = css.match(/\.kit-seal__of\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(rule).toMatch(/font-size:\s*max\(var\(--fs-micro\),\s*7\.5cqw\)/)
+    expect(readFileSync(path.resolve(__dirname, '../../../styles/theme.css'), 'utf8')).toMatch(/--fs-micro:\s*0\.75rem/)
+  })
+})
+
+describe('kit ScoreSeal reveal ring', () => {
+  const strip = (file: string) =>
+    readFileSync(path.resolve(__dirname, `../../../styles/kit/${file}`), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+
+  // A transform counts toward the page's scrollable overflow. The ring scaled to 1.35 and fill-mode forwards held it
+  // there, so a seal near the right edge of a 320px phone left the document 327px wide and the page zoomed out after
+  // the "applied" stamp (applications-discovery-F29). The ring now grows by outline-offset, which is ink overflow
+  // only, and nothing holds an end state.
+  it('pulses out without a transform and without holding its end state, so it never widens the page', () => {
+    const ring = strip('foundation.css').match(/@keyframes kit-ring\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
+    expect(ring).not.toBe('')
+    expect(ring).not.toMatch(/transform|scale|inset|width|height|margin/)
+    expect(ring).toMatch(/outline-offset/)
+    const after = strip('seal.css').match(/\.kit-seal\[data-reveal='stamp'\]::after\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(after).toMatch(/animation:\s*kit-ring\b/)
+    expect(after).not.toMatch(/\b(forwards|both)\b/)
+    expect(after).not.toMatch(/\bborder\s*:/)
+    expect(after).toMatch(/outline:\s*var\(--bw\) solid var\(--ink\)/)
   })
 })

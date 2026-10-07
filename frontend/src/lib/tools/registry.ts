@@ -244,7 +244,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
       'Why each project fits, and the skills it shows.',
       'Tips for presenting the work, and what to deliver.',
     ],
-    entryPointLabel: 'Plan proof projects',
+    entryPointLabel: 'Generate roadmap',
     resultTitle: 'Portfolio Planner',
     emptyStateTitle: 'Plan proof-building projects.',
     emptyStateBody: 'Choose a direction and turn missing evidence into concrete work you can ship.',

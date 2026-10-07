@@ -1,10 +1,14 @@
+import { useEffect } from 'react'
 import { Link, useCanGoBack, useRouter } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { StatePage } from '#/components/app/AppStatePanel'
 import { openCommandPalette } from '#/components/app/CommandPalette'
 import { Button, Kbd, List, Page, Row, RowBody, RowLeading, RowSubtitle, RowTitle, Section, ToolTile } from '#/components/kit'
+import { useShortcutLabel } from '#/hooks/use-mod-key'
 import { useSession } from '#/hooks/useSession'
 import { toolList } from '#/lib/tools/registry'
+
+const NOT_FOUND_TITLE = 'Page not found | Career Workbench'
 
 /**
  * The 404: a big lemon seal, one line on what happened, and the way out. When the visitor came from another
@@ -14,8 +18,20 @@ export function AppNotFound() {
   const { status } = useSession()
   const signedIn = status === 'authenticated'
   const router = useRouter()
+  const searchShortcut = useShortcutLabel('K')
   // The router's own history index: true only when the previous entry is a page of this app, never another site.
   const canGoBack = useCanGoBack()
+
+  // The root head only knows "Career Workbench"; tab lists and screen readers should hear that this is a 404.
+  // On the way out the next route's head has usually written its own title already (same commit, before this
+  // passive cleanup), so the old title is put back only while the 404's is still showing.
+  useEffect(() => {
+    const previous = document.title
+    document.title = NOT_FOUND_TITLE
+    return () => {
+      if (document.title === NOT_FOUND_TITLE) document.title = previous
+    }
+  }, [])
 
   const home = signedIn
     ? { to: '/dashboard', label: 'Back to the dashboard' }
@@ -44,7 +60,7 @@ export function AppNotFound() {
       <Button type="button" variant="secondary" className="not-found-search" onClick={openCommandPalette}>
         <Search aria-hidden />
         <span>Search tools, pages and runs</span>
-        <Kbd className="not-found-search__kbd">⌘K</Kbd>
+        <Kbd className="not-found-search__kbd">{searchShortcut}</Kbd>
       </Button>
       <Section title="Or open a tool" className="not-found-tools">
         <List aria-label="Tools">

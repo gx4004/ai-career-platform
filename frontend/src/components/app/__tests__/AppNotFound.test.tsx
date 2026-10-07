@@ -67,6 +67,23 @@ describe('AppNotFound', () => {
     }
   })
 
+  it('names the tab "Page not found" while it is shown and gives the old title back after', () => {
+    document.title = 'Career Workbench'
+    const { unmount } = render(<AppNotFound />)
+    expect(document.title).toBe('Page not found | Career Workbench')
+    unmount()
+    expect(document.title).toBe('Career Workbench')
+  })
+
+  it('leaves the next page its own title when the router has already set it', () => {
+    document.title = 'Career Workbench'
+    const { unmount } = render(<AppNotFound />)
+    // Navigating away: the next route's head writes its title in the same commit, before this unmounts.
+    document.title = 'Dashboard | Career Workbench'
+    unmount()
+    expect(document.title).toBe('Dashboard | Career Workbench')
+  })
+
   it('leads a signed-in user to the dashboard first', () => {
     session.status = 'authenticated'
     render(<AppNotFound />)

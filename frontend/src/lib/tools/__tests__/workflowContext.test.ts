@@ -4,6 +4,7 @@ import {
   deriveWorkflowUpdateFromHistoryItem,
   deriveWorkflowUpdateFromResult,
   getWorkflowTargetRole,
+  originsAfterRun,
 } from '#/lib/tools/workflowContext'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { WorkflowContextState } from '#/lib/tools/drafts'
@@ -220,3 +221,44 @@ describe('getWorkflowTargetRole', () => {
   })
 })
 
+
+// The hand-off banner names where each carried value was supplied. A run records that, and never takes the credit for a
+// value it merely used (Resume upload -> Job Match -> Career Path: the resume is still from Resume Analyzer).
+describe('originsAfterRun', () => {
+  const resume = 'Jordan Rivera. Backend engineer, five years of Python.'
+  const job = 'Senior Backend Engineer at Northwind Labs.'
+
+  it('keeps the origin of a value the run did not change, and credits the run for a new one', () => {
+    const previous = { resumeText: resume, resumeOrigin: 'resume', jobDescription: job, jobOrigin: 'job-match', updatedAt: 1 } as WorkflowContextState
+    expect(originsAfterRun('cover-letter', previous, { resumeText: resume, jobDescription: job })).toMatchObject({
+      resumeOrigin: 'resume',
+      jobOrigin: 'job-match',
+    })
+    expect(originsAfterRun('cover-letter', previous, { resumeText: resume, jobDescription: 'A different posting.' }).jobOrigin).toBe('cover-letter')
+  })
+
+  it('takes the resume’s origin from the tab carry when the run used that text', () => {
+    const origins = originsAfterRun('job-match', null, { resumeText: resume }, { text: resume, origin: 'resume' })
+    expect(origins.resumeOrigin).toBe('resume')
+    expect(originsAfterRun('job-match', null, { resumeText: resume }, { text: 'other', origin: 'resume' }).resumeOrigin).toBe('job-match')
+  })
+
+  it('keeps a Re-generate’s “found in your account” label only while the text is the same', () => {
+    const previous = { resumeText: resume, resumeSource: 'your CV Studio CV “Platform CV”', resumeOrigin: 'cv-studio', updatedAt: 1 } as WorkflowContextState
+    expect(originsAfterRun('job-match', previous, { resumeText: resume })).toMatchObject({
+      resumeSource: 'your CV Studio CV “Platform CV”',
+      resumeOrigin: 'cv-studio',
+    })
+    expect(originsAfterRun('job-match', previous, { resumeText: 'Edited resume text.' }).resumeSource).toBeUndefined()
+  })
+
+  it('leaves fields the tool does not have alone, and follows the target role the next tool will see', () => {
+    const previous = { jobDescription: job, jobOrigin: 'job-match', selectedTargetRole: 'Staff Engineer', roleOrigin: 'career', updatedAt: 1 } as WorkflowContextState
+    const origins = originsAfterRun('resume', previous, { resumeText: resume, targetRole: 'Backend Engineer', roleOrigin: 'resume' })
+    expect('jobOrigin' in origins).toBe(false)
+    // The Resume run's own role sits behind the role Career Path selected, which is what a form shows: still Career Path's.
+    expect(origins.roleOrigin).toBe('career')
+    expect(originsAfterRun('career', previous, { selectedTargetRole: 'Platform Engineer', roleOrigin: 'career' }).roleOrigin).toBe('career')
+    expect(originsAfterRun('portfolio', null, { selectedTargetRole: 'Data Engineer', targetRole: 'Data Engineer' }).roleOrigin).toBe('portfolio')
+  })
+})

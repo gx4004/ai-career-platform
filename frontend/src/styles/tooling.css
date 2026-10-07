@@ -46,6 +46,11 @@
   }
 }
 
+/* "Drop your resume here: PDF or DOCX, up to 10 MB": where the hint wraps (1024), it breaks after the colon, never inside the formats. */
+.tool-drop-hint__formats {
+  white-space: nowrap;
+}
+
 /* The dot between "Paste text instead" and "Try with a sample resume": a separator on one line, gone where the pair wraps. */
 .tool-links__dot {
   color: var(--ink-3);
@@ -113,6 +118,20 @@
   border-inline-start: var(--bw) solid var(--line);
 }
 
+/* Phones: inside the form panel and the stone import panel, a third frame (indent and rule) left the Application select
+   ~198px at 320 ("Platform Engine…"). The group already reads as part of its checkbox right above it. */
+@media (max-width: 479px) {
+  .tool-attach {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+}
+
+/* The URL input takes the row and keeps at least 12rem; on a phone the Import button wraps under it instead of squeezing it. */
+.tool-import__url > .kit-input {
+  flex: 1 1 12rem;
+}
+
 /* The import panel sits inside the form panel: on a phone its own padding shrinks so notices keep a usable text column. */
 @media (max-width: 479px) {
   .kit-panel-surface__body.tool-import {
@@ -175,16 +194,42 @@
 
 /* ── Working panel: the same Panel the form was in (its height is set inline from the form), a tool tile that wobbles, the typical steps, a stepped track ── */
 
+/*
+ * The form's height (set inline as --tool-form-h at submit) is the floor, capped at 22rem: a short form does not make the
+ * page jump, and a tall one (Cover Letter, Interview) does not leave a mostly blank white box under the ~200px of status
+ * and steps while the run is in flight. The panel is the last block of the form column and the rail does not move, so the
+ * shrink costs nothing; ToolPageLoading scrolls the panel's top into view if a shorter page clamps the scroll. The content
+ * starts at the top, so the status never floats mid-panel between two empty bands.
+ */
 .tool-loading {
   display: grid;
-  align-content: center;
+  align-content: start;
+  min-block-size: min(var(--tool-form-h, 0px), 22rem);
   scroll-margin-top: var(--s4);
 }
 
-/* Phones: the sticky app header covers the top of the page; the panel scrolls in below it. */
+/*
+ * Phones: the sticky app header covers the top of the page and the floating tab tray its foot. A long form would make a
+ * panel taller than the screen, with Cancel below the fold and under the tab tray: the floor is capped at what fits between
+ * them, and still at 22rem (the content is ~450px; a whole-screen floor left ~200px of empty white under Cancel). The scroll
+ * margins are the header and the tray: ToolPageLoading reads them to tell whether the panel landed under either, and
+ * scrolls it to sit just under the header.
+ */
 @media (max-width: 639px) {
   .tool-loading {
-    scroll-margin-top: calc(var(--phone-header-h) + var(--s4));
+    min-block-size: min(
+      var(--tool-form-h, 0px),
+      22rem,
+      calc(100svh - var(--phone-header-h) - var(--mobile-tab-height) - var(--mobile-tab-offset) - env(safe-area-inset-bottom, 0px) - var(--s7))
+    );
+    scroll-margin-block: calc(var(--phone-header-h) + var(--s4))
+      calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s4));
+  }
+
+  /* A failed run's error is scrolled into view (ToolForm): clear of the app header above and the floating tab tray below. */
+  .tool-form__error {
+    scroll-margin-block: calc(var(--phone-header-h) + var(--s4))
+      calc(var(--mobile-tab-height) + var(--mobile-tab-offset) + env(safe-area-inset-bottom, 0px) + var(--s4));
   }
 }
 
@@ -197,9 +242,10 @@
   gap: var(--s5);
 }
 
-/* The way out of a long run: a ghost button under the steps, its label aligned with the text above. */
-.tool-loading__cancel {
-  margin-block-start: var(--s4);
+/* The way out of a long run: a ghost button after the steps (one column) or right under the track (two columns), its label
+   aligned with the track's left edge. */
+.cinematic-action {
+  display: flex;
   margin-inline-start: calc(var(--s3) * -1);
 }
 
@@ -214,8 +260,27 @@
 @container (min-width: 36rem) {
   .cinematic-loader {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: center;
+    /* Row 2 is flexible, so the taller steps column grows it and the first row stays the status and track's height:
+       Cancel sits right under the track. */
+    grid-template-rows: auto 1fr;
+    align-items: start;
     column-gap: var(--s8);
+  }
+
+  .cinematic-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .cinematic-steps {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .cinematic-action {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
   }
 }
 

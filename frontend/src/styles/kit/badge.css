@@ -69,16 +69,18 @@
   --tone: var(--rose);
 }
 
-/* Severity (set by SeverityBadge next to its semantic tone): High rose, Medium lemon, Low lilac. */
-.kit-badge[data-severity='high'] {
+/* Severity (set by SeverityBadge next to its semantic tone): High rose, Medium lemon, Low lilac. An explicit
+   white tone wins: a severity badge on a lemon Fix-first sticker is white (STICKER 1.10), where a lemon one
+   would vanish and a rose or lilac one would shout. */
+.kit-badge[data-severity='high']:not([data-tone='white']) {
   --tone: var(--rose);
 }
 
-.kit-badge[data-severity='medium'] {
+.kit-badge[data-severity='medium']:not([data-tone='white']) {
   --tone: var(--lemon);
 }
 
-.kit-badge[data-severity='low'] {
+.kit-badge[data-severity='low']:not([data-tone='white']) {
   --tone: var(--lilac);
 }
 
@@ -125,6 +127,18 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* wrap: a long label (an application's name) goes onto more lines rather than losing its end to an ellipsis. */
+.kit-badge[data-wrap='true'] {
+  flex: 0 1 auto;
+  border-radius: var(--r-md);
+  white-space: normal;
+}
+
+.kit-badge[data-wrap='true'] > .kit-badge__label {
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 
 /* ── Count ─────────────────────────────────────────────────────────── */

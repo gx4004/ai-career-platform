@@ -12,11 +12,6 @@
   background: var(--ground);
 }
 
-/* The cookie notice is fixed to the viewport: leave room under the form so it never covers the last controls. */
-html:has(.cookie-banner) .auth-page {
-  padding-bottom: 8rem;
-}
-
 .auth-page__main {
   display: flex;
   flex: 1 1 auto;
@@ -169,7 +164,9 @@ html:has(.cookie-banner) .auth-page {
 }
 
 @media (min-width: 1100px) {
-  .auth-page__layout {
+  /* Two tracks only when there is an aside to fill the second; a page without one (signed in, account ready,
+     reset password) keeps its single column centred instead of leaving the right half of the screen empty. */
+  .auth-page__layout:has(> .auth-aside) {
     grid-template-columns: minmax(0, 30rem) minmax(0, 26rem);
     align-items: start;
   }
@@ -178,11 +175,13 @@ html:has(.cookie-banner) .auth-page {
     margin: 0;
   }
 
+  /* The same lilac-soft desk as the landing hero collage, with its 2px ink outline (every panel has one). */
   .auth-aside {
     display: flex;
     flex-direction: column;
     gap: var(--s6);
     padding: var(--s7) var(--s6);
+    border: var(--bw) solid var(--ink);
     border-radius: var(--r-xl);
     background: var(--lilac-soft);
     margin-block-start: var(--s9);

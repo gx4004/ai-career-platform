@@ -4,8 +4,9 @@ import { SiteHeader } from '#/components/legal/SiteHeader'
 
 /**
  * The page around a sign-in form: brand and a way out at the top, one column of content on the ground.
- * The aside is decoration for wide screens (hidden from assistive tech and below 1100px). The grid keeps its
- * track when the aside is off, so the form column keeps one position between sign-in, reset and signed-in.
+ * The aside is decoration for wide screens (hidden from assistive tech and below 1100px). With the aside the
+ * grid has two tracks (the guest views: sign in, create account, forgot password share one column position);
+ * without it the single column is centred.
  */
 export function AuthShell({
   actions,
@@ -13,7 +14,7 @@ export function AuthShell({
   children,
 }: {
   actions?: ReactNode
-  /** The guest pitch beside the form. Off once the visitor is signed in (it would pitch an account they have); the column keeps its place. */
+  /** The guest pitch beside the form. Off for anyone who already has an account (signed in, resetting a password): it would pitch what they have. */
   aside?: boolean
   children: ReactNode
 }) {

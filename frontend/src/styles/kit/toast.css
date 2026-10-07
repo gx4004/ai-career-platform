@@ -37,6 +37,67 @@
   bottom: calc(var(--kit-toast-clearance, var(--s4)) + env(safe-area-inset-bottom, 0px));
 }
 
+/*
+ * What takes focus stays clear of the toasts (WCAG 2.4.11): while a toast is up, the page's scroll padding ends above
+ * the stack (the provider publishes its height as --kit-toast-stack) and the tray clearance under it, so Tab, and a
+ * page's scrollIntoView({ block: 'nearest' }) after a programmatic focus, stop with the control above the toasts.
+ * Only while a toast is up: with none, a padding would scroll the page whenever a sticky control near the viewport
+ * bottom takes focus (the rail avatar, the sidebar's legal links; r5 chrome-F14). The phone tray keeps its own
+ * clearance (shell.css).
+ */
+:root:has(.kit-toast-region > .kit-toast) {
+  scroll-padding-block-end: calc(var(--kit-toast-clearance, var(--s4)) + var(--kit-toast-stack, 0px) + var(--s4));
+}
+
+/*
+ * A bottom sheet or a dialog is open (phones): the toasts move to the top edge, over the scrim, so a toast never
+ * covers the sheet's rows or the dialog's footer buttons, or swallows a tap meant for them ("Saved", then the next
+ * row's Edit: the toast used to sit on the dialog's Cancel). They go compact (no description: the title and the
+ * actions say what happened and what you can do), and the sheet or dialog stops below them (sheet.css and
+ * dialog.css read the region's height from --kit-toast-stack): on a 640px phone the 15% a sheet leaves free is less
+ * than one toast.
+ */
+@media (max-width: 767px) {
+  :root:has(:is(.kit-sheet:is([data-side='bottom'], [data-side='responsive']), .kit-dialog)[data-state='open']) .kit-toast-region {
+    top: calc(var(--s4) + env(safe-area-inset-top, 0px));
+    bottom: auto;
+  }
+
+  :root:has(:is(.kit-sheet:is([data-side='bottom'], [data-side='responsive']), .kit-dialog)[data-state='open']) .kit-toast__description {
+    display: none;
+  }
+}
+
+/*
+ * A menu or popover is open: it is what the person is using now, so the toasts step under it (still over dialogs
+ * and sheets). An 8-second action toast used to cover the last items of a menu opened on a phone (AAG-F12).
+ */
+:root:has(:is(.kit-menu, .kit-popover)[data-state='open']) .kit-toast-region {
+  z-index: var(--z-yield);
+}
+
+/*
+ * A right-hand drawer is open (tablet and desktop): the toasts stand beside it, over the scrim, never on it. Bottom
+ * right they covered the drawer's last rows and buttons (Hidden jobs' Restore, F38). They stay bottom-right of the
+ * free space and narrow to fit it, so they never run off the left edge either.
+ */
+@media (min-width: 768px) {
+  :root:has(.kit-sheet:is([data-side='right'], [data-side='responsive'])[data-state='open']) .kit-toast-region {
+    --kit-toast-beside: min(30rem, 100vw);
+
+    right: calc(var(--kit-toast-beside) + var(--s4));
+    width: min(24rem, calc(100vw - var(--kit-toast-beside) - var(--s4) * 2));
+  }
+
+  :root:has(.kit-sheet:is([data-side='right'], [data-side='responsive'])[data-size='sm'][data-state='open']) .kit-toast-region {
+    --kit-toast-beside: min(24rem, 100vw);
+  }
+
+  :root:has(.kit-sheet:is([data-side='right'], [data-side='responsive'])[data-size='lg'][data-state='open']) .kit-toast-region {
+    --kit-toast-beside: min(36rem, 100vw);
+  }
+}
+
 .kit-toast {
   --kit-toast-disc: var(--stone);
 
@@ -123,35 +184,56 @@
 }
 
 /*
- * Phones: a toast with an action ("View application", "Undo") gives the text the whole row and drops the
- * action under it, so the title is not squeezed into one-word lines beside the button. Close stays top right.
+ * A toast with an action ("View application", "Undo") gives the text the whole row and drops the action under
+ * it, at every width: beside a button and the close, a 24rem toast leaves the title a ~150px column and breaks it
+ * over lines. Close stays top right.
  */
-@media (max-width: 479px) {
-  .kit-toast:has(.kit-toast__action) {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    row-gap: var(--s2);
-  }
+.kit-toast:has(.kit-toast__action) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  row-gap: var(--s2);
+}
 
-  .kit-toast:has(.kit-toast__action) > .kit-toast__icon {
-    grid-row: 1;
-    grid-column: 1;
-  }
+.kit-toast:has(.kit-toast__action) > .kit-toast__icon {
+  grid-row: 1;
+  grid-column: 1;
+}
 
-  .kit-toast:has(.kit-toast__action) > .kit-toast__text {
-    grid-row: 1;
-    grid-column: 2;
-  }
+.kit-toast:has(.kit-toast__action) > .kit-toast__text {
+  grid-row: 1;
+  grid-column: 2;
+}
 
+/* The actions start under the text and may also use the close button's column, so on a 320px phone
+   "View application · Undo" still fits on one row. */
+.kit-toast .kit-toast__action {
+  grid-row: 2;
+  grid-column: 2 / -1;
+  justify-self: start;
+}
+
+/* Two actions ("View application · Undo") share the second row, side by side, wrapping only if they must. */
+.kit-toast .kit-toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s5);
+  grid-row: 2;
+  grid-column: 2 / -1;
+  min-width: 0;
+}
+
+.kit-toast:has(.kit-toast__action) > .kit-toast__close {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+/* A short action ("Undo") is still a 44px target on touch; the link button already gives it the height. */
+@media (pointer: coarse) {
   .kit-toast .kit-toast__action {
-    grid-row: 2;
-    grid-column: 2;
-    justify-self: start;
-  }
-
-  .kit-toast:has(.kit-toast__action) > .kit-toast__close {
-    grid-row: 1;
-    grid-column: 3;
+    min-inline-size: var(--touch-target);
+    /* The extra width goes to the right: the label stays on the text's left edge. */
+    justify-content: flex-start;
   }
 }
 

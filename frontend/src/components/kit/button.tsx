@@ -10,8 +10,20 @@ type ButtonOwnProps = {
   size?: ButtonSize
   /** Shows a spinner in place of the label, keeps the width, ignores clicks, stays focusable. */
   loading?: boolean
+  /**
+   * While loading, say what is happening on the button itself ("Suggesting…") instead of a bare spinner, for a wait
+   * long enough to need words (an AI run). It is stacked over the hidden label, so the button keeps its width unless
+   * the words need more. Visual only (aria-hidden): the accessible name stays the label, so pair it with a
+   * role="status" line for screen readers.
+   */
+  loadingLabel?: string
   /** Render the single child element (a link, a router Link) with the button's classes and behaviour. */
   asChild?: boolean
+  /**
+   * start: a ghost button that starts a block (a back link above a PageHeader title, a "Delete" or "Clear" under a
+   * section) pulls back by its own inset, so its label lines up with the content edge while its tap area stays whole.
+   */
+  flush?: 'start'
 }
 
 type TextButtonProps = ButtonOwnProps & { iconOnly?: false }
@@ -34,8 +46,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     variant = 'primary',
     size = 'md',
     loading = false,
+    loadingLabel,
     asChild = false,
     iconOnly = false,
+    flush,
     className,
     disabled = false,
     onClick,
@@ -45,6 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
   const Comp = asChild ? Slot.Root : 'button'
   const inert = loading || (asChild && disabled)
+  const labelled = loading && Boolean(loadingLabel) && !asChild
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (inert) {
@@ -65,7 +80,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         iconOnly && 'kit-button--icon',
         className,
       )}
+      data-flush={flush}
       data-loading={loading ? 'true' : undefined}
+      data-loading-label={labelled ? 'true' : undefined}
       data-disabled={asChild && disabled ? 'true' : undefined}
       aria-busy={loading || undefined}
       aria-disabled={inert || undefined}
@@ -74,8 +91,16 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {...rest}
       onClick={handleClick}
     >
-      {asChild ? <Slot.Slottable>{children}</Slot.Slottable> : children}
-      {loading ? <span className="kit-button__spinner" aria-hidden="true" /> : null}
+      {asChild ? <Slot.Slottable>{children}</Slot.Slottable> : labelled ? (
+        <span className="kit-button__stack">
+          <span className="kit-button__label">{children}</span>
+          <span className="kit-button__loading-label" aria-hidden="true">
+            <span className="kit-button__spinner" />
+            {loadingLabel}
+          </span>
+        </span>
+      ) : children}
+      {loading && !labelled ? <span className="kit-button__spinner" aria-hidden="true" /> : null}
     </Comp>
   )
 })

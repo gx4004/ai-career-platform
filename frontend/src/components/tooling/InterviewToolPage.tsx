@@ -33,6 +33,7 @@ export function InterviewToolPage() {
         >
           <ResumeSource
             id="interview-resumeText"
+            toolId="interview"
             label={resumeField.label}
             placeholder={resumeField.placeholder}
             rows={resumeField.rows}

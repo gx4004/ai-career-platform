@@ -31,6 +31,9 @@ export type WorkflowConfig = {
 
 /** The resume control is a file dropzone first, so "Resume text is required" would point at the wrong thing. */
 const RESUME_REQUIRED = 'Add your resume: upload a PDF or DOCX, or paste the text.'
+/** The other required fields say what to do in the same voice, with the way in the form offers (import, an example). */
+const JOB_REQUIRED = 'Paste the job description, or import it from the posting’s link.'
+const ROLE_REQUIRED = 'Add the role you are aiming for, e.g. Staff Backend Engineer.'
 
 const toneChoices: WorkflowChoice[] = [
   { label: 'Professional', value: 'Professional' },
@@ -56,7 +59,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
         name: 'jobDescription',
         kind: 'textarea',
         label: 'Job description',
-        placeholder: 'Optional: paste a target role for more specific feedback…',
+        placeholder: 'Paste the job posting…',
         rows: 8,
       },
     ],
@@ -85,6 +88,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
         placeholder: 'Paste the full posting here…',
         rows: 10,
         required: true,
+        requiredMessage: JOB_REQUIRED,
       },
     ],
     buildPayload: (draft) => ({
@@ -114,6 +118,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
         placeholder: 'Paste the target posting here…',
         rows: 10,
         required: true,
+        requiredMessage: JOB_REQUIRED,
       },
       {
         name: 'tone',
@@ -151,6 +156,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
         placeholder: 'Paste the target posting here…',
         rows: 10,
         required: true,
+        requiredMessage: JOB_REQUIRED,
       },
       {
         name: 'numQuestions',
@@ -210,8 +216,9 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
         name: 'targetRole',
         kind: 'text',
         label: 'Target role',
-        placeholder: 'Enter the role you want to build toward…',
+        placeholder: 'e.g. Staff Backend Engineer',
         required: true,
+        requiredMessage: ROLE_REQUIRED,
       },
     ],
     buildPayload: (draft) => ({

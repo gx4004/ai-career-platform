@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
@@ -56,6 +58,18 @@ describe('kit List and Row', () => {
     expect(screen.getByRole('list').getAttribute('data-boxed')).toBe('true')
     rerender(<List aria-label="a" />)
     expect(screen.getByRole('list').hasAttribute('data-boxed')).toBe(false)
+  })
+
+  it('boxed="end" records a rule under the last row only (a list right under its own heading)', () => {
+    render(<List aria-label="a" framed={false} boxed="end" />)
+    expect(screen.getByRole('list').getAttribute('data-boxed')).toBe('end')
+  })
+
+  it('flush is recorded on an unframed list; plain lists are not flush', () => {
+    const { rerender } = render(<List aria-label="a" framed={false} flush />)
+    expect(screen.getByRole('list').getAttribute('data-flush')).toBe('true')
+    rerender(<List aria-label="a" framed={false} />)
+    expect(screen.getByRole('list').hasAttribute('data-flush')).toBe(false)
   })
 
   it('Row is comfortable, wrapping, unselected and not interactive by default', () => {
@@ -205,6 +219,47 @@ describe('kit RowActions and RowReveal', () => {
     expect(container.querySelector('.kit-row__actions')?.hasAttribute('data-placement')).toBe(false)
   })
 
+  it('drops always-visible actions under the text on a narrow list when asked (placement="below")', () => {
+    const { container, rerender } = render(<RowActions reveal={false} placement="below">x</RowActions>)
+    expect(container.querySelector('.kit-row__actions')?.getAttribute('data-placement')).toBe('below')
+    rerender(<RowActions reveal={false}>x</RowActions>)
+    expect(container.querySelector('.kit-row__actions')?.hasAttribute('data-placement')).toBe(false)
+    // Only a narrow list moves them: the rule lives in the kit-list container query.
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/row.css'), 'utf8')
+    const narrow = css.slice(css.indexOf('@container kit-list (max-width: 31.9375rem)'))
+    expect(narrow).toMatch(/\.kit-row > \.kit-row__actions\[data-placement='below'\]\s*\{[^}]*grid-row:\s*3/)
+  })
+
+  it('drops the meta under the text on a narrow list when asked (RowMeta placement="below")', () => {
+    const { container, rerender } = render(<RowMeta placement="below">x</RowMeta>)
+    expect(container.querySelector('.kit-row__meta')?.getAttribute('data-placement')).toBe('below')
+    rerender(<RowMeta>x</RowMeta>)
+    expect(container.querySelector('.kit-row__meta')?.hasAttribute('data-placement')).toBe(false)
+    // Only a narrow list moves it (the kit-list container query); wide lists keep the meta at the row end.
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/row.css'), 'utf8')
+    const narrow = css.slice(css.indexOf('@container kit-list (max-width: 31.9375rem)'))
+    expect(narrow).toMatch(/\.kit-row > \.kit-row__meta\[data-placement='below'\]\s*\{[^}]*grid-row:\s*2/)
+    expect(css.slice(0, css.indexOf('@container kit-list (max-width: 31.9375rem)'))).not.toMatch(/__meta\[data-placement='below'\]/)
+  })
+
+  it('centres a one-line body against the 44px actions on a narrow list when the row has no meta', () => {
+    // Without this the body sits in grid row 1 of 2 and the spare actions height leaves the title floating high.
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/row.css'), 'utf8')
+    const narrow = css.slice(css.indexOf('@container kit-list (max-width: 31.9375rem)'))
+    // The selector is :where()-weighted (consistency-F01): a page's own stacked layout must still win over it.
+    expect(narrow).toMatch(
+      /\.kit-row:where\(:has\(> \.kit-row__actions\):not\(:has\(> \.kit-row__meta\)\)\) > \.kit-row__body\s*\{[^}]*grid-row:\s*1 \/ span 2;[^}]*align-self:\s*center/,
+    )
+  })
+
+  it('keeps a narrow row\'s actions at the top of a multi-line row, not centred over the whole text (history-profile-F39)', () => {
+    // A one-line row is unchanged (its body spans both grid rows, centred on the actions' height); a five-line
+    // fact keeps Edit and Delete beside its title instead of floating halfway down the row.
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/row.css'), 'utf8')
+    const narrow = css.slice(css.indexOf('@container kit-list (max-width: 31.9375rem)'))
+    expect(narrow).toMatch(/\.kit-row > \.kit-row__actions\s*\{[^}]*grid-row:\s*1 \/ span 2;[^}]*align-self:\s*start/)
+  })
+
   it('RowReveal wraps secondary actions inside an always-visible group', () => {
     const { container } = render(
       <RowActions reveal={false}>
@@ -281,5 +336,99 @@ describe('kit List framed and RowTitle size', () => {
     )
     expect(screen.getByText('Plain').hasAttribute('data-size')).toBe(false)
     expect(screen.getByRole('heading', { level: 3, name: 'Match' }).getAttribute('data-size')).toBe('lg')
+  })
+
+  it('RowTitle is bold by default; semibold and regular set a sentence-length title lighter', () => {
+    render(
+      <List aria-label="Notes">
+        <Row>
+          <RowBody>
+            <RowTitle>Bold</RowTitle>
+            <RowTitle weight="semibold">Strength</RowTitle>
+            <RowTitle weight="regular" headingLevel={3}>
+              A full sentence of advice
+            </RowTitle>
+          </RowBody>
+        </Row>
+      </List>,
+    )
+    expect(screen.getByText('Bold').hasAttribute('data-weight')).toBe(false)
+    expect(screen.getByText('Strength').getAttribute('data-weight')).toBe('semibold')
+    expect(screen.getByRole('heading', { level: 3 }).getAttribute('data-weight')).toBe('regular')
+  })
+
+  it('RowSubtitle is the 13px meta line by default and 15px body text with size="lg"', () => {
+    render(
+      <List aria-label="Next">
+        <Row>
+          <RowBody>
+            <RowSubtitle>Quiet</RowSubtitle>
+            <RowSubtitle size="lg">A sentence under a display title</RowSubtitle>
+          </RowBody>
+        </Row>
+      </List>,
+    )
+    expect(screen.getByText('Quiet').hasAttribute('data-size')).toBe(false)
+    expect(screen.getByText('A sentence under a display title').getAttribute('data-size')).toBe('lg')
+  })
+
+  // consistency-F17: a run's headline in a 280px rail beside a score pill had ~134px, so one line said "Strong foundation: …".
+  it('RowSubtitle keeps one line in a clamped row; lines={2} lets a sentence take two before the ellipsis', () => {
+    render(
+      <List aria-label="Rail">
+        <Row overflow="clamp">
+          <RowBody>
+            <RowSubtitle>Oct 6, 2:13 PM</RowSubtitle>
+            <RowSubtitle lines={2}>Strong foundation: 2 bullets carry real numbers</RowSubtitle>
+          </RowBody>
+        </Row>
+      </List>,
+    )
+    expect(screen.getByText('Oct 6, 2:13 PM').hasAttribute('data-lines')).toBe(false)
+    expect(screen.getByText(/Strong foundation/).getAttribute('data-lines')).toBe('2')
+    // The two-line rule comes after the clamp/truncate one-line rules at the same weight, so it wins in either mode.
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/row.css'), 'utf8')
+    const twoLines = css.search(/\.kit-row \.kit-row__subtitle\[data-lines='2'\]\s*\{[^}]*-webkit-line-clamp:\s*2/)
+    expect(twoLines).toBeGreaterThan(css.indexOf(".kit-row[data-overflow='clamp'] .kit-row__subtitle"))
+    expect(twoLines).toBeGreaterThan(css.indexOf(".kit-row[data-overflow='truncate'] :is(.kit-row__title, .kit-row__subtitle)"))
+  })
+
+  // Sign-off consistency-F23: a score pill on the title's own line, so the headline under the title keeps the body's
+  // full width (as RowMeta it took a column the height of the row and squeezed the headline to ~150px in a rail).
+  it('RowTitle aside puts a short fact at the end of the title line, inside the body, and keeps the link the title', () => {
+    render(
+      <List aria-label="Runs">
+        <Row overflow="clamp">
+          <RowBody>
+            <RowTitle asChild aside={<span data-testid="pill" aria-hidden="true">89/100</span>}>
+              <a href="/r/1">Oct 6, 2:13 PM</a>
+            </RowTitle>
+            <RowSubtitle lines={2}>Strong foundation</RowSubtitle>
+          </RowBody>
+        </Row>
+      </List>,
+    )
+    const link = screen.getByRole('link', { name: 'Oct 6, 2:13 PM' })
+    const line = link.parentElement as HTMLElement
+    expect(line.className).toBe('kit-row__title-line')
+    expect(line.parentElement?.className).toContain('kit-row__body')
+    expect(link.className).toContain('kit-row__title')
+    expect(screen.getByTestId('pill').parentElement?.className).toBe('kit-row__title-aside')
+    const rowCss = readFileSync(path.resolve(__dirname, '../../../styles/kit/row.css'), 'utf8')
+    expect(rowCss).toMatch(/\.kit-row__title-line \{[^}]*display:\s*flex;/)
+    expect(rowCss).toMatch(/\.kit-row__title-aside \{[^}]*flex:\s*none;/)
+  })
+
+  it('RowTitle without aside renders the title alone (no wrapper)', () => {
+    render(
+      <List aria-label="Runs">
+        <Row>
+          <RowBody>
+            <RowTitle>Plain</RowTitle>
+          </RowBody>
+        </Row>
+      </List>,
+    )
+    expect(screen.getByText('Plain').parentElement?.className).toContain('kit-row__body')
   })
 })

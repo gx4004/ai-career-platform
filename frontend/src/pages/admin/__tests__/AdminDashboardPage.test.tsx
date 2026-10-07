@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminDashboardPage } from '#/pages/admin/admin-dashboard-page'
+import { ADMIN_TOOL_IDS } from '#/pages/admin/toolLabel'
 
 const statsMock = vi.hoisted(() => vi.fn())
 const healthMock = vi.hoisted(() => vi.fn())
@@ -54,7 +55,9 @@ describe('AdminDashboardPage', () => {
   it('shows the four numbers, one panel each', async () => {
     renderPage()
     expect(await screen.findByText('Total users')).toBeTruthy()
-    for (const label of ['Total runs', 'Runs today', 'Active users (7d)']) expect(screen.getByText(label)).toBeTruthy()
+    // Plain words that fit the 94px stat label at 320 on one line (AAG-F13: "Active users (7d)" wrapped and shifted the page).
+    for (const label of ['Total runs', 'Runs today', 'Active, 7 days']) expect(screen.getByText(label)).toBeTruthy()
+    expect(screen.queryByText(/\(7d\)/)).toBeNull()
     expect(screen.getByText('67')).toBeTruthy()
   })
 
@@ -95,6 +98,18 @@ describe('AdminDashboardPage', () => {
     expect(list.getAllByRole('listitem')[0].querySelector('.admin-bar')?.getAttribute('data-tone')).toBe('tangerine')
   })
 
+  // account-admin-AAG-F06: six one-line placeholders stood in for a row per run kind (two lines each on a phone), so
+  // System health jumped 244px at 375 when the counts arrived.
+  it('holds a placeholder row for every kind of run, in a list, with the bar line a phone adds', () => {
+    statsMock.mockReset().mockReturnValue(new Promise(() => {}))
+    renderPage()
+    const list = screen.getByRole('list', { name: 'Loading runs by tool' })
+    expect(list.getAttribute('aria-busy')).toBe('true')
+    const rows = list.querySelectorAll('.kit-skeleton__row')
+    expect(rows).toHaveLength(ADMIN_TOOL_IDS.length)
+    expect(rows[0].querySelectorAll('.kit-skeleton__line[data-only="narrow"]')).toHaveLength(1)
+  })
+
   it('stamps one seal when the database answers and a provider is configured', async () => {
     renderPage()
     expect(await screen.findByText('All systems healthy')).toBeTruthy()
@@ -108,6 +123,18 @@ describe('AdminDashboardPage', () => {
     expect(await screen.findByText('error')).toBeTruthy()
     expect(screen.queryByText('All systems healthy')).toBeNull()
     expect(screen.getByText('fake (local fixtures, no model)')).toBeTruthy()
+  })
+
+  it('keeps the left column when the stats fail: the retry sits under its heading, never an empty track', async () => {
+    statsMock.mockRejectedValue(new Error('boom'))
+    renderPage()
+    const notice = await screen.findByText("Couldn't load stats.")
+    const runs = screen.getByRole('heading', { name: 'Runs, last 14 days' }).closest('section')
+    expect(runs?.contains(notice)).toBe(true)
+    expect(within(runs as HTMLElement).getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Runs by tool' })).toBeTruthy()
+    // One notice for one failure: the stats strip does not repeat it above the columns.
+    expect(screen.getAllByText("Couldn't load stats.")).toHaveLength(1)
   })
 
   it('offers a retry when the stats fail', async () => {

@@ -497,6 +497,7 @@
   font-weight: var(--fw-black);
   letter-spacing: -0.015em;
   line-height: 1.1;
+  text-wrap: balance;
 }
 
 /* ─── Review. Aim. Build. ────────────────────────────────── */
@@ -516,18 +517,22 @@
   align-content: start;
 }
 
-.lp-workflow-card:nth-child(1) {
+/* The staircase: each step drops a little and leans its own way (plate tilt, STICKER 1.15). */
+.kit-sticker.lp-workflow-card:nth-child(1) {
   padding-block-end: var(--s9);
+  --kit-tilt: -1.4deg;
 }
 
-.lp-workflow-card:nth-child(2) {
+.kit-sticker.lp-workflow-card:nth-child(2) {
   margin-block-start: var(--s9);
   padding-block-end: var(--s6);
+  --kit-tilt: 1deg;
 }
 
-.lp-workflow-card:nth-child(3) {
+.kit-sticker.lp-workflow-card:nth-child(3) {
   margin-block-start: var(--s7);
   padding-block-end: var(--s8);
+  --kit-tilt: -0.8deg;
 }
 
 .lp-workflow-title {
@@ -810,7 +815,9 @@
 }
 
 /* ─── Narrow screens ─────────────────────────────────────── */
-@media (max-width: 1024px) {
+/* Two columns from 1024px (STICKER 5.2: 861-1023 stacks), so a 1024 laptop or tablet in landscape sees the
+   collage beside the copy instead of an empty right half. */
+@media (max-width: 1023px) {
   .lp-hero-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s8);
@@ -903,9 +910,16 @@
     gap: var(--s8);
   }
 
-  .lp-workflow-card:nth-child(n) {
+  /* Stacked full width on tablets and phones the steps lie flat: a 700px plate at -1.4deg skews 18px edge
+     to edge, and on mobile only the seal, the brand mark and stamps tilt (STICKER 1.15, 5.6). */
+  .kit-sticker.lp-workflow-card:nth-child(n) {
     margin-block-start: 0;
     padding-block-end: var(--s6);
+    --kit-tilt: 0deg;
+  }
+
+  .kit-sticker.lp-note {
+    --kit-tilt: 0deg;
   }
 
   .lp-workflow-title {
@@ -965,9 +979,12 @@
     --kit-button-px: var(--s4);
   }
 
+  /* The art sits centred under the call to action, not pinned to the left edge of a wide card. */
   .lp-cta-art {
+    inline-size: 100%;
     block-size: 200px;
     max-inline-size: 300px;
+    justify-self: center;
   }
 
   /* On phones the sticker stays inside the card's padding instead of hanging over its border. */
@@ -993,8 +1010,9 @@
 }
 
 @media (max-width: 480px) {
-  /* Brand mark, Get started and the menu button share one row: the wordmark steps aside. */
-  .lp-nav__brand .cw-brand-wordmark {
+  /* The bar keeps the name of the product (the h1 below does not say it) and the menu; Get started moves into
+     the menu, with the hero's own call to action right under the bar. */
+  .kit-button.lp-nav__cta {
     display: none;
   }
 
@@ -1029,12 +1047,15 @@
 }
 
 @media (max-width: 360px) {
-  /* "Upload your resume — Free" stays on one line at 320. */
+  /* "Analyze your CV — Free" (the first action on the fold) and "Upload your resume — Free" stay on one line
+     at 320: a tighter gutter, 16px type and no icon. */
+  .lp-hero-actions .kit-button--lg,
   .lp-cta-action .kit-button--lg {
     --kit-button-px: var(--s3);
     --kit-button-fs: 1rem;
   }
 
+  .lp-hero-actions .kit-button--lg svg,
   .lp-cta-action .kit-button--lg svg {
     display: none;
   }

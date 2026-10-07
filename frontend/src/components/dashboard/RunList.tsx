@@ -4,7 +4,8 @@ import { Button, EmptyState, ErrorState, List, Section, Skeleton } from '#/compo
 import type { ReactNode } from 'react'
 import { useHistory } from '#/hooks/useHistory'
 import type { HistoryQueryParams } from '#/lib/api/client'
-import { RunRow, formatRunDate } from '#/components/dashboard/RunRow'
+import { RunRow } from '#/components/dashboard/RunRow'
+import { formatRunDay } from '#/lib/tools/runLabel'
 import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
 import { getToolByHistoryName } from '#/lib/tools/registry'
 
@@ -72,7 +73,7 @@ export function RunList({
               key={item.id}
               tool={historyToolDisplay(item.tool_name)}
               label={item.label || untitled}
-              date={showDate ? formatRunDate(item.created_at) : undefined}
+              date={showDate ? formatRunDay(item.created_at) : undefined}
               href={historyRunHref(item)}
               scoreTone={getToolByHistoryName(item.tool_name)?.tone}
             />

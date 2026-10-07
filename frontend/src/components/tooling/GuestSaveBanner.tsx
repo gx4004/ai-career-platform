@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { Button, Notice } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
+import type { ToolId } from '#/lib/tools/registry'
 
 const DISMISSED_KEY = 'cw:guest-banner-dismissed'
 
-export function GuestSaveBanner() {
-  const { status } = useSession()
+export function GuestSaveBanner({ toolId }: { toolId: ToolId }) {
+  const { status, openAuthDialog } = useSession()
   // Initialise to false so the SSR render and the first client render agree
   // (sessionStorage is undefined on the server). Hydrate the persisted choice
   // in an effect after mount.
@@ -37,8 +37,20 @@ export function GuestSaveBanner() {
     <Notice
       onDismiss={dismiss}
       action={
-        <Button asChild variant="secondary" size="sm">
-          <Link to="/login">Sign in to keep your results</Link>
+        <Button
+          variant="secondary"
+          size="sm"
+          // Writes the pending intent so sign-in returns to this tool (the draft is still in the tab)
+          // and the login page says where they will go.
+          onClick={() =>
+            openAuthDialog({
+              to: window.location.pathname + window.location.search,
+              reason: 'save-demo-result',
+              toolId,
+            })
+          }
+        >
+          Sign in to keep your results
         </Button>
       }
     >

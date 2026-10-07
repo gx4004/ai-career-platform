@@ -136,7 +136,7 @@ export function ToolbarSection() {
       <Group title="Discover toolbar, count below (try the filters, then clear them)">
         <DiscoverToolbar />
       </Group>
-      <Group title="History toolbar (a Segmented and a toggle as filters)">
+      <Group title="A Segmented and a toggle as filters (where Clear filters wraps to a line of its own, it starts at the search field's edge)">
         <HistoryToolbar />
       </Group>
       <Group title="Search only">

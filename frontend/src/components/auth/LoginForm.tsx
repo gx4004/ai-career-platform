@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Field, Input, Notice, Section, Stack } from '#/components/kit'
 import { RESET_COPY } from '#/components/auth/auth-copy'
 import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
@@ -39,9 +39,14 @@ export function LoginForm({
   const signIn = useFormFailure()
   const reset = useFormFailure()
 
+  const backRef = useRef<HTMLButtonElement>(null)
+
   function setReset(next: boolean) {
     setShowReset(next)
     setErrors({})
+    // A failed sign-in from before the reset is no longer news, and a password typed then is not kept.
+    signIn.clear()
+    setPassword('')
     onResetChange?.(next)
   }
 
@@ -50,6 +55,25 @@ export function LoginForm({
     if (startInReset) onResetChange?.(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
   }, [])
+
+  // Each step replaces the button that led to it (Forgot password?, Back to sign in, Send reset link, or the
+  // "Sign in instead" handoff that remounts this form), so the browser drops focus to the page. Put it on what
+  // comes next instead. Only when focus was lost: a plain page load or a tab switch keeps it where it is.
+  // The step this effect last ran for: a run for the same step is the mount (or React's development double run of it,
+  // which otherwise pulled focus to Email after a dialog had put it on the panel, consistency-F24), never a step change.
+  const lastStep = useRef<{ showReset: boolean; resetMessage: string } | null>(null)
+  useEffect(() => {
+    const previous = lastStep.current
+    lastStep.current = { showReset, resetMessage }
+    const mounting = previous === null || (previous.showReset === showReset && previous.resetMessage === resetMessage)
+    // On mount only a handoff (email filled in, or straight to the reset step) has lost focus to restore.
+    if (mounting && !initialEmail && !startInReset) return
+    const lost = !document.activeElement || document.activeElement === document.body
+    if (!lost) return
+    if (showReset && resetMessage) backRef.current?.focus()
+    else document.getElementById(showReset ? 'reset-email' : email ? 'login-password' : 'login-email')?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the step changes, reading the fields as they are then
+  }, [showReset, resetMessage])
 
   if (showReset) {
     const body = resetMessage ? (
@@ -104,8 +128,8 @@ export function LoginForm({
             required
           />
         </Field>
-        <FormFailureNotice failure={reset.failure} remaining={reset.remaining} />
-        <Button type="submit" size="lg" className="auth-wide" loading={resetLoading} disabled={reset.remaining > 0}>
+        <FormFailureNotice failure={reset.failure} remaining={reset.remaining} shownFields={['email']} />
+        <Button type="submit" size="lg" className="auth-wide" data-cookie-keep-clear="" loading={resetLoading} disabled={reset.remaining > 0}>
           Send reset link
         </Button>
       </form>
@@ -120,11 +144,14 @@ export function LoginForm({
           </Section>
         )}
         <Button
+          ref={backRef}
           type="button"
           variant="secondary"
           size="lg"
           className="auth-wide"
           onClick={() => {
+            // The address used for the reset is the one to sign in with, unless sign in already has one.
+            if (!email.trim()) setEmail(resetEmail)
             setReset(false)
             setResetMessage('')
             setDevLink(null)
@@ -204,12 +231,21 @@ export function LoginForm({
               required
             />
           </Field>
-          <Button type="button" variant="link" className="auth-forgot" onClick={() => setReset(true)}>
+          <Button
+            type="button"
+            variant="link"
+            className="auth-forgot"
+            onClick={() => {
+              // The address typed here is the one to reset: no retyping.
+              setResetEmail(email)
+              setReset(true)
+            }}
+          >
             Forgot password?
           </Button>
         </Stack>
-        <FormFailureNotice failure={signIn.failure} remaining={signIn.remaining} />
-        <Button type="submit" size="lg" className="auth-wide" loading={loading} disabled={signIn.remaining > 0}>
+        <FormFailureNotice failure={signIn.failure} remaining={signIn.remaining} shownFields={['email', 'password']} />
+        <Button type="submit" size="lg" className="auth-wide" data-cookie-keep-clear="" loading={loading} disabled={signIn.remaining > 0}>
           Sign in
         </Button>
       </form>

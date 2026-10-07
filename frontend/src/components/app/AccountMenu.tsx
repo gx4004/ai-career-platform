@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { LogOut, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import {
   DropdownMenuContent,
@@ -16,9 +16,17 @@ import type { User } from '#/lib/api/schemas'
 export function AccountMenuContent({
   user,
   onSignOut,
+  onItemSelect,
   ...props
-}: DropdownMenuContentProps & { user: User; onSignOut: () => void }) {
+}: DropdownMenuContentProps & {
+  user: User
+  onSignOut: () => void
+  /** Called when any item is chosen, before the menu closes (the trigger can then leave focus to the new page). */
+  onItemSelect?: () => void
+}) {
   const name = user.full_name?.trim()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const current = (route: string) => (pathname.startsWith(route) ? 'page' : undefined)
   return (
     <DropdownMenuContent {...props}>
       <DropdownMenuLabel className="app-account__who">
@@ -33,19 +41,29 @@ export function AccountMenuContent({
         </span>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      <DropdownMenuItem asChild icon={<UserRound />}>
-        <Link to="/account">Account</Link>
+      <DropdownMenuItem asChild icon={<UserRound />} onSelect={onItemSelect}>
+        <Link to="/account" aria-current={current('/account')}>
+          Account
+        </Link>
       </DropdownMenuItem>
-      <DropdownMenuItem asChild icon={<Settings />}>
-        <Link to="/settings">Settings</Link>
+      <DropdownMenuItem asChild icon={<Settings />} onSelect={onItemSelect}>
+        <Link to="/settings" aria-current={current('/settings')}>
+          Settings
+        </Link>
       </DropdownMenuItem>
       {user.is_admin ? (
-        <DropdownMenuItem asChild icon={<ShieldCheck />}>
+        <DropdownMenuItem asChild icon={<ShieldCheck />} onSelect={onItemSelect}>
           <Link to="/admin">Admin</Link>
         </DropdownMenuItem>
       ) : null}
       <DropdownMenuSeparator />
-      <DropdownMenuItem icon={<LogOut />} onSelect={onSignOut}>
+      <DropdownMenuItem
+        icon={<LogOut />}
+        onSelect={() => {
+          onItemSelect?.()
+          onSignOut()
+        }}
+      >
         Sign out
       </DropdownMenuItem>
     </DropdownMenuContent>

@@ -43,6 +43,11 @@
   box-shadow: var(--sh-2);
 }
 
+/* flat: a tile inside a row (What next), level and without the hard shadow (the tilted, shadowed lg tile is the page-title mark). */
+.kit-tool-tile[data-flat='true'] {
+  box-shadow: none;
+}
+
 /* The full-height colour block at the start of a ruled tool list (landing). */
 .kit-tool-tile--index {
   --kit-tile-icon: 26px;
@@ -131,6 +136,12 @@
   border-radius: 50%;
   content: '';
   pointer-events: none;
+}
+
+/* xs: a 20px disc in a button's icon slot (Copied: a mint check), the icon 12px. */
+.kit-number-disc--xs {
+  --kit-disc-size: 20px;
+  --kit-disc-font: 0.75rem;
 }
 
 .kit-number-disc--sm {

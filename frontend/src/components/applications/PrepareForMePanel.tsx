@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Checkbox, Chip, Cluster, Field, Input, Notice, Skeleton, Stack } from '#/components/kit'
+import { Button, Checkbox, Chip, Cluster, Field, Input, Notice, Select, Skeleton, Stack } from '#/components/kit'
 import { getApplicationPreferences, prepareApplicationsForMe, saveApplicationPreferences } from '#/lib/api/client'
 import type { ApplicationPreferences, ApplicationPreferencesUpdate, BulkPrepareResult } from '#/lib/api/schemas'
 import { APPLICATION_PREFERENCES_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
@@ -36,6 +36,9 @@ export function PrepareForMePanel() {
     })
   }
 
+  // The standing hint under the button, until a click is refused for the same reason: then the refusal above it says it.
+  const hint = Boolean(prefs && prefs.keywords.length === 0 && prepare.data?.reason !== 'no_preferences')
+
   return (
     <ApplicationPanel
       title="Prepare applications for me"
@@ -58,11 +61,11 @@ export function PrepareForMePanel() {
             onClick={() => prepare.mutate()}
             loading={prepare.isPending}
             disabled={!prefs || prepare.isPending || save.isPending}
-            aria-describedby={prefs && prefs.keywords.length === 0 ? 'camp-prepare-hint' : undefined}
+            aria-describedby={hint ? 'camp-prepare-hint' : undefined}
           >
             {prepare.isPending ? 'Preparing…' : 'Prepare applications'}
           </Button>
-          {prefs && prefs.keywords.length === 0 ? (
+          {hint ? (
             <p id="camp-prepare-hint" className="camp-note">Add at least one keyword so we know which jobs to prepare.</p>
           ) : null}
         </Stack>
@@ -122,32 +125,26 @@ function PreferencesForm({
   saving: boolean
   onChange: (patch: Partial<ApplicationPreferencesUpdate>) => void
 }) {
-  const [cap, setCap] = useState<string | null>(null)
-  const capValue = cap ?? String(prefs.max_per_run)
+  // 1 to the server's limit: a short list, so a Select (a typed number could be out of range or empty).
+  const caps = Array.from({ length: Math.max(prefs.max_per_run_limit, prefs.max_per_run, 1) }, (_, index) => index + 1)
   return (
     <div className="camp-prefs">
       <TermsField label="Keywords" noun="keyword" placeholder="e.g. backend engineer" value={prefs.keywords} saving={saving} onChange={(keywords) => onChange({ keywords })} />
       <TermsField label="Locations" noun="location" placeholder="e.g. Berlin" value={prefs.locations} saving={saving} onChange={(locations) => onChange({ locations })} />
-      <div className="camp-prefs__remote">
-        <Checkbox label="Include remote jobs" checked={prefs.remote} disabled={saving} onCheckedChange={(remote) => onChange({ remote })} />
-      </div>
-      <Field label="Most per click">
-        <Input
-          type="number"
-          min={1}
-          max={prefs.max_per_run_limit}
-          className="camp-cap"
-          value={capValue}
-          onChange={(event) => setCap(event.target.value)}
-          onBlur={() => {
-            const parsed = Number.parseInt(capValue, 10)
-            if (Number.isFinite(parsed) && parsed !== prefs.max_per_run) {
-              onChange({ max_per_run: Math.min(Math.max(parsed, 1), prefs.max_per_run_limit) })
-            }
-            setCap(null)
-          }}
-        />
-      </Field>
+      {/* The two settings share one row under both lists, their 44px controls on one baseline. */}
+      <Cluster gap={4} align="end" className="camp-prefs__options">
+        <Checkbox framed label="Include remote jobs" checked={prefs.remote} disabled={saving} onCheckedChange={(remote) => onChange({ remote })} />
+        <Field label="Most per click">
+          <Select
+            className="camp-cap"
+            value={String(prefs.max_per_run)}
+            disabled={saving}
+            onChange={(event) => onChange({ max_per_run: Number(event.target.value) })}
+          >
+            {caps.map((value) => <option key={value} value={value}>{value}</option>)}
+          </Select>
+        </Field>
+      </Cluster>
     </div>
   )
 }

@@ -170,7 +170,8 @@
 
 .kit-popover {
   width: max-content;
-  max-width: min(22rem, calc(100vw - var(--s4)));
+  /* Never wider than the page between its 16px phone gutters. */
+  max-width: min(22rem, calc(100vw - 2 * var(--s4)));
   padding: var(--s4);
 }
 

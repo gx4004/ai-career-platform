@@ -73,6 +73,12 @@ export const PROVENANCE_DESCRIPTIONS: Record<EvidenceProvenance, string> = {
   'user-entered': 'Added by you directly.',
 }
 
+// One confirm for the one bulk erase (DELETE /evidence-profile/items), on /profile, Account and Settings alike. The
+// confirm repeats the row's own words ("Delete profile"), and the description counts the facts that go, so it never
+// reads like deleting the account.
+export const PROFILE_PURGE_TITLE = 'Delete your profile?'
+export const PROFILE_PURGE_CONFIRM = 'Delete profile'
+
 export const STATE_LABELS: Record<EvidenceConfirmationState, string> = {
   unconfirmed: 'Suggested',
   confirmed: 'Saved',
@@ -151,6 +157,40 @@ export function fieldLabel(key: string): string {
     .trim()
     .toLowerCase()
   return words ? words[0].toUpperCase() + words.slice(1) : key
+}
+
+/**
+ * The field each hand-typed kind is keyed by, and its name. Add a fact, Edit and the rows all use it, so one field
+ * never has two names (the edit dialog used to show the raw key, "Name", for the field Add a fact calls "Skill").
+ * Interview evidence only comes from the Interview tool, so it has none.
+ */
+export const MAIN_FIELDS: Record<Exclude<EvidenceKind, 'interview-evidence'>, { field: string; fieldLabel: string }> = {
+  skill: { field: 'name', fieldLabel: 'Skill' },
+  experience: { field: 'title', fieldLabel: 'Role and employer' },
+  achievement: { field: 'text', fieldLabel: 'What you achieved' },
+  education: { field: 'degree', fieldLabel: 'Degree and school' },
+  project: { field: 'name', fieldLabel: 'Project' },
+  certification: { field: 'name', fieldLabel: 'Certification' },
+  preference: { field: 'text', fieldLabel: 'What you are looking for' },
+}
+
+/** A content field's label on this fact: its kind's main field by its Add-a-fact name, any other field from its key. */
+export function factFieldLabel(item: Pick<EvidenceItem, 'kind' | 'content'>, key: string): string {
+  const main = item.kind === 'interview-evidence' ? null : MAIN_FIELDS[item.kind]
+  if (!main || main.field !== key) return fieldLabel(key)
+  // An imported role or degree keeps its employer or school in a field of its own, so the title is only the role.
+  if (item.kind === 'experience' && 'company' in item.content) return 'Role'
+  if (item.kind === 'education' && 'school' in item.content) return 'Degree'
+  return main.fieldLabel
+}
+
+// Details that read on their own under a fact's first line: an employer, a school, the bullets of a role, the
+// answer under an interview question. Any other field (a focus area, a level, a date) is named, "Focus area: …".
+const SELF_EVIDENT_DETAILS: ReadonlySet<string> = new Set(['company', 'school', 'highlights', 'answer', 'text', 'description'])
+
+/** One detail line under a fact's first value, labelled unless the value says what it is. */
+export function factDetailLine(item: Pick<EvidenceItem, 'kind' | 'content'>, field: { key: string; value: string }): string {
+  return SELF_EVIDENT_DETAILS.has(field.key) ? field.value : `${factFieldLabel(item, field.key)}: ${field.value}`
 }
 
 /** The API's limit on one value of a fact (backend MAX_CONTENT_VALUE_CHARS). */

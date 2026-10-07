@@ -1,8 +1,8 @@
 import { Link, useSearch } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
 import { AuthShell } from '#/components/auth/AuthShell'
 import { AuthStamp } from '#/components/auth/AuthStamp'
+import { SiteBackAction } from '#/components/legal/SiteHeader'
 import { FormFailureNotice, useFormFailure } from '#/components/auth/FormFailureNotice'
 import { PasswordInput } from '#/components/auth/PasswordInput'
 import { focusFirstError, newPasswordError } from '#/components/auth/auth-validation'
@@ -20,14 +20,8 @@ function scrubTokenFromUrl() {
   }
 }
 
-const backToSignIn = (
-  <Button asChild variant="ghost" size="sm">
-    <Link to="/login">
-      <ArrowLeft aria-hidden />
-      Back to sign in
-    </Link>
-  </Button>
-)
+/** Every state of this page keeps the same way out at the top, as the sign-in and legal pages do. */
+const backToSignIn = <SiteBackAction to="/login" />
 
 export function ResetPasswordPage() {
   const { token: legacyQueryToken } = useSearch({ from: '/reset-password' })
@@ -79,7 +73,7 @@ export function ResetPasswordPage() {
 
   if (!tokenReady) {
     return (
-      <AuthShell>
+      <AuthShell aside={false} actions={backToSignIn}>
         <p className="auth-status" role="status">
           Checking reset link…
         </p>
@@ -89,21 +83,30 @@ export function ResetPasswordPage() {
 
   if (!token || linkRejected) {
     return (
-      <AuthShell>
+      <AuthShell aside={false} actions={backToSignIn}>
         <AuthStamp word="Oops" tone="rose">
+          {/* The 404's anatomy (stamp, open page-size title, a lead, one primary), without a die-cut frame. */}
           <ErrorState
-            size="page"
+            variant="open"
             headingLevel={1}
             role="none"
+            // A refused link replaces the form whose button had focus: the heading takes it, so the outcome is read
+            // out. A link that was dead on arrival keeps the browser's own start (the skip link).
+            focusTitle={linkRejected}
             title="Invalid reset link"
+            // How the new link arrives (email, or the local demo's development link) is the request step's to say.
             description={
               linkRejected
-                ? 'This reset link has expired or was already used. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
-                : 'This password reset link is missing or expired. Back on the sign-in page, choose “Forgot password?” and we’ll email you a fresh link.'
+                ? 'This reset link has expired or was already used. Request a new link to set your password.'
+                : 'This reset link is missing or has expired. Request a new link to set your password.'
             }
             backAction={
+              // The next step is a fresh link: the sign-in page opens straight on its reset form. The header's
+              // Back stays the way to plain sign-in.
               <Button asChild>
-                <Link to="/login">Back to sign in</Link>
+                <Link to="/login" search={{ view: 'reset' }}>
+                  Request a new link
+                </Link>
               </Button>
             }
           />
@@ -114,11 +117,13 @@ export function ResetPasswordPage() {
 
   if (status === 'success') {
     return (
-      <AuthShell>
+      <AuthShell aside={false} actions={backToSignIn}>
         <AuthStamp word="Done">
+          {/* The same open anatomy as the invalid-link outcome of this flow: a confirmation, not an empty box. */}
           <EmptyState
-            size="page"
+            variant="open"
             headingLevel={1}
+            focusTitle
             title="Password updated"
             description="Your password has been reset. Sign in with your new password to continue."
             action={
@@ -174,8 +179,8 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthShell actions={backToSignIn}>
-      <PageHeader title="Set a new password" lead="Choose a strong password you haven't used before." />
+    <AuthShell aside={false} actions={backToSignIn}>
+      <PageHeader title="Set a new password" lead="Choose a strong password you haven't used before." leadSize="lg" />
       <Panel className="auth-panel">
         <PanelBody>
           <form onSubmit={handleSubmit} className="auth-form__fields" noValidate>
@@ -203,7 +208,6 @@ export function ResetPasswordPage() {
               <Input
                 size="lg"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Re-enter your new password"
                 value={confirm}
                 onChange={(e) => {
                   setConfirm(e.target.value)
@@ -214,8 +218,8 @@ export function ResetPasswordPage() {
                 minLength={8}
               />
             </Field>
-            <FormFailureNotice failure={failure.failure} remaining={failure.remaining} />
-            <Button type="submit" size="lg" className="auth-wide" loading={status === 'loading'} disabled={failure.remaining > 0}>
+            <FormFailureNotice failure={failure.failure} remaining={failure.remaining} shownFields={['new_password']} />
+            <Button type="submit" size="lg" className="auth-wide" data-cookie-keep-clear="" loading={status === 'loading'} disabled={failure.remaining > 0}>
               Reset password
             </Button>
           </form>

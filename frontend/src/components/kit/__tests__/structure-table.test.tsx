@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { useState } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -75,6 +77,35 @@ describe('kit Table', () => {
     expect(screen.getByRole('rowheader', { name: 'ada@example.com' }).hasAttribute('data-label')).toBe(false)
     const row = screen.getByRole('rowheader', { name: 'ada@example.com' }).closest('tr') as HTMLElement
     expect(within(row).getByRole('button', { name: 'Open' }).closest('td')?.hasAttribute('data-label')).toBe(false)
+  })
+
+  it('puts a long cell\'s label above its value when stacked (stackWide), so a paragraph keeps the full width', () => {
+    const columns: Array<TableColumn<User>> = [
+      COLUMNS[0],
+      { id: 'role', header: 'Role', stackWide: true, cell: (user) => user.role },
+      COLUMNS[2],
+    ]
+    render(<Table caption="Users" columns={columns} rows={USERS} getRowId={(user) => user.id} />)
+    expect(screen.getByRole('cell', { name: 'Admin' }).getAttribute('data-stack-wide')).toBe('true')
+    expect(screen.getByRole('cell', { name: '148' }).hasAttribute('data-stack-wide')).toBe(false)
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/table.css'), 'utf8')
+    expect(css).toMatch(/\.kit-table-wrap\[data-stack\] \.kit-table__cell\[data-stack-wide\]\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/)
+  })
+
+  it('can put the actions under a stacked row instead of beside its title (stackActions="below")', () => {
+    const columns: Array<TableColumn<User>> = [...COLUMNS.slice(0, 3), { ...COLUMNS[3], stackActions: 'below' }]
+    render(<Table caption="Users" columns={columns} rows={USERS} getRowId={(user) => user.id} />)
+    const row = screen.getByRole('rowheader', { name: 'ada@example.com' }).closest('tr') as HTMLElement
+    expect(within(row).getByRole('button', { name: 'Open' }).closest('td')?.getAttribute('data-stack-actions')).toBe('below')
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/table.css'), 'utf8')
+    expect(css).toMatch(/\.kit-table__cell\[data-actions\]\[data-stack-actions='below'\] \{[^}]*grid-column:\s*1 \/ -1;[^}]*justify-content:\s*flex-start/)
+    expect(css).toMatch(/:has\(> \[data-stack-actions='below'\]\) > \.kit-table__cell\[data-primary\] \{\s*grid-column:\s*1 \/ -1/)
+  })
+
+  it('leaves the actions beside the title by default', () => {
+    render(<Table caption="Users" columns={COLUMNS} rows={USERS} getRowId={(user) => user.id} />)
+    const row = screen.getByRole('rowheader', { name: 'ada@example.com' }).closest('tr') as HTMLElement
+    expect(within(row).getByRole('button', { name: 'Open' }).closest('td')?.hasAttribute('data-stack-actions')).toBe(false)
   })
 
   it('stacks by default and can opt out', () => {
@@ -221,4 +252,45 @@ describe('kit Table', () => {
     const { container } = render(<Table caption="Usage" columns={COLUMNS} rows={USERS} getRowId={(user) => user.id} stickyHeader />)
     expect((container.firstElementChild as HTMLElement).getAttribute('data-sticky')).toBe('true')
   })
+
+  // consistency-F26: stacked on a phone, the sort strip scrolls sideways; like Segmented it marks the ends that still
+  // hide buttons (data-overflow) so the CSS can fade them with a chevron, and it keeps the current sort in view.
+  it('marks the sort strip ends that hide buttons and keeps the current sort in view', () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('kit-table__head-row') ? 416 : 0
+    })
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('kit-table__head-row') ? 284 : 0
+    })
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const box = this.classList.contains('kit-table__head-row') ? { left: 0, right: 284 } : this.getAttribute('aria-sort') === 'ascending' ? { left: 300, right: 380 } : { left: 0, right: 0 }
+      return { ...box, top: 0, bottom: 44, width: box.right - box.left, height: 44, x: box.left, y: 0, toJSON: () => ({}) } as DOMRect
+    })
+    try {
+      render(
+        <Table
+          caption="Users"
+          columns={COLUMNS}
+          rows={USERS}
+          getRowId={(user) => user.id}
+          sort={{ id: 'runs', direction: 'asc' }}
+          onSortChange={() => {}}
+        />,
+      )
+      const strip = document.querySelector('.kit-table__head-row') as HTMLElement
+      // The current sort sat past the right edge: the strip scrolled it in, clear of the 36px fade.
+      expect(strip.scrollLeft).toBe(136)
+      // Part-way along, both ends hide buttons.
+      strip.scrollLeft = 40
+      fireEvent.scroll(strip)
+      expect(strip.dataset.overflow).toBe('start end')
+      const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/table.css'), 'utf8')
+      expect(css).toMatch(/\.kit-table__head-row\[data-overflow~='end'\]::after \{\s*opacity:\s*1;/)
+    } finally {
+      scroll.mockRestore()
+      client.mockRestore()
+      rect.mockRestore()
+    }
+  })
 })
+

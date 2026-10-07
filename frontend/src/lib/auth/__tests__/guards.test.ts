@@ -32,7 +32,7 @@ async function redirected(run: () => Promise<unknown>) {
     await run()
   } catch (error) {
     expect(isRedirect(error)).toBe(true)
-    return (error as { options: { to: string } }).options
+    return (error as { options: { to: string; search?: Record<string, unknown> } }).options
   }
   return null
 }
@@ -147,6 +147,8 @@ describe('requireAdmin', () => {
     const target = await redirected(() => requireAdmin(where('/admin')))
 
     expect(target?.to).toBe('/dashboard')
+    // The dashboard says why it was sent there (account-admin-F13), instead of looking like a broken link.
+    expect(target?.search).toEqual({ notice: 'admin-only' })
     expect(readPendingIntent()).toBeNull()
   })
 

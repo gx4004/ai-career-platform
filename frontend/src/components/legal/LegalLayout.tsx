@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
-import { SiteHeader } from '#/components/legal/SiteHeader'
+import { Link, useCanGoBack, useRouter, useRouterState } from '@tanstack/react-router'
+import { SiteBackAction, SiteHeader } from '#/components/legal/SiteHeader'
 import { LEGAL_LAST_UPDATED } from '#/components/legal/constants'
 import { Button, JumpNav, PageHeader } from '#/components/kit'
+import { useSession } from '#/hooks/useSession'
 import type { JumpNavItem } from '#/components/kit'
 
 type LegalLayoutProps = {
@@ -70,18 +70,19 @@ export function LegalLayout({ title, lastUpdated = LEGAL_LAST_UPDATED, children 
   }, [title])
 
   const hasRail = sections.length >= MIN_SECTIONS
+  const router = useRouter()
+  // The router's own history index: true only when the previous entry is a page of this app (a half-filled
+  // sign-up form, a result page), never another site. Then "Back" returns there; otherwise the app is the way out.
+  const canGoBack = useCanGoBack()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  // Without that history, Back is home: the dashboard when signed in, the landing page for a guest (as on the 404).
+  const { status } = useSession()
+  const home = status === 'authenticated' ? '/dashboard' : '/'
 
   return (
     <div className="legal-page">
       <SiteHeader
-        actions={
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/dashboard">
-              <ArrowLeft aria-hidden />
-              Back to app
-            </Link>
-          </Button>
-        }
+        actions={canGoBack ? <SiteBackAction onClick={() => router.history.back()} /> : <SiteBackAction to={home} />}
       />
       <main id="main-content" tabIndex={-1} className="legal-page__main">
         <div className="legal-page__layout" data-rail={hasRail ? 'true' : undefined}>
@@ -91,12 +92,19 @@ export function LegalLayout({ title, lastUpdated = LEGAL_LAST_UPDATED, children 
             <div ref={bodyRef} className="legal-page__body">
               {children}
             </div>
+            {/* The page you are on is named, not linked, so the strip also says where you are. */}
             <nav className="legal-page__nav" aria-label="Legal pages">
-              {LEGAL_PAGES.map((page) => (
-                <Button key={page.to} asChild variant="link">
-                  <Link to={page.to}>{page.label}</Link>
-                </Button>
-              ))}
+              {LEGAL_PAGES.map((page) =>
+                page.to === pathname ? (
+                  <span key={page.to} className="legal-page__current" aria-current="page">
+                    {page.label}
+                  </span>
+                ) : (
+                  <Button key={page.to} asChild variant="link">
+                    <Link to={page.to}>{page.label}</Link>
+                  </Button>
+                ),
+              )}
             </nav>
           </article>
         </div>

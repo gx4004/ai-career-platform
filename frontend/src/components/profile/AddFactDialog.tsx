@@ -4,7 +4,7 @@ import {
   DialogTitle, Field, Input, Select, Stack, Textarea,
 } from '#/components/kit'
 import type { EvidenceKind } from '#/lib/api/schemas'
-import { MAX_FACT_VALUE_CHARS, factLengthHint } from '#/lib/profile/evidence'
+import { MAIN_FIELDS, MAX_FACT_VALUE_CHARS, factLengthHint } from '#/lib/profile/evidence'
 
 /** A short fact (a skill, a role) is a line; anything longer belongs in an achievement or a preference. */
 const MAX_SHORT_CHARS = 500
@@ -22,13 +22,13 @@ const ADD_FACT_KINDS: ReadonlyArray<{
   placeholder: string
   long?: boolean
 }> = [
-  { kind: 'skill', label: 'Skill', field: 'name', fieldLabel: 'Skill', placeholder: 'e.g. PostgreSQL' },
-  { kind: 'experience', label: 'Experience', field: 'title', fieldLabel: 'Role and employer', placeholder: 'e.g. Backend engineer at Northwind Labs' },
-  { kind: 'achievement', label: 'Achievement', field: 'text', fieldLabel: 'What you achieved', placeholder: 'e.g. Cut p95 latency by 38% across 14 services', long: true },
-  { kind: 'education', label: 'Education', field: 'degree', fieldLabel: 'Degree and school', placeholder: 'e.g. BSc Computer Science, TU Berlin' },
-  { kind: 'project', label: 'Project', field: 'name', fieldLabel: 'Project', placeholder: 'e.g. Payments ledger rewrite' },
-  { kind: 'certification', label: 'Certification', field: 'name', fieldLabel: 'Certification', placeholder: 'e.g. AWS Solutions Architect Associate' },
-  { kind: 'preference', label: 'Preference', field: 'text', fieldLabel: 'What you are looking for', placeholder: 'e.g. Remote-first teams, platform work', long: true },
+  { kind: 'skill', label: 'Skill', ...MAIN_FIELDS.skill, placeholder: 'e.g. PostgreSQL' },
+  { kind: 'experience', label: 'Experience', ...MAIN_FIELDS.experience, placeholder: 'e.g. Backend engineer at Northwind Labs' },
+  { kind: 'achievement', label: 'Achievement', ...MAIN_FIELDS.achievement, placeholder: 'e.g. Cut p95 latency by 38% across 14 services', long: true },
+  { kind: 'education', label: 'Education', ...MAIN_FIELDS.education, placeholder: 'e.g. BSc Computer Science, TU Berlin' },
+  { kind: 'project', label: 'Project', ...MAIN_FIELDS.project, placeholder: 'e.g. Payments ledger rewrite' },
+  { kind: 'certification', label: 'Certification', ...MAIN_FIELDS.certification, placeholder: 'e.g. AWS Solutions Architect Associate' },
+  { kind: 'preference', label: 'Preference', ...MAIN_FIELDS.preference, placeholder: 'e.g. Remote-first teams, platform work', long: true },
 ]
 
 /** A typed fact is the owner's own word, so it is saved at once (the API stores `user-entered` as confirmed). */
@@ -37,12 +37,15 @@ export function AddFactDialog({
   submitting,
   error,
   onOpenChange,
+  onCloseAutoFocus,
   onSubmit,
 }: {
   open: boolean
   submitting: boolean
   error: string | null
   onOpenChange: (open: boolean) => void
+  /** Where focus goes on close when nothing opened the dialog (a deep link); default: back to its trigger. */
+  onCloseAutoFocus?: (event: Event) => void
   onSubmit: (kind: EvidenceKind, content: Record<string, string>) => void
 }) {
   const [kind, setKind] = useState<EvidenceKind>('skill')
@@ -80,7 +83,7 @@ export function AddFactDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dismissible={!submitting}>
+      <DialogContent dismissible={!submitting} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogForm onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add a fact</DialogTitle>

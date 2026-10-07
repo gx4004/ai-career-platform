@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import { resultDefinitions } from '#/lib/tools/resultDefinitions'
@@ -49,6 +49,14 @@ describe('InterviewPracticeMode', () => {
     expect(await screen.findByText('A solid story.')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Strengths' })).toBeTruthy()
     expect(screen.getByRole('list', { name: 'Areas to improve' }).textContent).toContain('Too long.')
+    // Inside the attempt's Panel: an xs heading under the attempt title, an unframed flush list (RSR-02, RSR-06).
+    expect(screen.getByRole('heading', { name: 'Strengths' }).closest('.kit-section')?.getAttribute('data-size')).toBe('xs')
+    const strengths = screen.getByRole('list', { name: 'Strengths' })
+    expect(strengths.hasAttribute('data-framed')).toBe(false)
+    expect(strengths.getAttribute('data-flush')).toBe('true')
+    expect(strengths.getAttribute('data-boxed')).toBe('end')
+    // The last group is closed by the attempt panel's own edge, not a second rule just above it (RSR-V02).
+    expect(screen.getByRole('list', { name: 'Suggestions' }).hasAttribute('data-boxed')).toBe(false)
     expect(screen.getByText('Attempt 2 / 3')).toBeTruthy()
   })
 
@@ -105,6 +113,61 @@ describe('InterviewPracticeMode', () => {
     expect(screen.getByLabelText('Your answer')).toBeTruthy()
   })
 
+  it('brings the new question and its answer box into view on Next and on the summary', () => {
+    const scrolled = vi.fn()
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scrolled
+    try {
+      window.sessionStorage.setItem('cw:practice:run-s', JSON.stringify({ 0: [{ answer: 'a', feedback: feedback() }] }))
+      render(<InterviewPracticeMode runId="run-s" questions={questions} onExit={() => {}} />)
+      scrolled.mockClear()
+      fireEvent.click(screen.getByRole('button', { name: /Next/ }))
+      // The page gets shorter when the attempts go: without a scroll the viewport is left below the question.
+      expect(scrolled).toHaveBeenCalledTimes(1)
+      expect((scrolled.mock.contexts[0] as HTMLElement).contains(screen.getByLabelText('Your answer'))).toBe(true)
+      expect(document.activeElement?.textContent).toBe('How do you lead?')
+      scrolled.mockClear()
+      fireEvent.click(screen.getByRole('button', { name: /See summary/ }))
+      expect(scrolled).toHaveBeenCalledTimes(1)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: /Back to practice/ }))
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
+  it('says "Not practiced yet" once per unpractised summary row, in a status that drops under the text on a phone', () => {
+    window.sessionStorage.setItem('cw:practice:run-n', JSON.stringify({ 0: [{ answer: 'a', feedback: feedback() }] }))
+    render(<InterviewPracticeMode runId="run-n" questions={questions} onExit={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /See summary/ }))
+    const rows = within(screen.getByRole('list', { name: 'Practice summary' })).getAllByRole('listitem')
+    // Subtitle and badge both said it (F18): the badge alone carries it now.
+    expect(rows[1].textContent?.match(/Not practiced yet/g)).toHaveLength(1)
+    // The status takes the kit's below placement, so on a narrow list the question keeps the full row width.
+    for (const row of rows) expect(row.querySelector('.kit-row__meta')?.getAttribute('data-placement')).toBe('below')
+  })
+
+  it('says "Nothing to improve" instead of "0 to improve" only when the feedback has no suggestion either', () => {
+    window.sessionStorage.setItem(
+      'cw:practice:run-z',
+      JSON.stringify({ 0: [{ answer: 'a', feedback: { ...feedback([]), suggestions: [] } }] }),
+    )
+    render(<InterviewPracticeMode runId="run-z" questions={questions} onExit={() => {}} />)
+    expect(screen.getByText('Nothing to improve')).toBeTruthy()
+    expect(screen.queryByText(/0 to improve/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /See summary/ }))
+    expect(screen.getByText('1 attempt; nothing left to improve.')).toBeTruthy()
+  })
+
+  // No weak spots but a suggestion used to read "Nothing to improve" right above a Suggestions list.
+  it('counts the suggestions when there are no weak spots, instead of saying there is nothing to improve', () => {
+    window.sessionStorage.setItem('cw:practice:run-y', JSON.stringify({ 0: [{ answer: 'a', feedback: feedback([]) }] }))
+    render(<InterviewPracticeMode runId="run-y" questions={questions} onExit={() => {}} />)
+    expect(screen.getByText('No weak spots · 1 suggestion')).toBeTruthy()
+    expect(screen.queryByText('Nothing to improve')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /See summary/ }))
+    expect(screen.getByText('1 attempt; no weak spots in the last one, 1 suggestion.')).toBeTruthy()
+  })
+
   it('ends with a summary of which questions improved and practices the weakest again', async () => {
     window.sessionStorage.setItem(
       'cw:practice:run-a',
@@ -124,9 +187,20 @@ describe('InterviewPracticeMode', () => {
     expect(list.textContent).toContain('Improved')
     expect(list.textContent).toContain('One try')
     fireEvent.click(screen.getByRole('button', { name: /Practice the weakest again/ }))
-    // Question 2 had the most left to improve: it is back at attempt 1.
+    // Question 2 had the most left to improve: it gets a new round of three attempts...
     expect(screen.getByText('How do you lead?')).toBeTruthy()
     expect(screen.getByText('Attempt 1 / 3')).toBeTruthy()
+    // ...and keeps what it already had (sign-off tool-results-F65: the earlier answer and its feedback were erased).
+    expect(screen.getByRole('button', { name: /Earlier round · attempt 1/ })).toBeTruthy()
+    expect(JSON.parse(window.sessionStorage.getItem('cw:practice:run-a') ?? '{}')[1]).toHaveLength(1)
+    feedbackMock.mockResolvedValue(feedback(['x']))
+    await submit('A better answer.')
+    expect(await screen.findByText('Attempt 2 / 3')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Attempt 1/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /See summary/ }))
+    const rows = within(screen.getByRole('list', { name: 'Practice summary' })).getAllByRole('listitem')
+    expect(rows[1].textContent).toContain('2 attempts')
+    expect(rows[1].textContent).toContain('Improved')
   })
 
   it('puts focus back on the Practice mode button when practice is left', async () => {

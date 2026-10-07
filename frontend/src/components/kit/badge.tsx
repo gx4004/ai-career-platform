@@ -15,11 +15,16 @@ export type BadgeProps = ComponentPropsWithoutRef<'span'> & {
   icon?: ReactNode
   /** A score beside a run ("89/100", "75%"): the number in the display face, black weight, tabular figures. */
   score?: boolean
+  /**
+   * A long label (an application's name) wraps onto more lines inside the chip instead of being cut short with an
+   * ellipsis; the chip's corners soften so a two-line chip is not a stadium.
+   */
+  wrap?: boolean
 }
 
 /** The one status chip: replaces every per-page badge, pill and tag. */
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
-  { tone = 'neutral', size = 'md', dot = false, icon, score = false, className, children, ...rest },
+  { tone = 'neutral', size = 'md', dot = false, icon, score = false, wrap = false, className, children, ...rest },
   ref,
 ) {
   return (
@@ -28,6 +33,7 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
       className={cn('kit-badge', `kit-badge--${size}`, className)}
       data-tone={tone}
       data-score={score ? 'true' : undefined}
+      data-wrap={wrap ? 'true' : undefined}
       {...rest}
     >
       {icon ? (

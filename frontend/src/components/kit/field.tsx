@@ -28,6 +28,12 @@ export type FieldProps = {
   disabled?: boolean
   /** Base id for the control; generated when omitted. */
   id?: string
+  /**
+   * Label a group of controls that name themselves (a list of highlights, a row of inputs): the wrapper becomes
+   * `role="group"` named by the label, with the same 14px label and 8px gap as a single field. The controls inside are
+   * not tied to the label (each keeps its own name), so help and error describe the group, not a control.
+   */
+  group?: boolean
   className?: string
   children: ReactNode
 }
@@ -45,6 +51,7 @@ export function Field({
   error,
   disabled = false,
   id,
+  group = false,
   className,
   children,
 }: FieldProps) {
@@ -55,6 +62,40 @@ export function Field({
   const errorId = error ? `${controlId}-error` : undefined
   const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined
   const invalid = Boolean(error)
+
+  if (group) {
+    return (
+      <div
+        role="group"
+        aria-labelledby={label ? labelId : undefined}
+        aria-describedby={describedBy}
+        className={cn('kit-field', className)}
+        data-group="true"
+        data-invalid={invalid || undefined}
+        data-disabled={disabled || undefined}
+      >
+        {label ? (
+          <span id={labelId} className={cn('kit-field__label', hideLabel && 'kit-sr-only')}>
+            {label}
+            {optional ? <span className="kit-field__marker">Optional</span> : null}
+          </span>
+        ) : null}
+        {/* Each control keeps its own name: nothing here (or around the group) hands it an id or a label. */}
+        <FieldContext.Provider value={null}>{children}</FieldContext.Provider>
+        {help ? (
+          <p id={helpId} className="kit-field__help">
+            {help}
+          </p>
+        ) : null}
+        {error ? (
+          <p id={errorId} className="kit-field__error" role="alert">
+            <CircleAlert aria-hidden="true" />
+            <span>{error}</span>
+          </p>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <FieldContext.Provider value={{ controlId, labelId: label ? labelId : undefined, describedBy, invalid, required, disabled }}>

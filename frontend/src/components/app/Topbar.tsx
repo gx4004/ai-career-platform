@@ -5,6 +5,7 @@ import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { openCommandPalette } from '#/components/app/CommandPalette'
 import { Avatar, Button, DropdownMenu, DropdownMenuTrigger } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
+import { isAccountRoute } from '#/lib/navigation/navGroups'
 
 /**
  * The phone's top bar: the brand on the left; on the right the search button (it opens the same palette as
@@ -38,10 +39,19 @@ export function Topbar() {
         >
           <Search aria-hidden />
         </Button>
-        {status === 'authenticated' && user ? (
+        {status === 'loading' || status === 'unreachable' ? (
+          // Holds the avatar's place while the session resolves, so Search does not jump left when it arrives.
+          <span className="app-topbar__account-placeholder" aria-hidden="true" />
+        ) : status === 'authenticated' && user ? (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button iconOnly variant="ghost" aria-label={`Account menu for ${displayName}`}>
+              <Button
+                iconOnly
+                variant="ghost"
+                className="app-topbar__account"
+                data-active={isAccountRoute(pathname) ? 'true' : undefined}
+                aria-label={`Account menu for ${displayName}`}
+              >
                 <Avatar name={displayName} size="lg" decorative />
               </Button>
             </DropdownMenuTrigger>

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { Button, Card, CardActions, CardHeader, CardTitle, Notice, Section, StretchedLink } from '#/components/kit'
@@ -59,6 +61,17 @@ describe('kit Section', () => {
     expect(head.contains(screen.getByText('Content'))).toBe(false)
   })
 
+  // history-profile-F38: at 320 "Facts from your profile" filled the dialog and its ghost "Clear" wrapped onto a line of
+  // its own; actionsWrap={false} keeps the action beside the title, which wraps instead.
+  it('keeps its actions beside the title with actionsWrap={false}, the title wrapping instead', () => {
+    const { container, rerender } = render(<Section title="A" actions={<Button size="sm">Clear</Button>}>x</Section>)
+    expect((container.firstElementChild as HTMLElement).hasAttribute('data-actions-wrap')).toBe(false)
+    rerender(<Section title="A" actionsWrap={false} actions={<Button size="sm">Clear</Button>}>x</Section>)
+    expect((container.firstElementChild as HTMLElement).getAttribute('data-actions-wrap')).toBe('false')
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/section.css'), 'utf8')
+    expect(css).toMatch(/\.kit-section\[data-actions-wrap='false'\] > \.kit-section__head > \.kit-section__row\s*\{[^}]*flex-wrap:\s*nowrap/)
+  })
+
   it('steps its title down with size="sm" and marks it for the stylesheet', () => {
     const { container, rerender } = render(<Section title="A">x</Section>)
     expect((container.firstElementChild as HTMLElement).hasAttribute('data-size')).toBe(false)
@@ -68,6 +81,24 @@ describe('kit Section', () => {
       </Section>,
     )
     expect((container.firstElementChild as HTMLElement).getAttribute('data-size')).toBe('sm')
+  })
+
+  // cv-studio-F05: an object's name in a narrow card (a CV entry beside its move and delete tools) is a row title, not
+  // a display heading; at 19px display it broke "B.S. Computer Science, University of Texas" into four lines.
+  it('gives size="xs" the row-title type (UI face, bold) and marks it for the stylesheet', () => {
+    const { container } = render(
+      <Section title="B.S. Computer Science" size="xs" headingLevel={3}>
+        x
+      </Section>,
+    )
+    expect((container.firstElementChild as HTMLElement).getAttribute('data-size')).toBe('xs')
+    expect(screen.getByRole('heading', { level: 3, name: 'B.S. Computer Science' })).toBeTruthy()
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/section.css'), 'utf8')
+    const block = css.match(/\.kit-section\[data-size='xs'\] > \.kit-section__head \.kit-section__title \{([^}]*)\}/)?.[1] ?? ''
+    expect(block).toMatch(/font-family:\s*var\(--font-ui\)/)
+    expect(block).toMatch(/font-weight:\s*var\(--fw-bold\)/)
+    expect(block).toMatch(/font-size:\s*var\(--fs-body\)/)
+    expect(block).toMatch(/letter-spacing:\s*0/)
   })
 
   it('has no rule by default (whitespace separates sections) and draws one with rule', () => {

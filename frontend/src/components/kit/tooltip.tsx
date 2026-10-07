@@ -1,4 +1,4 @@
-import { createContext, forwardRef, useContext, type ComponentPropsWithoutRef, type ElementRef, type ReactElement, type ReactNode } from 'react'
+import { createContext, forwardRef, useContext, type ComponentPropsWithoutRef, type ElementRef, type FocusEvent, type ReactElement, type ReactNode } from 'react'
 import { Tooltip as TooltipPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'
 import { Kbd } from './badge'
@@ -51,8 +51,25 @@ export type TooltipProps = {
   open?: boolean
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
+  /**
+   * Open on focus only when the browser would draw a focus ring (`:focus-visible`), i.e. keyboard focus. Use it on a
+   * trigger that a script focuses after a tap or click (a status that takes focus once its notice is gone): Radix
+   * otherwise opens on any focus that did not start with a pointerdown on the trigger itself. Hover still opens it.
+   */
+  openOnFocusVisibleOnly?: boolean
   /** A single focusable element: a kit Button, a link. It receives the trigger props. */
   children: ReactElement
+}
+
+/** Radix skips its own focus handler (the open) when ours marked the event as handled. */
+function skipUnlessFocusVisible(event: FocusEvent<HTMLElement>) {
+  let focusVisible = true
+  try {
+    focusVisible = event.currentTarget.matches(':focus-visible')
+  } catch {
+    // A browser without :focus-visible keeps the plain behaviour: focus opens it.
+  }
+  if (!focusVisible) event.preventDefault()
 }
 
 /**
@@ -69,6 +86,7 @@ export function Tooltip({
   open,
   defaultOpen,
   onOpenChange,
+  openOnFocusVisibleOnly = false,
   children,
 }: TooltipProps) {
   const hasProvider = useContext(ProviderContext)
@@ -79,7 +97,9 @@ export function Tooltip({
       defaultOpen={defaultOpen}
       onOpenChange={onOpenChange}
     >
-      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+      <TooltipPrimitive.Trigger asChild onFocus={openOnFocusVisibleOnly ? skipUnlessFocusVisible : undefined}>
+        {children}
+      </TooltipPrimitive.Trigger>
       <TooltipContent side={side} align={align}>
         {content}
         {shortcut ? <Kbd>{shortcut}</Kbd> : null}

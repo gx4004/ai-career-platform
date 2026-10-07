@@ -1,7 +1,12 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LegalLayout } from '#/components/legal/LegalLayout'
+
+const nav = vi.hoisted(() => ({ canGoBack: false, back: vi.fn(), pathname: '/' }))
+const session = vi.hoisted(() => ({ status: 'authenticated' as 'authenticated' | 'guest' | 'loading' }))
+
+vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status }) }))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to, ...props }: { children: ReactNode; to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
@@ -9,9 +14,40 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  useCanGoBack: () => nav.canGoBack,
+  useRouter: () => ({ history: { back: nav.back } }),
+  useRouterState: ({ select }: { select: (state: { location: { pathname: string } }) => unknown }) =>
+    select({ location: { pathname: nav.pathname } }),
 }))
 
 describe('LegalLayout', () => {
+  beforeEach(() => {
+    nav.canGoBack = false
+    nav.back.mockReset()
+    nav.pathname = '/'
+    session.status = 'authenticated'
+  })
+
+  // A guest who opens a legal page from a search result or a fresh tab goes back to the landing page, not into
+  // the guest app shell; signed in, Back is the dashboard (the 404's rule; sign-off public-G13).
+  it('without in-app history, Back leads home for a guest and to the dashboard when signed in', () => {
+    session.status = 'guest'
+    const { unmount } = render(
+      <LegalLayout title="Privacy Policy">
+        <p>Text.</p>
+      </LegalLayout>,
+    )
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/')
+    unmount()
+    session.status = 'authenticated'
+    render(
+      <LegalLayout title="Privacy Policy">
+        <p>Text.</p>
+      </LegalLayout>,
+    )
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/dashboard')
+  })
+
   it('is one reading page: the brand, a way back, a title with its date, the text and the other pages', () => {
     render(
       <LegalLayout title="Privacy Policy" lastUpdated="2026-04-28">
@@ -23,7 +59,8 @@ describe('LegalLayout', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Privacy Policy' })).toBeTruthy()
     expect(screen.getByText('Last updated Apr 28, 2026')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Career Workbench home' }).getAttribute('href')).toBe('/')
-    expect(screen.getByRole('link', { name: 'Back to app' }).getAttribute('href')).toBe('/dashboard')
+    // One label for the way out on every shell-less page (sign-in, reset password, legal), so the wordmark always fits.
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/dashboard')
     expect(screen.getByRole('heading', { level: 2, name: '1. Who we are' })).toBeTruthy()
   })
 
@@ -41,6 +78,32 @@ describe('LegalLayout', () => {
       '/imprint',
     ])
     expect(screen.getAllByRole('navigation')).toHaveLength(1)
+  })
+
+  it('goes back to the page the visitor came from (the half-filled sign-up form) when there is one', () => {
+    nav.canGoBack = true
+    render(
+      <LegalLayout title="Terms of Service">
+        <p>Text.</p>
+      </LegalLayout>,
+    )
+    expect(screen.queryByRole('link', { name: 'Back' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(nav.back).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows where you are in the foot strip: the current page is plain text, not a link to itself', () => {
+    nav.pathname = '/privacy'
+    render(
+      <LegalLayout title="Privacy Policy">
+        <p>Text.</p>
+      </LegalLayout>,
+    )
+    const strip = screen.getByRole('navigation', { name: 'Legal pages' })
+    expect(within(strip).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/terms', '/cookies', '/imprint'])
+    const current = within(strip).getByText('Privacy')
+    expect(current.tagName).not.toBe('A')
+    expect(current.getAttribute('aria-current')).toBe('page')
   })
 
   it('builds a contents rail from the h2 headings and gives each one an id', () => {

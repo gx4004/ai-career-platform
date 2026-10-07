@@ -2,11 +2,8 @@ import { FitStamp, NumberDisc, ScoreBar, SkillPips, Sticker, ToolTile, type Tone
 import { landingWorkflowCopy, landingWorkflowFeatures } from '#/components/landing/landingContent'
 import { tools } from '#/lib/tools/registry'
 
-const STEP_STYLE: ReadonlyArray<{ tone: Tone; tilt: number }> = [
-  { tone: 'tangerine', tilt: -1.4 },
-  { tone: 'mint', tilt: 1 },
-  { tone: 'lilac', tilt: -0.8 },
-]
+/* The tilts (-1.4, 1, -0.8deg) live in landing.css, which levels them on tablets and phones (STICKER 1.15). */
+const STEP_TONES: ReadonlyArray<Tone> = ['tangerine', 'mint', 'lilac']
 
 /** The three small sample interfaces inside the step stickers. They are illustrations: sample data, hidden from assistive tech. */
 function StepSample({ index }: { index: number }) {
@@ -62,8 +59,7 @@ export function LandingFeatureStepsDemo() {
               as="li"
               key={f.step}
               size="xl"
-              tone={STEP_STYLE[i].tone}
-              tilt={STEP_STYLE[i].tilt}
+              tone={STEP_TONES[i]}
               className="lp-workflow-card"
             >
               <NumberDisc n={i + 1} size="lg" />

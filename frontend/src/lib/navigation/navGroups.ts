@@ -62,3 +62,8 @@ export function getNavDestination(route: string): NavDestination {
   }
   throw new Error(`No nav destination for ${route}`)
 }
+
+/** The pages the account menu leads to (Account, Settings): there the account button is the "you are here". */
+export function isAccountRoute(pathname: string) {
+  return pathname.startsWith('/account') || pathname.startsWith('/settings')
+}

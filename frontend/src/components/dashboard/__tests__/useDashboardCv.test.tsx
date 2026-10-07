@@ -6,9 +6,10 @@ import { useDashboardCv } from '#/components/dashboard/useDashboardCv'
 
 const listCvDocuments = vi.hoisted(() => vi.fn())
 const getHistory = vi.hoisted(() => vi.fn())
+const listApplications = vi.hoisted(() => vi.fn())
 const session = vi.hoisted(() => ({ status: 'authenticated' }))
 
-vi.mock('#/lib/api/client', () => ({ listCvDocuments, getHistory }))
+vi.mock('#/lib/api/client', () => ({ listCvDocuments, getHistory, listApplications }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status }) }))
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -23,6 +24,7 @@ describe('useDashboardCv', () => {
     session.status = 'authenticated'
     listCvDocuments.mockReset()
     getHistory.mockReset()
+    listApplications.mockReset().mockResolvedValue({ items: [], total: 0 })
   })
 
   it('is a newcomer with no CV and no resume run', async () => {
@@ -55,6 +57,32 @@ describe('useDashboardCv', () => {
     await waitFor(() => expect(result.current.hasResumeRun).toBe(true))
     expect(result.current.isNewcomer).toBe(false)
     expect(result.current.latest).toBeNull()
+  })
+
+  it('keeps the first steps after the first resume run, until there is an application', async () => {
+    listCvDocuments.mockResolvedValue({ items: [] })
+    getHistory.mockResolvedValue({ items: [{}], total: 1, page: 1, page_size: 1, has_more: false })
+    const { result } = renderHook(() => useDashboardCv(), { wrapper })
+
+    await waitFor(() => expect(result.current.showFirstSteps).toBe(true))
+    expect(result.current.isNewcomer).toBe(false)
+    expect(result.current.hasResume).toBe(true)
+    expect(result.current.stepsPending).toBe(false)
+  })
+
+  it('drops the first steps once an application exists, and never shows them on a failed lookup', async () => {
+    listCvDocuments.mockResolvedValue({ items: [] })
+    getHistory.mockResolvedValue({ items: [{}], total: 1, page: 1, page_size: 1, has_more: false })
+    listApplications.mockResolvedValue({ items: [{ id: 'a1' }], total: 1 })
+    const first = renderHook(() => useDashboardCv(), { wrapper })
+    await waitFor(() => expect(first.result.current.stepsPending).toBe(false))
+    expect(first.result.current.showFirstSteps).toBe(false)
+    first.unmount()
+
+    listApplications.mockRejectedValue(new Error('down'))
+    const second = renderHook(() => useDashboardCv(), { wrapper })
+    await waitFor(() => expect(second.result.current.stepsPending).toBe(false))
+    expect(second.result.current.showFirstSteps).toBe(false)
   })
 
   it('never calls a failed lookup "no CV"', async () => {

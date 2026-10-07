@@ -1,13 +1,19 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResumeSource } from '#/components/tooling/ResumeSource'
 import { SAMPLE_RESUME_TEXT } from '#/components/tooling/sampleResume'
+import { ApiError } from '#/lib/api/errors'
+import { writeWorkflowContext } from '#/lib/tools/drafts'
 
 const parseCvMock = vi.hoisted(() => vi.fn())
-vi.mock('#/lib/api/client', () => ({ parseCv: parseCvMock }))
+// The row names where a carried resume came from (tool labels from the registry, which imports the rest of the client).
+vi.mock('#/lib/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/lib/api/client')>()),
+  parseCv: parseCvMock,
+}))
 
 function renderSource(props: Partial<Parameters<typeof ResumeSource>[0]> = {}) {
   const onChange = vi.fn()
@@ -48,16 +54,31 @@ describe('ResumeSource', () => {
 
   it('shows parse warnings', async () => {
     parseCvMock.mockResolvedValue({
+      filename: 'cv.pdf',
+      extracted_text: 'Some text that was read.',
+      chars_count: 24,
+      warnings: ['Some pages could not be read'],
+    })
+    renderSource()
+    upload('cv.pdf')
+    await waitFor(() => expect(screen.getByText('Some pages could not be read')).toBeTruthy())
+  })
+
+  // The scan notice used to say the same thing three times: its title, the backend's "No text could be extracted from
+  // this file", and the explanation. The title and the explanation say it; the backend line is left out.
+  it('does not repeat the backend’s no-text warning under a scan notice that already says it', async () => {
+    parseCvMock.mockResolvedValue({
       filename: 'scan.pdf',
       extracted_text: '',
       chars_count: 0,
-      warnings: ['No text could be extracted from this file'],
+      warnings: ['No text could be extracted from this file', 'Page 2 is an image'],
     })
     renderSource()
     upload('scan.pdf')
-    await waitFor(() =>
-      expect(screen.getByText(/No text could be extracted from this file/i)).toBeTruthy(),
-    )
+    expect(await screen.findByText('No readable text in scan.pdf')).toBeTruthy()
+    expect(screen.queryByText(/No text could be extracted/i)).toBeNull()
+    // Anything else the reader noticed still shows.
+    expect(screen.getByText('Page 2 is an image')).toBeTruthy()
   })
 
   it('shows the resume row with a word count when text exists', () => {
@@ -138,7 +159,10 @@ describe('ResumeSource', () => {
       renderSource({ value: parsed.extracted_text })
       upload('cv.pdf')
       const readBack = await screen.findByLabelText('What was read from your file')
-      expect(readBack.textContent).toContain('Read 12 words from cv.pdf')
+      // Titled by its job: the file name and the word count are already in the resume row right above it.
+      expect(readBack.textContent).toContain('Check what was read')
+      expect(readBack.textContent).not.toContain('cv.pdf')
+      expect(readBack.textContent).not.toContain('12 words')
       expect(readBack.textContent).toContain('Taylor Morgan.')
       fireEvent.click(screen.getByRole('button', { name: 'Looks right' }))
       expect(screen.queryByLabelText('What was read from your file')).toBeNull()
@@ -153,6 +177,18 @@ describe('ResumeSource', () => {
       expect(onChange).not.toHaveBeenCalled()
       fireEvent.click(screen.getByRole('button', { name: 'Paste your resume text' }))
       expect(screen.getByLabelText('Resume text')).toBeTruthy()
+    })
+
+    // The server's 400 is technical and gives no next step: the same failure reads as on the dashboard upload, with the
+    // paste path this field offers (sign-off F32).
+    it('says a file the server could not read in plain words, with a next step', async () => {
+      parseCvMock.mockRejectedValue(new ApiError('The uploaded file could not be safely parsed.', 400))
+      renderSource()
+      upload('broken.pdf')
+      expect(
+        await screen.findByText("We couldn't read that file. Try another PDF or DOCX, or paste the text instead."),
+      ).toBeTruthy()
+      expect(screen.queryByText(/could not be safely parsed/)).toBeNull()
     })
 
     it('refuses a file over 10 MB or of the wrong type before sending it', async () => {
@@ -194,6 +230,80 @@ describe('ResumeSource', () => {
       expect(screen.getByText('earlier.pdf')).toBeTruthy()
     })
 
+    it('names where a carried resume was supplied: pasted here, from another tool, or this session when unknown', () => {
+      sessionStorage.setItem('cw:resume-carry', 'Earlier resume text')
+      sessionStorage.setItem('cw:resume-carry-updated-at', String(Date.now()))
+      sessionStorage.setItem('cw:resume-carry-origin', 'resume')
+      const source = () => screen.getByRole('list', { name: 'Resume source' }).querySelector('.kit-row__title')?.textContent
+      const view = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ResumeSource id="r" label="Resume text" toolId="resume" value="Earlier resume text" onChange={vi.fn()} />
+        </QueryClientProvider>,
+      )
+      // Pasted on Resume Analyzer and run there: back on Resume Analyzer it is not "carried from a previous tool".
+      expect(source()).toBe('Pasted resume')
+      view.unmount()
+
+      const other = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ResumeSource id="r" label="Resume text" toolId="job-match" value="Earlier resume text" onChange={vi.fn()} />
+        </QueryClientProvider>,
+      )
+      expect(source()).toBe('Resume from Resume Analyzer')
+      other.unmount()
+
+      sessionStorage.removeItem('cw:resume-carry-origin')
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ResumeSource id="r" label="Resume text" toolId="job-match" value="Earlier resume text" onChange={vi.fn()} seeded />
+        </QueryClientProvider>,
+      )
+      expect(source()).toBe('Your resume from this session')
+      expect(screen.queryByText('Resume carried from previous tool')).toBeNull()
+    })
+
+    it('names a resume a Re-generate found in the account by that CV', () => {
+      writeWorkflowContext({
+        resumeText: 'Alex Morgan, Staff Engineer. Ten years of platform work.',
+        resumeSource: 'your CV Studio CV “Platform CV”',
+        resumeOrigin: 'cv-studio',
+        updatedAt: Date.now(),
+      })
+      renderSource({ value: 'Alex Morgan, Staff Engineer. Ten years of platform work.', seeded: true, toolId: 'job-match' })
+      expect(screen.getByText('Your CV Studio CV “Platform CV”')).toBeTruthy()
+    })
+
+    it('remembers text pasted here as supplied on this tool', () => {
+      function Controlled() {
+        const [value, setValue] = useState('')
+        return <ResumeSource id="r" label="Resume text" toolId="interview" value={value} onChange={setValue} />
+      }
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <Controlled />
+        </QueryClientProvider>,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Paste text instead' }))
+      fireEvent.change(screen.getByLabelText('Resume text'), { target: { value: 'Jordan Lee. Data analyst, SQL and dbt.' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+      expect(sessionStorage.getItem('cw:resume-carry-origin')).toBe('interview')
+      expect(screen.getByRole('list', { name: 'Resume source' }).textContent).toContain('Pasted resume')
+    })
+
+    it('lets the user back out of an empty paste editor, and keeps the sample one click away', () => {
+      const { onChange } = renderSource()
+      fireEvent.click(screen.getByRole('button', { name: 'Paste text instead' }))
+      expect(screen.getByLabelText('Resume text')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Try with a sample resume' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      // Back to the dropzone.
+      expect(screen.queryByLabelText('Resume text')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Paste text instead' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Paste text instead' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Try with a sample resume' }))
+      expect(onChange).toHaveBeenCalledWith(SAMPLE_RESUME_TEXT)
+    })
+
     it('shows the resume row as an object: a stone panel around an unframed list, not loose text', () => {
       renderSource({ value: 'one two three' })
       const list = screen.getByRole('list', { name: 'Resume source' })
@@ -227,5 +337,134 @@ describe('ResumeSource', () => {
       expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
       expect(screen.queryByText('Resume carried from previous tool')).toBeNull()
     })
+  })
+})
+
+// Sign-off tool-inputs-F27: actions that swap the control for another body (a finished upload, the sample, Looks right,
+// Done, the empty editor's Cancel) dropped keyboard focus on <body>. Focus now lands on the control that takes their place.
+describe('ResumeSource: keyboard focus across its states', () => {
+  beforeEach(() => {
+    parseCvMock.mockReset()
+    sessionStorage.clear()
+  })
+
+  function renderControlled(initial = '') {
+    function Controlled() {
+      const [value, setValue] = useState(initial)
+      return <ResumeSource id="r" label="Resume text" value={value} onChange={setValue} />
+    }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Controlled />
+      </QueryClientProvider>,
+    )
+  }
+
+  /** A keyboard press: the button has focus, then activates (and unmounts with the body it was in). */
+  function press(name: string) {
+    const button = screen.getByRole('button', { name })
+    button.focus()
+    fireEvent.click(button)
+  }
+
+  it('hands focus back to the picker when an upload finishes', async () => {
+    parseCvMock.mockResolvedValue({ filename: 'cv.docx', extracted_text: 'Taylor Morgan. Designer.', chars_count: 24, warnings: [] })
+    renderControlled()
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    input.focus()
+    upload('cv.docx')
+    await screen.findByLabelText('What was read from your file')
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('input[type="file"]')))
+  })
+
+  it('puts focus on Change after the sample, Looks right and Done', async () => {
+    renderControlled()
+    press('Try with a sample resume')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Change' }))
+
+    press('Change')
+    press('Done')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Change' }))
+
+    parseCvMock.mockResolvedValue({ filename: 'cv.docx', extracted_text: 'Taylor Morgan. Designer.', chars_count: 24, warnings: [] })
+    upload('cv.docx')
+    await screen.findByLabelText('What was read from your file')
+    press('Looks right')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Change' }))
+  })
+
+  it('returns focus to "Paste text instead" when the empty editor is cancelled', () => {
+    renderControlled()
+    press('Paste text instead')
+    press('Cancel')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Paste text instead' }))
+  })
+
+  it('does not take focus from where the user moved it meanwhile', async () => {
+    let resolve: (value: unknown) => void = () => {}
+    parseCvMock.mockReturnValue(new Promise((r) => { resolve = r }))
+    renderControlled()
+    const elsewhere = document.createElement('input')
+    document.body.appendChild(elsewhere)
+    upload('cv.docx')
+    elsewhere.focus()
+    resolve({ filename: 'cv.docx', extracted_text: 'Taylor Morgan. Designer.', chars_count: 24, warnings: [] })
+    await screen.findByLabelText('What was read from your file')
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
+  })
+})
+
+describe('ResumeSource: what the scan notice and the dropzone say', () => {
+  beforeEach(() => {
+    parseCvMock.mockReset()
+    sessionStorage.clear()
+  })
+
+  // Sign-off tool-inputs-F36: a scan over an uploaded resume keeps that resume; the notice says it is still the one used.
+  it('says which resume the run still uses when a scan replaced nothing', async () => {
+    parseCvMock.mockResolvedValue({ filename: 'scan.pdf', extracted_text: '', chars_count: 0, warnings: [] })
+    sessionStorage.setItem('cw:resume-carry', 'my existing resume text')
+    sessionStorage.setItem('cw:resume-carry-updated-at', String(Date.now()))
+    sessionStorage.setItem('cw:resume-carry-filename', 'riley-chen-resume.docx')
+    renderSource({ value: 'my existing resume text' })
+    upload('scan.pdf')
+    expect(
+      await screen.findByText('Your earlier resume (riley-chen-resume.docx) is still the one this run uses.'),
+    ).toBeTruthy()
+  })
+
+  it('says nothing about an earlier resume when there was none', async () => {
+    parseCvMock.mockResolvedValue({ filename: 'scan.pdf', extracted_text: '', chars_count: 0, warnings: [] })
+    renderSource()
+    upload('scan.pdf')
+    await screen.findByText('No readable text in scan.pdf')
+    expect(screen.queryByText(/is still the one this run uses/)).toBeNull()
+  })
+
+  // Sign-off tool-inputs-F38: the dropzone takes a dropped file, but nothing said so to a mouse user.
+  it('invites a drop on a fine pointer, and keeps the plain hint on touch', () => {
+    const original = window.matchMedia
+    try {
+      renderSource()
+      expect(screen.getByText(/^PDF or DOCX, up to 10\sMB$/).closest('p')?.textContent).toBe(
+        'Drop your resume here: PDF or DOCX, up to 10\u00a0MB',
+      )
+      cleanup()
+      window.matchMedia = ((query: string) => ({
+        matches: query === '(pointer: coarse)',
+        media: query,
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+      })) as typeof window.matchMedia
+      renderSource()
+      expect(screen.getByText(/^PDF or DOCX, up to 10\sMB$/).closest('p')?.textContent).toBe('PDF or DOCX, up to 10\u00a0MB')
+    } finally {
+      window.matchMedia = original
+    }
   })
 })

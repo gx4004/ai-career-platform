@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Button, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogForm, DialogHeader,
-  DialogTitle, Field, Notice, ScoreSeal, Stack, Textarea,
+  DialogTitle, Field, KeyValue, Notice, ScoreSeal, Stack, Textarea,
 } from '#/components/kit'
 import type { DevelopmentItem } from '#/lib/api/developmentSchemas'
 import { GAP_KIND_LABELS } from '#/lib/development/plan'
@@ -12,7 +12,9 @@ export type CompletionResult = { evidenceItemId: string | null }
 /**
  * Finishing a skill can add to the profile, so it asks first: "What did you do?". Words typed here are the
  * owner's own and the server saves them as a fact; left empty, the skill is only marked done and nothing is
- * added. The same dialog then shows the payoff (a mint seal) when a fact was added, and offers to show it.
+ * added. The skill's notes are its PLAN ("What you plan to do to close this gap"), not what was done, so they
+ * are shown read-only above the field and never pre-filled into it: one click must not turn a plan into a
+ * confirmed fact. The same dialog then shows the payoff (a mint seal) when a fact was added, and offers to show it.
  */
 export function CompleteSkillDialog({
   item,
@@ -37,11 +39,13 @@ export function CompleteSkillDialog({
   if (item) shown.current = item
   const current = item ?? shown.current
 
+  // Each opening starts empty: the plan is not what was done.
   useEffect(() => {
-    if (item) setNotes(item.notes ?? '')
+    if (item) setNotes('')
   }, [item])
 
   const kind = current ? current.label?.trim() || GAP_KIND_LABELS[current.gap_kind] : 'skill'
+  const plan = current?.notes?.trim() || null
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -86,6 +90,7 @@ export function CompleteSkillDialog({
             </DialogHeader>
             <DialogBody>
               <Stack gap={4}>
+                {plan ? <KeyValue layout="stacked" divided={false} items={[{ label: 'Your plan', value: plan }]} /> : null}
                 <Field label="What you did" optional>
                   <Textarea
                     autosize maxRows={10} rows={4} value={notes} maxLength={2000} disabled={submitting}

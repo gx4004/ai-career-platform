@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react'
 import {
+  Button,
   FitStamp,
   Highlight,
   NumberDisc,
@@ -38,6 +39,15 @@ export function TilesSection() {
             ))}
             <ToolTile tone={tools.portfolio.tone} icon={tools.portfolio.icon} size="xl" />
           </div>
+        </Row>
+        <Row>
+          <Specimen label="flat: lg inside a row (What next), level, no shadow">
+            <div style={{ display: 'flex', gap: 'var(--s4)' }}>
+              {toolList.slice(1, 4).map((tool) => (
+                <ToolTile key={`flat-${tool.id}`} tone={tool.tone} icon={tool.icon} size="lg" flat />
+              ))}
+            </div>
+          </Specimen>
         </Row>
       </Group>
 
@@ -80,18 +90,33 @@ export function TilesSection() {
           <Specimen label="upcoming">
             <NumberDisc n={4} size="sm" />
           </Specimen>
+          <Specimen label="xs in a button's icon slot (Copied)">
+            <Button type="button" variant="secondary" size="sm">
+              <NumberDisc n={<Check />} size="xs" tone="mint" />
+              Copied
+            </Button>
+          </Specimen>
         </Row>
       </Group>
 
       <Group title="ToneDot: the colour key before a label (sm 10, md 12)">
         <Row>
-          {toolList.map((tool) => (
-            <span key={tool.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
-              <ToneDot tone={tool.tone} lead />
-              {tool.shortLabel}
+          <Specimen label="sm 10, one per tool">
+            <Row>
+              {toolList.map((tool) => (
+                <span key={tool.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <ToneDot tone={tool.tone} lead />
+                  {tool.shortLabel}
+                </span>
+              ))}
+            </Row>
+          </Specimen>
+          <Specimen label="md 12">
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <ToneDot tone="rose" size="md" lead />
+              Deadline
             </span>
-          ))}
-          <ToneDot tone="rose" size="md" />
+          </Specimen>
         </Row>
       </Group>
 

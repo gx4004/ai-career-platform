@@ -15,6 +15,8 @@ export type TextareaProps = ComponentPropsWithoutRef<'textarea'> & {
   autosize?: boolean
   /** With autosize: stop growing after this many rows and scroll. */
   maxRows?: number
+  /** Reading-length text (a letter's paragraphs): 17px / 1.6 instead of the 15px form-field type. */
+  prose?: boolean
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(props, ref) {
@@ -22,6 +24,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     invalid: invalidProp,
     autosize = false,
     maxRows,
+    prose = false,
     rows,
     className,
     id: idProp,
@@ -92,6 +95,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       rows={rows ?? (autosize ? 2 : 3)}
       className={cn('kit-textarea', className)}
       data-autosize={autosize || undefined}
+      data-prose={prose || undefined}
       data-invalid={field.invalid || undefined}
       data-disabled={field.disabled || undefined}
       data-readonly={readOnly || undefined}

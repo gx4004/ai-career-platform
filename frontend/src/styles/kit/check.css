@@ -102,6 +102,12 @@
   background: var(--tangerine);
 }
 
+/* tone="success": a box that records something done (a finished task) fills mint, the colour of "good". */
+/* Enabled only: a disabled box stays stone like every other disabled box (its rule below is lighter than this one). */
+.kit-check[data-tone='success'] .kit-check__box:not(:disabled):is(:checked, :indeterminate) {
+  background: var(--mint);
+}
+
 .kit-check__box:checked::after,
 .kit-check__box:indeterminate::after {
   display: block;
@@ -127,18 +133,11 @@
   outline: none;
 }
 
-.kit-check[data-invalid] :is(.kit-check__box, .kit-check__switch) {
-  outline: var(--bw) solid var(--danger-ink);
-  outline-offset: 2px;
-}
-
-.kit-check[data-framed][data-invalid] :is(.kit-check__box, .kit-check__switch) {
-  outline: none;
-}
-
-.kit-check:not([data-framed])[data-invalid] :is(.kit-check__box, .kit-check__switch):focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+/* Invalid: the outline stays 2px ink (one weight everywhere, STICKER 1.16/5.11); an empty box or an off switch takes the
+   rose-soft fill and the Field's error text says why. A checked box or an on switch keeps its own fill. */
+.kit-check[data-invalid] .kit-check__box:not(:checked, :indeterminate, :disabled),
+.kit-check[data-invalid] .kit-check__switch:not(:checked, :disabled) {
+  background: var(--rose-soft);
 }
 
 .kit-check__box:disabled {
@@ -222,16 +221,12 @@
   }
 }
 
-/* Touch: the label row grows to the 44px target. */
+/* Touch: the label row grows to the 44px target. Padding, not centring: a one-line label still sits in the middle of
+   its 44px, and the box stays beside the FIRST line of a long label (centring dropped it halfway down a 5-line fact). */
 @media (pointer: coarse) {
   .kit-check:not([data-framed]) {
     min-height: var(--touch-target);
-    align-items: center;
-  }
-
-  .kit-check:not([data-framed]) .kit-check__box,
-  .kit-check:not([data-framed]) .kit-check__switch {
-    margin-top: 0;
+    padding-block: calc((var(--touch-target) - var(--lh-body)) / 2);
   }
 }
 

@@ -26,7 +26,7 @@ export function LandingCTA() {
           </div>
 
           <div className="lp-cta-art" aria-hidden="true">
-            <ScoreSeal value={landingExampleScore} label="Example score" tone="lemon" size="md" className="lp-cta-seal" />
+            <ScoreSeal value={landingExampleScore} label="Example score" tone="lemon" size="lg" className="lp-cta-seal" />
             <Sticker as="span" size="sm" tone="mint" tilt={-3} className="lp-cta-tag lp-cta-tag--good">
               Strong foundation
             </Sticker>

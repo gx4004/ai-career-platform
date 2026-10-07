@@ -31,6 +31,7 @@ export function JobMatchToolPage() {
         >
           <ResumeSource
             id="job-match-resumeText"
+            toolId="job-match"
             label={resumeField.label}
             placeholder={resumeField.placeholder}
             rows={resumeField.rows}

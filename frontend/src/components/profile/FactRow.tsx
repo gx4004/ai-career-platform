@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Pencil } from 'lucide-react'
-import { Button, Row, RowActions, RowBody, RowReveal, RowSubtitle, RowTitle } from '#/components/kit'
+import { Button, Row, RowActions, RowBody, RowMeta, RowReveal, RowSubtitle, RowTitle } from '#/components/kit'
 
 /**
  * The one row for everything on the profile: a saved fact, a suggestion, a skill to build. `details` are the
@@ -18,10 +18,11 @@ export function FactRow({
   moment,
   primary,
   reveal,
+  actionsPlacement = 'inline',
   children,
 }: {
   title: ReactNode
-  /** Accessible name of the Edit button, e.g. "Edit: Python". */
+  /** Accessible name of the Edit button, e.g. "Edit Python" (verb then object, as on every other row). */
   editLabel: string
   onEdit: () => void
   details?: ReactNode
@@ -32,7 +33,15 @@ export function FactRow({
   moment?: 'arrived' | 'found'
   primary?: ReactNode
   reveal?: ReactNode
-  /** Sits between the text and the actions (a skill's status). */
+  /**
+   * inline (default): the actions keep the end of the row. below: on a narrow list (the suggestions rail, a phone)
+   * they take a line of their own under the text, so two labelled answers never squeeze the fact to a few words.
+   */
+  actionsPlacement?: 'inline' | 'below'
+  /**
+   * A status beside the text (the "Saved" badge of a fact that has just arrived). It is the row's kit meta: beside
+   * the actions on a wide list, on its own line under the text on a narrow one, so it never pushes the title aside.
+   */
   children?: ReactNode
 }) {
   return (
@@ -41,8 +50,8 @@ export function FactRow({
         <RowTitle>{title}</RowTitle>
         {details ? <RowSubtitle>{details}</RowSubtitle> : null}
       </RowBody>
-      {children}
-      <RowActions reveal={false}>
+      {children ? <RowMeta placement="below">{children}</RowMeta> : null}
+      <RowActions reveal={false} placement={actionsPlacement}>
         {primary}
         <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={editLabel} onClick={onEdit}>
           <Pencil aria-hidden="true" />

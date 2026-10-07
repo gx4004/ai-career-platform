@@ -19,7 +19,10 @@ vi.mock('#/lib/flags/featureFlags', () => ({ isAutopilotExperimentEnabled: () =>
 const session = vi.hoisted(() => ({ status: 'authenticated' as string }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: session.status, openAuthDialog: vi.fn() }) }))
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children, className }: { to: string; children: React.ReactNode; className?: string }) => <a href={to} className={className}>{children}</a>,
+  // data-exact mirrors activeOptions.exact: a way back to /campaigns must not count as the current page here.
+  Link: ({ to, children, className, activeOptions }: { to: string; children: React.ReactNode; className?: string; activeOptions?: { exact?: boolean } }) => (
+    <a href={to} className={className} data-exact={activeOptions?.exact ? 'true' : undefined}>{children}</a>
+  ),
   useNavigate: () => vi.fn(),
 }))
 
@@ -87,6 +90,34 @@ describe('ApplicationPage', () => {
     expect(api.getApplication).not.toHaveBeenCalled()
   })
 
+  // F42: being signed out is neither a problem nor time pressure, so the gate is the lemon empty state, not the rose
+  // ErrorState disc.
+  it('asks a signed-out visitor to sign in with an empty state, not an error', () => {
+    session.status = 'guest'
+    const { container } = renderPage()
+    const gate = screen.getByRole('heading', { level: 1, name: 'Sign in to open this application' }).closest('[role="status"]') as HTMLElement
+    expect(gate).toBeTruthy()
+    expect(within(gate).getByText('Your applications are private to your account.')).toBeTruthy()
+    expect(within(gate).getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    expect(gate.classList.contains('kit-empty')).toBe(true)
+    expect(container.querySelector('.kit-error')).toBeNull()
+    expect(api.getApplication).not.toHaveBeenCalled()
+  })
+
+  it('loads inside the same white panel frames as the loaded page, so nothing jumps into a panel when it arrives', () => {
+    api.getApplication.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    expect(screen.getByRole('status', { name: 'Loading this application…' })).toBeTruthy()
+    const frames = screen.getAllByTestId('application-skeleton-panel')
+    // The apply block, Details and Tasks in the rail, and three panels in the document column.
+    expect(frames).toHaveLength(6)
+    for (const frame of frames) {
+      expect(frame.classList.contains('kit-panel-surface')).toBe(true)
+      expect(frame.getAttribute('aria-hidden')).toBe('true')
+      expect(frame.querySelector('.kit-panel-surface__header')).not.toBeNull()
+    }
+  })
+
   it('shows every section on one page under the shared header', async () => {
     api.getApplication.mockResolvedValue(saved)
     renderPage()
@@ -130,6 +161,37 @@ describe('ApplicationPage', () => {
     fireEvent.click(save)
     await waitFor(() => expect(api.updateHistoryWorkspace).toHaveBeenCalledWith('app-1', { label: 'Dream job' }))
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Application name' })).toBeNull())
+    // F31: focus goes back to the pencil that opened the field, not to <body>.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename application' })))
+  })
+
+  it('returns focus to the rename button when the field is cancelled or escaped', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename application' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename application' })))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename application' }))
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Application name' }), { key: 'Escape' })
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename application' })))
+    expect(api.updateHistoryWorkspace).not.toHaveBeenCalled()
+  })
+
+  // F34: the field and its buttons share one row in the title slot (the buttons sat bottom-aligned in the actions
+  // slot, out of line with the field), and the stage control steps aside while the name is edited.
+  it('puts Save name and Cancel beside the name field, at its height, and hides the stage control while editing', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename application' }))
+    const input = screen.getByRole('textbox', { name: 'Application name' })
+    const row = input.closest('.camp-rename') as HTMLElement
+    expect(row).toBeTruthy()
+    for (const name of ['Save name', 'Cancel']) {
+      const button = within(row).getByRole('button', { name })
+      expect(button.className).toContain('kit-button--md')
+    }
+    expect(screen.queryByRole('button', { name: /^Stage:|Change stage|Saved/ })).toBeNull()
   })
 
   it('keeps the name field open and says so when the rename fails', async () => {
@@ -138,8 +200,11 @@ describe('ApplicationPage', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Rename application' }))
     const input = screen.getByRole('textbox', { name: 'Application name' })
-    // The field takes the title's place, inside the page heading.
-    expect(input.closest('h1')).toBeTruthy()
+    // The field takes the visible title's place, but beside the page heading, not inside it: nested in the h1 its
+    // buttons took the display tracking and the heading read "CancelSave name" (consistency-F31). The h1 stays.
+    expect(input.closest('h1')).toBeNull()
+    expect(input.closest('.kit-page-header__title-editor')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Platform Engineer' })).toBeTruthy()
     fireEvent.change(input, { target: { value: 'Dream job' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save name' }))
     expect(await screen.findByText("The name couldn't be saved. Try again.")).toBeTruthy()
@@ -167,6 +232,9 @@ describe('ApplicationPage', () => {
     // The prepared drafts appear with copy buttons; the owner answers the one open question.
     expect(await screen.findByText('Dear Northstar team, I would like to apply.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Copy Notice period?' })).toBeTruthy()
+    // Copy sits under the prepared text in narrow lists, so the answer keeps the row's full width (RSR-01).
+    expect(screen.getByRole('button', { name: 'Copy Notice period?' }).closest('.kit-row__actions')?.getAttribute('data-placement')).toBe('below')
+    expect(screen.getByRole('heading', { name: 'Screening answers' }).closest('.kit-section')?.getAttribute('data-size')).toBe('xs')
     expect(within(await applyPanel()).getByRole('button', { name: /Mark as applied/ }).hasAttribute('disabled')).toBe(true)
     api.getApplication.mockResolvedValue(answered)
     fireEvent.change(screen.getByLabelText(SALARY.question), { target: { value: ' €90k ' } })
@@ -206,6 +274,14 @@ describe('ApplicationPage', () => {
     expect(within(panel).queryByRole('button', { name: /Prepare application/ })).toBeNull()
     expect(within(panel).getByText('You need a CV first')).toBeTruthy()
     expect(within(panel).getByRole('link', { name: 'Open CV Studio' }).getAttribute('href')).toBe('/cv-studio')
+  })
+
+  it('sizes the Open beside a document Select to the Select (md, 44px), not sm (consistency-F12)', async () => {
+    api.getApplication.mockResolvedValue({ ...saved, selected_materials: { ...saved.selected_materials, cv_variant: saved.available_materials.cv_variants[0] } })
+    renderPage()
+    const open = (await screen.findAllByRole('link', { name: 'Open' }))[0]
+    expect(open.closest('.camp-material')).toBeTruthy()
+    expect(open.className).toContain('kit-button--md')
   })
 
   it('does not run the document checks until a CV version or cover letter is picked', async () => {
@@ -394,7 +470,8 @@ describe('ApplicationPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Delete this application' }))
     const dialog = await screen.findByRole('alertdialog', { name: 'Delete this application?' })
     expect(api.deleteApplication).not.toHaveBeenCalled()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    // Verb + object, as every other confirm ("Delete fact", "Delete CV"): consistency-F14 (was "Delete").
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete application' }))
     await waitFor(() => expect(api.deleteApplication).toHaveBeenCalledWith('app-1'))
   })
 
@@ -491,7 +568,8 @@ describe('ApplicationPage', () => {
 
     const heading = await screen.findByRole('heading', { name: /You applied on/ })
     expect((heading.closest('section') as HTMLElement).querySelector('.kit-seal')?.getAttribute('data-reveal')).toBe('none')
-    fireEvent.click(screen.getByRole('button', { name: /^Follow up in a week/ }))
+    // F41: the label is the due date itself ("Follow up on Oct 14, 2026"), a week from today.
+    fireEvent.click(screen.getByRole('button', { name: /^Follow up on [A-Z][a-z]{2} \d{1,2}, \d{4}$/ }))
 
     await waitFor(() => expect(api.createApplicationTask).toHaveBeenCalledTimes(1))
     const [id, payload] = api.createApplicationTask.mock.calls[0]
@@ -523,5 +601,165 @@ describe('ApplicationPage', () => {
     renderPage()
     await screen.findByLabelText(SALARY.question)
     expect(screen.queryByText('From your details')).toBeNull()
+  })
+
+  it('never marks the way back to the list as the current page', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    renderPage()
+    const back = await screen.findByRole('link', { name: /All applications/ })
+    expect(back.getAttribute('data-exact')).toBe('true')
+  })
+
+  it('shows the icon disc on the not-found state, and its way back is not the current page', async () => {
+    api.getApplication.mockRejectedValue(new ApiError('Not found', 404))
+    const { container } = renderPage()
+    await screen.findByText('It may have been deleted.')
+    expect(container.querySelector('.kit-empty__icon')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'All applications' }).getAttribute('data-exact')).toBe('true')
+  })
+
+  it('confirms a saved document choice only for a moment', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    api.updateApplication.mockResolvedValue(saved)
+    renderPage()
+    fireEvent.change(await screen.findByLabelText('CV version'), { target: { value: 'cv-1' } })
+    expect(await screen.findByText('Saved.')).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText('Saved.')).toBeNull(), { timeout: 4000 })
+  })
+
+  it('shows the words that were sent: the cover letter and the answers', async () => {
+    api.getApplication.mockResolvedValue({
+      ...applied,
+      snapshot: { ...applied.snapshot, content: { ...applied.snapshot.content, cover_letter: { source: 'prepared', text: 'Dear Northstar team, I would like to apply.' } } },
+    })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'See what you sent' }))
+    expect(await screen.findByText('Dear Northstar team, I would like to apply.')).toBeTruthy()
+    expect(screen.getByText('€90k')).toBeTruthy()
+  })
+
+  it('ticks done tasks in mint, the colour of done', async () => {
+    api.getApplication.mockResolvedValue({
+      ...saved,
+      tasks: [{ id: 't-1', title: 'Send thank-you note', deadline: null, completed: true, created_at: '2026-09-20T10:00:00Z' }],
+    })
+    renderPage()
+    const box = await screen.findByRole('checkbox', { name: 'Send thank-you note' })
+    expect(box.closest('.kit-check')?.getAttribute('data-tone')).toBe('success')
+  })
+
+  it('does not ask to prepare an application that already moved on without being marked applied', async () => {
+    // Moved from Saved straight to Interviewing through the stage menu: the backend allows it and records no send.
+    const skipped = { ...saved, status: 'interviewing' }
+    api.getApplication.mockResolvedValue(skipped)
+    api.markApplicationApplied.mockResolvedValue({ ...applied, status: 'interviewing' })
+    renderPage()
+    const heading = await screen.findByRole('heading', { name: 'Not marked applied' })
+    const panel = heading.closest('section') as HTMLElement
+    expect(within(panel).getByText(/in Interviewing, but what you sent was never recorded/)).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Get this application ready' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Mark as applied/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Prepare application/ })).toBeNull()
+    // Interviewing still gets its next step in the first screen.
+    expect(within(panel).getByRole('link', { name: 'Prepare for interviews' })).toBeTruthy()
+    const record = within(panel).getByRole('button', { name: 'Record what I sent' })
+    expect(record.className).toMatch(/secondary/)
+    fireEvent.click(record)
+    await waitFor(() => expect(api.markApplicationApplied).toHaveBeenCalledWith('app-1'))
+  })
+
+  it('gives an Interviewing application its next step: interview prep', async () => {
+    api.getApplication.mockResolvedValue({ ...applied, status: 'interviewing' })
+    renderPage()
+    const panel = (await screen.findByRole('heading', { name: /You applied on/ })).closest('section') as HTMLElement
+    expect(within(panel).getByRole('link', { name: 'Prepare for interviews' }).getAttribute('href')).toBe('/interview')
+    expect(within(panel).queryByRole('button', { name: /^Follow up on / })).toBeNull()
+  })
+
+  it('gives an Offer its next step: a task to reply by the offer date', async () => {
+    api.getApplication.mockResolvedValue({ ...applied, status: 'offer', deadline: '2026-10-20T12:00:00Z' })
+    api.createApplicationTask.mockResolvedValue({ id: 't-8', title: 'Reply to the offer', deadline: '2026-10-20T12:00:00Z', completed: false, created_at: '2026-09-21T10:00:00Z' })
+    renderPage()
+    const panel = (await screen.findByRole('heading', { name: /You applied on/ })).closest('section') as HTMLElement
+    const reply = within(panel).getByRole('button', { name: /^Add a task to reply to the offer/ })
+    expect(reply.className).toMatch(/secondary/)
+    fireEvent.click(reply)
+    await waitFor(() => expect(api.createApplicationTask).toHaveBeenCalledWith('app-1', { title: 'Reply to the offer from Northstar Labs', deadline: '2026-10-20T12:00:00Z' }))
+  })
+
+  // "Record what I sent" on a card that already reached Interviewing freezes it today. Today is the day it was
+  // recorded, not the day the owner applied, so the panel must not claim "You applied on <today>".
+  const event = (id: string, event_type: string, created_at: string, details: Record<string, unknown> = {}) => ({
+    id, event_type, details, provenance: 'user', created_at,
+  })
+  const recordedLate = {
+    ...applied, status: 'interviewing', applied_at: '2026-09-25T09:00:00Z', status_changed_at: '2026-09-22T09:00:00Z',
+    events: [
+      event('e-1', 'status_changed', '2026-09-22T09:00:00Z', { from: 'saved', to: 'interviewing' }),
+      event('e-2', 'applied', '2026-09-25T09:00:00Z', { snapshot_id: 's-1' }),
+    ],
+  }
+
+  it('says what was sent was recorded, not applied, when it was recorded after the card moved on', async () => {
+    api.getApplication.mockResolvedValue(recordedLate)
+    renderPage()
+    const heading = await screen.findByRole('heading', { name: /^What you sent, recorded / })
+    expect(screen.queryByRole('heading', { name: /You applied on/ })).toBeNull()
+    const panel = heading.closest('section') as HTMLElement
+    expect(within(panel).getByText(/exactly as it was when you recorded it/)).toBeTruthy()
+    const documents = screen.getByRole('heading', { name: 'Your documents' }).closest('section') as HTMLElement
+    expect(within(documents).queryByText(/when you marked it applied/)).toBeNull()
+  })
+
+  it('keeps saying "recorded" after the late-recorded card moves on to Offer', async () => {
+    // The later move makes status_changed_at newer than applied_at; the timeline still shows no move to Applied.
+    api.getApplication.mockResolvedValue({
+      ...recordedLate, status: 'offer', status_changed_at: '2026-09-28T09:00:00Z',
+      events: [...recordedLate.events, event('e-3', 'status_changed', '2026-09-28T09:00:00Z', { from: 'interviewing', to: 'offer' })],
+    })
+    renderPage()
+    expect(await screen.findByRole('heading', { name: /^What you sent, recorded / })).toBeTruthy()
+  })
+
+  it('still says "You applied on" when Mark as applied moved it to Applied before it went on to Interviewing', async () => {
+    api.getApplication.mockResolvedValue({
+      ...applied, status: 'interviewing', status_changed_at: '2026-09-24T09:00:00Z',
+      events: [
+        event('e-1', 'applied', '2026-09-21T09:00:00Z', { snapshot_id: 's-1' }),
+        event('e-2', 'status_changed', '2026-09-21T09:00:00.200Z', { from: 'saved', to: 'applied' }),
+        event('e-3', 'status_changed', '2026-09-24T09:00:00Z', { from: 'applied', to: 'interviewing' }),
+      ],
+    })
+    renderPage()
+    expect(await screen.findByRole('heading', { name: /You applied on/ })).toBeTruthy()
+  })
+
+  it('says the reply task is there once it is', async () => {
+    api.getApplication.mockResolvedValue({
+      ...applied, status: 'offer', deadline: null,
+      tasks: [{ id: 't-8', title: 'Reply to the offer from Northstar Labs', deadline: null, completed: false, created_at: '2026-09-21T10:00:00Z' }],
+    })
+    renderPage()
+    const panel = (await screen.findByRole('heading', { name: /You applied on/ })).closest('section') as HTMLElement
+    expect(within(panel).getByText('Reply task added.')).toBeTruthy()
+    expect(within(panel).queryByRole('button', { name: /^Add a task to reply/ })).toBeNull()
+  })
+
+  it('says no CV or letter was attached when it was marked applied with neither', async () => {
+    api.getApplication.mockResolvedValue({
+      ...saved, status: 'applied', applied_at: '2026-09-21T09:00:00Z',
+      snapshot: { id: 's-2', content: { listing: { title: 'Platform Engineer', company: 'Northstar Labs' } }, content_sha256: 'b'.repeat(64), created_at: '2026-09-21T09:00:00Z' },
+    })
+    renderPage()
+    const heading = await screen.findByRole('heading', { name: 'Your documents' })
+    const panel = heading.closest('section') as HTMLElement
+    expect(within(panel).getByText('No CV or cover letter was attached when you marked it applied.')).toBeTruthy()
+    expect(within(panel).queryByText(/are kept as they were/)).toBeNull()
+  })
+
+  it('invites a first note', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    renderPage()
+    expect((await screen.findByLabelText('Your notes')).getAttribute('placeholder')).toMatch(/^Add a note/)
   })
 })

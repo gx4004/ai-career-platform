@@ -1,6 +1,6 @@
-import { useRef, useState, type MouseEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useIsFetching, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Check, Clock, Compass, Plus } from 'lucide-react'
 import {
   Badge,
@@ -24,41 +24,41 @@ import {
   Sticker,
   StretchedLink,
   type Tone,
-  useToast,
 } from '#/components/kit'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { DateStamp } from '#/components/dashboard/DateStamp'
+import { useDashboardLayoutHint, type TodayOrder } from '#/components/dashboard/dashboardLayoutHint'
 import { formatRunDate } from '#/components/dashboard/RunRow'
 import { TODAY_QUERY_KEY, useToday } from '#/hooks/useToday'
 import { adoptDiscoveryRecommendation, getApplication } from '#/lib/api/client'
 import type { DiscoveryListing, TodayActionItem, TodayPlan } from '#/lib/api/schemas'
 import { invalidateApplications } from '#/lib/query/applicationCaches'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
+import { useAddToApplicationsToast } from '#/components/discovery/useAddToApplications'
+
+type TodayProps = {
+  /** The page shows "Your first 3 steps" above: its step 3 already offers Discover jobs, so this one does not. */
+  firstSteps?: boolean
+  /** The user has a resume in (a Resume Analyzer run or a CV): decides what an empty match list asks for. */
+  hasResume?: boolean
+  /** The account has no applications (known before the plan): nothing can need action, so matches come first. */
+  noApplications?: boolean
+}
+
+/** The empty Needs action ("Nothing needs you today"), measured on the dashboard, for its loading frame. */
+const NEEDS_EMPTY_HEIGHT = 173
 
 /**
  * "What should I do today?": applications that need a move, and jobs worth adding. Whichever has
  * something to do comes first; two Sections the page places in its main column.
  */
-export function DashboardToday() {
+export function DashboardToday({ firstSteps = false, hasResume = true, noApplications = false }: TodayProps = {}) {
   const today = useToday()
   const plan = today.data
+  const layout = useDashboardLayoutHint()
 
-  if (today.isPending) {
-    return (
-      <>
-        <Section title="Needs action">
-          <List aria-busy aria-label="Needs action">
-            <Skeleton variant="row" as="li" count={2} />
-          </List>
-        </Section>
-        <Section title="Best matches to add">
-          <List aria-busy aria-label="Best matches to add">
-            <Skeleton variant="row" as="li" count={5} />
-          </List>
-        </Section>
-      </>
-    )
-  }
+  // The loaded shapes, in the order they will most likely land, so nothing jumps or swaps when they arrive.
+  if (today.isPending) return <DashboardTodaySkeleton order={noApplications ? 'matches-first' : (layout?.order ?? 'needs-first')} />
 
   if (!plan) {
     return (
@@ -74,30 +74,117 @@ export function DashboardToday() {
     )
   }
 
+  const matches = <BestMatches plan={plan} firstSteps={firstSteps} hasResume={hasResume} />
   return plan.needs_action.length > 0 ? (
     <>
       <NeedsAction plan={plan} />
-      <BestMatches plan={plan} />
+      {matches}
     </>
   ) : (
     <>
-      <BestMatches plan={plan} />
+      {matches}
       <NeedsAction plan={plan} />
     </>
   )
 }
 
-function BestMatches({ plan }: { plan: TodayPlan }) {
-  const navigate = useNavigate()
+/**
+ * Both sections while the plan loads, in the frames and the order they will have. needs-first (the default): two
+ * sticker plates, then five match rows. matches-first (nothing needs action: an account without applications, or the
+ * order the last plan in this browser used): the match rows, then the empty Needs action's frame.
+ */
+export function DashboardTodaySkeleton({ order = 'needs-first' }: { order?: TodayOrder } = {}) {
+  const matches = (
+    <Section title="Best matches to add">
+      <List aria-busy aria-label="Best matches to add">
+        <Skeleton variant="row" as="li" leading="stamp" count={5} />
+      </List>
+    </Section>
+  )
+  if (order === 'matches-first') {
+    return (
+      <>
+        {matches}
+        <Section title="Needs action">
+          <Skeleton variant="block" height={NEEDS_EMPTY_HEIGHT} label="Loading what needs you" />
+        </Section>
+      </>
+    )
+  }
+  return (
+    <>
+      <Section title="Needs action">
+        {/* 134: a desktop Needs action sticker is 130px, and .dash-actions leaves 2px above and 6px below for the
+            plates' tilt and shadow, so the matches below do not jump when the plan arrives. */}
+        <Skeleton variant="sticker" count={2} height={134} label="Loading what needs you" />
+      </Section>
+      {matches}
+    </>
+  )
+}
+
+/**
+ * One toast for the adds on this page: a run of adds replaces it rather than stacking one per add (three toasts
+ * covered the next rows' Add buttons on a phone), and its Undo is always for the latest add.
+ */
+const ADD_TOAST_ID = 'dashboard-added'
+
+/**
+ * Focus a control the page hands focus to, without the browser's own jump, then scroll it only as far as needed:
+ * that scroll honours the root's scroll padding, which kit/toast.css keeps clear of the toast stack, so the focus
+ * ring never sits under the toast this very add or undo opened (WCAG 2.4.11).
+ */
+function focusInView(element: HTMLElement) {
+  element.focus({ preventScroll: true })
+  element.scrollIntoView?.({ block: 'nearest' })
+}
+
+type ListName = 'best_matches' | 'closest_matches'
+
+/** Put a listing back in the cached plan, at the place it left (unless the plan already has it again). */
+function restoreListing(queryClient: QueryClient, listing: DiscoveryListing, list: ListName, index: number) {
+  queryClient.setQueryData<TodayPlan>(TODAY_QUERY_KEY, (current) => {
+    if (!current || current[list].some((item) => item.listing_id === listing.listing_id)) return current
+    const next = [...current[list]]
+    next.splice(Math.min(index, next.length), 0, listing)
+    return { ...current, [list]: next }
+  })
+}
+
+function BestMatches({ plan, firstSteps, hasResume }: { plan: TodayPlan; firstSteps: boolean; hasResume: boolean }) {
   const queryClient = useQueryClient()
-  const { toast } = useToast()
+  const announceAdded = useAddToApplicationsToast(ADD_TOAST_ID)
+  const sectionRef = useRef<HTMLElement | null>(null)
+  // The row whose Add was used leaves the list: it and its place in the list, to hand focus on once it is gone.
+  // `settled`: the plan's refetch after that Add has finished, so an empty list is final.
+  const refocusAt = useRef<{ index: number; listingId: string; settled?: boolean } | null>(null)
+  // Bumped when that refetch finishes: it can bring nothing new to render, yet the focus hand-off must run again.
+  const [planSettled, setPlanSettled] = useState(0)
+  // The row an Undo put back: its Add takes focus from the closed toast once the row is in the list again.
+  const refocusListing = useRef<string | null>(null)
+  // Adding refetches the plan, which can bring a different list (the closest matches once no best one is left).
+  const refreshing = useIsFetching({ queryKey: TODAY_QUERY_KEY, exact: true }) > 0
   // One request at a time: the mutation state lags a render behind a double click, so the guard is a ref.
   const adding = useRef(false)
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
     retry: false,
     // Stay here so several matches can be added in a row: the row leaves the list at once, a toast offers the application.
-    onSuccess: (application, listingId) => {
+    onSuccess: ({ application, created }, listingId) => {
+      // Focus was on that Add (or fell to the page while it was busy): it moves on to the next row's Add, so a
+      // keyboard user is not sent back to the top of the page. Focus somewhere else is left alone.
+      const section = sectionRef.current
+      const active = document.activeElement
+      if (section && (!active || active === document.body || section.contains(active))) {
+        const buttons = [...section.querySelectorAll<HTMLElement>('[data-add-listing]')]
+        const index = buttons.findIndex((button) => button.dataset.addListing === listingId)
+        refocusAt.current = { index: index < 0 ? 0 : index, listingId }
+      }
+      const before = queryClient.getQueryData<TodayPlan>(TODAY_QUERY_KEY)
+      const place = (['best_matches', 'closest_matches'] as const)
+        .map((list) => ({ list, index: before?.[list].findIndex((item) => item.listing_id === listingId) ?? -1 }))
+        .find((found) => found.index >= 0)
+      const removed = place && before ? before[place.list][place.index] : undefined
       queryClient.setQueryData<TodayPlan>(TODAY_QUERY_KEY, (current) =>
         current
           ? {
@@ -107,14 +194,19 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
             }
           : current,
       )
-      void invalidateApplications(queryClient)
-      toast({
-        tone: 'success',
-        title: 'Added to your applications',
-        description: application.title ?? undefined,
-        action: {
-          label: 'View application',
-          onClick: () => navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } }),
+      void invalidateApplications(queryClient).finally(() => {
+        if (refocusAt.current?.listingId === listingId) {
+          refocusAt.current = { ...refocusAt.current, settled: true }
+          setPlanSettled((count) => count + 1)
+        }
+      })
+      announceAdded(application, {
+        created,
+        onUndone: () => {
+          if (removed && place) {
+            refocusListing.current = removed.listing_id
+            restoreListing(queryClient, removed, place.list, place.index)
+          }
         },
       })
     },
@@ -126,14 +218,72 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
   const shown = closest ? plan.closest_matches : plan.best_matches
   const title = closest ? 'Closest matches to add' : 'Best matches to add'
 
+  useLayoutEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    const active = document.activeElement
+    // Focus is free to move when it fell to the page (its button left) or sits in the section or a toast.
+    const free = !active || active === document.body || section.contains(active) || Boolean(active.closest('.kit-toast'))
+
+    const restored = refocusListing.current
+    if (restored !== null) {
+      const button = [...section.querySelectorAll<HTMLElement>('[data-add-listing]')].find(
+        (candidate) => candidate.dataset.addListing === restored,
+      )
+      if (button) {
+        refocusListing.current = null
+        // The undone row is back: nothing is waiting for it to leave any more.
+        if (refocusAt.current?.listingId === restored) refocusAt.current = null
+        if (free) focusInView(button)
+      } else if (!refreshing) {
+        refocusListing.current = null
+      }
+    }
+
+    const pending = refocusAt.current
+    if (pending === null) return
+    if (!free) {
+      refocusAt.current = null
+      return
+    }
+    const buttons = [...section.querySelectorAll<HTMLElement>('[data-add-listing]')]
+    // Not yet: the plan can start refetching a render before the added row leaves.
+    if (buttons.some((button) => button.dataset.addListing === pending.listingId)) return
+    const index = pending.index
+    if (buttons.length > 0) {
+      // The next row moved up into the place; after the last row, the one before it.
+      refocusAt.current = null
+      focusInView(buttons[Math.min(index, buttons.length - 1)])
+      return
+    }
+    // The refetch promise settles before its data reaches this render: final only once the plan shown is the cache's.
+    if (!pending.settled || queryClient.getQueryData(TODAY_QUERY_KEY) !== plan) {
+      // None left, but the refetched plan may bring rows (the closest matches once no best one is left), and its
+      // fetch can start a render after the list emptied: hold focus on the section, which stays (the empty state's
+      // action leaves when rows arrive), and hand it to the first new row's Add when they do.
+      refocusAt.current = { ...pending, index: 0 }
+      if (document.activeElement !== section) focusInView(section)
+      return
+    }
+    // The refetched plan has none either: the empty state's action, or the section itself.
+    refocusAt.current = null
+    focusInView(section.querySelector<HTMLElement>('.kit-empty a, .kit-empty button') ?? section)
+  }, [plan, shown, refreshing, planSettled, queryClient])
+
   return (
     <Section
+      ref={sectionRef}
+      tabIndex={-1}
+      className="dash-matches"
       title={title}
       count={shown.length > 0 ? shown.length : undefined}
       actions={
-        <Button asChild variant="secondary" size="sm">
-          <Link to="/discovery">Discover jobs</Link>
-        </Button>
+        // A newcomer's step 3 already says Discover jobs: one way there on the screen, not two.
+        firstSteps ? null : (
+          <Button asChild variant="secondary" size="sm">
+            <Link to="/discovery">Discover jobs</Link>
+          </Button>
+        )
       }
     >
       {shown.length > 0 ? (
@@ -159,7 +309,7 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
           ) : null}
         </>
       ) : (
-        <MatchesEmpty plan={plan} />
+        <MatchesEmpty plan={plan} firstSteps={firstSteps} hasResume={hasResume} />
       )}
     </Section>
   )
@@ -213,6 +363,7 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
           size="sm"
           onClick={onAdd}
           loading={adding}
+          data-add-listing={listing.listing_id}
           aria-label={`Add ${listing.title} to applications`}
         >
           <Plus aria-hidden />
@@ -223,7 +374,7 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
   )
 }
 
-function MatchesEmpty({ plan }: { plan: TodayPlan }) {
+function MatchesEmpty({ plan, firstSteps, hasResume }: { plan: TodayPlan; firstSteps: boolean; hasResume: boolean }) {
   if (!plan.has_sources) {
     return (
       <EmptyState
@@ -231,7 +382,7 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
         title="No job boards yet"
         description="Once employer job boards are connected, the openings that fit you best show up here."
         action={
-          <Button asChild variant="secondary" size="sm">
+          <Button asChild variant="secondary">
             <Link to="/discovery">Open Discover</Link>
           </Button>
         }
@@ -239,14 +390,31 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
     )
   }
   if (!plan.has_evidence) {
+    // Before the resume is in, the first step above is the one move: this box only says what comes after it.
+    if (!hasResume) {
+      return (
+        <EmptyState
+          icon={<Compass aria-hidden />}
+          title="Matches appear after your resume"
+          description={
+            firstSteps
+              ? 'Once your resume is in and your skills are in your profile, the jobs that fit you best appear here.'
+              : 'Add your resume, then your skills, and the jobs that fit you best appear here.'
+          }
+        />
+      )
+    }
+    // Matches are scored against the skills saved in the profile (not the resume itself): ask for those.
     return (
       <EmptyState
         icon={<Compass aria-hidden />}
-        title="Confirm your skills first"
-        description="Once you confirm evidence in your profile, the jobs that fit your skills best appear here."
+        title="Add your skills to see matches"
+        description="Jobs are matched against the skills saved in your profile. Add a few and the best fits appear here."
         action={
-          <Button asChild variant="secondary" size="sm">
-            <Link to="/profile">Confirm evidence</Link>
+          <Button asChild variant="secondary">
+            <Link to="/profile" search={{ add: 'fact' }}>
+              Add skills
+            </Link>
           </Button>
         }
       />
@@ -258,7 +426,7 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
       title="You have seen every match"
       description="Every visible job is already in your applications or hidden. New openings appear daily."
       action={
-        <Button asChild variant="secondary" size="sm">
+        <Button asChild variant="secondary">
           <Link to="/discovery">Browse all jobs</Link>
         </Button>
       }
@@ -301,6 +469,9 @@ function usePrepForRound(item: TodayActionItem) {
         jobDescription: listing && description ? `${listing.title} at ${listing.company}\n\n${description}` : undefined,
         jobLabel: undefined,
         jobSource: undefined,
+        // Both came from the application, not from whichever tool ran last.
+        jobOrigin: listing && description ? 'application' : undefined,
+        roleOrigin: 'application',
         historyId: undefined,
         // Another job's Job Match result would otherwise seed this interview run (job_match handoff).
         jobMatch: undefined,
@@ -378,9 +549,12 @@ function NeedsAction({ plan }: { plan: TodayPlan }) {
       count={plan.needs_action_total > 0 ? plan.needs_action_total : undefined}
       countTone="rose"
       actions={
-        <Button asChild variant="link" size="sm">
-          <Link to="/campaigns">View all</Link>
-        </Button>
+        // Only when there is something to see: an empty list would lead to another empty page.
+        plan.needs_action_total > 0 ? (
+          <Button asChild variant="link" size="sm">
+            <Link to="/campaigns">View all</Link>
+          </Button>
+        ) : null
       }
     >
       {plan.needs_action.length > 0 ? (

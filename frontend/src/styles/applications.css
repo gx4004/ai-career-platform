@@ -31,8 +31,10 @@
 }
 
 /* Long unbroken titles and companies wrap inside their table cell instead of widening it. */
+/* List cells break between words; a single word longer than the column breaks too, but it still sets the column's
+   minimum (anywhere would let the table squeeze "Extraordinarily" into "Extraordina / rily"). */
 .camp-wrap {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .camp-pin {
@@ -59,42 +61,6 @@
   vertical-align: top;
 }
 
-/* First run: one lemon card with the ways in. */
-.camp-first {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--s5) var(--s7);
-  max-inline-size: 52rem;
-}
-
-.camp-first__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-section);
-  font-weight: var(--fw-black);
-  line-height: var(--lh-section);
-  letter-spacing: var(--ls-section);
-}
-
-.camp-first__lead {
-  margin: var(--s1) 0 0;
-  color: var(--ink);
-  max-inline-size: 34rem;
-}
-
-.camp-first__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s3);
-}
-
-@media (max-width: 767px) {
-  .camp-first {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* A "next step" cell: what it is, then its rose date chip (the list's Next column and a task's due date in a narrow rail). */
 .camp-next {
   display: flex;
@@ -104,6 +70,9 @@
 }
 
 .camp-board {
+  --camp-board-fade-start: 0px;
+  --camp-board-fade-end: 0px;
+
   display: grid;
   grid-template-columns: repeat(5, minmax(12.5rem, 1fr));
   gap: var(--space-4);
@@ -111,7 +80,36 @@
   min-width: 0;
   /* Scroll inside the page instead of widening it. */
   overflow-x: auto;
+  /* Room for the cards' 2px hard shadow at the scroller's end and bottom edges (a scroller clips at its padding
+     box); the negative margin keeps the last column on the page's content edge. */
+  margin-inline-end: calc(var(--s1) * -1);
+  padding-inline-end: var(--s1);
   padding-block-end: var(--space-2);
+  /* Tabbing into a card in a column out of view scrolls it clear of the edge fade below, focus ring and all. */
+  scroll-padding-inline: var(--s8);
+}
+
+/*
+ * The scroll cue (overlay scrollbars do not show until a scroll starts): the edge with columns still out of view
+ * fades out, so a cut-off column reads as "more this way". The page sets data-overflow only while there is more
+ * on that side. A mask, not a painted gradient, as on the sidebar.
+ */
+.camp-board[data-overflow~='start'] {
+  --camp-board-fade-start: var(--s8);
+}
+
+.camp-board[data-overflow~='end'] {
+  --camp-board-fade-end: var(--s8);
+}
+
+.camp-board[data-overflow] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--ink) var(--camp-board-fade-start),
+    var(--ink) calc(100% - var(--camp-board-fade-end)),
+    transparent
+  );
 }
 
 .camp-col__list {
@@ -127,18 +125,25 @@
   margin-block-start: var(--space-1);
 }
 
+/* Touch tablets: the stage menu's "…" is always in view there, beside the title, and takes 44px of a 12.5rem column;
+   long titles broke into 4-7 short lines ("Senior / Platform / Engineer with / an / …"). Wider columns give the title
+   about 40px more per line; the board already scrolls sideways at this width. */
+@media (any-pointer: coarse) and (min-width: 768px) {
+  .camp-board {
+    grid-template-columns: repeat(5, minmax(15rem, 1fr));
+  }
+}
+
 @media (max-width: 767px) {
   .camp-board {
     grid-template-columns: minmax(0, 1fr);
     overflow-x: visible;
+    margin-inline-end: 0;
+    padding-inline-end: 0;
   }
 }
 
 /* ── What's working ── */
-
-.camp-insights__body {
-  padding: 0 var(--s5) var(--s5);
-}
 
 /* The reply-rate stamp beside the sentence it summarises. */
 .camp-insights__rate {
@@ -169,9 +174,9 @@
   gap: var(--space-4) var(--space-8);
 }
 
-/* The checkbox sits on the number field's baseline row, in the keywords column. */
-.camp-prefs__remote {
-  align-self: end;
+/* Remote and the per-click cap: one row under both term lists. */
+.camp-prefs__options {
+  grid-column: 1 / -1;
 }
 
 .camp-terms {
@@ -196,7 +201,7 @@
 }
 
 .camp-prefs .camp-cap {
-  width: 5rem;
+  width: 6rem;
 }
 
 @media (max-width: 767px) {
@@ -266,10 +271,18 @@
   display: none;
 }
 
+/* Skills fit in the Details rail: the stamp, and under it when it was measured (the rail is too narrow for one line). */
 .camp-fit {
   display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
+}
+
+.camp-fit__note {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
 }
 
 /* The wording a check points at. */
@@ -296,9 +309,10 @@
   display: contents;
 }
 
-/* A ghost button that starts a block: its label lines up with the content edge, its tap area stays whole. */
-.kit-button.camp-flush {
-  margin-inline-start: calc(var(--space-1) * -2.5 - 1px);
+/* Rename mode: the name field takes the title's row and its two buttons sit beside it (under it on a phone). */
+.camp-rename > .kit-input {
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 
 .camp-questions {
@@ -326,8 +340,14 @@
   min-width: 0;
 }
 
+/*
+ * The select starts at 14rem and grows to 28rem, so its button (Open, Write a cover letter, Prepare for interviews)
+ * stays beside it wherever both fit and every row breaks at the same widths (F43: at 768 a 28rem basis kept Open
+ * beside the CV select but sent the two longer buttons under theirs).
+ */
 .camp-material .camp-material__select {
-  flex: 0 1 28rem;
+  flex: 1 1 14rem;
+  max-inline-size: 28rem;
   min-width: 0;
 }
 
@@ -395,12 +415,26 @@
   color: var(--warning-fg);
 }
 
-.kit-row.camp-check-row {
+/* Not checked (its document is near-empty): neutral, neither a pass nor a warning. */
+.camp-check[data-state='skip'] {
+  color: var(--ink-3);
+}
+
+.kit-row:is(.camp-check-row, .camp-copy, .camp-finding) {
   align-items: flex-start;
 }
 
 .camp-findings {
   margin-block-start: var(--space-2);
+}
+
+/* A profile entry the next step suggests: a flat stone-soft block inside the finding, not another shadowed card. */
+.camp-proposal {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s4);
+  border-radius: var(--r-md);
+  background: var(--stone-soft);
 }
 
 .camp-step {
@@ -417,6 +451,22 @@
   color: var(--text-body);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+  /* A long skill name or quoted claim wraps inside a 204px phone column instead of widening the page. */
+  overflow-wrap: anywhere;
+}
+
+/* One reason per line, a beat apart, so the sentences of "Why?" read as steps when they wrap on a phone. */
+.camp-step__trace {
+  display: grid;
+  gap: var(--s1);
+}
+
+/* Each source is a kit link button; the underline marks it, so no bullet and no indent. */
+.camp-step__sources {
+  display: grid;
+  justify-items: start;
+  padding-inline-start: 0;
+  list-style: none;
 }
 
 /* ── Application details (Account page) ── */
@@ -459,10 +509,3 @@
   }
 }
 
-/* Tasks in the rail: rows start at the panel body's edge, aligned with the "Add a task" field above them. */
-.kit-list.camp-tasks > .kit-row {
-  /* Delete (overlay on a fine pointer) ends on the same edge as the Add button above. */
-  --kit-row-overlay-inset: 0px;
-  padding-inline: 0;
-  border-inline-start-width: 0;
-}

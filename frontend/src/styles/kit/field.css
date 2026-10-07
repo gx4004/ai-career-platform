@@ -32,6 +32,8 @@
 
 .kit-field__help {
   color: var(--ink-3);
+  /* A one-line-and-a-word hint ("…check your documents against / it.") balances its last line instead of orphaning a word. */
+  text-wrap: pretty;
 }
 
 /* The error is text plus a 16px alert icon, never colour alone; the control keeps its ink outline. */

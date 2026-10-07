@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Sprout, Trash2 } from 'lucide-react'
+import { Sprout, Trash2, TriangleAlert } from 'lucide-react'
 import {
-  Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, RowMeta, Section, Select, Skeleton, Stack,
+  Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, Section, Select, Skeleton, Stack,
 } from '#/components/kit'
 import { listEvidenceItems } from '#/lib/api/client'
 import type { EvidenceItem } from '#/lib/api/schemas'
@@ -48,6 +48,9 @@ export function SkillsToBuildSection({
   const [completeTarget, setCompleteTarget] = useState<DevelopmentItem | null>(null)
   const [completeError, setCompleteError] = useState<string | null>(null)
   const [completion, setCompletion] = useState<CompletionResult | null>(null)
+  // Where focus goes once a delete has gone through and its trash button is gone: the skill that took the deleted
+  // one's place (null: the section heading). Null while nothing was deleted, so a cancel returns to the trigger.
+  const afterDelete = useRef<{ focusId: string | null } | null>(null)
 
   const itemsQuery = useQuery({
     queryKey: DEVELOPMENT_PLAN_QUERY_KEY,
@@ -72,16 +75,31 @@ export function SkillsToBuildSection({
 
   // Completing an item can add a fact to the profile (R17 #201), so it goes through its own dialog.
   const completeMutation = useMutation({
-    mutationFn: ({ item, notes }: { item: DevelopmentItem; notes: string }) =>
-      // Words are sent only when they changed; an unchanged note stays the owner's own words on the server.
-      updateDevelopmentItem(item.id, {
+    mutationFn: async ({ item, notes }: { item: DevelopmentItem; notes: string }) => {
+      // The server saves a confirmed fact from the notes it holds when the item turns completed. The notes are
+      // the PLAN, so the completion always carries the dialog's own words in their place (none: null, so nothing
+      // is saved), and the plan is put back afterwards; that second change does not complete again, so it adds
+      // nothing. (A dedicated completion field on the API would make this one request; requested of the backend.)
+      const plan = item.notes ?? ''
+      const completed = await updateDevelopmentItem(item.id, {
         state: 'completed',
-        ...(notes !== (item.notes ?? '') ? { notes: notes || null } : {}),
-      }),
-    onSuccess: async (updated) => {
+        ...(notes || plan ? { notes: notes || null } : {}),
+      })
+      let planKept = true
+      if (plan && plan !== notes) {
+        try {
+          await updateDevelopmentItem(item.id, { notes: plan })
+        } catch {
+          planKept = false
+        }
+      }
+      return { completed, planKept }
+    },
+    onSuccess: async ({ completed, planKept }) => {
       setCompleteError(null)
       // The server decides: it saves a fact only from written words, so its answer says what happened.
-      setCompletion({ evidenceItemId: updated.evidence_item_id })
+      setCompletion({ evidenceItemId: completed.evidence_item_id })
+      if (!planKept) setActionError('Marked complete, but your plan could not be kept on the skill. Add it again with Edit.')
       await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
     },
     onError: (error) =>
@@ -108,7 +126,10 @@ export function SkillsToBuildSection({
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteDevelopmentItem(id),
-    onSuccess: invalidate,
+    onSuccess: async (_data, id) => {
+      afterDelete.current = { focusId: neighbourOf(id) }
+      await invalidate()
+    },
     onError: (error) => reportError(error, 'Could not delete the item.'),
     onSettled: () => setDeleteTarget(null),
   })
@@ -129,6 +150,37 @@ export function SkillsToBuildSection({
     () => new Map((evidenceQuery.data ?? []).map((fact: EvidenceItem) => [fact.id, fact])),
     [evidenceQuery.data],
   )
+
+  // The skill that takes a deleted one's place: the next in its group, else the previous one, else the nearest
+  // skill in the other groups (as shown), so a keyboard user carries on where they were.
+  function neighbourOf(id: string): string | null {
+    const group = groups.find((candidate) => candidate.items.some((item) => item.id === id))
+    const local = group?.items ?? []
+    const at = local.findIndex((item) => item.id === id)
+    const flat = groups.flatMap((candidate) => candidate.items)
+    const flatAt = flat.findIndex((item) => item.id === id)
+    const next = local[at + 1] ?? local[at - 1] ?? flat[flatAt + 1] ?? flat[flatAt - 1]
+    return next ? `skill-${next.id}` : null
+  }
+
+  function focusAfterDelete(event: Event) {
+    const target = afterDelete.current
+    afterDelete.current = null
+    if (!target) return // Cancelled: the kit hands focus back to the trash button that opened the dialog.
+    event.preventDefault()
+    // The list re-renders without the deleted row first; focus waits for that frame.
+    window.requestAnimationFrame(() => {
+      const row = target.focusId ? document.getElementById(target.focusId) : null
+      if (row) {
+        row.focus()
+        return
+      }
+      const heading = document.getElementById('skills-to-build-heading')
+      if (!heading) return
+      heading.setAttribute('tabindex', '-1')
+      heading.focus({ preventScroll: true })
+    })
+  }
 
   function handleStateChange(item: DevelopmentItem, state: DevelopmentState) {
     if (state === item.state) return
@@ -160,7 +212,9 @@ export function SkillsToBuildSection({
           <List aria-label="Skills to build" aria-busy="true" className="profile-skeleton"><Skeleton variant="row" as="li" count={2} /></List>
         ) : itemsQuery.isError ? (
           <ErrorState
+            icon={<TriangleAlert />}
             title="Your skills to build couldn’t be loaded"
+            description="Your list is safe. Try again in a moment."
             onRetry={() => void itemsQuery.refetch()}
             retrying={itemsQuery.isFetching}
           />
@@ -169,7 +223,7 @@ export function SkillsToBuildSection({
             icon={<Sprout />}
             title="Nothing to build yet"
             description="When an application’s gap check finds something to work on, add it from the application and it shows up here."
-            action={<Button asChild variant="secondary" size="sm"><Link to="/campaigns">Open applications</Link></Button>}
+            action={<Button asChild variant="secondary"><Link to="/campaigns">Open applications</Link></Button>}
           />
         ) : (
           groups.map((group) => (
@@ -184,12 +238,30 @@ export function SkillsToBuildSection({
                   return (
                     <FactRow
                       key={item.id}
+                      id={`skill-${item.id}`}
                       title={name}
                       busy={busy}
-                      editLabel={`Edit: ${name}`}
+                      editLabel={`Edit ${name}`}
                       onEdit={() => openEditor(item)}
+                      // On a narrow list (a phone) the status, edit and delete share one line under the text, which
+                      // keeps the full width; on a wide one they keep the row's end, as before.
+                      actionsPlacement="below"
+                      primary={(
+                        <Select
+                          size="sm"
+                          className="profile-status"
+                          aria-label="Status"
+                          value={item.state}
+                          disabled={busy}
+                          onChange={(event) => handleStateChange(item, event.target.value as DevelopmentState)}
+                        >
+                          {STATE_ORDER.map((option) => (
+                            <option key={option} value={option}>{STATE_LABELS[option]}</option>
+                          ))}
+                        </Select>
+                      )}
                       reveal={(
-                        <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={`Delete: ${name}`} onClick={() => setDeleteTarget(item)}>
+                        <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={`Delete ${name}`} onClick={() => setDeleteTarget(item)}>
                           <Trash2 aria-hidden="true" />
                         </Button>
                       )}
@@ -225,22 +297,7 @@ export function SkillsToBuildSection({
                           </MetaRow>
                         </>
                       }
-                    >
-                      <RowMeta>
-                        <Select
-                          size="sm"
-                          className="profile-status"
-                          aria-label="Status"
-                          value={item.state}
-                          disabled={busy}
-                          onChange={(event) => handleStateChange(item, event.target.value as DevelopmentState)}
-                        >
-                          {STATE_ORDER.map((option) => (
-                            <option key={option} value={option}>{STATE_LABELS[option]}</option>
-                          ))}
-                        </Select>
-                      </RowMeta>
-                    </FactRow>
+                    />
                   )
                 })}
               </List>
@@ -280,11 +337,12 @@ export function SkillsToBuildSection({
         open={deleteTarget !== null}
         title="Delete this skill to build?"
         description="This permanently removes it from your list. It takes effect immediately and cannot be undone."
-        confirmLabel="Delete item"
+        confirmLabel="Delete skill"
         icon={<Trash2 />}
         pending={deleteMutation.isPending}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onCloseAutoFocus={focusAfterDelete}
       />
     </Section>
   )

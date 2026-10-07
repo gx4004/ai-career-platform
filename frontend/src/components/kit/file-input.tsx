@@ -6,6 +6,7 @@ import {
   type ChangeEvent,
   type ComponentPropsWithoutRef,
   type DragEvent,
+  type MouseEvent,
   type ReactNode,
 } from 'react'
 import { Upload, X } from 'lucide-react'
@@ -22,7 +23,7 @@ export type FileInputProps = Omit<
   label?: string
   /** Quiet line beside the trigger while nothing is chosen: "PDF or DOCX, up to 5 MB". */
   hint?: ReactNode
-  /** inline: trigger and file name on one row. dropzone: a bordered area that also accepts a dropped file. Default inline. */
+  /** inline: trigger and file name on one row. dropzone: a bordered area that also accepts a dropped file, and opens the picker from a click anywhere on it. Default inline. */
   variant?: 'inline' | 'dropzone'
   /** Look of the trigger button. Default secondary. */
   buttonVariant?: Extract<ButtonVariant, 'primary' | 'secondary' | 'ghost'>
@@ -139,6 +140,20 @@ export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(function F
         }
       : {}
 
+  // The dropzone looks like one big target, so it is one: a click anywhere on it opens the picker. The trigger is a
+  // <label> (the browser already opens the picker from it) and the remove button has its own job, so both are left alone.
+  // Keyboard users reach the same picker through the input itself.
+  const surfaceClick =
+    variant === 'dropzone' && !field.disabled
+      ? {
+          onClick: (event: MouseEvent<HTMLDivElement>) => {
+            const target = event.target as Element
+            if (target.closest('.kit-file__trigger, .kit-file__remove, .kit-file__input')) return
+            inputRef.current?.click()
+          },
+        }
+      : {}
+
   const hintId = hint && files.length === 0 ? `${inputId}-hint` : undefined
   const triggerText = label ?? (multiple ? 'Choose files' : 'Choose file')
   const describedBy = [hintId, field.describedBy].filter(Boolean).join(' ') || undefined
@@ -154,6 +169,7 @@ export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(function F
       data-has-file={files.length > 0 || undefined}
       data-icon={variant === 'dropzone' && icon ? 'true' : undefined}
       {...dropHandlers}
+      {...surfaceClick}
     >
       {variant === 'dropzone' && icon ? (
         <span className="kit-file__icon" aria-hidden="true">

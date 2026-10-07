@@ -15,13 +15,14 @@ export type AvatarProps = Omit<ComponentPropsWithoutRef<'span'>, 'children'> & {
   decorative?: boolean
 }
 
-/** First letters of the first and last word: "Ada Lovelace" is AL; for an email only the part before the @ counts ("grace.hopper@example.com" is GH). */
+/**
+ * First letters of the first and last word: "Ada Lovelace" is AL, and a hyphenated surname stays one word ("Ana
+ * García-López" is AG). For an email only the part before the @ counts, split on dots, underscores and hyphens too
+ * ("grace.hopper@example.com" is GH).
+ */
 export function initialsOf(name: string) {
-  const words = name
-    .trim()
-    .split('@')[0]
-    .split(/[\s._-]+/)
-    .filter(Boolean)
+  const trimmed = name.trim()
+  const words = (trimmed.includes('@') ? trimmed.split('@')[0].split(/[\s._-]+/) : trimmed.split(/\s+/)).filter(Boolean)
   if (words.length === 0) return '?'
   const first = words[0][0]
   const last = words.length > 1 ? words[words.length - 1][0] : ''

@@ -50,7 +50,8 @@ describe('kit Sticker', () => {
     expect((screen.getByText('Body copy') as HTMLElement).style.transform).toBe('')
     const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/sticker.css'), 'utf8')
     const plate = css.match(/\.kit-sticker::before\s*\{([^}]*)\}/)![1]
-    expect(plate).toMatch(/transform:\s*rotate\(var\(--kit-tilt/)
+    // The angle is the requested tilt times --kit-tilt-scale (default 1), so a stacking layout can level its stickers.
+    expect(plate).toMatch(/transform:\s*rotate\(calc\(var\(--kit-tilt, 0deg\) \* var\(--kit-tilt-scale, 1\)\)\)/)
     const base = css.match(/\.kit-sticker\s*\{([^}]*)\}/)![1]
     expect(base).not.toMatch(/transform/)
   })
@@ -95,7 +96,11 @@ describe('kit Highlight', () => {
     const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/sticker.css'), 'utf8')
     const md = css.match(/\.kit-sticker \.kit-stretched:focus-visible::after\s*\{([^}]*)\}/)![1]
     expect(md).toMatch(/outline-offset:\s*-10px/)
+    // A tilted plate turns its ring with it, so the gap to the outline stays even at every corner.
+    // ...and is levelled with it when a layout sets --kit-tilt-scale: 0.
+    expect(md).toMatch(/transform:\s*rotate\(calc\(var\(--kit-tilt, 0deg\) \* var\(--kit-tilt-scale, 1\)\)\)/)
     const sm = css.match(/\.kit-sticker--sm \.kit-stretched:focus-visible::after\s*\{([^}]*)\}/)![1]
-    expect(sm).toMatch(/outline-offset:\s*-5px/)
+    // -7px: the 3px ring ends 4px in, so a 2px band of tone shows between it and the 2px outline (was -5px: no band).
+    expect(sm).toMatch(/outline-offset:\s*-7px/)
   })
 })

@@ -5,8 +5,9 @@
  * for fine pointers; they are always there on touch and while focus is inside the row.
  *
  * Narrow lists (the List is under 32rem wide, i.e. a phone) follow ONE rule, decided by the list's
- * width and never by a row's content: a row with actions keeps them at the end of its first line,
- * and its meta drops under the text. Rows without actions keep the flex-wrap behaviour.
+ * width and never by a row's content: a row with actions keeps them at the end of its first line (top-aligned
+ * with the text, so a long fact keeps them beside its title), and its meta drops under the text. Rows without actions keep the flex-wrap behaviour, unless their meta asks to
+ * go under the text too (RowMeta placement="below"), which lays them out on the same grid.
  */
 
 .kit-list {
@@ -38,6 +39,24 @@
   border-block: var(--bw) solid var(--line);
 }
 
+/* boxed="end": the list sits right under its own heading, so only the rule below the last row, and the first row
+   starts at the list's top: the heading sits on it the way a field label sits on its control. */
+.kit-list[data-boxed='end']:not([data-framed]) {
+  border-block-start: 0;
+}
+
+.kit-list[data-boxed='end']:not([data-framed]) > .kit-row:first-child {
+  padding-block-start: 0;
+}
+
+/* flush: rows start at the container's content edge, in line with the heading or field above (no frame justifies an
+   inset). The selection bar's slot goes too, and an overlay action ends on the same edge as a button above it. */
+.kit-list[data-flush]:not([data-framed]) > .kit-row {
+  --kit-row-overlay-inset: 0px;
+  padding-inline: 0;
+  border-inline-start-width: 0;
+}
+
 .kit-row {
   position: relative;
   display: flex;
@@ -66,6 +85,37 @@
 
 .kit-row + .kit-row {
   border-top: var(--bw) solid var(--line);
+}
+
+/* ListHeading: a group title inside a List, on the stone-soft strip every table header uses, ruled off from the rows
+   above and below it with the list's own 2px --line dividers (the next row draws no second one). */
+.kit-list-heading {
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--s2) var(--s5);
+  border-bottom: var(--bw) solid var(--line);
+  background: var(--stone-soft);
+  list-style: none;
+}
+
+.kit-list-heading:not(:first-child) {
+  border-top: var(--bw) solid var(--line);
+}
+
+.kit-list-heading:last-child {
+  border-bottom: 0;
+}
+
+.kit-list-heading__title {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-title);
+  letter-spacing: -0.01em;
+  text-align: start;
+  overflow-wrap: anywhere;
 }
 
 @media (hover: hover) {
@@ -154,10 +204,41 @@
   display: block;
 }
 
+/* RowTitle aside: a short fact (a score pill) at the end of the title's own line, so the lines under the title keep the
+   body's full width (a RowMeta column took that width from every line). */
+.kit-row__title-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.kit-row__title-line > :not(.kit-row__title-aside) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kit-row__title-aside {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
 /* A match row's title: 17px (RowTitle size="lg"). */
 .kit-row__title[data-size='lg'] {
   font-size: 1.0625rem;
   line-height: 1.25;
+}
+
+/* A statement (a strength) is semibold; a full sentence or a quote (a note, a tip) is regular (RowTitle weight). */
+.kit-row__title[data-weight='semibold'] {
+  font-weight: var(--fw-semibold);
+}
+
+.kit-row__title[data-weight='regular'] {
+  font-weight: var(--fw-regular);
 }
 
 .kit-row__subtitle {
@@ -167,6 +248,13 @@
   line-height: var(--lh-meta);
   text-align: start;
   overflow-wrap: anywhere;
+}
+
+/* The sentence under a display title (What next): 15px body text (RowSubtitle size="lg"). */
+.kit-row__subtitle[data-size='lg'] {
+  margin-block-start: 2px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
 .kit-row__meta {
@@ -236,8 +324,38 @@
   white-space: nowrap;
 }
 
+/* Clamp: the title wraps to two lines at most and then ends in an ellipsis; the subtitle (a date, a count) keeps one line. */
+.kit-row[data-overflow='clamp'] .kit-row__body {
+  flex-basis: 0;
+}
+
+.kit-row[data-overflow='clamp'] .kit-row__title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.kit-row[data-overflow='clamp'] .kit-row__subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* RowSubtitle lines={2}: a sentence (a run's headline beside a score pill in a 280px rail) takes two lines before the
+   ellipsis. After the clamp and truncate rules, at their weight, so it wins in every overflow mode. */
+.kit-row .kit-row__subtitle[data-lines='2'] {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 @container kit-list (max-width: 31.9375rem) {
-  .kit-row:has(> .kit-row__actions) {
+  /* The placement test sits in :where(), so these rules keep the weight of `.kit-row:has(> .kit-row__actions)` and a
+     page's one-class placement (Discover's and the dashboard's match rows) still wins over them. */
+  .kit-row:is(:has(> .kit-row__actions), :has(> :where(.kit-row__meta[data-placement='below']))) {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr) auto;
     align-items: center;
@@ -245,21 +363,29 @@
   }
 
   /* The flex row's own gap (--s4), so titles in one list start at the same x with or without actions. */
-  .kit-row:has(> .kit-row__actions) > .kit-row__leading {
+  .kit-row:is(:has(> .kit-row__actions), :has(> :where(.kit-row__meta[data-placement='below']))) > .kit-row__leading {
     grid-column: 2;
     grid-row: 1 / span 2;
     margin-inline-end: var(--s4);
   }
 
-  .kit-list[data-numbered] > .kit-row:has(> .kit-row__actions)::before {
+  .kit-list[data-numbered] > .kit-row:is(:has(> .kit-row__actions), :has(> :where(.kit-row__meta[data-placement='below'])))::before {
     grid-column: 1;
     grid-row: 1 / span 2;
     margin-inline-end: var(--s4);
   }
 
-  .kit-row:has(> .kit-row__actions) > .kit-row__body {
+  /* :where() keeps these placement rules at the weight of `.kit-row > .kit-row__body` (0,2,0), so a page layout
+     of its own (a stacked list) still wins over the kit's narrow-list grid. */
+  .kit-row:where(:has(> .kit-row__actions), :has(> .kit-row__meta[data-placement='below'])) > .kit-row__body {
     grid-column: 3;
     grid-row: 1;
+  }
+
+  /* No meta line: the body takes both rows, so a one-line title centres on the 44px actions instead of floating high. */
+  .kit-row:where(:has(> .kit-row__actions):not(:has(> .kit-row__meta))) > .kit-row__body {
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
   .kit-row:has(> .kit-row__actions) > .kit-row__meta {
@@ -270,10 +396,31 @@
     text-align: start;
   }
 
+  /* RowMeta placement="below": a status Badge takes its own line under the text, 8px clear of it, so the title keeps the full width. */
+  .kit-row > .kit-row__meta[data-placement='below'] {
+    grid-column: 3;
+    grid-row: 2;
+    margin: var(--s2) 0 0;
+    justify-self: start;
+    text-align: start;
+  }
+
+  /* Top of the row, beside the title (history-profile-F39): centred over a five-line fact they floated halfway down
+     and read as a second column. A one-line row is unchanged: its body spans both grid rows and centres on them. */
   .kit-row > .kit-row__actions {
     grid-column: 4;
     grid-row: 1 / span 2;
+    align-self: start;
     margin-inline-start: var(--space-3);
+  }
+
+  /* placement="below": the actions take a line of their own under the text, which keeps the full width. */
+  .kit-row > .kit-row__actions[data-placement='below'] {
+    grid-column: 3 / -1;
+    grid-row: 3;
+    justify-self: start;
+    margin-inline-start: 0;
+    margin-block-start: var(--s3);
   }
 
   .kit-row .kit-row__actions[data-collapsible] > .kit-row__actions-inline {
@@ -290,15 +437,43 @@
   }
 }
 
+/* A 320px phone: a leading md tool tile steps down to the sm size (28px), 12px more for the text column. */
+@container kit-list (max-width: 20rem) {
+  .kit-row__leading > .kit-tool-tile--md {
+    --kit-tile-size: 28px;
+    --kit-tile-radius: 9px;
+    --kit-tile-icon: 16px;
+  }
+
+  /* A row with a leading disc or tile and no actions keeps the wrapping flex layout: the 12rem text basis plus the
+     leading slot is wider than a 236px list (a 320px dialog), so the text dropped under the disc. 9rem keeps it beside. */
+  .kit-row:has(> .kit-row__leading) {
+    --kit-row-body-min: 9rem;
+  }
+
+  /* Three or more inline actions (132px and up) beside the text would leave the title about 60px and break its words;
+     on a 320px phone they take a line of their own under the text, as placement="below" does. A collapsed menu (one
+     button) and overlay actions are unaffected. :where() keeps the weight of `.kit-row > .kit-row__actions`. */
+  .kit-row > .kit-row__actions:where(:not([data-collapsible], [data-placement='overlay']):has(> :nth-child(3))) {
+    grid-column: 3 / -1;
+    grid-row: 3;
+    align-self: start;
+    justify-self: start;
+    margin-inline-start: 0;
+    margin-block-start: var(--s3);
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .kit-row__actions[data-reveal] {
     opacity: 0;
     transition: var(--transition-colors);
   }
 
+  /* A revealed control that is loading (a job started from its menu) stays in view until it is done. */
   .kit-row:hover .kit-row__actions[data-reveal],
   .kit-row:focus-within .kit-row__actions[data-reveal],
-  .kit-row__actions[data-reveal]:has([data-state='open'], [aria-expanded='true']) {
+  .kit-row__actions[data-reveal]:has([data-state='open'], [aria-expanded='true'], [data-loading='true']) {
     opacity: 1;
   }
 
@@ -309,7 +484,7 @@
 
   .kit-row:hover .kit-row__reveal,
   .kit-row:focus-within .kit-row__reveal,
-  .kit-row__reveal:has([data-state='open'], [aria-expanded='true']) {
+  .kit-row__reveal:has([data-state='open'], [aria-expanded='true'], [data-loading='true']) {
     opacity: 1;
   }
 }
@@ -360,6 +535,12 @@
    the shown action never covers the label's last words or the meta's badge. */
 @media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .kit-row:has(> .kit-row__actions[data-placement='overlay']) {
+    padding-inline-end: calc(var(--control-sm) + var(--kit-row-overlay-inset, var(--s2)));
+  }
+
+  /* A flush list zeroes the rows' inline padding with a heavier selector (0,4,0), which also took the room back: the
+     shown action then covered the end of the label ("Write to the hiring man"). Same reservation, at the flush weight. */
+  .kit-list[data-flush]:not([data-framed]) > .kit-row:has(> .kit-row__actions[data-placement='overlay']) {
     padding-inline-end: calc(var(--control-sm) + var(--kit-row-overlay-inset, var(--s2)));
   }
 }

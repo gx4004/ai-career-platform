@@ -1,4 +1,4 @@
-import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import { forwardRef, type ComponentPropsWithoutRef, type ReactNode, type RefObject } from 'react'
 import { ChevronLeft, ChevronRight, Ellipsis } from 'lucide-react'
 import { cn } from '#/lib/utils'
 import { Button } from './button'
@@ -23,6 +23,21 @@ export type PaginationProps = Omit<ComponentPropsWithoutRef<'nav'>, 'onChange'> 
   variant?: 'numbered' | 'simple'
   /** Text at the start edge: "Showing 21–40 of 134". */
   summary?: ReactNode
+  /**
+   * The list these pages belong to (a Table's ref). When its top has scrolled out of view (a phone, Next pressed at the
+   * bottom of a long page), a page change brings that top back into view (block start, its own scroll-margin-top
+   * clearing a sticky bar), so the first new row is what the reader sees. Left alone when its top is already on screen.
+   */
+  scrollTarget?: RefObject<HTMLElement | null>
+}
+
+/** Bring the paged list's top back into view, unless it is already on screen. */
+function revealTop(target: HTMLElement | null | undefined) {
+  if (!target) return
+  const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0
+  if (target.getBoundingClientRect().top >= margin) return
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  target.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
 }
 
 /**
@@ -31,11 +46,15 @@ export type PaginationProps = Omit<ComponentPropsWithoutRef<'nav'>, 'onChange'> 
  * .history-pagination and .admin-pagination.
  */
 export const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagination(
-  { page, pageCount, onPageChange, variant = 'numbered', summary, className, 'aria-label': ariaLabel = 'Pages', ...rest },
+  { page, pageCount, onPageChange, variant = 'numbered', summary, scrollTarget, className, 'aria-label': ariaLabel = 'Pages', ...rest },
   ref,
 ) {
   if (pageCount <= 1) return null
   const current = Math.min(Math.max(page, 1), pageCount)
+  const go = (next: number) => {
+    onPageChange(next)
+    revealTop(scrollTarget?.current)
+  }
   return (
     <nav ref={ref} className={cn('kit-pagination', className)} aria-label={ariaLabel} data-variant={variant} {...rest}>
       {summary ? <p className="kit-pagination__summary">{summary}</p> : null}
@@ -45,7 +64,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagi
           variant="secondary"
           size="sm"
           disabled={current <= 1}
-          onClick={() => onPageChange(current - 1)}
+          onClick={() => go(current - 1)}
         >
           <ChevronLeft className="kit-pagination__chevron" aria-hidden="true" />
           Previous
@@ -66,7 +85,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagi
                     className="kit-pagination__page"
                     aria-label={`Page ${number}`}
                     aria-current={number === current ? 'page' : undefined}
-                    onClick={() => onPageChange(number)}
+                    onClick={() => go(number)}
                   >
                     {number}
                   </Button>
@@ -83,7 +102,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagi
           variant="secondary"
           size="sm"
           disabled={current >= pageCount}
-          onClick={() => onPageChange(current + 1)}
+          onClick={() => go(current + 1)}
         >
           Next
           <ChevronRight className="kit-pagination__chevron" aria-hidden="true" />

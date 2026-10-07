@@ -80,6 +80,50 @@ describe('what a form shows when a request fails', () => {
     expect(error.fields.email).toBe('Enter a valid email address.')
   })
 
+  // A server field message shows under its own field, so it no longer repeats the field's name there, and
+  // Pydantic's wording reads like the client's own (sign-off public-G02). The one-line summary keeps the name.
+  it("a server 422 field message drops the field name under the field and says Pydantic's bound plainly", async () => {
+    // The client checks full_name itself first, so the server's answer is read directly here.
+    const { apiErrorFromResponse } = await import('#/lib/api/errors')
+    const error = apiErrorFromResponse(422, {
+      detail: [{ type: 'string_too_long', loc: ['body', 'full_name'], msg: 'String should have at most 200 characters' }],
+    })
+
+    expect(error.fields.full_name).toBe('Use at most 200 characters.')
+    expect(error.message).toBe('Full name: Use at most 200 characters.')
+
+    const short = apiErrorFromResponse(422, {
+      detail: [{ type: 'string_too_short', loc: ['body', 'password'], msg: 'String should have at least 8 characters' }],
+    })
+    expect(short.fields.password).toBe('Use at least 8 characters.')
+  })
+
+  it("the client's own length check says the same under the field: no repeated name, the summary keeps it", async () => {
+    const error = await failureOf(() =>
+      register({ email: 'ada@example.com', password: 'long-enough-password', full_name: 'N'.repeat(201), tos_accepted: true }),
+    )
+
+    expect(error.fields.full_name).toBe('Use at most 200 characters.')
+    expect(error.message).toBe('Full name must be at most 200 characters.')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("the server's password byte rule reads like the client's", async () => {
+    const { apiErrorFromResponse } = await import('#/lib/api/errors')
+    const error = apiErrorFromResponse(422, {
+      detail: [{ type: 'value_error', loc: ['body', 'new_password'], msg: 'Value error, Password must be at most 72 UTF-8 bytes' }],
+    })
+    expect(error.fields.new_password).toBe('Use at most 72 characters (fewer with accents or emoji).')
+    expect(error.message).toBe('New password: Use at most 72 characters (fewer with accents or emoji).')
+  })
+
+  it('a password over 72 bytes is refused before any request, in plain words', async () => {
+    const error = await failureOf(() => register({ email: 'ada@example.com', password: '\u00e9'.repeat(40), tos_accepted: true }))
+
+    expect(error.fields.password).toBe('Use at most 72 characters (fewer with accents or emoji).')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('a link without a scheme or with ftp:// asks for a full https link, before any request (tools-analysis-D04)', async () => {
     for (const url of ['example.com/job', 'ftp://x.com/a']) {
       const error = await failureOf(() => importJobUrl({ url }))
@@ -127,7 +171,26 @@ describe('what a form shows when a request fails', () => {
 
     const error = await failureOf(() => login({ email: 'ada@example.com', password: 'long-enough-password' }))
 
-    expect(error.message).toBe('Incorrect email or password')
+    // Shown as a sentence: the server's detail has no full stop, every other auth message ends with one
+    // (public-F24). The server's own words stay untouched on `detail`.
+    expect(error.message).toBe('Incorrect email or password.')
+    expect(error.detail).toBe('Incorrect email or password')
+  })
+
+  it('ends a server sentence with a full stop only when it has no closing punctuation', async () => {
+    const cases: Array<[string, string]> = [
+      ['Account is deactivated', 'Account is deactivated.'],
+      ['Check the resume text and try again.', 'Check the resume text and try again.'],
+      ['Did you mean another file?', 'Did you mean another file?'],
+      ['Enter a full link starting with https://', 'Enter a full link starting with https://'],
+      ['Only an employer job-board source can be fetched (see terms)', 'Only an employer job-board source can be fetched (see terms).'],
+      ['  Email already registered  ', 'Email already registered.'],
+    ]
+    for (const [detail, expected] of cases) {
+      fetchMock.mockResolvedValueOnce(json({ detail }, 409))
+      const error = await failureOf(() => login({ email: 'ada@example.com', password: 'long-enough-password' }))
+      expect(error.message).toBe(expected)
+    }
   })
 
   it("a dropped connection says the server can't be reached, with status 0", async () => {

@@ -50,10 +50,12 @@ describe('AdminLayout', () => {
     expect(nav.getByRole('link', { name: 'Users' }).getAttribute('aria-current')).toBeNull()
   })
 
-  it('renders the page inside the layout with a skip link to it', () => {
+  it('renders the page inside the layout and leaves the skip link to the app shell', () => {
     render(<AdminLayout />)
     expect(screen.getByRole('main')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Skip to main content' }).getAttribute('href')).toBe('#main-content')
+    // consistency-F05: /admin is a shell-less route, and AppShell's shell-less branch already renders the one SkipLink
+    // (with focusMain). A second one here made keyboard users tab through "Skip to main content" twice.
+    expect(screen.queryByRole('link', { name: 'Skip to main content' })).toBeNull()
   })
 
   it('on a phone puts every destination in a sheet instead of a clipped strip', () => {

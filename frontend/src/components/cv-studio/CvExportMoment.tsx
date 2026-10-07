@@ -26,12 +26,11 @@ export async function countPdfPages(blob: Blob): Promise<number | null> {
 
 /**
  * "Your CV is ready": the moment an export finishes. A sticker with the page-count seal stamping in,
- * the file name, what the ATS check says, and the other format one click away. It leaves by itself.
+ * the file name, what the ATS check says, and the other format one click away. It leaves by itself. It is a notice
+ * pinned to the viewport, under every overlay: a sheet or dialog open over it covers it (cv-studio-F01).
  */
-export function CvExportMoment({ moment, otherBusy, raised, onDownloadOther, onClose }: {
+export function CvExportMoment({ moment, otherBusy, onDownloadOther, onClose }: {
   moment: ExportMoment
-  /** A dialog is open: sit at the top of the screen instead of over its buttons. */
-  raised?: boolean
   otherBusy: boolean
   onDownloadOther: () => void
   onClose: () => void
@@ -50,7 +49,7 @@ export function CvExportMoment({ moment, otherBusy, raised, onDownloadOther, onC
   ].filter(Boolean)
 
   return (
-    <div className="cvs-moment" data-raised={raised || undefined} role="status" aria-live="polite" data-testid="export-moment">
+    <div className="cvs-moment" role="status" aria-live="polite" data-testid="export-moment">
       <Sticker tone="white" tilt={-1.5} className="cvs-moment__card">
         <ScoreSeal
           key={moment.id} className="cvs-moment__seal" tone="mint" size={96} unit={null} reveal="stamp" rotate={-6}

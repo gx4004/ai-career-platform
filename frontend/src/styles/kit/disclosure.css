@@ -46,13 +46,28 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.kit-disclosure__title {
+/* The title and meta share the label beside the chevron. The title keeps its whole width while the label has room
+   for it (fit-content, measured against the label, so a long title wraps beside the chevron instead of pushing it out
+   of the row: the landing FAQ at 320). The meta's basis is 0: it stays on the title's line, wrapping at its end, while
+   its longest word fits beside the title ("Attempt 1" keeps one line next to "No weak spots · 1 suggestion" at 320),
+   and only takes a line of its own under the title when even that does not fit. */
+.kit-disclosure__label {
+  display: flex;
   flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s3);
   min-width: 0;
 }
 
+.kit-disclosure__title {
+  flex: 0 1 auto;
+  min-width: fit-content;
+}
+
 .kit-disclosure__meta {
-  flex: none;
+  flex: 1 1 0%;
+  text-align: end;
   color: var(--ink-2);
   font-size: var(--fs-meta);
   font-weight: var(--fw-regular);
@@ -88,6 +103,23 @@
   border-bottom: 0;
 }
 
+/* ...and the row's hover fill follows the frame's rounded corners instead of painting a square over them (and over the
+   inside of the outline): the top corners for the first row, the bottom ones for a closed last row. */
+:is(.kit-panel-surface, .kit-list) > .kit-disclosure--section:first-child > .kit-disclosure__trigger,
+:is(.kit-panel-surface, .kit-list) > .kit-disclosure--section:first-child > .kit-disclosure__heading > .kit-disclosure__trigger {
+  border-start-start-radius: calc(var(--r-lg) - var(--bw));
+  border-start-end-radius: calc(var(--r-lg) - var(--bw));
+}
+
+:is(.kit-panel-surface, .kit-list) > .kit-disclosure--section:last-child > .kit-disclosure__trigger[data-state='closed'],
+:is(.kit-panel-surface, .kit-list)
+  > .kit-disclosure--section:last-child
+  > .kit-disclosure__heading
+  > .kit-disclosure__trigger[data-state='closed'] {
+  border-end-start-radius: calc(var(--r-lg) - var(--bw));
+  border-end-end-radius: calc(var(--r-lg) - var(--bw));
+}
+
 .kit-disclosure--section .kit-disclosure__trigger {
   min-height: 3.5rem;
   padding-inline: var(--kit-disclosure-px);
@@ -96,6 +128,22 @@
 .kit-disclosure--section .kit-disclosure__trigger:focus-visible {
   border-radius: 0;
   outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+/* size="lg": the row is a whole panel's heading, so its title takes the PanelHeader's display 20/800 (18 at 320). */
+.kit-disclosure--section[data-size='lg'] .kit-disclosure__trigger {
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-black);
+  line-height: 1.1;
+  letter-spacing: var(--ls-title);
+}
+
+@media (max-width: 359px) {
+  .kit-disclosure--section[data-size='lg'] .kit-disclosure__trigger {
+    font-size: var(--fs-title-sm);
+  }
 }
 
 @media (hover: hover) {
@@ -123,6 +171,17 @@
 
 .kit-disclosure--section .kit-disclosure__content {
   padding: 0 var(--kit-disclosure-px) var(--s5);
+}
+
+/* ruled: a Disclosure that heads a whole Panel, next to panels with a PanelHeader. Open, its row takes the
+   PanelHeader's 2px ink rule and the content starts 20px under it, like a PanelBody, so the two panels read alike. */
+.kit-disclosure--section[data-ruled] > .kit-disclosure__trigger[data-state='open'],
+.kit-disclosure--section[data-ruled] > .kit-disclosure__heading > .kit-disclosure__trigger[data-state='open'] {
+  border-block-end: var(--bw) solid var(--ink);
+}
+
+.kit-disclosure--section[data-ruled] > .kit-disclosure__content {
+  padding-block-start: var(--s5);
 }
 
 /* inline */

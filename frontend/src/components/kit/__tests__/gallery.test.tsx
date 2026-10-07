@@ -18,6 +18,30 @@ describe('/_kit gallery', () => {
     }
   })
 
+  it('shows a multi-line fact beside a one-line one in the narrow title-only row specimen (history-profile-F39)', () => {
+    render(<KitPage />)
+    const list = screen.getByRole('list', { name: 'Skills (narrow title-only specimen)' })
+    const fact = list.querySelector('[data-specimen="multi-line-fact"]') as HTMLElement
+    expect(within(fact).getByText('Senior Backend Engineer')).toBeTruthy()
+    expect(within(fact).getByRole('button', { name: 'Edit Senior Backend Engineer' })).toBeTruthy()
+  })
+
+  it('shows a Section whose action stays beside its title (actionsWrap={false}, history-profile-F38)', () => {
+    const { container } = render(<KitPage />)
+    const specimen = container.querySelector('[data-specimen="section-actions-nowrap"]') as HTMLElement
+    expect(specimen.querySelector('.kit-section')?.getAttribute('data-actions-wrap')).toBe('false')
+    expect(within(specimen).getByRole('button', { name: 'Select all' })).toBeTruthy()
+  })
+
+  it('shows leading-disc and tool-tile rows in a 236px list (the 320px onboarding tour, regression-dialogs-R1)', () => {
+    render(<KitPage />)
+    const discs = screen.getByRole('list', { name: 'What you get (narrow leading specimen)' })
+    expect(discs.querySelectorAll('.kit-row > .kit-row__leading').length).toBe(2)
+    const tiles = screen.getByRole('list', { name: 'Tools (narrow leading specimen)' })
+    expect(tiles.querySelectorAll('.kit-row__leading .kit-tool-tile').length).toBe(2)
+    expect(screen.getByTestId('row-leading-narrow').style.maxWidth).toBe('236px')
+  })
+
   it('has one h1 and no duplicate ids', () => {
     const { container } = render(<KitPage />)
     expect(screen.getAllByRole('heading', { level: 1 }).length).toBe(1)

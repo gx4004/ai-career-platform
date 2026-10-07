@@ -76,6 +76,42 @@ describe('AdminRunsPage', () => {
     expect(opener.closest('.admin-run')).toBeTruthy()
   })
 
+  it('lets the run and its user share the width and stacks the rows under 48rem (consistency-F16)', async () => {
+    renderPage([run('r-1')])
+    const wrap = (await screen.findByRole('table', { name: 'Runs' })).closest('.kit-table-wrap') as HTMLElement
+    expect(wrap.style.getPropertyValue('--kit-table-stack-below')).toBe('48')
+    // Only Created keeps a fixed width; a 20rem User squeezed the run title to 3-5 lines on a tablet.
+    expect([...wrap.querySelectorAll('col')].map((col) => col.style.width)).toEqual(['', '', '11rem'])
+  })
+
+  it('brings the tool filter and the rows back into view after Next, not the rows alone (account-admin-AA-F14)', async () => {
+    const scrolled: Element[] = []
+    // jsdom has no scrollIntoView: record which element the pager scrolls to.
+    const original = HTMLElement.prototype.scrollIntoView
+    HTMLElement.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this)
+    }
+    // The list's top has scrolled out of view (Next pressed at the bottom of a long phone page).
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top: -500 } as DOMRect)
+    try {
+      getAdminRunsMock.mockResolvedValue({ items: [run('r-1')], total: 45, page: 1, page_size: 20 })
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      render(
+        <QueryClientProvider client={client}>
+          <AdminRunsPage />
+        </QueryClientProvider>,
+      )
+      await screen.findByRole('button', { name: 'Job Match (75%)' })
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      expect(scrolled).toHaveLength(1)
+      expect(scrolled[0].contains(screen.getByRole('combobox', { name: 'Tool' }))).toBe(true)
+      expect(scrolled[0].contains(screen.getByRole('table', { name: 'Runs' }))).toBe(true)
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original
+      rect.mockRestore()
+    }
+  })
+
   it('filters by tool and starts again from page one', async () => {
     renderPage([run('r-1')])
     await screen.findByRole('button', { name: 'Job Match (75%)' })
@@ -83,5 +119,20 @@ describe('AdminRunsPage', () => {
     await waitFor(() =>
       expect(getAdminRunsMock).toHaveBeenLastCalledWith({ page: 1, page_size: 20, tool: 'resume' }),
     )
+  })
+
+  it('shows a load failure with the rose icon disc and a sentence on what it means', async () => {
+    getAdminRunsMock.mockRejectedValue(new Error('500'))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <AdminRunsPage />
+      </QueryClientProvider>,
+    )
+    const alert = (await screen.findByText("Couldn't load runs")).closest('.kit-error') as HTMLElement
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(alert.textContent).toContain("The server didn't send the list. Nothing was changed.")
+    expect(alert.querySelector('.kit-empty__icon svg')).toBeTruthy()
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeTruthy()
   })
 })

@@ -15,4 +15,23 @@ describe('validateWorkflowDraft', () => {
 
     expect(errors.resumeText).toBe('Resume text must be at least 50 characters.')
   })
+
+  // Sign-off tool-inputs-F33: every required field says what to do, like the resume, instead of "<Label> is required."
+  it.each(['job-match', 'cover-letter', 'interview'] as const)('asks %s for the job description with a next step', (toolId) => {
+    const errors = validateWorkflowDraft(workflowConfigs[toolId], { ...baseDraftState })
+
+    expect(errors.jobDescription).toBe('Paste the job description, or import it from the posting’s link.')
+  })
+
+  it('asks Portfolio Planner for the target role with an example', () => {
+    const errors = validateWorkflowDraft(workflowConfigs.portfolio, { ...baseDraftState })
+
+    expect(errors.targetRole).toBe('Add the role you are aiming for, e.g. Staff Backend Engineer.')
+  })
+
+  it.each(toolList.map((tool) => tool.id))('leaves no required field of %s on the generic message', (toolId) => {
+    for (const field of workflowConfigs[toolId].fields) {
+      if (field.required) expect(field.requiredMessage, `${toolId}.${field.name}`).toBeTruthy()
+    }
+  })
 })

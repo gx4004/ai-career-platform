@@ -100,14 +100,9 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.kit-radio[data-invalid] .kit-radio__input:not(:checked) {
-  outline: var(--bw) solid var(--danger-ink);
-  outline-offset: 2px;
-}
-
-.kit-radio[data-invalid] .kit-radio__input:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+/* Invalid: the ring stays 2px ink; an unchecked radio takes the rose-soft fill and the Field's error text says why. */
+.kit-radio[data-invalid] .kit-radio__input:not(:checked, :disabled) {
+  background: var(--rose-soft);
 }
 
 .kit-radio__input:disabled {

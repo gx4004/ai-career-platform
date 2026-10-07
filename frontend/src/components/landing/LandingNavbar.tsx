@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Menu, type LucideIcon } from 'lucide-react'
+import { ArrowRight, House, LogIn, Menu, type LucideIcon } from 'lucide-react'
 import {
   Button,
   Sheet,
@@ -23,11 +23,14 @@ export type NavbarItem = {
 type NavbarState = 'top' | 'scrolled'
 
 const SCROLL_THRESHOLD = 60
+/** A section becomes the current one once its top passes this share of the viewport height, i.e. once it
+ *  holds about half the screen (its heading and first content are in view). */
+const READING_LINE = 0.55
 
 /**
  * The landing bar: brand, four section links, and the account actions. It turns into a white bar with an
- * ink rule once the page has scrolled 60px. The current section (read by an IntersectionObserver) is the
- * lemon link. On phones the links move into a bottom Sheet (Radix Dialog: Esc closes, focus is trapped
+ * ink rule once the page has scrolled 60px. The current section (read from section positions on scroll) is
+ * the lemon link. On phones the links move into a bottom Sheet (Radix Dialog: Esc closes, focus is trapped
  * and returned to the menu button).
  */
 export function LandingNavbar({
@@ -80,21 +83,37 @@ export function LandingNavbar({
     }
   }, [])
 
+  // The current section is read from positions on scroll (one read per frame), the rule the kit JumpNav uses:
+  // the last listed section whose top has passed the reading line. A band that is not listed (Built for, the
+  // closer) belongs to the section above it, and a jump back up or past several sections lands on the right one.
   useEffect(() => {
-    if (sectionIds.length === 0 || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) setActiveId(entry.target.id)
-        }
-      },
-      { rootMargin: '-20% 0px -60% 0px', threshold: 0.15 },
-    )
-    for (const id of sectionIds) {
-      const el = document.getElementById(id)
-      if (el) observer.observe(el)
+    if (sectionIds.length === 0 || typeof window === 'undefined') return
+    let frame = 0
+    let pending = false
+    const read = () => {
+      pending = false
+      const line = window.innerHeight * READING_LINE
+      let next: string | null = null
+      for (const id of sectionIds) {
+        const rect = document.getElementById(id)?.getBoundingClientRect()
+        if (!rect || rect.height === 0) continue
+        if (next === null || rect.top <= line) next = id
+      }
+      setActiveId(next)
     }
-    return () => observer.disconnect()
+    const schedule = () => {
+      if (pending) return
+      pending = true
+      frame = requestAnimationFrame(read)
+    }
+    read()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    return () => {
+      if (pending) cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+    }
   }, [sectionIds])
 
   const scrollToHash = useCallback(
@@ -140,7 +159,7 @@ export function LandingNavbar({
 
         <div className="lp-nav__end">
           {signedIn ? (
-            <Button asChild variant="secondary">
+            <Button asChild variant="secondary" className="lp-nav__cta">
               <Link to="/dashboard">{dashboardLabel}</Link>
             </Button>
           ) : (
@@ -148,7 +167,7 @@ export function LandingNavbar({
               <Button asChild variant="ghost" className="lp-nav__signin">
                 <Link to={signInTo}>{signInLabel}</Link>
               </Button>
-              <Button asChild variant="secondary">
+              <Button asChild variant="secondary" className="lp-nav__cta">
                 <Link to={ctaTo}>{ctaLabel}</Link>
               </Button>
             </>
@@ -168,7 +187,7 @@ export function LandingNavbar({
             <SheetContent side="bottom" closeLabel="Close menu">
               <SheetHeader>
                 <SheetTitle>Menu</SheetTitle>
-                <SheetDescription className="kit-sr-only">Jump to a section of the page or sign in.</SheetDescription>
+                <SheetDescription className="kit-sr-only">Jump to a section of the page, sign in or get started.</SheetDescription>
               </SheetHeader>
               <SheetBody>
                 <nav className="lp-menu" aria-label="Sections">
@@ -183,12 +202,30 @@ export function LandingNavbar({
                       </Button>
                     )
                   })}
-                  {signedIn ? null : (
-                    <Button asChild variant="ghost" size="lg" className="lp-menu__link">
-                      <Link to={signInTo} onClick={() => setMenuOpen(false)}>
-                        {signInLabel}
+                  {/* On phones the bar has room only for the brand and this menu, so the bar's actions live here too:
+                      the same lg secondary button with an icon as the section links, so every label starts at one x. */}
+                  {signedIn ? (
+                    <Button asChild variant="secondary" size="lg" className="lp-menu__link">
+                      <Link to="/dashboard" onClick={() => setMenuOpen(false)}>
+                        <House aria-hidden="true" />
+                        {dashboardLabel}
                       </Link>
                     </Button>
+                  ) : (
+                    <>
+                      <Button asChild variant="secondary" size="lg" className="lp-menu__link">
+                        <Link to={signInTo} onClick={() => setMenuOpen(false)}>
+                          <LogIn aria-hidden="true" />
+                          {signInLabel}
+                        </Link>
+                      </Button>
+                      <Button asChild variant="secondary" size="lg" className="lp-menu__link">
+                        <Link to={ctaTo} onClick={() => setMenuOpen(false)}>
+                          <ArrowRight aria-hidden="true" />
+                          {ctaLabel}
+                        </Link>
+                      </Button>
+                    </>
                   )}
                 </nav>
               </SheetBody>

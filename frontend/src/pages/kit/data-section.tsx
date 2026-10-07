@@ -1,4 +1,6 @@
 import {
+  Badge,
+  Button,
   Cluster,
   Panel,
   PanelBody,
@@ -51,6 +53,14 @@ export function DataSection() {
           <Specimen label="one item">
             <MetaRow>
               <span>Applied</span>
+            </MetaRow>
+          </Specimen>
+          <Specimen label="a link-variant Button and a badge: the dots sit on the text's middle; on a touch screen the link keeps the line's height and gets its 44px target around it">
+            <MetaRow>
+              <span>Missing skill</span>
+              <span>Target Nov 6, 2026</span>
+              <Button type="button" variant="link" size="sm">From an application</Button>
+              <Badge tone="warning" size="sm">Waiting for your review</Badge>
             </MetaRow>
           </Specimen>
           <Specimen label="all missing renders nothing (nothing between the brackets)">
@@ -177,7 +187,7 @@ export function DataSection() {
               <ScoreBar label="Ink (explicit)" value={70} tone="ink" />
               <ScoreBar label="Good (mint)" value={88} tone="success" />
               <ScoreBar label="Fair (lemon)" value={55} tone="warning" />
-              <ScoreBar label="Problem (rose)" value={31} tone="danger" />
+              <ScoreBar label="Danger (ink: never rose)" value={31} tone="danger" />
               <ScoreBar label="Low is quiet, not red (lowTone=neutral)" value={23} lowTone="neutral" />
               <ScoreBar label="Custom thresholds (good at 50)" value={55} thresholds={{ good: 50, fair: 20 }} />
             </div>

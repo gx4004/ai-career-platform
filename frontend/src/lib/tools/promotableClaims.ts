@@ -13,13 +13,26 @@ import type { ToolId } from '#/lib/tools/registry'
 export type PromotableClaim = {
   key: string
   kind: EvidenceKind
+  /** A short name for the claim: the Add button's accessible name. */
   label: string
+  /** What the row shows as its title: the question, or the paragraph. */
+  title: string
+  /** A second line under the title: an interview claim's answer. */
+  detail?: string
   content: Record<string, unknown>
 }
 
-function truncate(text: string, max = 90): string {
-  const trimmed = text.trim()
-  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed
+/**
+ * Shortens text on a word boundary, never mid-word ("cutting p95 …", not "Postgre…"). A single word longer than
+ * the limit is the only thing ever cut inside a word.
+ */
+export function truncateWords(text: string, max = 90): string {
+  const trimmed = text.trim().replace(/\s+/g, ' ')
+  if (trimmed.length <= max) return trimmed
+  const head = trimmed.slice(0, max)
+  const space = head.lastIndexOf(' ')
+  const cut = space > 0 ? head.slice(0, space) : head.slice(0, max - 1)
+  return `${cut.replace(/[\s,;:.\-–—]+$/, '')}…`
 }
 
 function asString(value: unknown): string {
@@ -58,7 +71,9 @@ export function getPromotableClaims(
         return {
           key: `interview-${index}`,
           kind: 'interview-evidence',
-          label: `Q: ${truncate(prompt, 90)} · ${truncate(answer, 60)}`,
+          label: truncateWords(prompt, 90),
+          title: prompt.trim(),
+          detail: truncateWords(answer, 180),
           content,
         }
       })
@@ -73,7 +88,8 @@ export function getPromotableClaims(
         return {
           key: `cover-body-${index}`,
           kind: 'achievement',
-          label: truncate(text),
+          label: truncateWords(text),
+          title: truncateWords(text, 220),
           content: { text },
         }
       })

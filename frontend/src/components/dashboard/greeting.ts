@@ -1,4 +1,4 @@
-import { formatRunDate } from '#/components/dashboard/RunRow'
+import { formatRunDay } from '#/lib/tools/runLabel'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = [
@@ -21,9 +21,12 @@ export function greetingTitle(now: Date, fullName: string | null | undefined) {
   return first ? `${partOfDay(now)}, ${first}.` : `${partOfDay(now)}.`
 }
 
-/** "Saturday 4 October". */
+/** A no-break space: a date never breaks between its day and its month on a narrow screen. */
+const NBSP = '\u00a0'
+
+/** "Saturday 4 October", with "4 October" kept on one line. */
 export function longDate(now: Date) {
-  return `${WEEKDAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}`
+  return `${WEEKDAYS[now.getDay()]} ${now.getDate()}${NBSP}${MONTHS[now.getMonth()]}`
 }
 
 /** "Two things need you today." / "Nothing needs you today." */
@@ -33,13 +36,22 @@ export function needsLine(count: number) {
   return `${NUMBER_WORDS[count] ?? count} things need you today.`
 }
 
-/** "; your last two runs were on Oct 3" (without the closing full stop), or '' with no runs. */
+/** "today", "yesterday", "on Oct 3": when a run was, in a sentence. */
+function runDay(value: string, now: Date) {
+  const day = formatRunDay(value, now)
+  if (day === 'Today' || day === 'Yesterday') return day.toLowerCase()
+  return day ? `on ${day.replace(/ /g, NBSP)}` : ''
+}
+
+/** "your last two runs were today" / "…were on Oct 3" (without the closing full stop), or '' with no runs. */
 function runsClause(runDates: string[], now: Date) {
-  const days = runDates.slice(0, 2).map((value) => formatRunDate(value, now)).filter(Boolean)
+  const days = runDates.slice(0, 2).map((value) => runDay(value, now)).filter(Boolean)
   if (days.length === 0) return ''
-  if (days.length === 1) return `your last run was on ${days[0]}`
-  if (days[0] === days[1]) return `your last two runs were on ${days[0]}`
-  return `your last two runs were on ${days[0]} and ${days[1]}`
+  if (days.length === 1) return `your last run was ${days[0]}`
+  if (days[0] === days[1]) return `your last two runs were ${days[0]}`
+  // "on Oct 2 and Oct 1", not "on Oct 2 and on Oct 1".
+  const second = days[0].startsWith('on ') && days[1].startsWith('on ') ? days[1].slice(3) : days[1]
+  return `your last two runs were ${days[0]} and ${second}`
 }
 
 /**

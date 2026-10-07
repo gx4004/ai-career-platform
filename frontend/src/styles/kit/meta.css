@@ -47,9 +47,12 @@
   position: absolute;
   inset-block: 0;
   inset-inline-start: calc(var(--kit-meta-gap) * -1);
+  /* Centred on the item's height, so a taller item (a badge, a button) keeps the dot on the text's middle, not its top. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   inline-size: var(--kit-meta-gap);
   color: var(--ink-4); /* decoration */
-  text-align: center;
   content: '·';
   content: '·' / '';
   pointer-events: none;
@@ -59,13 +62,28 @@
   visibility: hidden;
 }
 
-/* Touch: a link inside a fact keeps its line height; its tap area grows to 44px around it. */
+/* A link-variant Button in the row ("Clear filters" beside a count) takes the row's line height, so adding it never
+   makes the line, and what follows it, taller. */
+.kit-meta__item > .kit-button--link {
+  line-height: inherit;
+  vertical-align: top;
+}
+
+/*
+ * Touch: a link inside a fact keeps its line height; its tap area grows to 44px around it. That holds for a
+ * link-variant Button too ("From an application"): elsewhere a coarse pointer makes it a 44px-tall control, which
+ * here would stretch the meta line and lift its text off the row's baseline.
+ */
 @media (pointer: coarse) {
-  .kit-meta__item > a {
+  .kit-meta__item > :is(a, .kit-button--link) {
     position: relative;
   }
 
-  .kit-meta__item > a::after {
+  .kit-meta__item > .kit-button--link {
+    min-height: 0;
+  }
+
+  .kit-meta__item > :is(a, .kit-button--link)::after {
     position: absolute;
     inset-block: min(0px, calc(50% - var(--touch-target) / 2));
     inset-inline: calc(var(--space-1) * -1);
@@ -245,8 +263,9 @@
  * Track: 20px white pill with the 2px ink outline (14px at size sm). Fill: ink by default (neutral data),
  * with the ink edge on its end so a pale fill never relies on its own contrast. Colour is assigned by
  * meaning: tone="accent" is the tangerine highlight (the lowest dimensions), success mint, warning lemon,
- * danger rose, neutral ink-3. A fill that resolved from tone="auto" (data-auto) is ink whatever its
- * data-tone says: thresholds are not a colour code (STICKER-SYSTEM 5.4).
+ * danger ink (never rose: rose is never a bar colour, STICKER 5.4), neutral ink-3. A fill that resolved
+ * from tone="auto" (data-auto) is ink whatever its data-tone says: thresholds are not a colour code
+ * (STICKER-SYSTEM 5.4).
  */
 .kit-score {
   --kit-score-h: 1.25rem;
@@ -321,8 +340,9 @@
   background: var(--lemon);
 }
 
+/* Rose is never a bar colour (STICKER 5.4): a forced danger tone draws ink, like the neutral data it is. */
 .kit-score__fill[data-tone='danger'] {
-  background: var(--rose);
+  background: var(--ink);
 }
 
 .kit-score__fill[data-tone='accent'] {

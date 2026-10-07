@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import { NumberDisc, ToolTile } from '#/components/kit'
 import { tools, type ToolId } from '#/lib/tools/registry'
@@ -96,6 +96,7 @@ export function CinematicLoader({
   mutationDone,
   onReady,
   accessMode,
+  action,
 }: {
   toolId?: ToolId
   stages?: Array<{ label: string }>
@@ -104,6 +105,8 @@ export function CinematicLoader({
   /** Called when minimum display time has elapsed and the loader is safe to dismiss */
   onReady?: () => void
   accessMode?: 'authenticated' | 'guest_demo'
+  /** The way out (a ghost Cancel): it sits right under the status and its track, not adrift at the foot of the panel. */
+  action?: ReactNode
 }) {
   const displayStages = useMemo(() => {
     if (customStages) {
@@ -286,6 +289,10 @@ export function CinematicLoader({
           )
         })}
       </ol>
+
+      {/* The way out comes last: in one column it ends the panel after the steps instead of interrupting the progress
+          story; two columns place it under the track (tooling.css). */}
+      {action ? <div className="cinematic-action">{action}</div> : null}
     </div>
   )
 }

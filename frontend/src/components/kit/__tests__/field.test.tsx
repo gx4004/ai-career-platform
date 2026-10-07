@@ -1,8 +1,30 @@
 import { render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Checkbox, Field, Input, Segmented, Select, Textarea } from '#/components/kit'
 
 describe('kit Field', () => {
+  it('group: names a group of self-named controls with the field label, without renaming them (cv-studio-G14)', () => {
+    render(
+      <Field group label="Highlights" help="One per line.">
+        <Textarea aria-label="Highlight 1" />
+        <Textarea aria-label="Highlight 2" />
+      </Field>,
+    )
+    const group = screen.getByRole('group', { name: 'Highlights' })
+    expect(group.className).toContain('kit-field')
+    // The same 14px label as a single field (not a section heading), with no label element pointing at one control.
+    const label = screen.getByText('Highlights')
+    expect(label.className).toContain('kit-field__label')
+    expect(label.tagName).toBe('SPAN')
+    expect(group.getAttribute('aria-describedby')).toBe(screen.getByText('One per line.').id)
+    const first = screen.getByRole('textbox', { name: 'Highlight 1' })
+    expect(first.getAttribute('aria-labelledby')).toBeNull()
+    expect(first.id).toBe('')
+    expect(screen.getByRole('textbox', { name: 'Highlight 2' })).toBeTruthy()
+  })
+
   it('labels its control through htmlFor/id', () => {
     render(
       <Field label="Email">
@@ -133,5 +155,16 @@ describe('kit Field', () => {
       </Field>,
     )
     expect(screen.getByRole('radiogroup', { name: 'Question order' })).toBeTruthy()
+  })
+
+  it('sets a prose Textarea at 17/1.6 for reading-length text (a letter), not form-field type', () => {
+    render(<Textarea aria-label="Letter" prose />)
+    expect(screen.getByLabelText('Letter').getAttribute('data-prose')).toBe('true')
+    render(<Textarea aria-label="Plain" />)
+    expect(screen.getByLabelText('Plain').hasAttribute('data-prose')).toBe(false)
+    const css = readFileSync(path.resolve(__dirname, '../../../styles/kit/control.css'), 'utf8')
+    const rule = css.match(/\.kit-textarea\[data-prose\]\s*\{([^}]*)\}/)![1]
+    expect(rule).toMatch(/--kit-control-fs:\s*1\.0625rem/)
+    expect(rule).toMatch(/line-height:\s*1\.6/)
   })
 })

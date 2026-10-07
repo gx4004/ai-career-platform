@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -10,10 +10,9 @@ import {
   Notice,
   Panel,
   PanelBody,
-  Section,
   Select,
   Stack,
-  Textarea,
+  useFieldControl,
 } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { importJobText, importJobUrl, listApplications } from '#/lib/api/client'
@@ -64,9 +63,10 @@ export function JobImportCard({
   const [campaignId, setCampaignId] = useState('')
   const [title, setTitle] = useState('')
   const [company, setCompany] = useState('')
-  const [description, setDescription] = useState('')
   const [unreadable, setUnreadable] = useState(false)
-  const [attachedTo, setAttachedTo] = useState<string | null>(null)
+  // The application the posting was saved to, and how: an import saves the imported posting there at once (whatever the
+  // form field ends up holding); "Attach job description" saves the form's own text.
+  const [attachedTo, setAttachedTo] = useState<{ name: string; by: 'import' | 'text' } | null>(null)
   // An import waiting for the user's go-ahead (the field already had other text), and the last fill (for Undo).
   const [pending, setPending] = useState<{ text: string; from: string } | null>(null)
   const [filled, setFilled] = useState<{ text: string; from: string; previous: string } | null>(null)
@@ -117,9 +117,10 @@ export function JobImportCard({
         return
       }
       fill(data.job_description, hostOf(variables.url))
-      if (variables.campaign_id) setAttachedTo(selectedName())
+      if (variables.campaign_id) setAttachedTo({ name: selectedName(), by: 'import' })
     },
   })
+  // Attaches the job description the form already holds (one place to paste a posting): nothing is written back into it.
   const pasteMutation = useMutation({
     mutationFn: importJobText,
     onMutate: () => {
@@ -127,11 +128,19 @@ export function JobImportCard({
       setPending(null)
       setFilled(null)
     },
-    onSuccess: (data) => {
-      fill(data.job_description, 'your pasted listing')
-      setAttachedTo(selectedName())
+    onSuccess: () => {
+      setAttachedTo({ name: selectedName(), by: 'text' })
     },
   })
+  const pickApplication = (id: string) => {
+    setCampaignId(id)
+    // Title and company start from the application the posting belongs to; both stay editable.
+    const match = applications.data?.items.find((item) => item.id === id)
+    setTitle(match?.title?.trim() ?? '')
+    setCompany(match?.company?.trim() ?? '')
+  }
+  const formDescription = (current ?? '').trim()
+  const canAttachText = Boolean(title.trim() && company.trim()) && formDescription.length >= 20
 
   const canImport = Boolean(url.trim()) && !attachNeedsPick
   const runImport = () => {
@@ -143,174 +152,198 @@ export function JobImportCard({
   }
 
   return (
-    <Panel tone="stone">
-      <PanelBody className="tool-import">
-        <Stack gap={3}>
-          <Field
-            label="Import from job URL"
-            optional
-            id="job-import-url"
-            error={mutation.error ? errorText(mutation.error, 'Job import failed.') : undefined}
-          >
-            <Input
-              inputMode="url"
-              autoComplete="off"
-              value={url}
-              onChange={(event) => {
-                setUrl(event.target.value)
-                setUnreadable(false)
-              }}
-              onKeyDown={(event) => {
-                // Enter here imports the posting; it must not submit the whole tool form behind it.
-                if (event.key !== 'Enter') return
-                event.preventDefault()
-                runImport()
-              }}
-              placeholder="Job posting URL"
-              trailing={
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  loading={mutation.isPending}
-                  onClick={runImport}
-                  disabled={!canImport}
-                >
+    <Stack gap={3}>
+      <Panel tone="stone">
+        <PanelBody className="tool-import">
+          <Stack gap={3}>
+            <Field
+              label="Import from job URL"
+              optional
+              id="job-import-url"
+              error={mutation.error ? errorText(mutation.error, 'Job import failed.') : undefined}
+            >
+              {/* The button sits beside the input, not in its frame (on touch a 44px button in the 44px frame doubled its border);
+                  where the input would drop under 12rem (a phone) the button moves under it instead. */}
+              <Cluster gap={3} className="tool-import__url">
+                <Input
+                  inputMode="url"
+                  autoComplete="off"
+                  value={url}
+                  onChange={(event) => {
+                    setUrl(event.target.value)
+                    setUnreadable(false)
+                  }}
+                  onKeyDown={(event) => {
+                    // Enter here imports the posting; it must not submit the whole tool form behind it.
+                    if (event.key !== 'Enter') return
+                    event.preventDefault()
+                    runImport()
+                  }}
+                  placeholder="https://"
+                />
+                <Button type="button" variant="secondary" loading={mutation.isPending} onClick={runImport} disabled={!canImport}>
                   Import
                 </Button>
-              }
-            />
-          </Field>
-          {unreadable ? (
-            <Notice tone="warning" title="Couldn't read that page">
-              The site may block automated readers, or the page may not be a job posting. Paste the job
-              description below instead; what you already had there is untouched.
-            </Notice>
-          ) : null}
-          {pending ? (
-            <Notice
-              title={`Imported the posting from ${pending.from}`}
-              action={
-                <Cluster gap={2}>
-                  <Button type="button" variant="secondary" size="sm" onClick={replaceWithPending}>
-                    Replace my description
+              </Cluster>
+            </Field>
+            {canAttach ? (
+              <Checkbox
+                id="campaign-attach-toggle"
+                label="Attach to one of your applications"
+                checked={attach}
+                onCheckedChange={setAttach}
+              />
+            ) : null}
+            {canAttach && attach && noApplications ? (
+              <Notice
+                action={
+                  <Button asChild variant="secondary" size="sm">
+                    <Link to="/discovery">Discover jobs</Link>
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setPending(null)}>
-                    Keep mine
-                  </Button>
-                </Cluster>
-              }
-            >
-              Your job description below already has text. Nothing changes until you choose.
-            </Notice>
-          ) : null}
-          {filled && (current === undefined || current === filled.text) ? (
-            <Notice
-              tone="success"
-              action={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    onImported(filled.previous)
-                    setFilled(null)
-                  }}
+                }
+              >
+                You have no applications yet. Save a job from Discover, or add one on{' '}
+                <Link to="/campaigns">Applications</Link>, then attach its listing here.
+              </Notice>
+            ) : null}
+            {canAttach && attach && !noApplications ? (
+              <Stack gap={4} className="tool-attach" role="group" aria-label="Application listing attachment">
+                <Field
+                  label="Application"
+                  id="campaign-listing-picker"
+                  // Ticking "attach" holds Import back until an application is picked: say so, instead of a silently grey button.
+                  help={attachNeedsPick && !applications.isPending ? 'Pick the application this posting belongs to, then Import.' : undefined}
                 >
-                  Undo
-                </Button>
-              }
-            >
-              Job description filled from {filled.from}.
-            </Notice>
-          ) : null}
-          {attachedTo ? <Notice tone="success">Listing attached to {attachedTo}.</Notice> : null}
-          {canAttach ? (
-            <Checkbox
-              id="campaign-attach-toggle"
-              label="Attach to one of your applications"
-              checked={attach}
-              onCheckedChange={setAttach}
-            />
-          ) : null}
-          {canAttach && attach && noApplications ? (
-            <Notice
-              action={
-                <Button asChild variant="secondary" size="sm">
-                  <Link to="/discovery">Find jobs</Link>
-                </Button>
-              }
-            >
-              You have no applications yet. Save a job from Discover, or add one on{' '}
-              <Link to="/campaigns">Applications</Link>, then attach its listing here.
-            </Notice>
-          ) : null}
-          {canAttach && attach && !noApplications ? (
-            <Stack gap={4} className="tool-attach" role="group" aria-label="Application listing attachment">
-              <Field label="Application" id="campaign-listing-picker">
-                <Select value={campaignId} onChange={(event) => setCampaignId(event.target.value)}>
-                  <option value="">
-                    {applications.isPending
-                      ? 'Loading your applications…'
-                      : items?.every(isApplied)
-                        ? 'All your applications are already applied'
-                        : 'Select an application'}
-                  </option>
-                  {/* What was sent is frozen: an applied application keeps its posting (the API refuses with a 409),
-                      so it is listed after the others, greyed out and marked Applied. */}
-                  {[...(applications.data?.items ?? [])]
-                    .sort((a, b) => Number(isApplied(a)) - Number(isApplied(b)))
-                    .map((item) => (
-                      <option key={item.id} value={item.id} disabled={isApplied(item)}>
-                        {isApplied(item) ? `${applicationName(item)} (Applied)` : applicationName(item)}
-                      </option>
-                    ))}
-                </Select>
-              </Field>
-              {/* The pasted listing goes to the picked application, so it is only offered once one is picked. */}
-              {campaignId ? (
-                <Section headingLevel={3} size="sm" title="Or attach a pasted listing" rule={false}>
-                  <Stack gap={3}>
+                  <Select value={campaignId} onChange={(event) => pickApplication(event.target.value)}>
+                    <option value="">
+                      {applications.isPending
+                        ? 'Loading your applications…'
+                        : items?.every(isApplied)
+                          ? 'All your applications are already applied'
+                          : 'Select an application'}
+                    </option>
+                    {/* What was sent is frozen: an applied application keeps its posting (the API refuses with a 409),
+                        so it is listed after the others, greyed out and marked Applied. */}
+                    {[...(applications.data?.items ?? [])]
+                      .sort((a, b) => Number(isApplied(a)) - Number(isApplied(b)))
+                      .map((item) => (
+                        <option key={item.id} value={item.id} disabled={isApplied(item)}>
+                          {isApplied(item) ? `${applicationName(item)} (Applied)` : applicationName(item)}
+                        </option>
+                      ))}
+                  </Select>
+                </Field>
+                {/* No URL to import? The job description on this form can go to the picked application instead. */}
+                {campaignId ? (
+                  <Stack gap={3} role="group" aria-labelledby="campaign-attach-text-lead">
+                    <p id="campaign-attach-text-lead" className="tool-optional__hint">
+                      No posting URL? Attach the job description below to this application.
+                    </p>
                     <Field label="Job title" id="campaign-job-title">
                       <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" maxLength={200} />
                     </Field>
                     <Field label="Company" id="campaign-job-company">
                       <Input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Company" maxLength={200} />
                     </Field>
-                    <Field label="Pasted listing text" id="campaign-job-description">
-                      <Textarea
-                        rows={4}
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        placeholder="Paste the job description"
-                        maxLength={20_000}
-                      />
+                    <Field
+                      id="campaign-job-attach"
+                      help={formDescription.length < 20 ? 'Paste the job description below first.' : undefined}
+                    >
+                      <div>
+                        <FieldButton
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          loading={pasteMutation.isPending}
+                          onClick={() =>
+                            pasteMutation.mutate({
+                              campaign_id: campaignId,
+                              job_title: title.trim(),
+                              company_name: company.trim(),
+                              job_description: formDescription,
+                            })
+                          }
+                          disabled={!canAttachText}
+                        >
+                          Attach job description
+                        </FieldButton>
+                      </div>
                     </Field>
-                    <div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        loading={pasteMutation.isPending}
-                        onClick={() => pasteMutation.mutate({ campaign_id: campaignId, job_title: title, company_name: company, job_description: description })}
-                        disabled={!title.trim() || !company.trim() || description.trim().length < 20}
-                      >
-                        Attach pasted listing
-                      </Button>
-                    </div>
                   </Stack>
-                </Section>
-              ) : null}
-              {applications.error ? (
-                <Notice tone="danger">{errorText(applications.error, 'Could not load your applications.')}</Notice>
-              ) : null}
-              {pasteMutation.error ? (
-                <Notice tone="danger">{errorText(pasteMutation.error, 'Could not attach the listing.')}</Notice>
-              ) : null}
-            </Stack>
-          ) : null}
-        </Stack>
-      </PanelBody>
-    </Panel>
+                ) : null}
+                {applications.error ? (
+                  <Notice tone="danger">{errorText(applications.error, 'Could not load your applications.')}</Notice>
+                ) : null}
+                {pasteMutation.error ? (
+                  <Notice tone="danger">{errorText(pasteMutation.error, 'Could not attach the listing.')}</Notice>
+                ) : null}
+              </Stack>
+            ) : null}
+          </Stack>
+        </PanelBody>
+      </Panel>
+      {/* What an import did, outside the stone panel: three nested paddings left a phone a 150px column of text. */}
+      {unreadable ? (
+        <Notice tone="warning" title="Couldn't read that page">
+          The site may block automated readers, or the page may not be a job posting. Paste the job
+          description below instead; what you already had there is untouched.
+        </Notice>
+      ) : null}
+      {/* Before the Replace / Keep mine question: the application already holds the imported posting, so the question is
+          only about the form field below (sign-off tool-inputs-F32). */}
+      {attachedTo?.by === 'import' ? (
+        <Notice tone="success">The imported posting was saved to {attachedTo.name}.</Notice>
+      ) : null}
+      {pending ? (
+        // The two choices sit under the sentence they answer (beside it they squeezed the text to a 190px column on a
+        // tablet) and span the notice on a phone. Short labels keep them one row at 320px; the question carries the meaning.
+        <Notice
+          title={`Imported the posting from ${pending.from}`}
+          actionPlacement="below"
+          action={
+            <>
+              <Button type="button" variant="secondary" size="sm" onClick={replaceWithPending}>
+                Replace
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setPending(null)}>
+                Keep mine
+              </Button>
+            </>
+          }
+        >
+          Your job description below already has text. Replace it with the posting, or keep yours?
+        </Notice>
+      ) : null}
+      {filled && (current === undefined || current === filled.text) ? (
+        <Notice
+          tone="success"
+          action={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onImported(filled.previous)
+                setFilled(null)
+              }}
+            >
+              Undo
+            </Button>
+          }
+        >
+          Job description filled from {filled.from}.
+        </Notice>
+      ) : null}
+      {attachedTo?.by === 'text' ? <Notice tone="success">Listing attached to {attachedTo.name}.</Notice> : null}
+    </Stack>
   )
+}
+
+/**
+ * A kit Button described by the help of the Field around it, read through the kit's own Field contract
+ * (`useFieldControl`) rather than a copy of how Field builds its help id. Its name stays its own text.
+ */
+function FieldButton(props: ComponentProps<typeof Button>) {
+  const { describedBy } = useFieldControl({ 'aria-describedby': props['aria-describedby'] })
+  return <Button {...props} aria-describedby={describedBy} />
 }

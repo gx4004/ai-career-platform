@@ -3,6 +3,7 @@ import { SearchX, Star } from 'lucide-react'
 import {
   Button,
   Card,
+  Cluster,
   EmptyState,
   ErrorState,
   List,
@@ -12,6 +13,7 @@ import {
   RowMeta,
   RowSubtitle,
   RowTitle,
+  Section,
   Segmented,
   Skeleton,
   Stat,
@@ -78,6 +80,35 @@ function Swap() {
   )
 }
 
+/** focusTitle: the outcome that replaces a submitted form takes focus on its heading (press the button with the keyboard). */
+function Outcome() {
+  const [done, setDone] = useState(false)
+  return (
+    <div className="kit-gallery__stack">
+      {done ? (
+        <EmptyState
+          variant="open"
+          headingLevel={3}
+          focusTitle
+          title="Password updated"
+          description="Sign in with your new password to continue."
+          action={
+            <Button type="button" variant="secondary" onClick={() => setDone(false)}>
+              Show the form again
+            </Button>
+          }
+        />
+      ) : (
+        <GalleryRow>
+          <Button type="button" variant="secondary" onClick={() => setDone(true)}>
+            Reset password
+          </Button>
+        </GalleryRow>
+      )}
+    </div>
+  )
+}
+
 export function StateSection() {
   return (
     <GallerySection
@@ -87,14 +118,27 @@ export function StateSection() {
     >
       <Group title="EmptyState">
         <div className="kit-gallery__grid kit-gallery__grid--wide">
-          <Specimen label="compact, with an action">
+          <Specimen label="compact, with an action: md, whatever size is passed (sm only inline)">
             <EmptyState
               title="No applications yet"
               description="Add a job from Discover, or let us prepare applications for you below."
               action={
                 <Button variant="secondary" size="sm">
-                  Find jobs
+                  Discover jobs
                 </Button>
+              }
+            />
+          </Specimen>
+          <Specimen label="compact, two actions: the next step primary, the alternative secondary">
+            <EmptyState
+              icon={<Star />}
+              title="Pick up where you left off"
+              description="Sign in to keep your runs and starred results."
+              action={
+                <Cluster gap={2}>
+                  <Button>Sign in</Button>
+                  <Button variant="secondary">Start with Resume</Button>
+                </Cluster>
               }
             />
           </Specimen>
@@ -108,6 +152,11 @@ export function StateSection() {
             <div className="kit-gallery__narrow">
               <EmptyState size="inline" title="Offers on the table" />
             </div>
+          </Specimen>
+          <Specimen label="inline, a sentence: runs as body text across the column, flush with the heading above">
+            <Section headingLevel={3} size="sm" title="Facts from your profile">
+              <EmptyState size="inline" title="You haven’t saved any facts on your profile yet, so this CV will start blank." />
+            </Section>
           </Specimen>
           <Specimen label="inline slot: the dashed 72px place a card would take (an empty board column)">
             <div className="kit-gallery__narrow">
@@ -190,6 +239,11 @@ export function StateSection() {
             <EmptyState variant="open" headingLevel={2} title="Nothing saved yet" description="Run a tool and your results will be listed here." />
           </div>
         </Specimen>
+        <Specimen label="focusTitle: an outcome that replaces the form takes focus on its heading (no ring, no tab stop)">
+          <div className="kit-gallery__frame">
+            <Outcome />
+          </div>
+        </Specimen>
       </Group>
 
       <Group title="Skeleton">
@@ -208,19 +262,46 @@ export function StateSection() {
           <Specimen label="block (any shape)">
             <Skeleton variant="block" width="100%" height={72} />
           </Specimen>
+          <Specimen label='block shape="circle": a round placeholder for an Avatar'>
+            <Skeleton variant="block" shape="circle" width={36} height={36} />
+          </Specimen>
           <Specimen label="stat">
             <Skeleton variant="stat" count={3} />
           </Specimen>
           <Specimen label="card">
             <Skeleton variant="card" count={2} />
           </Specimen>
-          <Specimen label="row: compact / comfortable / with a leading square / with a tool tile">
+          <Specimen label="row: compact / comfortable / with a leading square / with a tool tile / with a fit stamp">
             <div className="kit-gallery__stack">
               <Skeleton variant="row" density="compact" count={2} />
               <Skeleton variant="row" count={2} />
               <Skeleton variant="row" leading count={2} />
               <Skeleton variant="row" leading="tile" count={2} />
+              <Skeleton variant="row" leading="stamp" count={2} />
             </div>
+          </Specimen>
+          <Specimen label="row lines and trailing: lines={2} with a tool tile (History) / lines={2} trailing=&quot;button&quot; (Discover) / trailing=&quot;pips&quot; / the button row in a phone-width List, where it drops under the text and narrowLines={4} stands in for the wrapped title and the dropped meta">
+            <div className="kit-gallery__stack">
+              <Skeleton variant="row" leading="tile" lines={2} count={2} />
+              <Skeleton variant="row" lines={2} trailing="button" count={2} />
+              <Skeleton variant="row" leading="stamp" trailing="pips" count={2} />
+              <div className="kit-gallery__frame kit-gallery__frame--phone">
+                <List aria-label="Jobs (loading, phone)" aria-busy="true">
+                  <Skeleton variant="row" as="li" leading="stamp" lines={2} narrowLines={4} trailing="button" count={2} />
+                </List>
+              </div>
+            </div>
+          </Specimen>
+          <Specimen label="row heading: a day-grouped List (History) opens with the ListHeading strip, so the rows do not drop when the &quot;Yesterday&quot; heading arrives">
+            <List aria-label="Saved runs (loading)" aria-busy="true">
+              <Skeleton variant="row" as="li" heading leading="tile" lines={2} narrowLines={4} count={2} />
+            </List>
+          </Specimen>
+          <Specimen label="header: the PageHeader alone (a page that draws its own section skeletons)">
+            <Skeleton variant="header" />
+          </Specimen>
+          <Specimen label="sticker: plates in place of Stickers (Needs action), no frame">
+            <Skeleton variant="sticker" count={2} />
           </Specimen>
         </div>
         <Specimen label="Loading to loaded: the list below keeps its height (no layout shift)">
