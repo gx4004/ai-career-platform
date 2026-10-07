@@ -187,10 +187,12 @@ def test_the_strip_runs_edge_to_edge_on_every_page(pdfs, template):
 
 
 @pytest.mark.parametrize("template", TEMPLATES)
-def test_the_accent_drives_the_fill_and_ink_keeps_the_templates_own_colour(template):
+def test_the_accent_drives_the_fill_and_no_accent_keeps_the_templates_own_colour(template):
     default = load_manifest(template).default_accent
     html = render_cv_html(_model(template, "maya"))
     assert f"--accent: {default or '#111827'};" in html
+    # Ink is a real choice (#471): a person can have a black lagoon or lilac.
+    assert "--accent: #111827;" in render_cv_html(_model(template, "maya", accent_color="#111827"))
     plum = render_cv_html(_model(template, "maya", accent_color="#9D174D"))
     assert "--accent: #9D174D;" in plum
 

@@ -125,7 +125,10 @@ class CvStyle(BaseModel):
     template_id: CvTemplateId = DEFAULT_CV_TEMPLATE_ID
     # Optional typeface override; None means the template's own pairing.
     font_id: CvFontId | None = None
-    accent_color: str = Field(default="#111827", pattern=r"^#[0-9a-fA-F]{6}$")
+    # Null means "the template's own colour" (its manifest ``default_accent``, else Ink); any
+    # palette colour, Ink included, is an explicit choice. Rows stored before this was nullable
+    # hold a colour and keep printing it, so no data migration is needed.
+    accent_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     density: CvDensity = "normal"
     ats_mode: bool = False
     page_size: CvPageSize = "a4"
@@ -145,7 +148,9 @@ class CvStyle(BaseModel):
 
     @field_validator("accent_color")
     @classmethod
-    def _accent_in_palette(cls, value: str) -> str:
+    def _accent_in_palette(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if value.upper() not in {color.upper() for color in CV_ACCENT_PALETTE}:
             raise ValueError("accent_color must be one of the curated palette colors")
         return value
@@ -684,6 +689,8 @@ class CvStyleCatalogTemplate(BaseModel):
     # A plain sentence about the Word export when it differs from the PDF (two-column templates
     # print one column in DOCX); None when the Word version matches.
     docx_note: str | None = None
+    # The palette colour the template prints with while the style's accent is null.
+    default_accent: str = "#111827"
     sizes: dict[CvDensity, CvStyleSizes]
 
 

@@ -152,9 +152,7 @@ def render_docx(model: CvRenderModel) -> bytes:
     manifest = load_manifest(layout_id)
     body_font = str(tokens["font_docx"])
     heading_font = str(tokens.get("font_docx_heading") or body_font)
-    accent = str(tokens["accent"]).upper()
-    if manifest.default_accent and accent == GLOBAL_DEFAULT_ACCENT and not tokens.get("ats_mode"):
-        accent = manifest.default_accent.upper()
+    accent = str(tokens.get("accent") or manifest.default_accent or GLOBAL_DEFAULT_ACCENT).upper()
     palette = accent_tokens(accent)
     body_pt = int(tokens["body_size_pt"])
     heading_pt = int(tokens["heading_size_pt"])

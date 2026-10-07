@@ -8,6 +8,7 @@
   "title_align": "center",
   "typefaces": {"heading": "Ubuntu", "body": "Ubuntu"},
   "accent_role": "band-and-markers",
+  "default_accent": "#075985",
   "sidebar_kinds": [],
   "page_margin_mm": {"top": 14, "right": 13, "bottom": 13, "left": 13},
   "fonts": [

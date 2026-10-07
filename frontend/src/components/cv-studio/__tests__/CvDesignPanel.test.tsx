@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CvDesignPanel } from '#/components/cv-studio/CvDesignPanel'
 import { CV_ACCENT_PALETTE, cvStyleSchema } from '#/lib/api/schemas'
@@ -35,14 +35,27 @@ describe('CvDesignPanel style controls', () => {
     expect(onChange).toHaveBeenCalledWith({ font_id: null })
   })
 
-  it('shows the ten catalog accents as swatches and every one is a valid style colour', () => {
+  it('shows the template colour plus the ten catalog accents as swatches and every one is a valid style colour', () => {
     const onChange = panel()
     const swatches = within(screen.getByRole('radiogroup', { name: 'Accent colour' })).getAllByRole('radio')
-    expect(swatches).toHaveLength(10)
+    expect(swatches).toHaveLength(11)
     expect(styleCatalogFixture.palette.map((c) => c.value)).toEqual([...CV_ACCENT_PALETTE])
     fireEvent.click(screen.getByRole('radio', { name: 'Plum' }))
     expect(onChange).toHaveBeenCalledWith({ accent_color: '#9D174D' })
     for (const color of CV_ACCENT_PALETTE) expect(cvStyleSchema.parse({ accent_color: color }).accent_color).toBe(color)
+  })
+
+  it('keeps the template colour (null) apart from an explicit Ink', () => {
+    const onChange = panel(vi.fn(), { ...style, template_id: 'lagoon' })
+    const own = screen.getByRole('radio', { name: 'Template colour (Teal)' })
+    expect((own as HTMLInputElement).checked || own.getAttribute('aria-checked') === 'true' || own.getAttribute('data-state') === 'checked').toBe(true)
+    fireEvent.click(screen.getByRole('radio', { name: 'Ink' }))
+    expect(onChange).toHaveBeenCalledWith({ accent_color: '#111827' })
+    cleanup()
+    const back = panel(vi.fn(), { ...style, template_id: 'lagoon', accent_color: '#111827' })
+    fireEvent.click(screen.getByRole('radio', { name: 'Template colour (Teal)' }))
+    expect(back).toHaveBeenCalledWith({ accent_color: null })
+    expect(cvStyleSchema.parse({}).accent_color).toBeNull()
   })
 
   it('has spacing and page size controls', () => {

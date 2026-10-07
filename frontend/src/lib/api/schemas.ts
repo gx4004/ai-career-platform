@@ -473,7 +473,8 @@ export const cvStyleSchema = z.strictObject({
   template_id: cvTemplateIdSchema.default('classic'),
   /** Typeface override; null uses the template's own pairing. */
   font_id: cvFontIdSchema.nullable().default(null),
-  accent_color: z.enum(CV_ACCENT_PALETTE).default('#111827'),
+  /** Null prints the template's own colour (its catalog `default_accent`); Ink is an explicit choice. */
+  accent_color: z.enum(CV_ACCENT_PALETTE).nullable().default(null),
   density: cvDensitySchema.default('normal'),
   ats_mode: z.boolean().default(false),
   page_size: cvPageSizeSchema.default('a4'),
@@ -533,7 +534,7 @@ export const cvVariantSchema = z.object({
 export const cvDocumentSchema = z.object({
   id: z.string(), name: z.string(), sections: z.array(cvSectionSchema),
   style: cvStyleSchema.default(() => ({
-    template_id: 'classic' as const, font_id: null, accent_color: '#111827' as const,
+    template_id: 'classic' as const, font_id: null, accent_color: null,
     density: 'normal' as const, ats_mode: false, page_size: 'a4' as const, fit_one_page: false,
   })),
   header: cvHeaderSchema.default(emptyCvHeader),
@@ -692,6 +693,8 @@ export const cvStyleCatalogSchema = z.object({
     sidebar_kinds: z.array(cvSectionKindSchema),
     // A plain sentence about the Word export when it differs from the PDF; null when it matches.
     docx_note: z.string().nullable().default(null),
+    // The palette colour the template prints with while the style's accent is null.
+    default_accent: z.enum(CV_ACCENT_PALETTE).default('#111827'),
     sizes: z.object({ compact: cvStyleSizesSchema, normal: cvStyleSizesSchema, spacious: cvStyleSizesSchema }),
   })).min(1),
   fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string(), css_family: z.string() })).min(1),

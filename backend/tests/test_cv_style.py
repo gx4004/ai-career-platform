@@ -141,6 +141,19 @@ def test_accent_color_outside_curated_palette_is_rejected():
         CvStyle(accent_color="#ABCDEF")
 
 
+def test_no_accent_means_the_templates_own_colour_and_ink_is_a_choice():
+    # Null (the default) prints the template's manifest colour; a stored style from before
+    # the field was nullable holds a palette colour and keeps printing exactly that (#471).
+    assert CvStyle().accent_color is None
+    assert CvStyle.model_validate({"accent_color": None}).accent_color is None
+    assert resolve_effective_style("lagoon", CvStyle()).accent == "#0F766E"
+    assert resolve_effective_style("frame", CvStyle()).accent == "#075985"
+    assert resolve_effective_style("classic", CvStyle()).accent == "#111827"
+    stored = CvStyle.model_validate({"template_id": "modern-two-column", "accent_color": "#111827"})
+    assert resolve_effective_style(stored.template_id, stored).accent == "#111827"
+    assert resolve_effective_style("lagoon", CvStyle(accent_color="#111827", ats_mode=True)).accent == "#111827"
+
+
 # --- Structured entries ----------------------------------------------------
 
 
