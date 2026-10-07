@@ -70,6 +70,44 @@ describe('CvPagePreview', () => {
     expect(await screen.findByText(/cannot be drawn in the chosen typeface/)).toBeTruthy()
   })
 
+  describe('length', () => {
+    const advice = { code: 'just_over_one_page', message: 'Runs to 1.2 pages. One page is the usual length early in a career, so you may want to fit it to one page.', action: 'fit_one_page' as const }
+    const two = { page_count: 2, pages: [{ url: PIXEL, width: 909, height: 1287 }, { url: PIXEL, width: 909, height: 1287 }] }
+
+    it('shows the advice as a notice whose button turns Fit to one page on', async () => {
+      api.previewCvDraft.mockResolvedValue(previewFor({}, { ...two, length: { pages: 2, last_page_fill: 0.2, advice } }))
+      const onStyleChange = vi.fn()
+      mount({ onStyleChange })
+      expect(await screen.findByText(/Runs to 1.2 pages/)).toBeTruthy()
+      expect(screen.getByText('2 pages')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Fit to one page' }))
+      expect(onStyleChange).toHaveBeenCalledWith({ fit_one_page: true })
+    })
+
+    it('shows neutral advice without a button', async () => {
+      const long = { code: 'long', message: 'This CV runs to 3 pages. Most readers decide on the first two, so lead with your strongest work.', action: null }
+      api.previewCvDraft.mockResolvedValue(previewFor({}, { page_count: 3, length: { pages: 3, last_page_fill: 0.5, advice: long } }))
+      mount({ onStyleChange: vi.fn() })
+      expect(await screen.findByText(/lead with your strongest work/)).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Fit to one page' })).toBeNull()
+    })
+
+    it('shows nothing extra when there is no advice or the fit worked', async () => {
+      api.previewCvDraft.mockResolvedValue(previewFor({}, { fit: { fits: true, pages: 1, scale: 0.8, body_pt: 9 }, length: { pages: 1, last_page_fill: 0.9, advice: null } }))
+      mount({ onStyleChange: vi.fn() })
+      expect(await screen.findByText('1 page')).toBeTruthy()
+      expect(screen.queryByText(/Couldn’t fit/)).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Fit to one page' })).toBeNull()
+    })
+
+    it('explains the could-not-fit state with the pages and the floor', async () => {
+      api.previewCvDraft.mockResolvedValue(previewFor({}, { ...two, fit: { fits: false, pages: 2, scale: 0.5, body_pt: 9 }, length: { pages: 2, last_page_fill: 0.6, advice: null } }))
+      mount({ onStyleChange: vi.fn() })
+      expect(await screen.findByText(/Couldn’t fit to one page: it runs to 2 pages at the smallest size we allow \(9 pt text, 50% spacing\)/)).toBeTruthy()
+      expect(screen.getByText('2 pages')).toBeTruthy()
+    })
+  })
+
   describe('while typing', () => {
     it('waits for the draft to rest, then renders only the last version once', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })

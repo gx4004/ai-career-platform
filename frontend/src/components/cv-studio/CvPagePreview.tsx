@@ -1,10 +1,10 @@
 import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, ErrorState, Notice, Skeleton } from '#/components/kit'
+import { Badge, Button, ErrorState, Notice, Skeleton } from '#/components/kit'
 import { useDebouncedValue } from '#/hooks/use-debounced-value'
 import { previewCvDraft } from '#/lib/api/client'
 import { describeFailure } from '#/lib/api/errors'
-import type { CvDocument, CvPreview } from '#/lib/api/schemas'
+import type { CvDocument, CvPreview, CvStyle } from '#/lib/api/schemas'
 import { toPayload } from './useCvDraft'
 
 /** How long the draft must rest before the server renders it. */
@@ -25,13 +25,22 @@ function hitLabel(hit: Hit, titles: Map<string, string>, continued: boolean) {
  * a button over every section that opens its editor. The draft is sent ~400ms after the last edit; until the new
  * pages arrive the previous ones stay on screen, dimmed. Without `onEdit` the pages are only to look at.
  */
-export function CvPagePreview({ documentId, draft, activeId, onEdit, headerActive, onEditHeader, label = 'Live preview of your CV' }: {
+/** Plain words for how a fit-to-one-page attempt ended, or null when there is nothing to say. */
+export function fitSentence(fit: NonNullable<CvPreview['fit']>) {
+  if (fit.fits) return null
+  const body = Number.isInteger(fit.body_pt) ? fit.body_pt : Number(fit.body_pt.toFixed(1))
+  return `Couldn’t fit to one page: it runs to ${fit.pages} pages at the smallest size we allow (${body} pt text, ${Math.round(fit.scale * 100)}% spacing). Shorten a section or turn the option off.`
+}
+
+export function CvPagePreview({ documentId, draft, activeId, onEdit, headerActive, onEditHeader, onStyleChange, label = 'Live preview of your CV' }: {
   documentId: string
   draft: Draft
   activeId?: string
   onEdit?: (sectionId: string) => void
   headerActive?: boolean
   onEditHeader?: () => void
+  /** Lets a length suggestion change the style (its button turns Fit to one page on). */
+  onStyleChange?: (patch: Partial<CvStyle>) => void
   label?: string
 }) {
   const serialized = JSON.stringify(toPayload(draft))
@@ -72,6 +81,17 @@ export function CvPagePreview({ documentId, draft, activeId, onEdit, headerActiv
       {preview?.warnings.map((warning) => (
         <Notice key={warning.code} tone="warning">{warning.message}</Notice>
       ))}
+      {preview?.fit && fitSentence(preview.fit) ? <Notice tone="warning">{fitSentence(preview.fit)}</Notice> : null}
+      {preview?.length?.advice ? (
+        <Notice
+          tone="info"
+          action={preview.length.advice.action === 'fit_one_page' && onStyleChange
+            ? <Button size="sm" variant="secondary" onClick={() => onStyleChange({ fit_one_page: true })}>Fit to one page</Button>
+            : undefined}
+        >
+          {preview.length.advice.message}
+        </Notice>
+      ) : null}
       {preview ? (
         <div className="cvpv__stage" data-stale={stale ? 'true' : undefined}>
           <div className="cvpv__pages" data-testid="cv-pages" role="group" aria-label={label}>
