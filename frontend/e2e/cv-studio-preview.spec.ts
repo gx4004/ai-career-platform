@@ -43,12 +43,17 @@ test('CV Studio page preview fits 320/375px, edits in a sheet, follows the draft
     ],
   } })
   expect(created.ok()).toBe(true)
+  const galleryRequests: string[] = []
+  page.on('request', (request) => { if (request.url().includes('/template-thumbnails')) galleryRequests.push(request.url()) })
   await gotoHydrated(page, '/cv-studio')
   await expect(page.locator('.app-main--mobile')).toBeVisible()
   const toolbar = page.getByRole('tablist', { name: 'Studio tools' })
 
-  // The server-drawn pages first on a phone: they fit the screen, and tapping a section opens its editor in a sheet.
+  // The server-drawn pages first on a phone: they fit the screen, drawn for its width (not desktop-sized), and tapping a
+  // section opens its editor in a sheet.
   await expect(page.getByAltText('Page 1 of your CV')).toBeVisible({ timeout: 30_000 })
+  const natural = await page.getByAltText('Page 1 of your CV').evaluate((image: HTMLImageElement) => image.naturalWidth)
+  expect(natural).toBeLessThanOrEqual(Math.ceil((320 * Math.min(await page.evaluate(() => devicePixelRatio), 2)) / 160) * 160)
   await expect(page.getByText('1 page', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Edit Summary' }).click()
   const sheet = page.getByRole('dialog', { name: 'Edit Summary' })
@@ -59,10 +64,16 @@ test('CV Studio page preview fits 320/375px, edits in a sheet, follows the draft
   await expect(page.getByTestId('cv-preview')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 })
   await sheet.getByRole('button', { name: 'Close panel' }).click()
 
-  // The Design panel is a gallery: every template drawn with this CV (page 1, server-rendered), in a sheet that
-  // fits the phone. Picking a picture picks the template, and the preview follows. Ends on Classic for the PDF check.
+  // The Design panel is a gallery: every template drawn with the built-in English sample CV (page 1, server-rendered,
+  // in this CV's colour, typeface and spacing), fetched only when the panel opens and within the mobile budget, in a
+  // sheet that fits the phone. Picking a picture picks the template, and the preview follows. Ends on Classic for the
+  // PDF check.
+  expect(galleryRequests).toHaveLength(0)
   for (const template of ['Lagoon', 'Classic']) {
+    // The second opening is served from the client cache (the look has not changed): no request.
+    const gallery = template === 'Lagoon' ? page.waitForResponse((response) => response.url().includes('/template-thumbnails')) : null
     await toolbar.getByRole('tab', { name: /^Design/ }).click()
+    if (gallery) expect((await (await gallery).body()).length).toBeLessThanOrEqual(80 * 1024)
     const design = page.getByRole('dialog', { name: 'Design' })
     // The sheet slides in: let it settle before reaching into its scrolling body (lower templates sit below the fold).
     await design.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
