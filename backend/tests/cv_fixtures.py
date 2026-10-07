@@ -95,14 +95,13 @@ def _job(i: int, position: int, role: str, org: str, place: str, start: str, end
 
 
 def long_cv() -> SimpleNamespace:
-    """Long: three jobs, projects and more; runs to two pages."""
+    """Long: three jobs, projects and more; runs to two pages (spec section 5.1)."""
     cv = maya()
     cv.name = "Long CV"
     cv.sections[1] = section("x", "experience", "Experience", 1, [
         _job(1, 0, "Staff Engineer", "Tulip Pay", "Amsterdam", "Mar 2022", "Present", 8),
         _job(2, 1, "Senior Engineer", "Northwind Travel", "Rotterdam", "Aug 2019", "Feb 2022", 8),
         _job(3, 2, "Engineer", "Harbour Systems", "Utrecht", "Jan 2016", "Jul 2019", 8),
-        _job(4, 3, "Junior Engineer", "Pixel Mill", "Delft", "Jun 2013", "Dec 2015", 6),
     ])
     cv.sections[2] = section("p", "projects", "Projects", 2, [
         entry(f"p{i}", i, heading=f"Open source project {i}", bullets=[
@@ -160,3 +159,41 @@ def long_name() -> SimpleNamespace:
 
 
 ALL = {"maya": maya, "long": long_cv, "accented": accented, "cyrillic": cyrillic, "long_name": long_name}
+
+
+# -- edge cases (the Classic perfection pass, #464) ------------------------------------------
+
+LONG_ROLE = "Senior Staff Software Engineer, Payment Platform Reliability"  # 60 characters
+
+
+def no_summary() -> SimpleNamespace:
+    """Maya without the summary section: the header runs straight into Experience."""
+    cv = maya()
+    cv.name = "No summary CV"
+    cv.sections = [s for s in cv.sections if s["kind"] != "summary"]
+    return cv
+
+
+def name_only() -> SimpleNamespace:
+    """Only a name: no headline, contact or sections."""
+    return SimpleNamespace(name="Name only CV", header={"name": "Maya Lindqvist"}, sections=[])
+
+
+def edge_entries() -> SimpleNamespace:
+    """Entries missing dates or location, one with twelve bullets, a 60-character role."""
+    cv = maya()
+    cv.name = "Edge entries CV"
+    jobs = cv.sections[1]["entries"]
+    jobs[0].update(heading=LONG_ROLE, subheading="Tulip Pay Financial Services International B.V.",
+                   location="Amsterdam, North Holland, Netherlands")
+    jobs[1].update(location=None)
+    jobs.append(entry("x3", 2, heading="Freelance Web Developer", subheading="Self-employed",
+                      location="Remote", bullets=[
+        f"Shipped project {n}: a small marketing site with accessible forms and a CMS the client edits alone."
+        for n in range(1, 13)]))
+    cv.sections[2]["entries"][0].update(location="Remote")
+    cv.sections[3]["entries"][0].update(start_date=None, end_date=None)
+    return cv
+
+
+EDGE = {"no_summary": no_summary, "name_only": name_only, "edge_entries": edge_entries}

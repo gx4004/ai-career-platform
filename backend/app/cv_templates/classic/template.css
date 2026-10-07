@@ -1,48 +1,104 @@
-/* Classic: from the quiet single-column reference (recreation enhancv-2).
-   Sizes are em of the body size, so the density scale (--type) moves everything; the accent
-   colours the section headings and their rules (manifest accent_role "rules"). */
-body { font: 400 calc(9pt * var(--type)) / 1.5 var(--font-body); }
-.cv-contact a { text-decoration: none; }
+/* Classic: the default template and the quality bar (spec D2, #464). One column, centred
+   header, serif headings on quiet accent rules, sans body.
+   Sizes are em of the body size, so the density scale (--type) moves everything; the body
+   is clamped to 9-11pt (compact .88 and spacious 1.15 would leave that range). The accent
+   colours the section headings and their rules only (manifest accent_role "rules"); every
+   text colour reads at 4.5:1 or better on white. */
+.cv--classic {
+  --classic-ink-2: #333333;   /* organisation, dates, contact: 12.6:1 */
+  --classic-muted: #555555;   /* location: 7.5:1 */
+  font: 400 clamp(9pt, calc(10pt * var(--type)), 11pt) / 1.4 var(--font-body);
+  hyphens: manual;
+  orphans: 2;
+  widows: 2;
+}
+.cv--classic a { color: inherit; text-decoration: underline; text-decoration-thickness: 0.5pt; text-underline-offset: 0.15em; }
 
-.cv-header { text-align: center; margin-bottom: 4pt; }
-.cv-header h1 { font: 600 2.11em / 1.15 var(--font-heading); margin: 0 0 2pt; }
-.cv-headline { font-size: 1.11em; color: var(--muted); font-weight: 300; }
-.cv-contact { font-size: 0.911em; color: #333; margin-top: 1pt; }
+/* -- header -------------------------------------------------------------------------- */
+.cv-header { text-align: center; }
+.cv-header h1 {
+  font: 600 2.5em / 1.1 var(--font-heading);
+  letter-spacing: 0.005em;
+  margin: 0;
+  text-wrap: balance;
+}
+.cv-headline {
+  font-size: 1.1em;
+  line-height: 1.3;
+  color: var(--classic-ink-2);
+  margin-top: var(--space-2);
+  text-wrap: balance;
+}
+.cv-contact { font-size: 0.92em; line-height: 1.45; color: var(--classic-ink-2); margin-top: var(--space-2); }
+.cv-contact-line { text-wrap: balance; }
 .cv-contact .nw { white-space: nowrap; }
+.cv-contact a { text-decoration: none; }
+.cv-sep { color: var(--classic-muted); }
 
+/* -- sections ------------------------------------------------------------------------ */
 .cv-section { margin-top: var(--space-5); }
+.cv-header + .cv-section { margin-top: calc(var(--space-5) + var(--space-1)); }
 .cv-section > h2 {
-  font: 600 1.222em / 1.3 var(--font-heading);
+  /* Small caps, not an uppercase transform: the PDF text keeps the user's own heading ("Experience"),
+     which is what the read-back and an ATS match on. 1.3em of small caps draws at about the
+     cap height of 10.5pt capitals. */
+  font: 600 1.3em / 1.1 var(--font-heading);
+  letter-spacing: 0.06em;
+  font-variant-caps: all-small-caps;
   text-align: center;
   color: var(--accent);
-  margin: 0 0 var(--space-3);
-  padding-bottom: var(--space-2);
-  border-bottom: 1.1pt solid var(--accent);
+  margin: 0 0 calc(var(--space-2) + var(--space-1));
+  padding-bottom: var(--space-1);
+  border-bottom: 0.75pt solid var(--accent);
   break-after: avoid;
 }
+/* Chromium honours break-after weakly; keeping the first block with the heading is what
+   stops a heading being stranded at the foot of a page. */
+.cv-section > h2 + * { break-before: avoid; }
 
-.cv-entry { margin-bottom: var(--space-4); break-inside: avoid; }
+/* -- entries ------------------------------------------------------------------------- */
+.cv-entry { break-inside: avoid; }
+.cv-entry + .cv-entry { margin-top: var(--space-4); }
 .cv-entry--split { break-inside: auto; }
 .cv-entry-head {
   display: grid;
-  grid-template-columns: 1fr auto;
-  column-gap: 12pt;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "role dates" "org place";
+  column-gap: 14pt;
   align-items: baseline;
+  break-inside: avoid;
   break-after: avoid;
 }
-.cv-org { grid-area: org; font-size: 1.11em; color: var(--muted); }
-.cv-place { grid-area: place; color: var(--muted); font-size: 1.11em; text-align: right; }
-.cv-role { grid-area: role; font-size: 0.978em; }
-.cv-dates { grid-area: dates; font-size: 0.978em; text-align: right; white-space: nowrap; }
-.cv-entry-head { grid-template-areas: "org place" "role dates"; }
-.cv-entry-head--no-org { grid-template-areas: "role dates" "place place"; }
-.cv-entry-head--no-org .cv-role { font-size: 1.11em; color: var(--muted); }
-.cv-entry-head--no-org .cv-place { text-align: left; font-size: 0.978em; }
+.cv-entry-head--no-dates { grid-template-areas: "role place" "org org"; }
+.cv-role { grid-area: role; font-weight: 600; font-size: 1.05em; line-height: 1.3; text-wrap: balance; }
+.cv-dates { grid-area: dates; text-align: right; white-space: nowrap; color: var(--classic-ink-2); }
+/* Figures only: some faces (Lora) widen the space too under tnum, so it never applies to words. */
+.cv-dates { font-variant-numeric: tabular-nums lining-nums; }
+.cv-org { grid-area: org; color: var(--classic-ink-2); text-wrap: balance; }
+.cv-place { grid-area: place; text-align: right; color: var(--classic-muted); }
 
 /* The bullet is text, not a list marker: Chromium draws markers as vector discs, which
    text extraction (and so an ATS) never sees. */
 .cv-entry ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
-.cv-entry li { margin-bottom: var(--space-1); padding-left: 11pt; font-size: 0.956em; break-inside: avoid; }
-.cv-entry li::before { content: "\2022"; display: inline-block; width: 11pt; margin-left: -11pt; font-weight: 600; line-height: 0; font-size: 1.3em; }
-.cv-text { margin: 0 0 var(--space-2); font-size: 0.978em; }
+.cv-entry li { padding-left: 12pt; break-inside: avoid; text-wrap: pretty; }
+.cv-entry li + li { margin-top: calc(var(--space-1) * 0.67); }
+/* In flow, never positioned: a positioned box paints (and so extracts) after the text. */
+.cv-entry li::before {
+  content: "\2022";
+  display: inline-block;
+  box-sizing: content-box; /* the universal border-box rule does not reach pseudo-elements */
+  width: 11pt;
+  margin-left: -12pt;
+  padding-left: 1pt;
+  color: var(--ink);
+  font-size: 1.1em;
+  line-height: 0;
+}
+/* The first two and last two bullets stay with their neighbours, so a long entry splits
+   in its middle and never leaves one bullet alone (or the head alone) on a page. */
+.cv-entry li:first-child, .cv-entry li:nth-child(2) { break-before: avoid; }
+.cv-entry li:last-child { break-before: avoid; }
+
+.cv-text { margin: 0; hyphens: none; text-wrap: pretty; }
+.cv-text + .cv-text { margin-top: var(--space-2); }
 .cv-entry > .cv-text { margin-top: var(--space-2); }
