@@ -24,6 +24,11 @@ from app.schemas.cv_documents import (
     CvDocumentUpdate,
     CvImportAccept,
     CvImportProposal,
+    CvPreviewPage,
+    CvPreviewRequest,
+    CvPreviewResponse,
+    CvPreviewSection,
+    CvPreviewWarning,
     CvQualityResponse,
     CvStyle,
     CvStyleCatalog,
@@ -60,6 +65,7 @@ from app.services.cv_documents import (
 )
 from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR, TYPEFACES
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
+from app.services.cv_preview import render_preview
 from app.services.cv_quality import analyze_cv_quality
 from app.services.cv_rendering import (
     build_render_model,
@@ -328,6 +334,55 @@ def export_variant_docx(
     db: Session = Depends(get_db),
 ):
     return _export(request, document_id, "docx", variant_id, current_user, db)
+
+
+@router.post("/{document_id}/preview", response_model=CvPreviewResponse)
+@limiter.limit("60/minute")
+async def preview(
+    request: Request,
+    response: Response,
+    document_id: str,
+    body: CvPreviewRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Page images and section rectangles of the unsaved draft. Stores nothing."""
+    document, saved_style, _ = _renderable(db, document_id, current_user.id, None)
+    # Only plain data is read from the ORM row, so the draft cannot be written back.
+    draft = SimpleNamespace(
+        name=body.name if body.name is not None else document.name,
+        header=(
+            body.header.model_dump() if body.header is not None else document.header
+        ),
+        sections=(
+            [section.model_dump() for section in body.sections]
+            if body.sections is not None
+            else document.sections
+        ),
+    )
+    style = body.style if body.style is not None else saved_style
+    model = build_render_model(draft, style.template_id, style)
+    # Chromium, PyMuPDF and WebP encoding block; keep them off the event loop.
+    result = await run_in_threadpool(render_preview, model)
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    warnings = []
+    if result.unsupported_characters:
+        shown = " ".join(result.unsupported_characters)
+        warnings.append(
+            CvPreviewWarning(
+                code="unsupported_characters",
+                message=f"These characters cannot be drawn in the chosen typeface: {shown}",
+                characters=result.unsupported_characters,
+            )
+        )
+    return CvPreviewResponse(
+        pages=[CvPreviewPage(url=p.data_url, width=p.width, height=p.height) for p in result.pages],
+        page_count=result.page_count,
+        sections=[CvPreviewSection(**vars(s)) for s in result.sections],
+        warnings=warnings,
+        truncated=result.truncated,
+    )
 
 
 @router.post("/{document_id}/quality", response_model=CvQualityResponse)

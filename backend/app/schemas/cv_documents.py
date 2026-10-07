@@ -291,6 +291,50 @@ class CvDocumentUpdate(BaseModel):
         return self
 
 
+class CvPreviewRequest(CvDocumentUpdate):
+    """The unsaved draft to preview. Same fields and validation as a save, but nothing
+    is required (a field left out is taken from the saved CV) and nothing is stored."""
+
+    @model_validator(mode="after")
+    def require_change(self):
+        return self
+
+
+class CvPreviewPage(BaseModel):
+    # A data: URL of the page as WebP, so the viewer needs no second request.
+    url: str
+    width: int
+    height: int
+
+
+class CvPreviewSection(BaseModel):
+    """A section's rectangle on one page, as fractions (0..1) of that page's width and height.
+    A section that runs over a page break has one rectangle per page."""
+
+    id: str
+    kind: str
+    page: int = Field(ge=0)
+    x: float
+    y: float
+    w: float
+    h: float
+
+
+class CvPreviewWarning(BaseModel):
+    code: Literal["unsupported_characters"]
+    message: str
+    characters: list[str] = Field(default_factory=list)
+
+
+class CvPreviewResponse(BaseModel):
+    pages: list[CvPreviewPage]
+    page_count: int
+    sections: list[CvPreviewSection]
+    warnings: list[CvPreviewWarning] = Field(default_factory=list)
+    # True when the CV has more pages than were drawn (the first 8 are).
+    truncated: bool = False
+
+
 class CvVariantCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: Text = Field(min_length=1, max_length=120)

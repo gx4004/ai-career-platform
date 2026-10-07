@@ -163,7 +163,7 @@ class ChromiumPool:
 
     # -- rendering (loop thread) -------------------------------------------
 
-    async def _print_once(self, html: str) -> bytes:
+    async def _print_once(self, html: str, prepare_script: str | None = None) -> bytes:
         browser = await self._get_browser()
         context = await browser.new_context(service_workers="block")
         try:
@@ -172,6 +172,9 @@ class ChromiumPool:
             await page.route("**/*", _only_inline)
             await page.set_content(html, wait_until="load", timeout=_LOAD_TIMEOUT_MS)
             await page.evaluate("document.fonts.ready.then(() => true)")
+            if prepare_script:
+                # Preview only: add print-invisible probes to the DOM just before printing.
+                await page.evaluate(prepare_script)
             return await page.pdf(prefer_css_page_size=True, print_background=True)
         finally:
             with contextlib.suppress(Exception):
@@ -190,28 +193,28 @@ class ChromiumPool:
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(context.close(), 5)
 
-    async def _print(self, html: str) -> bytes:
+    async def _print(self, html: str, prepare_script: str | None = None) -> bytes:
         assert self._semaphore is not None
         async with self._semaphore:
             self.in_flight += 1
             self.peak_in_flight = max(self.peak_in_flight, self.in_flight)
             try:
                 try:
-                    return await self._print_once(html)
+                    return await self._print_once(html, prepare_script)
                 except CvRenderUnavailableError:
                     raise
                 except Exception as error:
                     if self._browser is not None and not self._browser.is_connected():
                         # The browser died under this render: start a fresh one, once.
                         logger.warning("cv chromium crashed, restarting: %s", type(error).__name__)
-                        return await self._print_once(html)
+                        return await self._print_once(html, prepare_script)
                     raise
             finally:
                 self.in_flight -= 1
 
-    async def _print_with_timeout(self, html: str) -> bytes:
+    async def _print_with_timeout(self, html: str, prepare_script: str | None = None) -> bytes:
         try:
-            return await asyncio.wait_for(self._print(html), self.timeout)
+            return await asyncio.wait_for(self._print(html, prepare_script), self.timeout)
         except TimeoutError as error:
             raise RenderTimeoutError() from error
         except CvRenderUnavailableError:
@@ -227,12 +230,14 @@ class ChromiumPool:
 
     # -- public API (any thread) -------------------------------------------
 
-    def print_pdf(self, html: str) -> bytes:
-        """Blocking: print ``html`` (self-contained, with its own ``@page``) to PDF bytes."""
-        return self._submit(self._print_with_timeout(html)).result()
+    def print_pdf(self, html: str, prepare_script: str | None = None) -> bytes:
+        """Blocking: print ``html`` (self-contained, with its own ``@page``) to PDF bytes.
 
-    async def print_pdf_async(self, html: str) -> bytes:
-        return await asyncio.wrap_future(self._submit(self._print_with_timeout(html)))
+        ``prepare_script`` (a JS function expression) runs in the page right before printing."""
+        return self._submit(self._print_with_timeout(html, prepare_script)).result()
+
+    async def print_pdf_async(self, html: str, prepare_script: str | None = None) -> bytes:
+        return await asyncio.wrap_future(self._submit(self._print_with_timeout(html, prepare_script)))
 
     def inspect_page(self, html: str, script: str):
         """Blocking: load ``html`` as the renderer does and return the JSON of ``script``
@@ -262,16 +267,16 @@ class ChromiumPool:
 _pool = ChromiumPool()
 
 
-def print_pdf(html: str) -> bytes:
-    return _pool.print_pdf(html)
+def print_pdf(html: str, prepare_script: str | None = None) -> bytes:
+    return _pool.print_pdf(html, prepare_script)
 
 
 def inspect_page(html: str, script: str):
     return _pool.inspect_page(html, script)
 
 
-async def print_pdf_async(html: str) -> bytes:
-    return await _pool.print_pdf_async(html)
+async def print_pdf_async(html: str, prepare_script: str | None = None) -> bytes:
+    return await _pool.print_pdf_async(html, prepare_script)
 
 
 def chromium_status() -> str:
