@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { Field, RadioGroup, RadioItem } from '#/components/kit'
 
@@ -117,6 +117,31 @@ describe('kit RadioGroup', () => {
     expect(screen.getByRole('radio', { name: 'Newsreader' })).toBeTruthy()
     expect(screen.getByText('serif').className).toContain('kit-radio__meta')
     expect(screen.getByRole('radiogroup').getAttribute('data-variant')).toBe('card')
+  })
+
+  it('tile options show their picture above the dot and text, named by the label alone', () => {
+    render(
+      <RadioGroup aria-label="Gallery" variant="tile" defaultValue="classic">
+        <RadioItem value="classic" label="Classic" description="One column" mediaAspect="210 / 297" media={<img src="data:," alt="Preview of the Classic template" />} />
+        <RadioItem value="rail" label="Rail" description="Two columns" />
+      </RadioGroup>,
+    )
+    const group = screen.getByRole('radiogroup', { name: 'Gallery' })
+    expect(group.getAttribute('data-variant')).toBe('tile')
+    const classic = screen.getByRole('radio', { name: 'Classic' }) as HTMLInputElement
+    expect(classic.checked).toBe(true)
+    const label = classic.closest('label')!
+    const media = label.querySelector('.kit-radio__media') as HTMLElement
+    expect(media.style.getPropertyValue('--kit-radio-media-ratio')).toBe('210 / 297')
+    expect(within(media).getByRole('img', { name: 'Preview of the Classic template' })).toBeTruthy()
+    // The picture comes first, then the row with the dot and the text.
+    expect(label.firstElementChild).toBe(media)
+    expect(label.querySelector('.kit-radio__body')?.contains(classic)).toBe(true)
+    // No picture: a text-only tile.
+    expect(screen.getByRole('radio', { name: 'Rail' }).closest('label')?.querySelector('.kit-radio__media')).toBeNull()
+    fireEvent.click(screen.getByRole('img', { name: 'Preview of the Classic template' }))
+    fireEvent.click(screen.getByText('Rail'))
+    expect((screen.getByRole('radio', { name: 'Rail' }) as HTMLInputElement).checked).toBe(true)
   })
 
   it('an option outside a group is a clear error', () => {

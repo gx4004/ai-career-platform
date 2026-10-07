@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Badge, Checkbox, Field, Input, RadioGroup, RadioItem, Select, Switch } from '#/components/kit'
+import { Badge, Checkbox, Field, Input, RadioGroup, RadioItem, Select, Skeleton, Switch } from '#/components/kit'
 import { GallerySection, Group, Grid, Specimen } from './gallery-parts'
 
 function SelectAllDemo() {
@@ -69,6 +69,43 @@ function TemplateDemo() {
             </>
           }
           description={template.description}
+        />
+      ))}
+    </RadioGroup>
+  )
+}
+
+/** A stand-in page for the tile specimens: grey bars on paper, drawn with theme tokens (no image file). */
+function PageSketch({ name }: { name: string }) {
+  return (
+    <svg viewBox="0 0 210 297" role="img" aria-label={`Preview of the ${name} template`}>
+      <rect width="210" height="297" style={{ fill: 'var(--surface)' }} />
+      <rect x="18" y="20" width="110" height="14" style={{ fill: 'var(--ink-3)' }} />
+      {[48, 60, 90, 102, 114, 144, 156, 168, 198, 210].map((y) => (
+        <rect key={y} x="18" y={y} width={y % 3 ? 174 : 120} height="6" style={{ fill: 'var(--line)' }} />
+      ))}
+    </svg>
+  )
+}
+
+function TileDemo({ loading = false }: { loading?: boolean }) {
+  const [value, setValue] = useState('classic')
+  return (
+    <RadioGroup aria-label="Template gallery" variant="tile" value={value} onValueChange={setValue}>
+      {TEMPLATES.map((template, index) => (
+        <RadioItem
+          key={template.id}
+          value={template.id}
+          label={template.name}
+          description={
+            <>
+              <Badge size="sm" tone={template.safe ? 'success' : 'neutral'}>{template.safe ? 'ATS-safe' : 'Less ATS-safe'}</Badge>{' '}
+              {template.safe ? 'One column' : 'Two columns'}
+            </>
+          }
+          mediaAspect="210 / 297"
+          // The last tile has no picture: what a template whose preview failed falls back to.
+          media={index === 2 ? undefined : loading ? <Skeleton variant="block" /> : <PageSketch name={template.name} />}
         />
       ))}
     </RadioGroup>
@@ -270,6 +307,23 @@ export function ChoiceSection() {
           </Specimen>
           <Specimen label="card with meta (interactive)">
             <FontDemo />
+          </Specimen>
+        </Grid>
+      </Group>
+
+      <Group title="Tiles: a picture above the text, as many columns as fit (CV template gallery)">
+        <Grid>
+          <Specimen label="tile (interactive; the third has no picture, the text-only fallback)">
+            <TileDemo />
+          </Specimen>
+          <Specimen label="tile, pictures loading (Skeleton in the same aspect ratio)">
+            <TileDemo loading />
+          </Specimen>
+          <Specimen label="tile, disabled">
+            <RadioGroup aria-label="Locked template gallery" variant="tile" disabled defaultValue="classic">
+              <RadioItem value="classic" label="Classic" mediaAspect="210 / 297" media={<PageSketch name="Classic" />} />
+              <RadioItem value="modern" label="Modern" mediaAspect="210 / 297" media={<PageSketch name="Modern" />} />
+            </RadioGroup>
           </Specimen>
         </Grid>
       </Group>

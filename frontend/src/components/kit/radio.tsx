@@ -17,8 +17,10 @@ import { useFieldControl } from './field'
  * framed: the Input frame around a one-line option (inline groups, toolbar rows).
  * card: a bordered block with room for a description and trailing text (template and font pickers).
  * swatch: a round colour chip; the label is the accessible name and is not drawn.
+ * tile: a card with a picture (`media`) above the dot and text; the group is a grid of as many columns as fit
+ *   (the CV template gallery).
  */
-export type RadioVariant = 'plain' | 'framed' | 'card' | 'swatch'
+export type RadioVariant = 'plain' | 'framed' | 'card' | 'swatch' | 'tile'
 
 type RadioContextValue = {
   name: string
@@ -130,6 +132,10 @@ type RadioItemBase = Omit<ComponentPropsWithoutRef<'input'>, 'type' | 'size' | '
   meta?: ReactNode
   /** swatch only: any CSS colour. It is data, so it is passed through a custom property instead of a class. */
   swatch?: string
+  /** tile only: the picture above the text (an img, or a Skeleton while it loads). Leave it out for a text-only tile. */
+  media?: ReactNode
+  /** tile only: the picture box's CSS aspect ratio ("210 / 297"), so a placeholder and the image take the same room. */
+  mediaAspect?: string
 }
 
 /** The option's accessible name: visible label text (not for swatches) or aria-label / aria-labelledby. */
@@ -145,28 +151,21 @@ export const RadioItem = forwardRef<HTMLInputElement, RadioItemProps>(function R
   const group = useContext(RadioContext)
   if (!group) throw new Error('RadioItem must be used inside <RadioGroup>')
 
-  const { value, label, description, meta, swatch, className, disabled: disabledProp, id, style, ...rest } = props
+  const { value, label, description, meta, swatch, media, mediaAspect, className, disabled: disabledProp, id, style, ...rest } = props
   const labelId = useId()
   const descriptionId = useId()
   const disabled = disabledProp ?? group.disabled
   const checked = group.value === value
   const swatchVariant = group.variant === 'swatch'
+  const tile = group.variant === 'tile'
   const name = rest['aria-label'] ?? (swatchVariant && typeof label === 'string' ? label : undefined)
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) group.onSelect(value)
   }
 
-  return (
-    <label
-      className={cn('kit-radio', className)}
-      data-variant={group.variant}
-      data-checked={checked || undefined}
-      data-invalid={group.invalid || undefined}
-      data-disabled={disabled || undefined}
-      title={swatchVariant ? name : undefined}
-      style={swatchVariant && swatch ? ({ ...style, '--kit-swatch': swatch } as CSSProperties) : style}
-    >
+  const control = (
+    <>
       <input
         {...rest}
         ref={ref}
@@ -202,6 +201,28 @@ export const RadioItem = forwardRef<HTMLInputElement, RadioItemProps>(function R
           {meta ? <span className="kit-radio__meta">{meta}</span> : null}
         </>
       )}
+    </>
+  )
+
+  return (
+    <label
+      className={cn('kit-radio', className)}
+      data-variant={group.variant}
+      data-checked={checked || undefined}
+      data-invalid={group.invalid || undefined}
+      data-disabled={disabled || undefined}
+      title={swatchVariant ? name : undefined}
+      style={swatchVariant && swatch ? ({ ...style, '--kit-swatch': swatch } as CSSProperties) : style}
+    >
+      {tile && media ? (
+        <span
+          className="kit-radio__media"
+          style={mediaAspect ? ({ '--kit-radio-media-ratio': mediaAspect } as CSSProperties) : undefined}
+        >
+          {media}
+        </span>
+      ) : null}
+      {tile ? <span className="kit-radio__body">{control}</span> : control}
     </label>
   )
 })
