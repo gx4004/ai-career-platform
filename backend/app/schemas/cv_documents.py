@@ -367,22 +367,18 @@ class CvPreviewResponse(BaseModel):
 
 
 class CvTemplateThumbnail(BaseModel):
-    """Page 1 of the CV in one template. ``url`` is a WebP data: URL, or None with ``error``
-    set when that template could not be drawn (the others are still returned)."""
+    """Page 1 of the sample CV in one template. ``url`` is a WebP data: URL, or None with
+    ``error`` set when that template could not be drawn (the others are still returned)."""
 
     template_id: str
     url: str | None = None
     width: int = 0
     height: int = 0
-    # How many pages the CV runs to in this template.
-    pages: int = 0
     error: str | None = None
 
 
 class CvTemplateThumbnailsResponse(BaseModel):
     thumbnails: list[CvTemplateThumbnail]
-    # True when the CV has no entries yet and the built-in sample CV is shown instead.
-    sample: bool = False
 
 
 class CvVariantCreate(BaseModel):

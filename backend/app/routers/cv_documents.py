@@ -17,16 +17,19 @@ from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
     CvConflictResponse,
+    CvDensity,
     CvDocumentCreate,
     CvDocumentListResponse,
     CvDocumentResponse,
     CvDocumentsExport,
     CvDocumentUpdate,
     CvFitResult,
+    CvFontId,
     CvImportAccept,
     CvImportProposal,
     CvLength,
     CvLengthAdvice,
+    CvPageSize,
     CvPreviewPage,
     CvPreviewRequest,
     CvPreviewResponse,
@@ -200,6 +203,43 @@ def create(
 @router.get("/style-catalog", response_model=CvStyleCatalog)
 def get_style_catalog(current_user: User = Depends(get_current_user)):
     return style_catalog()
+
+
+@router.get("/template-thumbnails", response_model=CvTemplateThumbnailsResponse)
+@limiter.limit("30/minute")
+async def template_thumbnails(
+    request: Request,
+    response: Response,
+    accent_color: str | None = Query(default=None, pattern=r"^#[0-9a-fA-F]{6}$"),
+    font_id: CvFontId | None = None,
+    density: CvDensity = "normal",
+    page_size: CvPageSize = "a4",
+    templates: str | None = Query(default=None, max_length=400),
+    current_user: User = Depends(get_current_user),
+):
+    """Page 1 of the built-in English sample CV in every available template (or only
+    ``templates``, a comma list, so a client can ask for the first group before the rest), in the
+    person's colour, typeface, spacing and page size: the Design panel's gallery. It reads no CV,
+    so the response is the same for everyone and may be cached privately."""
+    wanted = None
+    if templates is not None:
+        wanted = [template.strip() for template in templates.split(",") if template.strip()]
+        unknown = [template for template in wanted if template not in available_template_ids()]
+        if not wanted or unknown:
+            raise HTTPException(status_code=422, detail="Unknown template in templates.")
+    style = CvStyle(accent_color=accent_color, font_id=font_id, density=density, page_size=page_size)
+    # Cached tiles return at once; a miss prints one template at a time, off the event loop.
+    result = await run_in_threadpool(lambda: render_thumbnails(style, template_ids=wanted))
+    response.headers["Cache-Control"] = "private, max-age=3600"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return CvTemplateThumbnailsResponse(
+        thumbnails=[
+            CvTemplateThumbnail(
+                template_id=t.template_id, url=t.data_url, width=t.width, height=t.height, error=t.error
+            )
+            for t in result
+        ],
+    )
 
 
 # Strict allowlist of the bundled OFL TTFs — never an arbitrary filesystem path.
@@ -439,51 +479,6 @@ def _draft_source(document: CvDocument, body: CvPreviewRequest | None) -> Simple
             if body.sections is not None
             else document.sections
         ),
-    )
-
-
-@router.post("/{document_id}/template-thumbnails", response_model=CvTemplateThumbnailsResponse)
-@limiter.limit("20/minute")
-async def template_thumbnails(
-    request: Request,
-    response: Response,
-    document_id: str,
-    body: CvPreviewRequest | None = None,
-    templates: str | None = Query(default=None, max_length=400),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Page 1 of the unsaved draft in every available template (or only ``templates``, a comma list,
-    so a client can ask for the first group before the rest), for the Design panel's
-    gallery. The draft's own colour, typeface, spacing and page size; the sample CV while it
-    has no entries. Stores nothing."""
-    wanted = None
-    if templates is not None:
-        wanted = [template.strip() for template in templates.split(",") if template.strip()]
-        unknown = [template for template in wanted if template not in available_template_ids()]
-        if not wanted or unknown:
-            raise HTTPException(status_code=422, detail="Unknown template in templates.")
-    document, saved_style, _ = _renderable(db, document_id, current_user.id, None)
-    style = body.style if body is not None and body.style is not None else saved_style
-    # Prints one template at a time; Chromium, PyMuPDF and WebP block, so off the event loop.
-    result = await run_in_threadpool(
-        lambda: render_thumbnails(_draft_source(document, body), style, template_ids=wanted)
-    )
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return CvTemplateThumbnailsResponse(
-        thumbnails=[
-            CvTemplateThumbnail(
-                template_id=t.template_id,
-                url=t.data_url,
-                width=t.width,
-                height=t.height,
-                pages=t.pages,
-                error=t.error,
-            )
-            for t in result.thumbnails
-        ],
-        sample=result.sample,
     )
 
 
