@@ -173,6 +173,31 @@ TYPEFACES: dict[str, Typeface] = {
 }
 TYPEFACES_BY_NAME: dict[str, Typeface] = {face.name: face for face in TYPEFACES.values()}
 
+# x-height as a share of the em, from each family's regular face (OS/2 sxHeight / unitsPerEm;
+# tests/test_cv_fonts.py re-reads the files). At one point size EB Garamond's lower case is
+# a fifth smaller than Source Sans 3's, so an override is scaled to match (below).
+X_HEIGHTS: dict[str, float] = {
+    "inter": 0.546, "source-sans-3": 0.486, "ibm-plex-sans": 0.516, "source-serif-4": 0.475,
+    "lora": 0.500, "eb-garamond": 0.400, "ibm-plex-serif": 0.516, "ibm-plex-mono": 0.516,
+    "cormorant-garamond": 0.386, "nunito": 0.484, "ubuntu": 0.520, "roboto-slab": 0.528,
+    "raleway": 0.519, "fira-sans": 0.527, "manrope": 0.540,
+}
+MAX_SIZE_ADJUST = 1.2
+
+
+def override_size_adjust(template_body: Typeface, override: Typeface) -> float:
+    """The CSS ``size-adjust`` for an override's faces, so its x-height matches the template's
+    own body face at the same point size (an EB Garamond override no longer looks small).
+
+    Never below 1: the 9pt body floor (density clamp, fit to one page) is a real point size an
+    ATS checker reads from the PDF, so a large-x-height override (Inter) keeps its own size.
+    At most ``MAX_SIZE_ADJUST``, so capitals and line spacing stay in proportion.
+    """
+    if override.id == template_body.id:
+        return 1.0
+    ratio = X_HEIGHTS[template_body.id] / X_HEIGHTS[override.id]
+    return round(min(MAX_SIZE_ADJUST, max(1.0, ratio)), 3)
+
 # The curated typeface overrides offered in the Design panel (docs/cv-templates-spec.md 3.4).
 OVERRIDE_FONT_IDS: tuple[str, ...] = (
     "inter", "source-sans-3", "ibm-plex-sans", "source-serif-4", "lora", "eb-garamond",

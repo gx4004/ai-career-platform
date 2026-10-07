@@ -27,6 +27,7 @@ from app.services.cv_fonts import (
     Typeface,
     heading_family,
     needs_glyph,
+    override_size_adjust,
     typeface_codepoints,
     typeface_for_name,
 )
@@ -192,11 +193,15 @@ def missing_characters(template_id: str, text: str, font_override: str | None = 
 @functools.cache
 def _font_face_css(template_id: str, font_override: str | None = None) -> str:
     rules = []
+    override = TYPEFACES.get(font_override) if font_override else None
+    own_body = typeface_for_name(load_manifest(template_id).typefaces["body"])
     for family, weight, style, face in font_plan(template_id, font_override).faces:
         data = base64.b64encode(face.path.read_bytes()).decode("ascii")
+        adjust = override_size_adjust(own_body, family) if family == override else 1.0
+        size = f"size-adjust: {adjust * 100:g}%; " if adjust != 1.0 else ""
         rules.append(
             f'@font-face {{ font-family: "{family.name}"; font-weight: {weight}; '
-            f"font-style: {style}; "
+            f"font-style: {style}; {size}"
             f'src: url("data:font/ttf;base64,{data}") format("truetype"); }}'
         )
     return "\n".join(rules)

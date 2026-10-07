@@ -27,7 +27,9 @@ from app.services.cv_fonts import (
     OVERRIDE_FONT_IDS,
     TYPEFACES,
     TYPEFACES_BY_NAME,
+    X_HEIGHTS,
     heading_family,
+    override_size_adjust,
     typeface_covered,
 )
 from app.services.cv_html import (
@@ -179,6 +181,42 @@ def test_classic_default_matches_its_manifest_faces():
     assert {(f.family, f.weight, f.style, f.file) for f in load_manifest("classic").fonts} == {
         (family.name, weight, style, face.file) for family, weight, style, face in plan.faces
     }
+
+
+def test_the_x_height_table_matches_the_font_files():
+    assert set(X_HEIGHTS) == set(TYPEFACES)
+    for family in TYPEFACES.values():
+        font = TTFont(family.face(400).path)
+        measured = font["OS/2"].sxHeight / font["head"].unitsPerEm
+        assert X_HEIGHTS[family.id] == pytest.approx(measured, abs=0.001), family.id
+
+
+@pytest.mark.parametrize("template_id", ["classic", "scholar"])
+def test_a_small_x_height_override_is_scaled_to_the_templates_own_body(template_id):
+    # EB Garamond's lower case is about a fifth smaller at one point size (#471): it is scaled
+    # up to the template's own body x-height (capped at 1.2); a larger one is never shrunk.
+    own = TYPEFACES_BY_NAME[load_manifest(template_id).typefaces["body"]]
+
+    def x_height_pt(font_id):
+        pdf = render_pdf(_model("maya", template=template_id, font=font_id))
+        with fitz.open(stream=pdf, filetype="pdf") as document:
+            for block in document[0].get_text("dict")["blocks"]:
+                for line in block.get("lines", []):
+                    for span in line["spans"]:
+                        if span["text"].startswith("Frontend engineer with five"):
+                            family = TYPEFACES[font_id] if font_id else own
+                            return span["size"] * X_HEIGHTS[family.id]
+        raise AssertionError("summary not found")
+
+    reference = x_height_pt(None)
+    garamond = x_height_pt("eb-garamond")
+    assert garamond == pytest.approx(reference, rel=0.03)
+    for font_id in OVERRIDE_FONT_IDS:
+        adjust = override_size_adjust(own, TYPEFACES[font_id])
+        assert 1.0 <= adjust <= 1.2
+        assert x_height_pt(font_id) >= reference * 0.97, font_id
+    css = render_cv_html(_model("maya", template=template_id, font="eb-garamond"))
+    assert "size-adjust: 1" in css and "size-adjust" not in render_cv_html(_model("maya", template=template_id))
 
 
 @pytest.mark.parametrize("font_id", [None, *OVERRIDE_FONT_IDS])
