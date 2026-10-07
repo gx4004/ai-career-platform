@@ -53,6 +53,10 @@ export type TemplateThumbnailsState = {
   data?: CvTemplateThumbnails
 }
 
+/** The gallery request in flight per CV. A newer draft aborts it; closing (or remounting) the panel does not, because
+ * the sheet remounts its body as it opens and the server would draw the whole gallery twice. */
+const inFlight = new Map<string, AbortController>()
+
 /**
  * Page 1 of the draft in every template, fetched while the Design panel is open. Cached by a hash of the content and
  * the drawn style fields, so picking a template never refetches; a content or style change refetches after a pause,
@@ -62,10 +66,18 @@ export function useTemplateThumbnails(documentId: string, draft: Draft): Templat
   const settled = useDebouncedValue(thumbnailsKey(draft), THUMBNAILS_DEBOUNCE_MS, documentId)
   const query = useQuery({
     queryKey: ['cv-template-thumbnails', documentId, hashText(settled)],
-    queryFn: ({ signal }) => {
+    // React Query's own signal would cancel on unmount too; this one is aborted only by a newer draft.
+    queryFn: async () => {
+      inFlight.get(documentId)?.abort()
+      const controller = new AbortController()
+      inFlight.set(documentId, controller)
       const { header, sections, drawn } = JSON.parse(settled) as ThumbnailsBody
       const style: CvStyle = { ...drawn, template_id: DEFAULT_TEMPLATE, ats_mode: false, fit_one_page: false }
-      return templateThumbnailsForDraft(documentId, { header, sections, style }, { signal })
+      try {
+        return await templateThumbnailsForDraft(documentId, { header, sections, style }, { signal: controller.signal })
+      } finally {
+        if (inFlight.get(documentId) === controller) inFlight.delete(documentId)
+      }
     },
     staleTime: Infinity,
     gcTime: 5 * 60_000,
@@ -154,14 +166,8 @@ export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
                         <RadioItem
                           key={template.id}
                           value={template.id}
-                          label={template.name}
-                          description={
-                            <>
-                              <Badge size="sm" tone={template.ats_safe ? 'success' : 'neutral'}>{template.ats_safe ? 'ATS-safe' : 'Less ATS-safe'}</Badge>{' '}
-                              {template.columns === 1 ? 'One column' : 'Two columns'}
-                              <span className="kit-sr-only">. {template.description}</span>
-                            </>
-                          }
+                          label={<>{template.name} <Badge size="sm" tone={template.ats_safe ? 'success' : 'neutral'}>{template.ats_safe ? 'ATS-safe' : 'Less ATS-safe'}</Badge></>}
+                          description={<>{template.columns === 1 ? 'One column' : 'Two columns'}<span className="kit-sr-only">. {template.description}</span></>}
                           media={media}
                           mediaAspect={aspect}
                         />

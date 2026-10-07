@@ -554,7 +554,7 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['ATS-safe templates', 'More designs'])
     expect(within(groups[0]).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['classic', 'executive'])
     expect(within(groups[1]).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['lagoon'])
-    expect(within(design).getByRole('radio', { name: 'Lagoon', description: /Less ATS-safe/ })).toBeTruthy()
+    expect(within(design).getByRole('radio', { name: /Lagoon.*Less ATS-safe/ })).toBeTruthy()
     const warning = /Some job portals may read this layout out of order/
     expect(within(design).queryByText(warning)).toBeNull()
     fireEvent.click(within(design).getByRole('radio', { name: /Lagoon/ }))
