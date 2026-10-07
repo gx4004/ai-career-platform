@@ -33,7 +33,7 @@
 {%- set card_summary = first if first and first.kind == "summary" and first.entries and (first.entries|selectattr("heading", "none")|list|length == first.entries|length) else none %}
 {%- set rest = sections[1:] if card_summary else sections %}
 {%- set has_card = header.headline or card_summary %}
-<header class="fr-head{% if not has_card %} fr-head--bare{% endif %}{% if card_summary %} fr-head--summary{% endif %}" data-section-id="header">
+<header class="fr-head{% if header.title|length > 30 %} fr-head--long-name{% endif %}{% if not has_card %} fr-head--bare{% endif %}{% if card_summary %} fr-head--summary{% endif %}" data-section-id="header">
   {#- DOM order is the reading order: name, headline, contact band, then the summary. The grid
       draws the summary inside the card, above the band. #}
   <h1>{{ header.title }}</h1>

@@ -142,7 +142,7 @@ def test_every_template_fits_the_slightly_long_cv_or_reports_its_pages(template)
     assert fit_to_one_page(model)[0] == fit
 
 
-@pytest.mark.parametrize("template", ["classic", "scholar", "lagoon", "lilac", "rail", "slate"])
+@pytest.mark.parametrize("template", TEMPLATES)
 def test_fitting_keeps_every_word_and_the_page_margins(template):
     cv = _slightly_long()
     fit, pdf = fit_to_one_page(_model(template, cv))
