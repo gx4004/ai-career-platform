@@ -143,7 +143,7 @@ Photo upload, skill ratings, LLM-generated design, template marketplace, i18n, c
    replace the body family, and the heading family only when it is the same category (serif/sans) as the override; each role
    keeps the (weight, style) pairs the template's manifest uses and the override supplies its nearest real face under that pair.
    Templates read `--font-body`, `--font-heading`, `--accent`, `--accent-tint` (12% accent in white), `--on-accent`, `--type`,
-   `--gap` and the `--space-*` scale from `cv_templates/_base.css`. Legacy font ids map in `CvStyle` (lato to inter, pt-sans to
+   `--gap` and the `--space-*` scale from `cv_templates/_base.css`. Legacy font ids map in `CvStyle` (lato, the old always-stored default, to null; pt-sans to
    source-sans-3, pt-serif to source-serif-4, crimson-text to lora, ibm-plex-mono to ibm-plex-sans). There is no fallback face:
    characters the chosen faces lack are reported (`unsupported_characters`) and print as spaces; a Greek name under Lora is reported,
    not drawn in another font. `tests/test_cv_fonts.py` audits every rendered (family, weight, style) against the loaded faces.

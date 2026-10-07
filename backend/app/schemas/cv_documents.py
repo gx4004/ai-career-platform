@@ -63,8 +63,10 @@ CvPageSize = Literal["a4", "letter"]
 CvTemplateGroup = Literal["ats-safe", "more"]
 CvFontId = Literal["inter", "source-sans-3", "ibm-plex-sans", "source-serif-4", "lora", "eb-garamond"]
 # Typeface ids stored before the 16-template catalog map to the nearest curated family.
-LEGACY_CV_FONT_IDS: dict[str, CvFontId] = {
-    "lato": "inter",
+# ``lato`` was the old default and was persisted on every row whether or not the person chose
+# it, so it maps to None (the template's own pairing), not to an explicit override.
+LEGACY_CV_FONT_IDS: dict[str, CvFontId | None] = {
+    "lato": None,
     "pt-sans": "source-sans-3",
     "pt-serif": "source-serif-4",
     "crimson-text": "lora",
@@ -144,7 +146,9 @@ class CvStyle(BaseModel):
     @classmethod
     def _map_legacy_font(cls, value):
         """Stored styles from before the catalog still parse: old typeface ids map to the nearest."""
-        return LEGACY_CV_FONT_IDS.get(value, value) if isinstance(value, str) else value
+        if isinstance(value, str) and value in LEGACY_CV_FONT_IDS:
+            return LEGACY_CV_FONT_IDS[value]
+        return value
 
     @field_validator("accent_color")
     @classmethod

@@ -462,7 +462,8 @@ export const cvTemplateIdSchema = z.enum([
 export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
 export const cvPageSizeSchema = z.enum(['a4', 'letter'])
 /** The six typeface overrides (mirrors backend `CvFontId`). Ids stored before the 16-template
- * catalog (`lato`, `pt-sans`, ...) are mapped to the nearest of these by the backend. */
+ * catalog (`pt-sans`, ...) are mapped to the nearest of these by the backend; `lato`, the old
+ * always-stored default, maps to null. */
 export const cvFontIdSchema = z.enum(['inter', 'source-sans-3', 'ibm-plex-sans', 'source-serif-4', 'lora', 'eb-garamond'])
 export const cvDensitySchema = z.enum(['compact', 'normal', 'spacious'])
 export const CV_ACCENT_PALETTE = [
