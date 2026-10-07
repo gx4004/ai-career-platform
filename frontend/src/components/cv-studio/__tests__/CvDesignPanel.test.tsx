@@ -1,8 +1,14 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-import { CvDesignPanel } from '#/components/cv-studio/CvDesignPanel'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CvDesignPanel, CvDesignTool, THUMBNAILS_DEBOUNCE_MS, type TemplateThumbnailsState } from '#/components/cv-studio/CvDesignPanel'
+import { ApiError } from '#/lib/api/errors'
 import { CV_ACCENT_PALETTE, cvStyleSchema } from '#/lib/api/schemas'
+import type { CvDocument, CvStyle, CvTemplateThumbnails } from '#/lib/api/schemas'
 import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
+
+const api = vi.hoisted(() => ({ templateThumbnailsForDraft: vi.fn() }))
+vi.mock('#/lib/api/client', () => api)
 
 const style = cvStyleSchema.parse({})
 
@@ -86,5 +92,187 @@ describe('CvDesignPanel style controls', () => {
     expect((toggle as HTMLInputElement).checked).toBe(true)
     fireEvent.click(toggle)
     expect(onChange).toHaveBeenCalledWith({ fit_one_page: false })
+  })
+})
+
+const PIXEL = 'data:image/webp;base64,UklGRg=='
+const ids = styleCatalogFixture.templates.map((template) => template.id)
+const thumbnailsFor = (patch: Partial<Record<string, Partial<CvTemplateThumbnails['thumbnails'][number]>>> = {}, sample = false): CvTemplateThumbnails => ({
+  sample,
+  thumbnails: ids.map((template_id) => ({ template_id, url: PIXEL, width: 331, height: 468, pages: 1, error: null, ...patch[template_id] })),
+})
+const ready = (data = thumbnailsFor()): TemplateThumbnailsState => ({ status: 'ready', data })
+const templateRadio = (name: string) => screen.getByRole('radio', { name }) as HTMLInputElement
+const tileOf = (name: string) => templateRadio(name).closest('label') as HTMLElement
+
+describe('CvDesignPanel template gallery', () => {
+  it('is two radio groups of tiles, ATS-safe first, each named by the template with its badge and columns as description', () => {
+    panel(vi.fn(), style)
+    const safe = screen.getByRole('radiogroup', { name: 'ATS-safe templates' })
+    const more = screen.getByRole('radiogroup', { name: 'More designs' })
+    expect(safe.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(safe.getAttribute('data-variant')).toBe('tile')
+    expect(within(safe).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['classic', 'executive'])
+    expect(screen.getByRole('radio', { name: 'Classic', description: /ATS-safe One column/ })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Lagoon', description: /Less ATS-safe Two columns/ })).toBeTruthy()
+    expect(templateRadio('Classic').checked).toBe(true)
+    expect(tileOf('Classic').hasAttribute('data-checked')).toBe(true)
+  })
+
+  it('shows a text-only tile without thumbnails (no picture, no placeholder)', () => {
+    panel()
+    expect(tileOf('Classic').querySelector('.kit-radio__media')).toBeNull()
+  })
+
+  it('shows a page-shaped skeleton in every tile while the thumbnails load', () => {
+    render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={{ status: 'loading' }} />)
+    for (const name of ['Classic', 'Executive', 'Lagoon']) {
+      const media = tileOf(name).querySelector('.kit-radio__media') as HTMLElement
+      expect(media.querySelector('.kit-skeleton')).toBeTruthy()
+      expect(media.style.getPropertyValue('--kit-radio-media-ratio')).toBe('210 / 297')
+    }
+    expect(screen.getByText('Drawing the template previews…')).toBeTruthy()
+    cleanup()
+    render(<CvDesignPanel style={{ ...style, page_size: 'letter' }} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={{ status: 'loading' }} />)
+    expect((tileOf('Classic').querySelector('.kit-radio__media') as HTMLElement).style.getPropertyValue('--kit-radio-media-ratio')).toBe('216 / 279')
+  })
+
+  it('shows each template’s own picture with a plain alt text, and says whose CV it is', () => {
+    render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready()} />)
+    const image = within(tileOf('Lagoon')).getByRole('img', { name: 'Preview of the Lagoon template' })
+    expect(image.getAttribute('src')).toBe(PIXEL)
+    expect(image.getAttribute('width')).toBe('331')
+    expect(screen.getAllByRole('img', { name: /^Preview of the .* template$/ })).toHaveLength(3)
+    expect(screen.getByText('Shown with your CV, colour and typeface.')).toBeTruthy()
+    // The picture is not part of the radio's name.
+    expect(templateRadio('Lagoon')).toBeTruthy()
+  })
+
+  it('says when the pictures use the sample CV', () => {
+    render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready(thumbnailsFor({}, true))} />)
+    expect(screen.getByText('Shown with a sample CV until you add your own entries.')).toBeTruthy()
+  })
+
+  it('falls back to a text-only tile for a template that could not be drawn, keeping the others', () => {
+    const data = thumbnailsFor({ lagoon: { url: null, width: 0, height: 0, error: 'This preview could not be drawn.' } })
+    render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready(data)} />)
+    expect(tileOf('Lagoon').querySelector('.kit-radio__media')).toBeNull()
+    expect(within(tileOf('Classic')).getByRole('img')).toBeTruthy()
+    fireEvent.click(templateRadio('Lagoon'))
+  })
+
+  it('falls back to text-only tiles with a plain sentence when the whole gallery fails', () => {
+    render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={{ status: 'error' }} />)
+    expect(screen.queryAllByRole('img')).toHaveLength(0)
+    expect(document.querySelectorAll('.kit-radio__media')).toHaveLength(0)
+    expect(screen.getByText(/The previews couldn’t be drawn right now/)).toBeTruthy()
+  })
+
+  it('selecting a tile (picture included) picks the template and a less ATS-safe one shows the notice', () => {
+    const onChange = vi.fn()
+    const view = render(<CvDesignPanel style={style} catalog={styleCatalogFixture} onChange={onChange} thumbnails={ready()} />)
+    fireEvent.click(screen.getByRole('img', { name: 'Preview of the Lagoon template' }))
+    expect(onChange).toHaveBeenCalledWith({ template_id: 'lagoon' })
+    expect(screen.queryByText(/Some job portals/)).toBeNull()
+    view.rerender(<CvDesignPanel style={{ ...style, template_id: 'lagoon' }} catalog={styleCatalogFixture} onChange={onChange} thumbnails={ready()} />)
+    expect(templateRadio('Lagoon').checked).toBe(true)
+    expect(screen.getByText(/Some job portals may read this layout out of order/)).toBeTruthy()
+  })
+
+  it('in ATS mode offers only the ATS-safe tiles, disabled, with Classic selected', () => {
+    render(<CvDesignPanel style={{ ...style, ats_mode: true, template_id: 'lagoon' }} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready()} />)
+    expect(screen.queryByRole('radio', { name: 'Lagoon' })).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: 'More designs' })).toBeNull()
+    expect(templateRadio('Classic').checked).toBe(true)
+    expect(templateRadio('Classic').disabled).toBe(true)
+    expect(templateRadio('Executive').disabled).toBe(true)
+    expect(screen.getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
+    expect(screen.queryByText(/Some job portals/)).toBeNull()
+  })
+})
+
+const header = { name: 'Ada Lovelace', headline: null, email: null, phone: null, location: null, links: [] }
+const sections: CvDocument['sections'] = [{
+  id: 's1', kind: 'experience', title: 'Experience', visible: true, position: 0,
+  entries: [{ id: 'e1', evidence_item_id: null, body: 'Built things.', position: 0 }],
+}]
+const draftWith = (patch: Partial<CvStyle> = {}, body = 'Built things.') => ({
+  name: 'Principal CV', header, style: { ...style, ...patch },
+  sections: [{ ...sections[0], entries: [{ ...sections[0].entries[0], body }] }],
+})
+
+function tool(draft = draftWith()) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const onChange = vi.fn()
+  const ui = (next: ReturnType<typeof draftWith>) => (
+    <QueryClientProvider client={client}><CvDesignTool documentId="d1" draft={next} catalog={styleCatalogFixture} onChange={onChange} /></QueryClientProvider>
+  )
+  const view = render(ui(draft))
+  return { onChange, update: (next: ReturnType<typeof draftWith>) => view.rerender(ui(next)) }
+}
+
+describe('CvDesignTool fetches the gallery', () => {
+  beforeEach(() => {
+    api.templateThumbnailsForDraft.mockReset()
+    api.templateThumbnailsForDraft.mockImplementation(() => Promise.resolve(thumbnailsFor()))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('asks once when the panel opens, with the cleaned content and the drawn style, then shows the pictures', async () => {
+    tool(draftWith({ accent_color: '#075985', fit_one_page: true }))
+    expect(document.querySelectorAll('.kit-skeleton').length).toBeGreaterThan(0)
+    expect(await screen.findByRole('img', { name: 'Preview of the Classic template' })).toBeTruthy()
+    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
+    const [id, body] = api.templateThumbnailsForDraft.mock.calls[0]
+    expect(id).toBe('d1')
+    expect(body.sections[0].entries[0].body).toBe('Built things.')
+    expect(body.header.name).toBe('Ada Lovelace')
+    expect(body.style).toMatchObject({ accent_color: '#075985', density: 'normal', page_size: 'a4', ats_mode: false, fit_one_page: false })
+  })
+
+  it('does not ask again when only the template changes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const view = tool()
+    await screen.findByRole('img', { name: 'Preview of the Classic template' })
+    view.update(draftWith({ template_id: 'lagoon' }))
+    view.update(draftWith({ template_id: 'lagoon', ats_mode: true }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(THUMBNAILS_DEBOUNCE_MS * 2) })
+    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks again after a pause when the accent changes, keeping the old pictures meanwhile', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const view = tool()
+    await screen.findByRole('img', { name: 'Preview of the Classic template' })
+    view.update(draftWith({ accent_color: '#B91C1C' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(THUMBNAILS_DEBOUNCE_MS - 200) })
+    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('img', { name: 'Preview of the Classic template' })).toBeTruthy()
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(api.templateThumbnailsForDraft).toHaveBeenCalledTimes(2)
+    expect(api.templateThumbnailsForDraft.mock.calls[1][1].style.accent_color).toBe('#B91C1C')
+  })
+
+  it('aborts a request whose draft was replaced before it finished', async () => {
+    const signals: AbortSignal[] = []
+    api.templateThumbnailsForDraft.mockImplementation((_id: string, _draft: unknown, options: { signal: AbortSignal }) => {
+      signals.push(options.signal)
+      return new Promise<CvTemplateThumbnails>(() => {})
+    })
+    const view = tool()
+    await vi.waitFor(() => expect(signals).toHaveLength(1))
+    view.update(draftWith({}, 'Changed.'))
+    await vi.waitFor(() => expect(signals).toHaveLength(2), { timeout: 3000 })
+    expect(signals[0].aborted).toBe(true)
+    expect(signals[1].aborted).toBe(false)
+  })
+
+  it('falls back to text-only tiles when the server cannot draw them', async () => {
+    api.templateThumbnailsForDraft.mockRejectedValue(new ApiError('The PDF renderer is not available right now.', 503))
+    tool()
+    expect(await screen.findByText(/The previews couldn’t be drawn right now/)).toBeTruthy()
+    expect(screen.queryAllByRole('img')).toHaveLength(0)
+    // The controls still work.
+    expect(templateRadio('Lagoon').disabled).toBe(false)
   })
 })

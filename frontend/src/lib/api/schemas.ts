@@ -650,6 +650,22 @@ export const cvPreviewSchema = z.object({
 })
 export type CvPreview = z.infer<typeof cvPreviewSchema>
 
+/** `POST /cv-documents/{id}/template-thumbnails`: page 1 of the unsaved draft in every available template (WebP data
+ * URLs). A template that could not be drawn has no `url` and an `error` sentence; `sample` is true when the CV has no
+ * entries yet and the built-in sample CV is shown instead. */
+export const cvTemplateThumbnailsSchema = z.object({
+  thumbnails: z.array(z.object({
+    template_id: z.string(),
+    url: z.string().nullish(),
+    width: z.number().int().nonnegative(),
+    height: z.number().int().nonnegative(),
+    pages: z.number().int().nonnegative(),
+    error: z.string().nullish(),
+  })),
+  sample: z.boolean().default(false),
+})
+export type CvTemplateThumbnails = z.infer<typeof cvTemplateThumbnailsSchema>
+
 export const cvTailoringChangeSchema = z.strictObject({
   id: z.string().min(1).max(100), section_id: z.string().min(1).max(100), entry_id: z.string().min(1).max(100),
   // Which entry field this change rewrites: "body", or "bullets[<index>]" for
