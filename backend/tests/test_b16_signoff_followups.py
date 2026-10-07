@@ -122,10 +122,11 @@ def test_template_descriptions_promise_no_typeface_the_export_does_not_use(clien
         pdf = client.get(f"{CV}/{document['id']}/artifacts/pdf", headers=auth_headers)
         fonts = " ".join(font[3] for page in fitz.open(stream=pdf.content, filetype="pdf") for font in page.get_fonts())
         description = template["description"].lower()
-        # The default font is a sans (Lato): a template may not promise serif or monospace type.
+        # A description may not promise serif or monospace type the PDF does not embed.
+        # "monogram" (lagoon, rail) is a design element, not a typeface: match whole words only.
         if re.search(r"(?<!sans-)\bserif\b", description):
-            assert re.search(r"serif|times|georgia", fonts, re.I), (template["id"], fonts)
-        if "mono" in description:
+            assert re.search(r"serif|times|georgia|garamond|lora", fonts, re.I), (template["id"], fonts)
+        if re.search(r"\bmono(?:space|spaced)?\b", description):
             assert re.search(r"mono|courier", fonts, re.I), (template["id"], fonts)
         if re.search(r"\bcent(?:er|re)", description):
             assert template["title_align"] == "center", template["id"]
