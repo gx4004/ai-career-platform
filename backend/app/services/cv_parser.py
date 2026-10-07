@@ -79,6 +79,9 @@ _BULLET_MARKER = re.compile(
     r"^(?:[•◦▪▫●○■□·∙‣⁃*➢➤►▶✓✔❖◆◇–—-])(?:\s+|$)|^[•◦▪▫●○■□∙‣⁃➢➤►▶✓✔❖◆◇\uf000-\uf0ff]"
 )
 _MAX_LINE_FOR_ROLE = 200
+# Longer lines are plain text: no date or role regex ever sees them, which bounds the cost
+# of every pattern below (some are quadratic in the worst case, none is worse).
+_MAX_LINE_FOR_DATES = 400
 
 # Months in English, Russian and Ukrainian (full names, abbreviations, genitive forms).
 _MONTH = (
@@ -105,16 +108,22 @@ _PRESENT = (
 _END = rf"(?:{_DATE}|(?<!\w)(?:{_PRESENT})(?!\w))"
 _SEP = r"\s*(?:[–—‒−-]+|\bto\b|\buntil\b|\btill\b|\bthrough\b|\bпо\b|\bдо\b)\s*"
 _RANGE = rf"(?:(?<!\w)(?:с|з|from|since)\s+)?(?P<start>{_DATE}){_SEP}(?P<end>{_END})"
+# No two adjacent quantifiers here can both match the same whitespace (an optional bracket
+# carries its own spacing), so a whitespace run is never split every possible way.
+_OPEN = r"(?:[(\[]\s*)?"
+_CLOSE = r"(?:\s*[)\]])?"
+# ``rest`` ends on a character the separator class cannot take, so a run of separators is
+# read once, not once per possible end of ``rest``.
 _TRAILING_RANGE = re.compile(
-    rf"^(?P<rest>.+?)[\s,|·•:–—-]*[(\[]?\s*{_RANGE}\s*[)\]]?\s*$", re.IGNORECASE
+    rf"^(?P<rest>.*?[^\s,|·•:–—-])[\s,|·•:–—-]*{_OPEN}{_RANGE}{_CLOSE}$", re.IGNORECASE
 )
 _LEADING_RANGE = re.compile(
-    rf"^[(\[]?\s*{_RANGE}\s*[)\]]?[\s,|·•:–—-]*(?P<rest>\S.*)$", re.IGNORECASE
+    rf"^{_OPEN}{_RANGE}{_CLOSE}[\s,|·•:–—-]*(?P<rest>\S.*)$", re.IGNORECASE
 )
-_DATE_ONLY = re.compile(rf"^[(\[]?\s*(?:{_RANGE}|(?P<single>{_DATE}))\s*[)\]]?$", re.IGNORECASE)
-_TAB_SINGLE = re.compile(rf"^(?P<rest>.+?)\t+\s*(?P<single>{_DATE})\s*$", re.IGNORECASE)
-_PAREN_SINGLE = re.compile(rf"^(?P<rest>.+?)\s*\(\s*(?P<single>{_DATE})\s*\)\s*$", re.IGNORECASE)
-_BAR_SINGLE = re.compile(rf"^(?P<rest>.+?)\s*[|·]\s*(?P<single>{_DATE})\s*$", re.IGNORECASE)
+_DATE_ONLY = re.compile(rf"^{_OPEN}(?:{_RANGE}|(?P<single>{_DATE})){_CLOSE}$", re.IGNORECASE)
+_TAB_SINGLE = re.compile(rf"^(?P<rest>.+?)\t\s*(?P<single>{_DATE})$", re.IGNORECASE)
+_PAREN_SINGLE = re.compile(rf"^(?P<rest>.+?)\s*\(\s*(?P<single>{_DATE})\s*\)$", re.IGNORECASE)
+_BAR_SINGLE = re.compile(rf"^(?P<rest>.+?)\s*[|·]\s*(?P<single>{_DATE})$", re.IGNORECASE)
 _STRONG_SPLIT = re.compile(r"\s+[–—|@-]\s+|\s*[|·]\s*|\s+at\s+|\t+")
 _COMMA_SPLIT = re.compile(r"\s*,\s*")
 _YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
@@ -205,9 +214,23 @@ MAX_SECTIONS = 50
 MAX_BODY_CHARS = 5_000
 
 
+_WORD_CHAR = re.compile(r"[^\W_]")
+
+
+def _strip_edges(text: str, strip) -> str:
+    """``text`` without the characters ``strip(char)`` accepts at either end. A scan, not a
+    ``^x+|x+$`` pattern, which is quadratic on a long run of ``x`` inside the text."""
+    start, end = 0, len(text)
+    while start < end and strip(text[start]):
+        start += 1
+    while end > start and strip(text[end - 1]):
+        end -= 1
+    return text[start:end]
+
+
 def title_key(text: str) -> str:
     text = text.lower().replace("ё", "е").replace("&", " and ")
-    text = re.sub(r"^[\W_]+|[\W_]+$", "", text)
+    text = _strip_edges(text, lambda char: not _WORD_CHAR.match(char))
     return re.sub(r"\s+", " ", text)
 
 
@@ -256,7 +279,10 @@ def _section_kind(
 
 
 def _display_title(text: str) -> str:
-    title = re.sub(r"[:\s]+$", "", text).strip()
+    end = len(text)  # trailing colons and spaces, scanned (see _strip_edges)
+    while end and (text[end - 1] == ":" or text[end - 1].isspace()):
+        end -= 1
+    title = text[:end].strip()
     if title.isupper():
         words = title.lower().split()
         return " ".join(
@@ -278,12 +304,24 @@ def _tidy(text: str) -> str:
     return text.translate(_ODD_SPACES).translate(_INVISIBLE)
 
 
+_SPACE_RUN = re.compile(r"[ \t]{2,}")
+
+
+def _squeeze(text: str) -> str:
+    """A run of three or more spaces, or of spaces and tabs with a tab in it, is one column
+    gap: a single tab. Done once per line before any analysis, so no pattern ever meets a
+    long whitespace run (two plain spaces stay as they are)."""
+    return _SPACE_RUN.sub(
+        lambda run: "\t" if "\t" in run.group() or len(run.group()) > 2 else run.group(), text
+    )
+
+
 def lines_from_text(text: str) -> list[_Line]:
     lines: list[_Line] = []
     pending_marker = False
     gap = False
     for raw in _tidy(text).splitlines():
-        stripped = raw.strip()
+        stripped = _squeeze(raw.strip())
         if not stripped:
             gap = bool(lines)
             continue
@@ -629,8 +667,11 @@ def _place_like(text: str) -> bool:
 
 def _analyse(text: str) -> tuple[str, str | None, str | None]:
     """``(rest, start, end)``: the date range or single date a line carries and the text
-    around it. ``start`` is None when the line has no date."""
-    text = text.strip()
+    around it. ``start`` is None when the line has no date (always for a line longer than
+    ``_MAX_LINE_FOR_DATES``, which is plain text)."""
+    text = _squeeze(text.strip())
+    if len(text) > _MAX_LINE_FOR_DATES:
+        return text, None, None
     only = _DATE_ONLY.match(text)
     if only:
         return "", (only.group("start") or only.group("single")), only.group("end")
@@ -645,8 +686,14 @@ def _analyse(text: str) -> tuple[str, str | None, str | None]:
     return text, None, None
 
 
+def _dated(text: str, limit: int = _MAX_LINE_FOR_ROLE) -> bool:
+    """Whether a nearby line (the one after a title, a title block's last) carries a date.
+    A line longer than ``limit`` never does: it is a sentence, not a header."""
+    return len(text.strip()) <= limit and _analyse(text)[1] is not None
+
+
 def _clean_rest(rest: str) -> str:
-    return re.sub(r"^[\s,|–—:@·-]+|[\s,|–—:@·-]+$", "", rest).strip()
+    return _strip_edges(rest, lambda char: char in ",|–—:@·-" or char.isspace())
 
 
 def _split_commas(rest: str) -> list[str]:
@@ -782,9 +829,10 @@ def _title_block(lines: list[_Line], index: int) -> tuple[list[str], str, int] |
             return None
         line = lines[index + offset]
         text = line.text.strip()
-        if line.bullet or not _title_line(text) and not _analyse(text)[1]:
+        dated = _dated(text)
+        if line.bullet or not _title_line(text) and not dated:
             return None
-        if _analyse(text)[1]:
+        if dated:
             return (titles, text, offset + 1) if len(titles) >= 2 else None
         titles.append(text)
     return None
@@ -793,7 +841,7 @@ def _title_block(lines: list[_Line], index: int) -> tuple[list[str], str, int] |
 def _undated_header(kind: str, text: str, nxt: _Line | None, ahead: list[_Line]) -> dict | None:
     """A header with no dates, recognised by the bullets right below it: ``Role — Company``
     (+ a place line), or two title lines (+ a place line)."""
-    if nxt is None or not _title_line(text) or _place_like(text) or _analyse(nxt.text)[1]:
+    if nxt is None or not _title_line(text) or _place_like(text) or _dated(nxt.text):
         return None
     third = ahead[1] if len(ahead) > 1 else None
     fourth = ahead[2] if len(ahead) > 2 else None
@@ -856,11 +904,11 @@ def _read_header(
         fields.update(_date_fields(start, end))
     elif start:
         # Dates first: the title lines follow ("Mar 2022 – Present" / "Engineer" / "Acme").
-        if nxt is None or not _title_line(nxt.text) or _analyse(nxt.text)[1]:
+        if nxt is None or not _title_line(nxt.text) or _dated(nxt.text):
             return None
         titles = [nxt.text.strip()]
         used = 2
-        if nxt2 is not None and _title_line(nxt2.text) and not _analyse(nxt2.text)[1]:
+        if nxt2 is not None and _title_line(nxt2.text) and not _dated(nxt2.text):
             titles.append(nxt2.text.strip())
             used = 3
         fields = {"heading": titles[0]}
@@ -869,8 +917,8 @@ def _read_header(
         fields = _order_pair(fields, kind)
         fields.update(_date_fields(start, end))
     elif nxt is not None and _title_line(text):
-        rest1, start1, end1 = _analyse(nxt.text)
-        if start1 and len(nxt.text) <= 120:
+        rest1, start1, end1 = _analyse(nxt.text) if len(nxt.text) <= 120 else (nxt.text, None, None)
+        if start1:
             used = 2
             rest1 = _clean_rest(rest1)
             fields = _split_org(text, kind) if (_STRONG_SPLIT.search(text) or not rest1) else {"heading": text}
@@ -1201,7 +1249,7 @@ def _clean_docx_lines(lines: list[_Line]) -> list[_Line]:
     cleaned = []
     gap = False
     for line in lines:
-        text = _tidy(line.text).strip()
+        text = _squeeze(_tidy(line.text).strip())
         if not text:
             gap = bool(cleaned)
             continue
