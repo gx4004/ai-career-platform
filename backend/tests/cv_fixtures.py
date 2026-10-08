@@ -197,3 +197,56 @@ def edge_entries() -> SimpleNamespace:
 
 
 EDGE = {"no_summary": no_summary, "name_only": name_only, "edge_entries": edge_entries}
+
+
+# -- short CVs (adaptive page balance) ---------------------------------------------------------
+
+
+def junior() -> SimpleNamespace:
+    """A first-job CV: one role with one bullet, a degree and a skills line (a third of a page)."""
+    return SimpleNamespace(
+        name="Junior CV",
+        header={
+            "name": "Sam Taylor",
+            "headline": "Junior Data Analyst",
+            "email": "sam.taylor@example.com",
+            "phone": "+44 20 7946 0456",
+            "location": "Bristol",
+            "links": [],
+        },
+        sections=[
+            section("s", "summary", "Summary", 0, [entry("s1", 0, body=(
+                "Analyst with one year of experience turning messy spreadsheets into clear weekly reports."))]),
+            section("x", "experience", "Experience", 1, [
+                entry("x1", 0, heading="Data Analyst", subheading="Harbour Logistics", location="Bristol",
+                      start_date="2025", end_date="Present", bullets=[
+                    "Built a weekly delivery report in SQL and Power BI used by 12 depot managers."])]),
+            section("ed", "education", "Education", 2, [
+                entry("e1", 0, heading="BSc Mathematics", subheading="University of Bristol",
+                      start_date="2021", end_date="2024")]),
+            section("sk", "skills", "Skills", 3, [entry("k1", 0, body="SQL • Python • Excel • Power BI")]),
+        ],
+    )
+
+
+def graduate() -> SimpleNamespace:
+    """About half a page: two short roles, a project, a degree, skills and languages."""
+    cv = junior()
+    cv.name = "Graduate CV"
+    cv.header = {**cv.header, "links": ["linkedin.com/in/sam-taylor-example"]}
+    cv.sections[1]["entries"].append(
+        entry("x2", 1, heading="Analytics Intern", subheading="Severn Water", location="Bristol",
+              start_date="Jun 2024", end_date="Sep 2024", bullets=[
+            "Cleaned five years of meter readings and flagged 340 faulty sensors for replacement.",
+            "Wrote a Python script that cut the monthly leak report from two days to an hour."]))
+    cv.sections[1]["entries"][0]["bullets"].append(
+        "Automated the stock reconciliation, saving the finance team about six hours a week.")
+    cv.sections.insert(2, section("p", "projects", "Projects", 2, [
+        entry("p1", 0, heading="Bus punctuality dashboard", bullets=[
+            "A public Streamlit dashboard of Bristol bus delays built from open data."])]))
+    cv.sections.append(section("l", "custom", "Languages", 5, [
+        entry("l1", 0, body="English (native), Spanish (conversational)")]))
+    return cv
+
+
+SHORT = {"junior": junior, "graduate": graduate, "name_only": name_only, "no_summary": no_summary, "maya": maya}

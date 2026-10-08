@@ -25,8 +25,8 @@ from PIL import Image
 
 from app.schemas.cv_documents import CvRenderModel
 from app.services.cv_chromium import print_pdf
-from app.services.cv_fit import PREVIEW_MAX_RENDERS, FitResult, fit_cached, wants_fit
-from app.services.cv_html import html_template_id, load_manifest, render_cv_html
+from app.services.cv_fit import PREVIEW_MAX_RENDERS, FitResult, layout_cached, wants_fit
+from app.services.cv_html import html_template_id, load_manifest
 from app.services.cv_length import LengthAdvice, last_page_fill, length_advice, years_of_experience
 
 PREVIEW_DPI = 110
@@ -83,6 +83,8 @@ class PreviewResult:
     unsupported_characters: list[str] = field(default_factory=list)
     # Set only when the style asks to fit to one page.
     fit: FitResult | None = None
+    # Page balance printed (1.0: none); see cv_balance.
+    fill: float = 1.0
     last_page_fill: float = 0.0
     advice: LengthAdvice | None = None
 
@@ -185,21 +187,19 @@ def render_preview(
     Raises ``CvRenderUnavailableError`` (HTTP 503 in the API) when Chromium cannot run.
     """
     check = check_cancelled or (lambda: None)
-    fit = None
-    if wants_fit(model):
-        fit, pdf = fit_cached(
-            model, prepare_script=MEASURE_SCRIPT, max_renders=PREVIEW_MAX_RENDERS,
-            check_cancelled=check,
-        )
-    else:
-        html = render_cv_html(model, page_size=str(model.tokens.get("page_size", "a4")))
-        check()
-        pdf = print_pdf(html, MEASURE_SCRIPT)
+    # Fit (when asked for) and page balance, with the layout cached by model: the export and
+    # the quality check that follow print the layout the person saw, in one render.
+    layout, pdf = layout_cached(
+        model, prepare_script=MEASURE_SCRIPT, render=print_pdf, max_renders=PREVIEW_MAX_RENDERS,
+        check_cancelled=check,
+    )
+    fit = layout.fit
     check()
     kinds = {"header": "header"} | {section.id: section.kind for section in model.sections}
     result = rasterise(pdf, kinds, dpi=dpi, quality=quality, width=width)
     result.unsupported_characters = list(model.unsupported_characters)
     result.fit = fit
+    result.fill = layout.fill
     manifest = load_manifest(html_template_id(model.template_id))
     result.last_page_fill = last_page_fill(pdf, manifest.margin_top_mm, manifest.margin_bottom_mm)
     result.advice = length_advice(

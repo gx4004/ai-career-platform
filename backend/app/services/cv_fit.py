@@ -1,4 +1,8 @@
-"""Fit to one page (spec docs/cv-templates-spec.md D5, 3.4).
+"""The layout solver: fit to one page (spec docs/cv-templates-spec.md D5, 3.4) and page balance.
+
+``solve_layout`` runs the fit search below when the style asks for it, then hands a CV that
+prints on one page at scale 1 to ``cv_balance`` (adaptive page balance), and the result is
+cached by model. The rest of this docstring is the fit search.
 
 When ``style.fit_one_page`` is on, the CV is printed at a uniform scale chosen by searching
 with the real Chromium render: 1.0 first, then the floor, then a binary search between them.
@@ -34,6 +38,7 @@ from app.services.cv_chromium import (
     RenderTimeoutError,  # noqa: F401  (re-exported for callers and tests)
     print_pdf,
 )
+from app.services.cv_balance import balance_page, wants_balance, with_fill
 from app.services.cv_html import render_cv_html
 from app.services.cv_pdf import normalize_pdf
 
@@ -204,8 +209,8 @@ class _Lru:
 
 # Keyed by a hash of the whole render model (content, header, template and every style
 # token), so "the same document revision in the same style" is one key whatever asked.
-# Scales are tiny; the PDFs are about 50-150 KB each.
-_fits = _Lru(128)
+# Layouts are tiny; the PDFs are about 50-150 KB each.
+_layouts = _Lru(128)
 _pdfs = _Lru(16)
 
 
@@ -214,8 +219,88 @@ def model_key(model: CvRenderModel) -> str:
 
 
 def clear_fit_caches() -> None:
-    _fits.clear()
+    _layouts.clear()
     _pdfs.clear()
+
+
+@dataclass(frozen=True)
+class Layout:
+    """How a CV is laid out on its pages: the fit scale (when fit to one page is asked for)
+    and the page balance ``fill`` (1.0 when the CV is not balanced)."""
+
+    fit: FitResult | None
+    fill: float = 1.0
+    # False when a search was cut short (time, a failed render): such a layout is not cached.
+    complete: bool = True
+
+
+def solve_layout(
+    model: CvRenderModel,
+    *,
+    prepare_script: str | None = None,
+    render: Render = print_pdf,
+    clock: Callable[[], float] = time.monotonic,
+    max_renders: int = MAX_RENDERS,
+    check_cancelled: Callable[[], None] | None = None,
+) -> tuple[Layout, bytes]:
+    """The layout solver: fit (shrink a long CV, when asked) then balance (widen a short one).
+
+    They never both act: balance runs only on a CV printed at scale 1 on one page. The first
+    render's errors propagate; nothing after it can fail the request (fit keeps its best,
+    balance falls back to fill 1)."""
+    started = clock()
+    fit = None
+    if wants_fit(model):
+        fit, pdf = fit_to_one_page(
+            model, prepare_script=prepare_script, render=render, clock=clock,
+            max_renders=max_renders, check_cancelled=check_cancelled,
+        )
+    else:
+        if check_cancelled is not None:
+            check_cancelled()
+        page_size = str(model.tokens.get("page_size", "a4"))
+        pdf = render(render_cv_html(model, page_size=page_size), prepare_script, TIME_BUDGET_SECONDS)
+    fill, complete = 1.0, fit is None or fit.reason is None
+    if wants_balance(model) and (fit is None or (fit.scale == 1.0 and fit.reason is None)):
+        balanced, pdf = balance_page(
+            model, pdf, prepare_script=prepare_script, render=render, clock=clock,
+            started=started, check_cancelled=check_cancelled,
+        )
+        fill, complete = balanced.fill, complete and not balanced.cut_short
+    return Layout(fit, fill, complete), pdf
+
+
+def _laid_out(model: CvRenderModel, layout: Layout) -> CvRenderModel:
+    if layout.fit is not None:
+        model = with_fit_scale(model, round(layout.fit.scale * 100))
+    return with_fill(model, layout.fill) if layout.fill != 1.0 else model
+
+
+def layout_cached(
+    model: CvRenderModel,
+    *,
+    prepare_script: str | None = None,
+    render: Render = print_pdf,
+    max_renders: int = MAX_RENDERS,
+    check_cancelled: Callable[[], None] | None = None,
+) -> tuple[Layout, bytes]:
+    """``solve_layout``, reusing a layout already found for this exact model: then only that
+    layout is printed (one render, no search). A search cut short is not cached."""
+    key = model_key(model)
+    known = _layouts.get(key)
+    if known is not None:
+        if check_cancelled is not None:
+            check_cancelled()
+        page_size = str(model.tokens.get("page_size", "a4"))
+        html = render_cv_html(_laid_out(model, known), page_size=page_size)
+        return known, render(html, prepare_script, TIME_BUDGET_SECONDS)
+    layout, pdf = solve_layout(
+        model, prepare_script=prepare_script, render=render, max_renders=max_renders,
+        check_cancelled=check_cancelled,
+    )
+    if layout.complete:
+        _layouts.put(key, layout)
+    return layout, pdf
 
 
 def fit_cached(
@@ -225,28 +310,17 @@ def fit_cached(
     render: Render = print_pdf,
     max_renders: int = MAX_RENDERS,
     check_cancelled: Callable[[], None] | None = None,
-) -> tuple[FitResult, bytes]:
-    """``fit_to_one_page``, reusing a scale already found for this exact model: then only the
-    chosen scale is printed (one render, no search). A search cut short is not cached."""
-    key = model_key(model)
-    known = _fits.get(key)
-    if known is not None:
-        if check_cancelled is not None:
-            check_cancelled()
-        page_size = str(model.tokens.get("page_size", "a4"))
-        html = render_cv_html(with_fit_scale(model, round(known.scale * 100)), page_size=page_size)
-        return known, render(html, prepare_script, TIME_BUDGET_SECONDS)
-    fit, pdf = fit_to_one_page(
+) -> tuple[FitResult | None, bytes]:
+    """``layout_cached`` reporting only the fit (None when the style does not ask for one)."""
+    layout, pdf = layout_cached(
         model, prepare_script=prepare_script, render=render, max_renders=max_renders,
         check_cancelled=check_cancelled,
     )
-    if fit.reason is None:
-        _fits.put(key, fit)
-    return fit, pdf
+    return layout.fit, pdf
 
 
 def render_pdf_fitted(model: CvRenderModel) -> tuple[bytes, FitResult | None]:
-    """The exported PDF: fitted when the style asks for it, otherwise the plain render.
+    """The exported PDF, laid out: fitted when the style asks for it, balanced when it is short.
 
     The PDF is cached by model, so a quality check rerun on an unchanged CV (autosave), or an
     export right after one, prints nothing."""
@@ -256,11 +330,11 @@ def render_pdf_fitted(model: CvRenderModel) -> tuple[bytes, FitResult | None]:
     cached = _pdfs.get(key)
     if cached is not None:
         return cached
-    if not wants_fit(model):
-        result = render_pdf(model), None
+    if not wants_fit(model) and not wants_balance(model):
+        result, complete = (render_pdf(model), None), True
     else:
-        fit, pdf = fit_cached(model)
-        result = normalize_pdf(pdf), fit
-    if result[1] is None or result[1].reason is None:
+        layout, pdf = layout_cached(model)
+        result, complete = (normalize_pdf(pdf), layout.fit), layout.complete
+    if complete:
         _pdfs.put(key, result)
     return result
