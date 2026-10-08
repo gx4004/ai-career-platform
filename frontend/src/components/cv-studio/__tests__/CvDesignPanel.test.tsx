@@ -72,10 +72,14 @@ describe('CvDesignPanel style controls', () => {
     expect(onChange).toHaveBeenCalledWith({ page_size: 'letter' })
   })
 
-  it('locks typeface, accent and spacing in ATS-friendly mode', () => {
-    panel(vi.fn(), { ...style, ats_mode: true })
-    expect(screen.getByRole('radio', { name: /Inter/ }).hasAttribute('disabled') || screen.getByRole('radio', { name: /Inter/ }).getAttribute('aria-disabled') === 'true').toBe(true)
-    expect(screen.getByRole('radio', { name: 'Plum' }).hasAttribute('disabled') || screen.getByRole('radio', { name: 'Plum' }).getAttribute('aria-disabled') === 'true').toBe(true)
+  it('in ATS-friendly mode locks typeface and spacing but keeps the accent', () => {
+    const onChange = panel(vi.fn(), { ...style, ats_mode: true })
+    const off = (element: HTMLElement) => element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true'
+    expect(off(screen.getByRole('radio', { name: /Inter/ }))).toBe(true)
+    expect(off(screen.getByRole('radio', { name: 'Roomy' }))).toBe(true)
+    expect(off(screen.getByRole('radio', { name: 'Plum' }))).toBe(false)
+    fireEvent.click(screen.getByRole('radio', { name: 'Plum' }))
+    expect(onChange).toHaveBeenCalledWith({ accent_color: '#9D174D' })
   })
 
   it('has a Fit to one page switch wired to style.fit_one_page', () => {
@@ -181,15 +185,22 @@ describe('CvDesignPanel template gallery', () => {
     expect(screen.getByText(/Some job portals may read this layout out of order/)).toBeTruthy()
   })
 
-  it('in ATS mode offers only the ATS-safe tiles, disabled, with Classic selected', () => {
-    render(<CvDesignPanel style={{ ...style, ats_mode: true, template_id: 'lagoon' }} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready()} />)
+  it('in ATS mode offers only the ATS-safe tiles; a template that is not ATS-safe shows as Classic', () => {
+    const onChange = vi.fn()
+    render(<CvDesignPanel style={{ ...style, ats_mode: true, template_id: 'lagoon' }} catalog={styleCatalogFixture} onChange={onChange} thumbnails={ready()} />)
     expect(screen.queryByRole('radio', { name: /Lagoon/ })).toBeNull()
     expect(screen.queryByRole('radiogroup', { name: 'More designs' })).toBeNull()
     expect(templateRadio('Classic').checked).toBe(true)
-    expect(templateRadio('Classic').disabled).toBe(true)
-    expect(templateRadio('Executive').disabled).toBe(true)
-    expect(screen.getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
+    expect(templateRadio('Executive').disabled).toBe(false)
+    expect(screen.getByText('Only one-column templates while ATS-friendly mode is on.')).toBeTruthy()
     expect(screen.queryByText(/Some job portals/)).toBeNull()
+    fireEvent.click(templateRadio('Executive'))
+    expect(onChange).toHaveBeenCalledWith({ template_id: 'executive' })
+  })
+
+  it('in ATS mode keeps a chosen ATS-safe template', () => {
+    render(<CvDesignPanel style={{ ...style, ats_mode: true, template_id: 'executive' }} catalog={styleCatalogFixture} onChange={vi.fn()} thumbnails={ready()} />)
+    expect(templateRadio('Executive').checked).toBe(true)
   })
 })
 

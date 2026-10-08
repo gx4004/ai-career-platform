@@ -5,8 +5,8 @@ Evidence: `.claude/handoff/cv-studio/` (research file, 25 references, 25 recreat
 
 ## 1. Outcome
 
-CV Studio produces CVs people would send. Today the PDF/DOCX come from ReportLab with five thin templates
-(`cv_rendering.py`) and the preview is a hand-synced HTML renderer (`.cvp-*`). Neither looks like the CVs on
+CV Studio produces CVs people would send. Before this chapter the PDF/DOCX came from ReportLab with five thin templates
+(`cv_rendering.py`) and the preview was a hand-synced HTML renderer (`.cvp-*`). Neither looked like the CVs on
 Enhancv, Novoresume or Reactive Resume. The outcome is 16 designed templates, a preview that is the real PDF, and
 exports that parse.
 
@@ -17,7 +17,7 @@ exports that parse.
 | D1 | Templates are HTML/CSS (Jinja) over the existing render model, printed to PDF by headless Chromium. ReportLab is removed for CV PDFs only (cover letter and interview PDFs untouched). | The 25 recreations were built this way; ReportLab cannot do colour blocks, sidebars, bands or the type quality. |
 | D2 | 16 templates (section 4). "Classic" (from reference 22) is the default and the quality bar. | Owner picks, 2026-10-07. |
 | D3 | The live preview is server-rendered page images of the unsaved draft, produced by the same Chromium print pass as the PDF, plus section rectangles for click-to-edit. No Paged.js. `.cvp-*` renderer is deleted. | Preview equals the PDF in every browser. One engine means identical pagination without a pagination library. |
-| D4 | Single-column templates are labelled ATS-safe. Sidebar, rail and two-column templates are labelled "less ATS-safe" with a one-line warning. ATS mode offers only the ATS-safe set and forces Classic. | Research: multi-column layouts read out of order in extraction (reproduced with pdftotext). |
+| D4 | Single-column templates are labelled ATS-safe. Sidebar, rail and two-column templates are labelled "less ATS-safe" with a one-line warning. ATS mode offers only the ATS-safe set: a chosen ATS-safe template is kept, any other prints as Classic; it uses the template's own typefaces (no override) in the PDF and the DOCX, forces normal spacing and keeps the accent. | Research: multi-column layouts read out of order in extraction (reproduced with pdftotext). |
 | D5 | Any template can run to several pages. "Fit to one page" is an option on every template, never forced. A nudge appears when a one-page-norm CV (under about 8 years) runs just over a page. | Recruiter evidence favours two pages for mid and senior; one page is a junior norm. |
 | D6 | No photo upload. Templates with a photo slot show a monogram placeholder in the editor preview; the export collapses the slot. | Owner decision. No legal requirement for photos in DE/FR/NL. |
 | D7 | Static OFL TTFs only, every family with Cyrillic and Latin Extended. | Variable fonts and unloaded weights become Type 3 PDF fonts, which ATS checkers penalise. Lato, Quicksand, Oswald, Fraunces, Newsreader and Bricolage lack Cyrillic or static files. |

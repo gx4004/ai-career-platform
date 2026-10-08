@@ -88,12 +88,15 @@ def test_a_stored_legacy_style_opens_and_exports(client, auth_headers, db, test_
     assert client.get(f"{PREFIX}/{created['id']}/artifacts/pdf", headers=auth_headers).status_code == 200
 
 
-def test_ats_mode_catalog_offers_only_ats_safe_templates_and_forces_classic():
+def test_ats_mode_catalog_offers_only_ats_safe_templates_and_falls_back_to_classic():
     catalog = style_catalog()
     safe = [t.id for t in catalog.templates if t.ats_safe]
     assert catalog.ats_mode.template_id == "classic"
     assert catalog.ats_mode.offered_template_ids == safe
-    assert "classic" in safe
+    assert {"classic", "scholar", "frame"} <= set(safe)
+    assert (catalog.ats_mode.density, catalog.ats_mode.fonts, catalog.ats_mode.accent) == (
+        "normal", "template", "kept",
+    )
 
 
 def test_is_ats_safe_resolves_unavailable_ids_to_the_default():

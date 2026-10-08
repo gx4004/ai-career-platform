@@ -718,9 +718,11 @@ export const cvStyleCatalogSchema = z.object({
   fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string(), css_family: z.string() })).min(1),
   palette: z.array(z.object({ value: z.enum(CV_ACCENT_PALETTE), name: z.string() })).min(1),
   densities: z.array(z.object({ id: cvDensitySchema, name: z.string() })).min(1),
+  /** What ATS-friendly mode prints: a template that is not ATS-safe prints as `template_id`, an offered (ATS-safe)
+   * one is kept; density is forced; the template's own typefaces (no override) and the accent are kept. */
   ats_mode: z.object({
     template_id: cvTemplateIdSchema, offered_template_ids: z.array(cvTemplateIdSchema),
-    density: cvDensitySchema, accent: z.string(), css_family: z.string(),
+    density: cvDensitySchema, fonts: z.literal('template'), accent: z.literal('kept'),
   }),
 })
 export type CvStyleCatalog = z.infer<typeof cvStyleCatalogSchema>

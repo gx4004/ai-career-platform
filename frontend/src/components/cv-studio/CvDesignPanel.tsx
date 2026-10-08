@@ -113,7 +113,7 @@ export function CvDesignTool({ style, catalog, onChange }: {
 }
 
 function galleryNote(locked: boolean, thumbnails?: TemplateThumbnailsState) {
-  if (locked) return 'Paused while ATS-friendly mode is on.'
+  if (locked) return 'Only one-column templates while ATS-friendly mode is on.'
   if (!thumbnails) return undefined
   if (thumbnails.status === 'error') return 'The previews couldn’t be drawn right now. You can still pick a template by name.'
   return 'Sample content, in your colour, typeface and spacing.'
@@ -139,9 +139,12 @@ export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
   }
 
   const locked = style.ats_mode
-  // ATS mode forces one template and offers only the ATS-safe ones; an id without a template yet
-  // (or one the catalog does not list) shows as the first catalog template, as it prints.
-  const shownId = locked ? catalog.ats_mode.template_id : style.template_id
+  // ATS mode offers only the ATS-safe templates and keeps a chosen one; any other prints as the
+  // catalog's ATS template. Typeface and spacing are fixed there, the accent stays. An id without a
+  // template yet (or one the catalog does not list) shows as the first catalog template, as it prints.
+  const shownId = locked && !catalog.ats_mode.offered_template_ids.includes(style.template_id)
+    ? catalog.ats_mode.template_id
+    : style.template_id
   const selected = catalog.templates.find((template) => template.id === shownId) ?? catalog.templates[0]
   const offered = locked
     ? catalog.templates.filter((template) => catalog.ats_mode.offered_template_ids.includes(template.id))
@@ -172,7 +175,6 @@ export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
                     aria-label={group === 'ats-safe' ? 'ATS-safe templates' : 'More designs'}
                     name="cv-template"
                     variant="tile"
-                    disabled={locked}
                     value={selected.id}
                     onValueChange={(template_id) => onChange({ template_id: template_id as CvStyle['template_id'] })}
                   >
@@ -219,7 +221,7 @@ export function CvDesignPanel({ style, catalog, onChange, thumbnails }: {
       </Section>
 
       <Section headingLevel={3} title="Accent colour">
-        <RadioGroup aria-label="Accent colour" variant="swatch" orientation="horizontal" disabled={locked} value={style.accent_color ?? TEMPLATE_ACCENT} onValueChange={(accent_color) => onChange({ accent_color: accent_color === TEMPLATE_ACCENT ? null : (accent_color as NonNullable<CvStyle['accent_color']>) })}>
+        <RadioGroup aria-label="Accent colour" variant="swatch" orientation="horizontal" value={style.accent_color ?? TEMPLATE_ACCENT} onValueChange={(accent_color) => onChange({ accent_color: accent_color === TEMPLATE_ACCENT ? null : (accent_color as NonNullable<CvStyle['accent_color']>) })}>
           {/* The template's own colour (null): picking Ink, or any colour, is then a real choice. */}
           <RadioItem value={TEMPLATE_ACCENT} label={`Template colour (${catalog.palette.find(({ value }) => value === selected.default_accent)?.name ?? 'Ink'})`} swatch={selected.default_accent} />
           {catalog.palette.map(({ value, name }) => (
