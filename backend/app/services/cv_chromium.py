@@ -134,14 +134,7 @@ class ChromiumPool:
                 return self._browser
             await self._discard_browser()
             try:
-                from playwright.async_api import async_playwright
-
-                if self._playwright is None:
-                    self._playwright = await async_playwright().start()
-                args = ["--disable-dev-shm-usage", "--disable-gpu"]
-                if _no_sandbox():
-                    args.append("--no-sandbox")
-                self._browser = await self._playwright.chromium.launch(headless=True, args=args)
+                self._browser = await self._launch()
             except Exception as error:
                 self._launch_failed = True
                 logger.warning("cv chromium launch failed: %s", type(error).__name__)
@@ -150,6 +143,16 @@ class ChromiumPool:
             self._launch_failed = False
             self.launches += 1
             return self._browser
+
+    async def _launch(self):
+        from playwright.async_api import async_playwright
+
+        if self._playwright is None:
+            self._playwright = await async_playwright().start()
+        args = ["--disable-dev-shm-usage", "--disable-gpu"]
+        if _no_sandbox():
+            args.append("--no-sandbox")
+        return await self._playwright.chromium.launch(headless=True, args=args)
 
     async def _discard_browser(self, *, stop_driver: bool = False) -> None:
         browser, self._browser = self._browser, None
@@ -163,8 +166,8 @@ class ChromiumPool:
 
     # -- rendering (loop thread) -------------------------------------------
 
-    async def _print_once(self, html: str, prepare_script: str | None = None) -> bytes:
-        browser = await self._get_browser()
+    async def _print_once(self, html: str, prepare_script: str | None = None, browser=None) -> bytes:
+        browser = browser or await self._get_browser()
         context = await browser.new_context(service_workers="block")
         try:
             page = await context.new_page()
@@ -199,16 +202,18 @@ class ChromiumPool:
             self.in_flight += 1
             self.peak_in_flight = max(self.peak_in_flight, self.in_flight)
             try:
+                browser = await self._get_browser()
                 try:
-                    return await self._print_once(html, prepare_script)
+                    return await self._print_once(html, prepare_script, browser)
                 except CvRenderUnavailableError:
                     raise
                 except Exception as error:
-                    if self._browser is not None and not self._browser.is_connected():
-                        # The browser died under this render: start a fresh one, once.
-                        logger.warning("cv chromium crashed, restarting: %s", type(error).__name__)
-                        return await self._print_once(html, prepare_script)
-                    raise
+                    if browser is self._browser and browser.is_connected():
+                        raise  # the page failed, not the browser
+                    # The browser this render started on died (another render may already have
+                    # replaced it): retry once on the current browser, or a freshly launched one.
+                    logger.warning("cv chromium crashed, retrying: %s", type(error).__name__)
+                    return await self._print_once(html, prepare_script, await self._get_browser())
             finally:
                 self.in_flight -= 1
 
