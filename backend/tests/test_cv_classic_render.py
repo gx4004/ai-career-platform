@@ -266,12 +266,29 @@ def test_health_does_not_start_the_browser():
 # -- slots, timeout, crash recovery ----------------------------------------------
 
 
+class _FakeBrowser:
+    def __init__(self, generation: int):
+        self.generation, self.connected = generation, True
+
+    def is_connected(self) -> bool:
+        return self.connected
+
+    async def close(self) -> None:
+        self.connected = False
+
+
+async def _fake_get_browser(self):
+    if self._browser is None:
+        self._browser = _FakeBrowser(1)
+    return self._browser
+
+
 def test_at_most_two_renders_print_at_once(monkeypatch):
     pool = ChromiumPool(concurrency=2)
     running = peak = 0
     guard = threading.Lock()
 
-    async def fake_print(self, html, prepare_script=None):
+    async def fake_print(self, html, prepare_script=None, browser=None):
         nonlocal running, peak
         with guard:
             running += 1
@@ -282,6 +299,7 @@ def test_at_most_two_renders_print_at_once(monkeypatch):
         return b"%PDF"
 
     monkeypatch.setattr(ChromiumPool, "_print_once", fake_print)
+    monkeypatch.setattr(ChromiumPool, "_get_browser", _fake_get_browser)
     threads = [threading.Thread(target=pool.print_pdf, args=("<p>x</p>",)) for _ in range(6)]
     try:
         for thread in threads:
@@ -301,10 +319,11 @@ def test_the_module_default_is_two_slots_and_fifteen_seconds():
 
 
 def test_a_render_that_takes_too_long_is_abandoned_with_a_503_error(monkeypatch):
-    async def slow(self, html, prepare_script=None):
+    async def slow(self, html, prepare_script=None, browser=None):
         await asyncio.sleep(5)
 
     monkeypatch.setattr(ChromiumPool, "_print_once", slow)
+    monkeypatch.setattr(ChromiumPool, "_get_browser", _fake_get_browser)
     pool = ChromiumPool(timeout=0.2)
     try:
         started = time.monotonic()
@@ -325,6 +344,73 @@ def test_a_crashed_browser_is_restarted_on_the_next_render():
         assert pool.status() in {"idle", "unavailable"}
         assert pool.print_pdf("<p>two</p>").startswith(b"%PDF")
         assert pool.launches == 2
+    finally:
+        pool.shutdown()
+
+
+def test_a_render_whose_browser_was_already_replaced_retries_on_the_new_one(monkeypatch):
+    """Two renders in flight when Chromium crashes: the first to fail relaunches it, the second
+    finds a connected browser that is not the one it started on, and retries there once."""
+    released = threading.Event()
+    failures: list[int] = []
+
+    async def launch(self):
+        return _FakeBrowser(self.launches + 1)  # _get_browser counts the launch
+
+    async def print_on(self, html, prepare_script=None, browser=None):
+        if browser.generation == 1:
+            while not released.is_set():
+                await asyncio.sleep(0.01)
+            failures.append(1)
+            if len(failures) == 2:
+                # The second render fails only after the first one relaunched the browser.
+                while self._browser is browser:
+                    await asyncio.sleep(0.01)
+            raise RuntimeError("Target page, context or browser has been closed")
+        return f"%PDF {browser.generation}".encode()
+
+    monkeypatch.setattr(ChromiumPool, "_launch", launch)
+    monkeypatch.setattr(ChromiumPool, "_print_once", print_on)
+    pool = ChromiumPool(concurrency=2)
+    results: list[bytes | Exception] = []
+
+    def render():
+        try:
+            results.append(pool.print_pdf("<p>x</p>"))
+        except Exception as error:  # noqa: BLE001
+            results.append(error)
+
+    threads = [threading.Thread(target=render) for _ in range(2)]
+    try:
+        for thread in threads:
+            thread.start()
+        deadline = time.monotonic() + 5
+        while pool.in_flight < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        pool._browser.connected = False  # the crash
+        released.set()
+        for thread in threads:
+            thread.join(10)
+        assert results == [b"%PDF 2", b"%PDF 2"]
+        assert pool.launches == 2  # one relaunch, shared
+    finally:
+        pool.shutdown()
+
+
+def test_a_render_error_on_a_healthy_browser_is_not_retried(monkeypatch):
+    calls = []
+
+    async def print_on(self, html, prepare_script=None, browser=None):
+        calls.append(browser)
+        raise RuntimeError("bad page")
+
+    monkeypatch.setattr(ChromiumPool, "_print_once", print_on)
+    monkeypatch.setattr(ChromiumPool, "_get_browser", _fake_get_browser)
+    pool = ChromiumPool()
+    try:
+        with pytest.raises(CvRenderUnavailableError):
+            pool.print_pdf("<p>x</p>")
+        assert len(calls) == 1
     finally:
         pool.shutdown()
 
