@@ -5,13 +5,31 @@
                                       text colour (white or ink) that reads on a fill of it
      --type, --gap                    density scales (compact .88/.70, normal 1, spacious 1.15/1.40)
    Templates size text as `calc(Npt * var(--type))` or em of the body size, and space blocks
-   with the --space-* scale, so density moves type and spacing together. */
+   with the --space-* scale, so density moves type and spacing together.
+   Adaptive page balance (cv_balance) spreads a short one-page CV down the page by spacing
+   alone, never by type size. The render sets --fill (>= 1, at most the template's cap),
+   --fill-soft (half as far from 1) and --lead (extra line height, <= .2) only on a
+   balanced CV; without them every value below equals its --space-* twin, so a CV that is
+   not balanced prints exactly as before. Templates use --flow-* for the gaps between
+   sections and entries and under section headings, --soft-* for header and in-entry gaps,
+   and add var(--lead, 0) to the body line height. Chips, rules and paddings inside boxes
+   stay on --space-*. */
 :root {
   --space-1: calc(1.5pt * var(--gap));
   --space-2: calc(3pt * var(--gap));
   --space-3: calc(6pt * var(--gap));
   --space-4: calc(8pt * var(--gap));
   --space-5: calc(14pt * var(--gap));
+  --flow-1: calc(var(--space-1) * var(--fill, 1));
+  --flow-2: calc(var(--space-2) * var(--fill, 1));
+  --flow-3: calc(var(--space-3) * var(--fill, 1));
+  --flow-4: calc(var(--space-4) * var(--fill, 1));
+  --flow-5: calc(var(--space-5) * var(--fill, 1));
+  --soft-1: calc(var(--space-1) * var(--fill-soft, 1));
+  --soft-2: calc(var(--space-2) * var(--fill-soft, 1));
+  --soft-3: calc(var(--space-3) * var(--fill-soft, 1));
+  --soft-4: calc(var(--space-4) * var(--fill-soft, 1));
+  --soft-5: calc(var(--space-5) * var(--fill-soft, 1));
   --ink: #1a1a1a;
   --muted: #6b6b6b;
 }

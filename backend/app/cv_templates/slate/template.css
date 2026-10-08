@@ -13,7 +13,7 @@
   --slate-ink-2: #333333;   /* organisation: 12.6:1 */
   --slate-muted: #595959;   /* location, separators: 7:1 */
   --slate-side: 15mm;       /* the page's side margin, padded by the body itself */
-  font: 400 clamp(9pt, calc(9.6pt * var(--type)), 10.4pt) / 1.42 var(--font-body);
+  font: 400 clamp(9pt, calc(9.6pt * var(--type)), 10.4pt) / calc(1.42 + var(--lead, 0)) var(--font-body);
   hyphens: manual;
   orphans: 2;
   widows: 2;
@@ -23,7 +23,7 @@
 /* -- header band ----------------------------------------------------------------------- */
 .sl-head { color: var(--on-accent); }
 .sl-band {
-  padding: calc(var(--space-5) + 4mm) var(--slate-side) calc(var(--space-4) + 2mm);
+  padding: calc(var(--soft-5) + 4mm) var(--slate-side) calc(var(--soft-4) + 2mm);
   background: var(--slate-band);
 }
 .sl-band h1 {
@@ -33,7 +33,7 @@
   text-wrap: balance;
 }
 .sl-headline {
-  margin-top: var(--space-2);
+  margin-top: var(--soft-2);
   font-size: 1.16em;
   line-height: 1.3;
   color: var(--slate-light);
@@ -43,7 +43,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2) 8mm;
-  padding: var(--space-4) var(--slate-side);
+  padding: var(--soft-4) var(--slate-side);
   font-size: 0.94em;
   line-height: 1.35;
   background: var(--slate-strip);
@@ -61,16 +61,16 @@
 }
 .sl-contact a { text-decoration: none; }
 /* Name only: the band alone, with a little more air below the name. */
-.sl-band:only-child { padding-bottom: calc(var(--space-5) + 3mm); }
+.sl-band:only-child { padding-bottom: calc(var(--soft-5) + 3mm); }
 
 /* -- body ------------------------------------------------------------------------------ */
-.sl-body { padding: calc(var(--space-5) + 1mm) var(--slate-side) 0; }
+.sl-body { padding: calc(var(--flow-5) + 1mm) var(--slate-side) 0; }
 /* The panel of lists: floated right under the summary, the main sections wrap round it.
    Its light tint of the accent keeps the accent headings on it at 4.5:1 for every palette colour. */
 .sl-panel {
   float: right;
   width: 64mm;
-  margin: 0 0 var(--space-4) 8mm;
+  margin: 0 0 var(--flow-4) 8mm;
   padding: var(--space-4) 4mm calc(var(--space-4) + 1pt);
   border-radius: 4pt;
   background: var(--slate-panel);
@@ -84,18 +84,18 @@
 .sl-flow .sl-chips { display: flex; }
 .sl-lead, .sl-flow { isolation: isolate; } /* paint order = reading order (see the template) */
 .sl-flow::after { content: ""; display: block; clear: both; }
-.sl-lead + .sl-flow > .sl-panel { margin-top: var(--space-5); }
+.sl-lead + .sl-flow > .sl-panel { margin-top: var(--flow-5); }
 .sl-flow > .sl-panel:first-child { margin-top: 0; }
 .sl-lead + .sl-flow > .sl-panel + .sl-section,
-.sl-lead + .sl-flow > .sl-section:first-child { margin-top: var(--space-5); }
-.sl-panel > .sl-section + .sl-section { margin-top: var(--space-4); }
+.sl-lead + .sl-flow > .sl-section:first-child { margin-top: var(--flow-5); }
+.sl-panel > .sl-section + .sl-section { margin-top: var(--flow-4); }
 .sl-panel .sl-chips--outline span { background: #ffffff; }
 
-.sl-section + .sl-section { margin-top: var(--space-5); }
+.sl-section + .sl-section { margin-top: var(--flow-5); }
 .sl-section > h2 {
   /* Real small capitals (Fira Sans has them): the text layer keeps the user's own title. */
   width: fit-content;
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--flow-3);
   padding-bottom: var(--space-1);
   border-bottom: 2pt solid var(--accent);
   font: 700 1.24em / 1.15 var(--font-heading);
@@ -109,7 +109,7 @@
 
 /* -- entries --------------------------------------------------------------------------- */
 .sl-entry { break-inside: avoid; }
-.sl-entry + .sl-entry { margin-top: var(--space-4); }
+.sl-entry + .sl-entry { margin-top: var(--flow-4); }
 .sl-entry--split { break-inside: auto; }
 .sl-entry-head { break-inside: avoid; break-after: avoid; }
 .sl-role { font: 600 1.1em / 1.28 var(--font-heading); text-wrap: balance; }
@@ -119,9 +119,9 @@
 .sl-sep, .sl-place { color: var(--slate-muted); }
 
 /* Text bullets in flow, in the accent. */
-.sl-entry ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.sl-entry ul { margin: var(--soft-2) 0 0; padding: 0; list-style: none; }
 .sl-entry li { padding-left: 11pt; break-inside: avoid; text-wrap: pretty; }
-.sl-entry li + li { margin-top: calc(var(--space-1) * 0.8); }
+.sl-entry li + li { margin-top: calc(var(--soft-1) * 0.8); }
 .sl-entry li::before {
   content: "\2022";
   display: inline-block;
@@ -137,12 +137,12 @@
 .sl-entry li:last-child { break-before: avoid; }
 
 .sl-text { margin: 0; hyphens: none; text-wrap: pretty; }
-.sl-text + .sl-text { margin-top: var(--space-2); }
-.sl-entry > .sl-text { margin-top: var(--space-2); }
+.sl-text + .sl-text { margin-top: var(--soft-2); }
+.sl-entry > .sl-text { margin-top: var(--soft-2); }
 
 /* -- chips ----------------------------------------------------------------------------- */
 .sl-chips { display: flex; flex-wrap: wrap; gap: var(--space-2) calc(var(--space-2) + 1pt); break-inside: avoid; }
-.sl-chips + .sl-chips, .sl-chips + .sl-text, .sl-text + .sl-chips { margin-top: var(--space-3); }
+.sl-chips + .sl-chips, .sl-chips + .sl-text, .sl-text + .sl-chips { margin-top: var(--soft-3); }
 .sl-chips span {
   padding: calc(var(--space-1) + 0.5pt) 2.4mm;
   border: 0.9pt solid var(--slate-band);
@@ -156,4 +156,4 @@
 
 /* The narrow column: entries there are compact. */
 .sl-panel .sl-role { font-size: 1em; }
-.sl-panel .sl-entry + .sl-entry { margin-top: var(--space-3); }
+.sl-panel .sl-entry + .sl-entry { margin-top: var(--flow-3); }

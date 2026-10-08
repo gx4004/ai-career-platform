@@ -11,7 +11,7 @@
   --lg-ink-2: #3d3d3d;   /* contact, organisation line: 11:1 */
   --lg-muted: #555555;   /* dates, location: 7.5:1 */
   --lg-rule: #d4d4d4;
-  font: 400 clamp(var(--body-min, 8.75pt), calc(9.3pt * var(--type)), 10.5pt) / 1.42 var(--font-body);
+  font: 400 clamp(var(--body-min, 8.75pt), calc(9.3pt * var(--type)), 10.5pt) / calc(1.42 + var(--lead, 0)) var(--font-body);
   hyphens: manual;
   orphans: 2;
   widows: 2;
@@ -32,7 +32,7 @@
   grid-template-columns: var(--lg-side-w) minmax(0, 1fr);
   grid-template-areas: "mono head" "side main";
   grid-template-rows: auto 1fr;
-  row-gap: var(--space-5);
+  row-gap: var(--soft-5);
   padding: var(--lg-top) 0 var(--lg-bottom);
   /* Each printed page gets the top and bottom inset, not just the first and last. */
   -webkit-box-decoration-break: clone;
@@ -55,7 +55,7 @@
   font-size: 1.12em;
   line-height: 1.3;
   color: var(--accent);
-  margin-top: var(--space-2);
+  margin-top: var(--soft-2);
   text-wrap: balance;
 }
 .cv-contact {
@@ -67,7 +67,7 @@
   line-height: 1.4;
   color: var(--lg-ink-2);
 }
-.cv-headline + .cv-contact, .cv-header h1 + .cv-contact { margin-top: var(--space-3); }
+.cv-headline + .cv-contact, .cv-header h1 + .cv-contact { margin-top: var(--soft-3); }
 .cv-contact + .cv-contact { margin-top: calc(var(--space-1) * 0.67); }
 .lg-contact-item { white-space: nowrap; display: inline-flex; align-items: baseline; gap: 3.5pt; }
 .lg-contact-item.lg-long { white-space: normal; }
@@ -94,13 +94,13 @@
 
 /* -- main column ------------------------------------------------------------------------ */
 .lg-main { grid-area: main; padding: 0 var(--lg-main-right) 0 var(--lg-main-left); min-width: 0; }
-.cv-section + .cv-section { margin-top: var(--space-5); }
+.cv-section + .cv-section { margin-top: var(--flow-5); }
 .cv-section > h2 {
   font: 600 1.34em / 1.1 var(--font-heading);
   letter-spacing: 0.055em;
   font-variant-caps: all-small-caps;
   color: var(--ink);
-  margin: 0 0 calc(var(--space-3) + var(--space-1));
+  margin: 0 0 calc(var(--flow-3) + var(--flow-1));
   padding-bottom: var(--space-2);
   border-bottom: 1pt solid var(--accent);
   break-after: avoid;
@@ -108,7 +108,7 @@
 .cv-section > h2 + * { break-before: avoid; }
 
 .cv-entry { break-inside: avoid; }
-.cv-entry + .cv-entry { margin-top: var(--space-4); }
+.cv-entry + .cv-entry { margin-top: var(--flow-4); }
 .cv-entry--split { break-inside: auto; }
 .cv-entry-head {
   display: grid;
@@ -125,9 +125,9 @@
 .cv-org { grid-area: org; font-weight: 500; color: var(--accent); text-wrap: balance; }
 .cv-place { grid-area: place; text-align: right; color: var(--lg-muted); font-size: 0.92em; }
 
-.cv--lagoon ul { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.cv--lagoon ul { margin: var(--soft-2) 0 0; padding: 0; list-style: none; }
 .cv--lagoon li { padding-left: 11pt; break-inside: avoid; text-wrap: pretty; }
-.cv--lagoon li + li { margin-top: calc(var(--space-1) * 0.67); }
+.cv--lagoon li + li { margin-top: calc(var(--soft-1) * 0.67); }
 /* In flow, never positioned: a positioned box paints (and so extracts) after the text. */
 .cv--lagoon li::before {
   content: "\2022";
@@ -143,8 +143,8 @@
 .cv-entry li:first-child, .cv-entry li:nth-child(2), .cv-entry li:last-child { break-before: avoid; }
 
 .cv-text { margin: 0; text-wrap: pretty; }
-.cv-text + .cv-text { margin-top: var(--space-2); }
-.cv-entry > .cv-text { margin-top: var(--space-2); }
+.cv-text + .cv-text { margin-top: var(--soft-2); }
+.cv-entry > .cv-text { margin-top: var(--soft-2); }
 
 /* -- sidebar ---------------------------------------------------------------------------- */
 .lg-side {
