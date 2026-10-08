@@ -1127,7 +1127,12 @@ Render capacity model (per worker process; `cv_chromium`, `cv_render_lanes`, `cv
 - *Renders per request.* Fit to one page spends at most four renders in a preview and
   six in an export or quality check, inside one 15 s budget; a further attempt starts
   only with 3 s left, and a later attempt that fails or times out returns the best
-  result so far (`reason: "time"`) instead of an error. The scale found for an exact
+  result so far (`reason: "time"`) instead of an error. Page balance (`cv_balance`)
+  adds at most three renders to a short one-page CV (none to a full, multi-page or
+  shrunk one) inside the same budget and lane; a balance render that fails, times out
+  or would start with under 3 s left ends balance on the plain print, never a 503.
+  Measured locally: preview p50/p95 177/299 ms without balance, 314/559 ms with it on
+  uncached short and long CVs. The layout (scale and balance) found for an exact
   render model (content, header, template and every style token, hashed) is kept in an
   in-process LRU (128 entries), so the export or quality check after a preview prints
   once instead of searching; the final PDF of an export or quality check is kept in a
