@@ -72,6 +72,12 @@ class TemplateManifest:
     # The accent a template prints with while the style's accent is null (no colour picked);
     # resolved in ``cv_rendering.resolve_effective_style``, so the model's accent is final.
     default_accent: str | None = None
+    # Adaptive page balance: the most a short CV's spacing may open up (``--fill``), see
+    # ``cv_balance``. A template whose blocks look gappy sooner sets a lower cap.
+    balance_max: float = 2.2
+    # Sidebar templates: balance measures (and opens up) the main column, the text from this
+    # many mm from the left edge; the sidebar keeps its spacing. None: the whole page.
+    balance_main_from_mm: float | None = None
 
     @property
     def families(self) -> frozenset[str]:
@@ -100,6 +106,8 @@ def load_manifest(template_id: str) -> TemplateManifest:
         margin_left_mm=margin["left"],
         fonts=tuple(FontFace(**face) for face in raw["fonts"]),
         default_accent=raw.get("default_accent"),
+        balance_max=float(raw.get("balance_max", 2.2)),
+        balance_main_from_mm=raw.get("balance_main_from_mm"),
     )
 
 
@@ -224,13 +232,44 @@ def _stack(family: Typeface) -> str:
     return f'"{family.name}", {_GENERIC[family.category]}'
 
 
+# Page balance: how much of the spacing growth the header and in-entry gaps take (--fill-soft),
+# the page's top and bottom margins take, and the extra line height at the cap.
+SOFT_SHARE = 0.5
+MARGIN_SHARE = 0.3
+MAX_LEAD = 0.2
+LEAD_PER_FILL = 1 / 6
+
+
+def balance_vars(fill: float) -> dict[str, float]:
+    """The custom properties a page balance ``fill`` (>= 1) sets; empty at 1 (nothing changes)."""
+    if fill <= 1:
+        return {}
+    return {
+        "fill": round(fill, 4),
+        "fill-soft": round(1 + (fill - 1) * SOFT_SHARE, 4),
+        "lead": round(min(MAX_LEAD, (fill - 1) * LEAD_PER_FILL), 4),
+    }
+
+
+def balanced_margin_mm(margin_mm: float, fill: float) -> float:
+    """A top or bottom page margin under page balance (sides never move)."""
+    return margin_mm if fill <= 1 else round(margin_mm * (1 + (fill - 1) * MARGIN_SHARE), 2)
+
+
 def _root_vars(
-    plan: FontPlan, accent: str, type_scale: float, gap_scale: float, fit_scale: float = 1.0
+    plan: FontPlan,
+    accent: str,
+    type_scale: float,
+    gap_scale: float,
+    fit_scale: float = 1.0,
+    fill: float = 1.0,
 ) -> str:
     """The :root custom properties. ``fit_scale`` (fit to one page, <= 1) multiplies the type
-    and gap scales; ``--body-min`` then holds the body at 9pt however far the scale drops."""
+    and gap scales; ``--body-min`` then holds the body at 9pt however far the scale drops.
+    ``fill`` (page balance, >= 1) widens spacing only (``--fill``, ``--fill-soft``, ``--lead``)."""
     tokens = accent_tokens(accent)
     fit = f"--fit-scale: {fit_scale:g}; --body-min: 9pt; " if fit_scale < 1 else ""
+    fit += "".join(f"--{name}: {value:g}; " for name, value in balance_vars(fill).items())
     type_scale, gap_scale = round(type_scale * fit_scale, 4), round(gap_scale * fit_scale, 4)
     return (
         ":root { "
@@ -356,6 +395,7 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
     side = [s for s in model.sections if _in_sidebar(s, manifest.sidebar_kinds)]
     side_ids = {s.id for s in side}
     main = [s for s in model.sections if s.id not in side_ids]
+    fill = int(tokens.get("fill_pct", 100)) / 100
     return (
         _environment()
         .get_template(f"{template_id}/template.html.j2")
@@ -375,15 +415,16 @@ def render_cv_html(model: CvRenderModel, *, page_size: str = "a4") -> str:
                     int(tokens.get("type_scale_pct", 100)) / 100,
                     int(tokens.get("gap_scale_pct", 100)) / 100,
                     int(tokens.get("fit_scale_pct", 100)) / 100,
+                    fill,
                 )
             ),
             base_css=Markup(_base_css()),  # noqa: S704 - bundled file only
             css=Markup(_template_css(template_id)),  # noqa: S704 - bundled file only
             page_size=PAGE_SIZES[page_size],
             margin={
-                "top": manifest.margin_top_mm,
+                "top": balanced_margin_mm(manifest.margin_top_mm, fill),
                 "right": manifest.margin_right_mm,
-                "bottom": manifest.margin_bottom_mm,
+                "bottom": balanced_margin_mm(manifest.margin_bottom_mm, fill),
                 "left": manifest.margin_left_mm,
             },
             missing_table={ord(c): " " for c in missing},

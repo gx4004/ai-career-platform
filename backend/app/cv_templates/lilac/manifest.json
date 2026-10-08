@@ -9,6 +9,8 @@
   "typefaces": {"heading": "Source Serif 4", "body": "Inter"},
   "accent_role": "sidebar",
   "default_accent": "#6D28D9",
+  "balance_main_from_mm": 66,
+  "balance_max": 2.5,
   "sidebar_kinds": ["education", "skills", "certifications", "custom"],
   "page_margin_mm": {"top": 12, "right": 11, "bottom": 12, "left": 8},
   "fonts": [
