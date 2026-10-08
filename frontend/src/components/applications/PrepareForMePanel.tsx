@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Button, Checkbox, Chip, Cluster, Field, Input, Notice, Select, Skeleton, Stack } from '#/components/kit'
 import { getApplicationPreferences, prepareApplicationsForMe, saveApplicationPreferences } from '#/lib/api/client'
 import type { ApplicationPreferences, ApplicationPreferencesUpdate, BulkPrepareResult } from '#/lib/api/schemas'
 import { APPLICATION_PREFERENCES_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
 import { ApplicationPanel } from './ApplicationPanel'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 /**
  * "Prepare applications for me": the owner says which jobs they want, then one
@@ -15,11 +16,11 @@ import { ApplicationPanel } from './ApplicationPanel'
 export function PrepareForMePanel() {
   const queryClient = useQueryClient()
   const preferences = useQuery({ queryKey: APPLICATION_PREFERENCES_QUERY_KEY, queryFn: getApplicationPreferences })
-  const save = useMutation({
+  const save = useOwnerMutation({
     mutationFn: (payload: ApplicationPreferencesUpdate) => saveApplicationPreferences(payload),
     onSuccess: (saved) => queryClient.setQueryData(APPLICATION_PREFERENCES_QUERY_KEY, saved),
   })
-  const prepare = useMutation({
+  const prepare = useOwnerMutation({
     mutationFn: () => prepareApplicationsForMe(),
     onSuccess: () => { void invalidateApplications(queryClient) },
   })

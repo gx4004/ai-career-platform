@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Pencil, Pin } from 'lucide-react'
 import { Button, Cluster, Input, PageHeader, Tooltip } from '#/components/kit'
@@ -8,6 +8,7 @@ import { updateHistoryWorkspace } from '#/lib/api/client'
 import type { ApplicationDetail } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { applicationTitle, roleOnly } from './stages'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 /**
  * Title, company, name and pin for one application (an application is its workspace row, so
@@ -30,7 +31,7 @@ export function ApplicationHeader({
   const [draft, setDraft] = useState('')
   const queryKey = applicationQueryKey(application.id)
 
-  const save = useMutation({
+  const save = useOwnerMutation({
     mutationFn: (payload: { label?: string; is_pinned?: boolean }) =>
       updateHistoryWorkspace(application.id, payload),
     onMutate: () => onError(null),

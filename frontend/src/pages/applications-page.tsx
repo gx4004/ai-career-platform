@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Briefcase, ChevronDown, CircleAlert, MoreHorizontal, Pin, Plus } from 'lucide-react'
 import { AddApplicationDialog } from '#/components/applications/AddApplicationDialog'
@@ -56,6 +56,7 @@ import {
   APPLICATION_PREFERENCES_QUERY_KEY,
   invalidateApplications,
 } from '#/lib/query/applicationCaches'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 type View = 'board' | 'list'
 
@@ -114,7 +115,7 @@ function ApplicationsWorkspace() {
   const insights = useQuery({ queryKey: APPLICATION_INSIGHTS_QUERY_KEY, queryFn: getApplicationInsights })
   const preferences = useQuery({ queryKey: APPLICATION_PREFERENCES_QUERY_KEY, queryFn: getApplicationPreferences })
   const panelsReady = !waiting && !insights.isPending && !preferences.isPending
-  const move = useMutation({
+  const move = useOwnerMutation({
     mutationFn: ({ card, status }: { card: ApplicationCard; status: ApplicationStatus }) =>
       updateApplication(card.id, { status }),
     // A refused move (409) is shown, not repeated behind the person's back.
