@@ -18,7 +18,7 @@
 # Direct dev tools
 pytest==9.1.1
 pytest-asyncio==1.4.0
-ruff==0.15.22
+ruff==0.16.10
 
 # Transitive — pulled in by the tools above, pinned so they cannot drift either
 iniconfig==2.3.0
