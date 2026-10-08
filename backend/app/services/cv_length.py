@@ -110,11 +110,13 @@ def length_advice(
     return None
 
 
-def last_page_fill(pdf: bytes, top_mm: float, bottom_mm: float) -> float:
-    """How far down the printable area the last page's text reaches (0..1)."""
+def last_page_fill(pdf: bytes, top_mm: float, bottom_mm: float, *, from_x_mm: float | None = None) -> float:
+    """How far down the printable area the last page's text reaches (0..1); with
+    ``from_x_mm``, only the text that starts at least that far from the left edge counts."""
     with fitz.open(stream=pdf, filetype="pdf") as document:
         page = document[len(document) - 1]
         top = top_mm / 25.4 * 72
         printable = page.rect.height - top - bottom_mm / 25.4 * 72
-        lowest = max((b[3] for b in page.get_text("blocks")), default=top)
+        left = (from_x_mm or 0) / 25.4 * 72
+        lowest = max((b[3] for b in page.get_text("blocks") if b[0] >= left), default=top)
         return round(min(max((lowest - top) / printable, 0.0), 1.0), 3)

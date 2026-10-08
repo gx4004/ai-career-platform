@@ -173,8 +173,8 @@ def test_multi_page_returns_every_page(client, auth_headers, document):
 def test_more_than_eight_pages_is_truncated(client, auth_headers, document, monkeypatch):
     original = cv_preview.print_pdf
 
-    def many_pages(html, script=None):
-        pdf = original(html, script)
+    def many_pages(html, script=None, timeout=None):
+        pdf = original(html, script, timeout)
         with fitz.open(stream=pdf, filetype="pdf") as source, fitz.open() as doc:
             for _ in range(10):
                 doc.insert_pdf(source, from_page=0, to_page=0)
@@ -207,7 +207,12 @@ def test_unsupported_characters_are_reported_as_a_warning(client, auth_headers, 
 
 def test_preview_page_one_is_the_pdf_page_one_raster(client, auth_headers, document):
     body = _post(client, auth_headers, document.id, _draft("maya")).json()
-    pdf = render_pdf(build_render_model(cv_fixtures.maya(), "classic", CvStyle()))
+    # The export lays the CV out the same way (Maya is short, so page balance opens it up).
+    from app.services.cv_fit import clear_fit_caches, render_pdf_fitted, solve_layout
+
+    clear_fit_caches()  # the export solves its own layout, not the preview's cached one
+    model = build_render_model(cv_fixtures.maya(), "classic", CvStyle())
+    pdf, _ = render_pdf_fitted(model)
     with fitz.open(stream=pdf, filetype="pdf") as doc:
         pix = doc[0].get_pixmap(dpi=cv_preview.PREVIEW_DPI, alpha=False)
         expected = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
@@ -220,8 +225,11 @@ def test_preview_page_one_is_the_pdf_page_one_raster(client, auth_headers, docum
     from app.services.cv_chromium import print_pdf
     from app.services.cv_html import render_cv_html
 
-    model = build_render_model(cv_fixtures.maya(), "classic", CvStyle())
-    measured = print_pdf(render_cv_html(model), cv_preview.MEASURE_SCRIPT)
+    from app.services.cv_balance import with_fill
+
+    layout, _ = solve_layout(model)
+    assert layout.fill > 1
+    measured = print_pdf(render_cv_html(with_fill(model, layout.fill)), cv_preview.MEASURE_SCRIPT)
     with fitz.open(stream=measured, filetype="pdf") as doc:
         pix2 = doc[0].get_pixmap(dpi=cv_preview.PREVIEW_DPI, alpha=False)
     assert pix2.samples == pix.samples
