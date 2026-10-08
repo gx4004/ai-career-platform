@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import io
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from urllib.parse import unquote
 
@@ -24,7 +25,7 @@ from PIL import Image
 
 from app.schemas.cv_documents import CvRenderModel
 from app.services.cv_chromium import print_pdf
-from app.services.cv_fit import FitResult, fit_to_one_page, wants_fit
+from app.services.cv_fit import PREVIEW_MAX_RENDERS, FitResult, fit_cached, wants_fit
 from app.services.cv_html import html_template_id, load_manifest, render_cv_html
 from app.services.cv_length import LengthAdvice, last_page_fill, length_advice, years_of_experience
 
@@ -174,19 +175,27 @@ def render_preview(
     dpi: int = PREVIEW_DPI,
     quality: int = WEBP_QUALITY,
     width: int | None = None,
+    check_cancelled: Callable[[], None] | None = None,
 ) -> PreviewResult:
     """Print the draft with Chromium and return its page images and section rectangles.
 
     ``width`` sizes the page images to the client's display (pixels); without it they are ``dpi``.
+    ``check_cancelled`` runs before every render (and before rasterising) and may raise to stop.
 
     Raises ``CvRenderUnavailableError`` (HTTP 503 in the API) when Chromium cannot run.
     """
+    check = check_cancelled or (lambda: None)
     fit = None
     if wants_fit(model):
-        fit, pdf = fit_to_one_page(model, prepare_script=MEASURE_SCRIPT)
+        fit, pdf = fit_cached(
+            model, prepare_script=MEASURE_SCRIPT, max_renders=PREVIEW_MAX_RENDERS,
+            check_cancelled=check,
+        )
     else:
         html = render_cv_html(model, page_size=str(model.tokens.get("page_size", "a4")))
+        check()
         pdf = print_pdf(html, MEASURE_SCRIPT)
+    check()
     kinds = {"header": "header"} | {section.id: section.kind for section in model.sections}
     result = rasterise(pdf, kinds, dpi=dpi, quality=quality, width=width)
     result.unsupported_characters = list(model.unsupported_characters)

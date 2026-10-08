@@ -239,10 +239,11 @@ def test_a_cv_too_long_to_fit_runs_to_its_pages_at_the_floor_on_a_sidebar_templa
 
 
 def test_preview_and_pdf_agree_on_the_page_count_and_the_fit():
+    # The preview searches with fewer renders; the export reuses the scale it found.
     for template in ("classic", "slate"):
         model = _model(template)
         preview = render_preview(model)
-        fit, pdf = fit_to_one_page(model)
+        pdf, fit = render_pdf_fitted(model)
         assert preview.page_count == fitz.open(stream=pdf, filetype="pdf").page_count == fit.pages
         assert preview.fit == fit
 

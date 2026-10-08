@@ -8,8 +8,11 @@ Design (spec docs/cv-templates-spec.md 3.1):
   routers call this module from threadpool threads (sync endpoints, and
   ``run_in_threadpool``), where sync Playwright cannot be shared; a single loop
   owns the browser and any thread may submit a render with :func:`print_pdf`.
-* At most ``MAX_CONCURRENT_RENDERS`` pages print at once and a render that takes
-  longer than ``RENDER_TIMEOUT_SECONDS`` (queueing included) is abandoned.
+* At most ``MAX_CONCURRENT_RENDERS`` pages print at once. A render that waits longer
+  than ``QUEUE_TIMEOUT_SECONDS`` for a slot gives up as "busy" (503), and one that takes
+  longer than ``RENDER_TIMEOUT_SECONDS`` (queueing included) is abandoned. The per-user
+  limit on top of this is ``cv_render_lanes``; the capacity model is in
+  docs/threat-model.md.
 * No fallback renderer: when Chromium cannot run, callers get
   :class:`CvRenderUnavailableError`, which the app maps to HTTP 503.
 """
@@ -29,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 MAX_CONCURRENT_RENDERS = 2
 RENDER_TIMEOUT_SECONDS = 15.0
+# How long a render waits for a free slot (or a user's earlier render) before it is "busy".
+QUEUE_TIMEOUT_SECONDS = 5.0
 # A page that never reaches "load" (it only has inline content) is a bug, not a wait.
 _LOAD_TIMEOUT_MS = 10_000
 
@@ -49,6 +54,16 @@ class ChromiumUnavailableError(CvRenderUnavailableError):
 
 class RenderTimeoutError(CvRenderUnavailableError):
     message = "The PDF took too long to prepare. Please try again in a moment."
+
+
+class RenderBusyError(CvRenderUnavailableError):
+    message = "The PDF renderer is busy right now. Please try again in a moment."
+
+
+class RenderCancelledError(Exception):
+    """A newer request from the same person replaced this one (or its client went away)."""
+
+    message = "A newer preview replaced this one."
 
 
 def _no_sandbox() -> bool:
@@ -83,9 +98,11 @@ class ChromiumPool:
         *,
         concurrency: int = MAX_CONCURRENT_RENDERS,
         timeout: float = RENDER_TIMEOUT_SECONDS,
+        queue_timeout: float = QUEUE_TIMEOUT_SECONDS,
     ) -> None:
         self.concurrency = concurrency
         self.timeout = timeout
+        self.queue_timeout = queue_timeout
         self._start_lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
@@ -198,7 +215,11 @@ class ChromiumPool:
 
     async def _print(self, html: str, prepare_script: str | None = None) -> bytes:
         assert self._semaphore is not None
-        async with self._semaphore:
+        try:
+            await asyncio.wait_for(self._semaphore.acquire(), self.queue_timeout)
+        except TimeoutError as error:
+            raise RenderBusyError() from error
+        try:
             self.in_flight += 1
             self.peak_in_flight = max(self.peak_in_flight, self.in_flight)
             try:
@@ -216,6 +237,8 @@ class ChromiumPool:
                     return await self._print_once(html, prepare_script, await self._get_browser())
             finally:
                 self.in_flight -= 1
+        finally:
+            self._semaphore.release()
 
     async def _print_with_timeout(
         self, html: str, prepare_script: str | None = None, timeout: float | None = None

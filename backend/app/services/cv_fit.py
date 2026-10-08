@@ -17,8 +17,10 @@ runs low or a later render fails, the search stops on the best result it has (``
 
 from __future__ import annotations
 
+import hashlib
+import threading
 import time
-from collections import Counter
+from collections import Counter, OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
@@ -38,6 +40,9 @@ from app.services.cv_pdf import normalize_pdf
 FLOOR_PCT = 50
 MIN_BODY_PT = 9.0
 MAX_RENDERS = 6
+# The live preview searches with fewer renders (it reruns on every edit); the result is cached,
+# so the export and the quality check that follow reuse the scale the person saw.
+PREVIEW_MAX_RENDERS = 4
 TIME_BUDGET_SECONDS = RENDER_TIMEOUT_SECONDS
 # A further attempt is started only with at least this much of the budget left: less would
 # give the render a timeout it cannot meet while pretending there is budget.
@@ -170,11 +175,92 @@ def fit_to_one_page(
     return result(pct, pages, pdf)
 
 
+class _Lru:
+    """A small thread-safe LRU (renders run on threadpool threads)."""
+
+    def __init__(self, size: int) -> None:
+        self.size = size
+        self._items: OrderedDict = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            if key not in self._items:
+                return None
+            self._items.move_to_end(key)
+            return self._items[key]
+
+    def put(self, key, value) -> None:
+        with self._lock:
+            self._items[key] = value
+            self._items.move_to_end(key)
+            while len(self._items) > self.size:
+                self._items.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._items.clear()
+
+
+# Keyed by a hash of the whole render model (content, header, template and every style
+# token), so "the same document revision in the same style" is one key whatever asked.
+# Scales are tiny; the PDFs are about 50-150 KB each.
+_fits = _Lru(128)
+_pdfs = _Lru(16)
+
+
+def model_key(model: CvRenderModel) -> str:
+    return hashlib.sha256(model.model_dump_json().encode()).hexdigest()
+
+
+def clear_fit_caches() -> None:
+    _fits.clear()
+    _pdfs.clear()
+
+
+def fit_cached(
+    model: CvRenderModel,
+    *,
+    prepare_script: str | None = None,
+    render: Render = print_pdf,
+    max_renders: int = MAX_RENDERS,
+    check_cancelled: Callable[[], None] | None = None,
+) -> tuple[FitResult, bytes]:
+    """``fit_to_one_page``, reusing a scale already found for this exact model: then only the
+    chosen scale is printed (one render, no search). A search cut short is not cached."""
+    key = model_key(model)
+    known = _fits.get(key)
+    if known is not None:
+        if check_cancelled is not None:
+            check_cancelled()
+        page_size = str(model.tokens.get("page_size", "a4"))
+        html = render_cv_html(with_fit_scale(model, round(known.scale * 100)), page_size=page_size)
+        return known, render(html, prepare_script, TIME_BUDGET_SECONDS)
+    fit, pdf = fit_to_one_page(
+        model, prepare_script=prepare_script, render=render, max_renders=max_renders,
+        check_cancelled=check_cancelled,
+    )
+    if fit.reason is None:
+        _fits.put(key, fit)
+    return fit, pdf
+
+
 def render_pdf_fitted(model: CvRenderModel) -> tuple[bytes, FitResult | None]:
-    """The exported PDF: fitted when the style asks for it, otherwise the plain render."""
+    """The exported PDF: fitted when the style asks for it, otherwise the plain render.
+
+    The PDF is cached by model, so a quality check rerun on an unchanged CV (autosave), or an
+    export right after one, prints nothing."""
     from app.services.cv_rendering import render_pdf
 
+    key = model_key(model)
+    cached = _pdfs.get(key)
+    if cached is not None:
+        return cached
     if not wants_fit(model):
-        return render_pdf(model), None
-    fit, pdf = fit_to_one_page(model)
-    return normalize_pdf(pdf), fit
+        result = render_pdf(model), None
+    else:
+        fit, pdf = fit_cached(model)
+        result = normalize_pdf(pdf), fit
+    if result[1] is None or result[1].reason is None:
+        _pdfs.put(key, result)
+    return result
