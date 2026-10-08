@@ -138,9 +138,12 @@ jobs:
         # PYSEC-2026-1325 has no fixed ecdsa release. The application constrains
         # JWTs to HS256, so that optional EC code path is unreachable; keep the
         # narrow exception visible until python-jose/ecdsa is replaced.
+        # CVE-2026-85394 requires a public asymmetric key accepted as HMAC.
+        # This app uses only a private string secret and Literal[HS256],
+        # with every jwt.decode explicitly restricted. No patched release exists.
         run: |
           python -m pip install pip-audit==2.10.1
-          pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
+          pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325 --ignore-vuln CVE-2026-85394
 
       - name: Ruff check
         run: ruff check app

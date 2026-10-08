@@ -1,5 +1,7 @@
+import { clearLetterState } from '#/lib/tools/letterState'
 import { clearTransientResults } from '#/lib/tools/demoRuns'
 import { clearAllToolDrafts, clearWorkflowContext } from '#/lib/tools/drafts'
+import { removeSessionValuesByPrefix } from '#/lib/auth/storage'
 import { clearResumeCarry } from '#/lib/tools/resumeCarryStore'
 
 function clearBestEffort(clear: () => void): void {
@@ -16,4 +18,7 @@ export function clearSensitiveBrowserData(): void {
   clearBestEffort(clearWorkflowContext)
   clearBestEffort(clearTransientResults)
   clearBestEffort(clearResumeCarry)
+  clearBestEffort(clearLetterState)
+  clearBestEffort(() => removeSessionValuesByPrefix('cw:practice:'))
+  clearBestEffort(() => removeSessionValuesByPrefix('cw:practice-rounds:'))
 }

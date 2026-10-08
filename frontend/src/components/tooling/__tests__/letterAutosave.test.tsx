@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { flushLetterEdits, useLetterAutosave } from '#/components/tooling/ResultParts'
+import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
+import { editedLetterText, setEditedLetterText, flushLetterEdits, useLetterAutosave } from '#/components/tooling/ResultParts'
 import type { LetterDraft } from '#/components/tooling/ResultParts'
 
 const request = vi.hoisted(() => vi.fn())
@@ -85,6 +86,32 @@ describe('flushLetterEdits', () => {
     ])
     expect(hook.result.current).toBe('saved')
     hook.unmount()
+  })
+
+  it('does not flush an old owner draft on unmount after private data is cleared', async () => {
+    const hook = renderAutosave()
+    hook.rerender({ draft: EDITED, edited: true })
+    setEditedLetterText(RUN, 'Private letter')
+    clearSensitiveBrowserData()
+    hook.unmount()
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(request).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem(`cw:letter-edit:${RUN}`)).toBeNull()
+    expect(editedLetterText(RUN)).toBeUndefined()
+  })
+
+  it('does not remove a newer session draft when a retired save completes', async () => {
+    const patch = deferred()
+    request.mockReturnValue(patch.promise)
+    const hook = renderAutosave()
+    hook.rerender({ draft: EDITED, edited: true })
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(request).toHaveBeenCalledTimes(1)
+    clearSensitiveBrowserData()
+    hook.unmount()
+    sessionStorage.setItem(`cw:letter-edit:${RUN}`, JSON.stringify(ORIGINAL))
+    await act(async () => { patch.resolve(); await patch.promise })
+    expect(sessionStorage.getItem(`cw:letter-edit:${RUN}`)).toBe(JSON.stringify(ORIGINAL))
   })
 
   it('does not write anything when the letter was never edited', async () => {

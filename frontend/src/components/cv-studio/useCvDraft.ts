@@ -5,6 +5,7 @@ import { ApiError } from '#/lib/api/errors'
 import type { CvDocument, CvDocumentUpdate } from '#/lib/api/schemas'
 import { toSavableSections } from '#/lib/cv-studio/editor'
 import { toSavableHeader } from '#/lib/cv-studio/header'
+import { draftClearCount } from '#/lib/tools/drafts'
 import { keepalivePatch } from './cvApi'
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
@@ -30,6 +31,12 @@ export const toPayload = (draft: Pick<CvDocument, 'name' | 'sections' | 'style' 
   header: toSavableHeader(draft.header),
 })
 
+/** A save also names the revision it was based on, so the server can refuse to overwrite a newer copy. */
+const toSavePayload = (draft: CvDocument, revision: string | null): CvDocumentUpdate => ({
+  expected_updated_at: revision ?? draft.updated_at,
+  ...toPayload(draft),
+})
+
 class RevisionConflict extends Error {
   constructor(readonly updatedAt: string | null) { super('The CV changed somewhere else.') }
 }
@@ -46,6 +53,8 @@ class RevisionConflict extends Error {
  */
 export function useCvDraft(enabled: boolean) {
   const queryClient = useQueryClient()
+  const privacyGeneration = useRef(draftClearCount())
+  const isCurrentOwner = useCallback(() => privacyGeneration.current === draftClearCount(), [])
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [draft, setDraft] = useState<CvDocument | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -83,6 +92,7 @@ export function useCvDraft(enabled: boolean) {
   const catalogQuery = useQuery({ queryKey: ['cv-studio', 'style-catalog'], queryFn: getCvStyleCatalog, enabled, staleTime: Infinity })
 
   const rememberSaved = useCallback((saved: CvDocument, local: CvDocument) => {
+    if (!isCurrentOwner()) return saved
     // Keep the local sections: they may hold entries only just started
     // (blank entries are left out of the saved payload).
     const merged = { ...saved, name: local.name, sections: local.sections, style: local.style, header: local.header }
@@ -93,16 +103,18 @@ export function useCvDraft(enabled: boolean) {
       items: current.items.map((item) => item.id === saved.id ? saved : item),
     })
     return merged
-  }, [queryClient])
+  }, [queryClient, isCurrentOwner])
 
   /** One save, in order after the ones before it. The server copy is checked first unless the page is closing. */
   const persist = useCallback((snapshot: CvDocument, keepalive: boolean) => {
     const step = async () => {
+      if (!isCurrentOwner()) return undefined
       if (!keepalive) {
         const server = await getCvDocument(snapshot.id).catch(() => null)
         if (server && isNewer(server.updated_at, baseRevision.current)) throw new RevisionConflict(server.updated_at)
       }
-      const payload = toPayload(snapshot)
+      if (!isCurrentOwner()) return undefined
+      const payload = toSavePayload(snapshot, baseRevision.current)
       const tooBig = keepalive && JSON.stringify(payload).length > KEEPALIVE_LIMIT
       const saved = keepalive && !tooBig ? await keepalivePatch(snapshot.id, payload) : await updateCvDocument(snapshot.id, payload)
       if (saved) baseRevision.current = saved.updated_at
@@ -111,18 +123,18 @@ export function useCvDraft(enabled: boolean) {
     inFlight.current += 1
     saveQueue.current = saveQueue.current.catch(() => undefined).then(step).finally(() => { inFlight.current -= 1 })
     return saveQueue.current
-  }, [])
+  }, [isCurrentOwner])
 
   // Declared before the autosave effect on purpose: on unmount React runs cleanups in this order, so the
   // pending edit is still registered here when the studio goes away (a click on another page).
   useEffect(() => () => {
     const current = latest.current
-    if (!current.dirty || !current.draft || current.conflict) return
+    if (!isCurrentOwner() || !current.dirty || !current.draft || current.conflict) return
     const snapshot = current.draft
     persist(snapshot, false)
       .then((saved) => { if (saved) rememberSaved(saved, snapshot) })
       .catch(() => undefined)
-  }, [persist, rememberSaved])
+  }, [persist, rememberSaved, isCurrentOwner])
 
   useEffect(() => {
     if (!dirty || !draft) return
@@ -170,6 +182,7 @@ export function useCvDraft(enabled: boolean) {
   // (switched away from) saves the normal, checked way, so it never overwrites a copy saved elsewhere.
   useEffect(() => {
     const flush = () => {
+      if (!isCurrentOwner()) return
       if (pending.current) {
         void pending.current.run(true)
         return
@@ -178,7 +191,7 @@ export function useCvDraft(enabled: boolean) {
       // closing now and will cancel it, so send the edit with keepalive instead of losing it.
       const current = latest.current
       if (!current.dirty || !current.draft || current.conflict || inFlight.current === 0) return
-      const payload = toPayload(current.draft)
+      const payload = toSavePayload(current.draft, baseRevision.current)
       if (JSON.stringify(payload).length <= KEEPALIVE_LIMIT) void keepalivePatch(current.draft.id, payload).catch(() => undefined)
     }
     const onVisibility = () => { if (document.visibilityState === 'hidden') void pending.current?.run(false) }
@@ -187,7 +200,7 @@ export function useCvDraft(enabled: boolean) {
       if (!current.dirty || !current.draft) return
       flush()
       // A CV too large for a keepalive request cannot be sent on the way out: ask first instead of losing it.
-      if (JSON.stringify(toPayload(current.draft)).length > KEEPALIVE_LIMIT) event.preventDefault()
+      if (JSON.stringify(toSavePayload(current.draft, baseRevision.current)).length > KEEPALIVE_LIMIT) event.preventDefault()
     }
     window.addEventListener('pagehide', flush)
     window.addEventListener('beforeunload', onBeforeUnload)
@@ -256,10 +269,12 @@ export function useCvDraft(enabled: boolean) {
 
   /** Take the newer server copy; whatever was unsaved in this tab is dropped. */
   async function reloadNewer() {
+    if (!isCurrentOwner()) return false
     const id = latest.current.draft?.id ?? documentId
     if (!id) return false
     try {
       const server = await getCvDocument(id)
+      if (!isCurrentOwner()) return false
       baseRevision.current = server.updated_at
       queryClient.setQueryData(documentKey(id), server)
       queryClient.setQueryData<{ items: CvDocument[] }>(LIST_KEY, (current) => current && {
@@ -289,6 +304,6 @@ export function useCvDraft(enabled: boolean) {
 
   return {
     listQuery, documentQuery, catalogQuery, documentId, draft, dirty, saveState, edit, open, replace, retrySave,
-    conflict, lastSavedAt, lastCheckedAt, reloadNewer, keepMine,
+    conflict, lastSavedAt, lastCheckedAt, reloadNewer, keepMine, isCurrentOwner,
   }
 }

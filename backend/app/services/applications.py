@@ -714,6 +714,7 @@ def application_content(workspace: Workspace, *, applied_at: datetime | None = N
                 "name": variant.name,
                 "target_role": variant.target_role,
                 "sections": variant.sections,
+                "header": variant.document.header,
             }
             if variant
             else None

@@ -54,6 +54,9 @@ describe('clearSensitiveBrowserData', () => {
       'cw:practice-attempts',
       JSON.stringify({ 0: 2 }),
     )
+    sessionStorage.setItem('cw:letter-edit:run-a', 'private letter')
+    sessionStorage.setItem('cw:practice:run-a', 'private answer')
+    sessionStorage.setItem('cw:practice-rounds:run-a', '{"0":3}')
     sessionStorage.setItem('cw:guest-banner-dismissed', '1')
     localStorage.setItem('cw-cookie-consent', 'accepted')
     localStorage.setItem('cw:onboarding', '{"completed":true}')
@@ -68,6 +71,9 @@ describe('clearSensitiveBrowserData', () => {
     expect(sessionStorage.getItem('cw:resume-carry')).toBeNull()
     expect(sessionStorage.getItem('cw:resume-carry-filename')).toBeNull()
     expect(sessionStorage.getItem('cw:resume-carry-updated-at')).toBeNull()
+    expect(sessionStorage.getItem('cw:letter-edit:run-a')).toBeNull()
+    expect(sessionStorage.getItem('cw:practice:run-a')).toBeNull()
+    expect(sessionStorage.getItem('cw:practice-rounds:run-a')).toBeNull()
     expect(sessionStorage.getItem('cw:practice-attempts')).not.toBeNull()
     expect(sessionStorage.getItem('cw:guest-banner-dismissed')).toBe('1')
     expect(localStorage.getItem('cw-cookie-consent')).toBe('accepted')

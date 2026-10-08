@@ -108,6 +108,8 @@ const SERVER_ANSWERED: HealthCheck = { status: 'ok' }
 function useOwnerEpoch(userId: string | null, settled: boolean): number {
   const [owner, setOwner] = useState<{ id: string | null; epoch: number }>({ id: null, epoch: 0 })
   if (settled && owner.id !== userId) {
+    // Clear before remounting the new owner: their hooks read tab storage on mount.
+    if (owner.id) clearSensitiveBrowserData()
     setOwner({ id: userId, epoch: owner.id ? owner.epoch + 1 : owner.epoch })
   }
   return owner.epoch

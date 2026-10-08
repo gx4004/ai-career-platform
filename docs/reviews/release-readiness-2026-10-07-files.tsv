@@ -1,0 +1,1075 @@
+file	added	removed	coverage	limit
+.github/dependabot.yml	36	0	inventoried; no individual review attested	No exhaustive manual line review attested
+.github/workflows/ci.yml	144	11	inventoried; no individual review attested	No exhaustive manual line review attested
+.gitignore	10	1	inventoried; no individual review attested	No exhaustive manual line review attested
+.junie/skills/design-taste-frontend	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+.junie/skills/full-output-enforcement	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+.junie/skills/high-end-visual-design	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+.junie/skills/industrial-brutalist-ui	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+.junie/skills/minimalist-ui	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+.junie/skills/redesign-existing-projects	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+.junie/skills/stitch-design-taste	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+.nvmrc	1	0	inventoried; no individual review attested	No exhaustive manual line review attested
+.python-version	1	0	inventoried; no individual review attested	No exhaustive manual line review attested
+.vscode/settings.json	0	11	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+AGENTS.md	165	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+CLAUDE.md	66	24	inventoried; no individual review attested	No exhaustive manual line review attested
+CONTEXT.md	313	0	inventoried; no individual review attested	No exhaustive manual line review attested
+FRONTEND_OVERHAUL_PLAN.md	0	574	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+QA-VISUAL-PASS.md	0	171	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+README.md	99	24	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/.dockerignore	36	0	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/.env.example	44	3	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/Dockerfile	9	4	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/alembic/env.py	1	1	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/a7c3e9b1d4f2_discovered_listings_newest_index.py	33	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/b5d2e8a1c6f3_cv_document_header.py	26	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/c2a0f1e5d7b3_chapter2_schema_squash.py	387	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/c6e1a9d4b2f7_users_email_case_insensitive.py	51	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/d7a3b9e2c4f1_development_item_label_and_application.py	48	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/e9c4b7a2d5f8_cv_variant_trigger_allows_rename.py	53	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/f3b8d1c6a9e2_users_role_change_audit.py	41	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/f4b8c1d2a7e9_add_discovery_deep_match_links.py	43	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/alembic/versions/f5b8c3d1a7e2_application_outcomes.py	43	0	fresh migration and seeded legacy upgrade	No exhaustive manual line review attested
+backend/app/assets/fonts/crimson-text/CrimsonText-Bold.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/crimson-text/CrimsonText-Regular.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/crimson-text/OFL.txt	93	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/ibm-plex-mono/IBMPlexMono-Bold.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/ibm-plex-mono/OFL.txt	93	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/lato/Lato-Bold.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/lato/Lato-Regular.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/lato/OFL.txt	93	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/pt-sans/OFL.txt	93	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/pt-sans/PTSans-Bold.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/pt-sans/PTSans-Regular.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/pt-serif/OFL.txt	93	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/pt-serif/PTSerif-Bold.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/assets/fonts/pt-serif/PTSerif-Regular.ttf	-	-	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/auth/security.py	34	12	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/config.py	94	8	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/database.py	86	5	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/limiter.py	51	49	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/main.py	362	56	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/__init__.py	33	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/application_details.py	40	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/application_preferences.py	38	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/application_snapshot.py	30	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/campaign_event.py	28	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/campaign_listing.py	30	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/campaign_task.py	22	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/cv_document.py	66	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/development_item.py	98	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/discovered_listing.py	69	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/discovery_personalization.py	61	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/discovery_source.py	84	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/evidence_item.py	53	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/gap_classification.py	70	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/tool_run.py	3	5	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/user.py	23	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/models/workspace.py	104	4	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/prompts/career.py	5	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/prompts/cover_letter.py	5	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/prompts/evidence_import.py	48	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/prompts/interview.py	5	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/prompts/job_match.py	8	2	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/prompts/portfolio.py	5	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/prompts/resume.py	5	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/admin.py	194	22	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/applications.py	518	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/auth.py	206	38	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/cover_letter.py	2	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/cv_documents.py	590	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/development.py	77	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/discovery.py	170	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/evidence_profile.py	159	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/files.py	28	31	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/google_auth.py	29	19	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/health.py	52	13	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/history.py	120	27	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/interview.py	18	5	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/job_match.py	6	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/job_posts.py	95	7	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/resume.py	4	1	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/telemetry.py	3	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/routers/today.py	19	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/admin.py	9	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/applications.py	530	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/auth.py	111	15	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/cv_documents.py	585	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/data_export.py	103	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/development.py	114	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/discovered_listings.py	27	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/discovery_personalization.py	31	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/discovery_recommendations.py	134	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/discovery_sources.py	153	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/evidence_profile.py	184	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/gap_classification.py	50	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/gap_response.py	68	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/history.py	45	4	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/telemetry.py	70	27	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/today.py	45	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/tools.py	152	22	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/schemas/validation.py	6	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+frontend/src/assets/tools/.gitkeep => backend/app/scripts/__init__.py	0	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+backend/app/scripts/ats_sources.json	126	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/scripts/ingest_ats_sources.py	51	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/scripts/seed_ats_sources.py	155	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/ai_client.py	291	66	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/application_details.py	66	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/application_drafts.py	131	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/application_insights.py	304	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/applications.py	1254	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/ats_ingestion.py	403	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/ats_providers.py	74	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/autopilot/__init__.py	36	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/autopilot/adapters.py	165	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/autopilot/materials.py	73	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/autopilot/policy.py	357	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/autopilot/runner.py	459	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/campaign_listings.py	144	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/campaign_reviewer.py	375	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/captcha.py	0	31	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+backend/app/services/career_recommender.py	64	11	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cover_letter_edits.py	70	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cover_letter_gen.py	15	10	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_documents.py	681	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_fonts.py	181	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_parser.py	814	4	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_parser_process.py	165	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_quality.py	115	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_rendering.py	929	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_tailoring.py	149	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/cv_upload.py	148	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/data_export.py	194	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/development.py	217	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/discovered_listings.py	237	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/discovery_adoption.py	134	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/discovery_deep_match.py	142	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/discovery_fetch.py	67	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/discovery_personalization.py	80	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/discovery_recommendations.py	695	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/discovery_sources.py	95	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/email_blocklist.py	3	2	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/email_service.py	13	7	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/evidence_import.py	115	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/evidence_injection.py	143	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/evidence_profile.py	219	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/fabrication.py	310	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/fake_llm.py	2295	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/gap_classifier.py	305	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/gap_response.py	172	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/import_source.py	39	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/input_sanitizer.py	24	7	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/interview_gen.py	3	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/job_matcher.py	107	19	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/job_posting.py	99	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/job_scraper.py	283	80	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/llm_budget.py	55	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/observability.py	48	10	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/outbound_target.py	76	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/pdf_export.py	256	80	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/portfolio_planner.py	45	8	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/premium_outputs.py	28	23	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/quality_signals.py	526	31	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/result_cache.py	24	27	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/resume_analyzer.py	33	18	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/retention.py	52	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/skill_vocabulary.py	156	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/stop_classifier.py	184	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/today.py	185	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/tool_pipeline.py	324	31	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/services/tool_runs.py	113	11	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/app/startup_checks.py	108	0	backend area checked by full suite; per-file coverage not measured	No exhaustive manual line review attested
+backend/requirements-dev.txt	25	3	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/requirements.in	26	0	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/requirements.txt	94	23	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/scripts/lock_requirements.py	98	0	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/start.sh	20	4	inventoried; no individual review attested	No exhaustive manual line review attested
+backend/tests/__init__.py	1	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/conftest.py	154	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/e2e_server.py	70	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fix_demo_data.py	105	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/application_reviewer.json	14	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/ats/ashby_jobs.json	22	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/ats/greenhouse_jobs.json	23	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/ats/lever_jobs.json	18	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/autofill/ashby.html	114	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/autofill/greenhouse_job_boards.html	145	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/autofill/greenhouse_legacy.html	158	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/autofill/lever.html	164	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/fixtures/discovered_listings.json	25	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/promote_admin.py	50	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/seed_campaigns.py	339	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/seed_discovery_listings.py	263	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_admin_b15.py	128	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_ai_client.py	654	24	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_ai_unavailable.py	46	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_application_details.py	71	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_application_insights.py	262	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_applications.py	883	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_applications_behaviour.py	842	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_auth.py	147	15	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_auth_account.py	482	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_auth_posture.py	181	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_autopilot_autofill.py	1049	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b10_exports_and_letter.py	247	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b10_tool_correctness.py	600	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b12_ops_hardening.py	233	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b13_backend_followups.py	793	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_applications.py	233	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_cv_glyph_checks.py	51	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_cv_import.py	146	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_cv_variant_trigger.py	91	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_discovery.py	81	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_evidence_control_chars.py	70	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_fake_outputs.py	478	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b14_gap_routes.py	50	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b16_signoff_followups.py	645	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b17_signoff_close.py	325	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b18_signoff_r2_backend.py	196	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b7_evidence_integrity.py	611	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_b7_review_fixes.py	369	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_campaign_listings.py	259	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_campaign_reviewer.py	208	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_config_security.py	86	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_b5_review_fixes.py	189	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_b6_render_export.py	926	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_documents.py	778	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_header_and_seed.py	320	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_import.py	349	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_import_structure.py	290	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_parser.py	60	1	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_parser_process.py	44	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_quality.py	99	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_rendering.py	314	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_style.py	277	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_tailoring_robustness.py	174	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_cv_upload.py	164	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_development_plan.py	484	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_discovery.py	798	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_discovery_ingestion.py	352	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_discovery_odds.py	189	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_env_isolation.py	42	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_evidence_import.py	82	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_evidence_injection.py	229	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_evidence_profile.py	442	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_fabrication.py	65	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_fake_llm.py	836	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_files.py	148	8	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_gap_classifier.py	414	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_gap_response.py	201	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_google_oauth.py	31	4	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_health.py	13	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_history.py	285	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_job_scraper.py	476	21	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_limiter.py	67	57	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_migration_chain.py	29	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_observability.py	130	84	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_openapi_schema.py	149	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_quality_services.py	4	3	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_quality_signals.py	179	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_request_size_limit.py	110	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_result_cache.py	197	6	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_runtime_safety.py	981	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_security_headers.py	63	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_session_refresh_path.py	35	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_startup_script.py	113	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_stop_enforcement.py	129	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_telemetry_tool_id_contract.py	64	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_today.py	310	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_tool_input_validation.py	126	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_tool_pipeline_safety.py	645	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_tool_run_lineage.py	85	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+backend/tests/test_tools.py	29	3	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+compose.e2e.yml	16	0	inventoried; no individual review attested	No exhaustive manual line review attested
+design.md	3	1	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/README.md	54	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0001-r6-instrumentation-backend-choice.md	65	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0002-r8-eval-fixture-data-source.md	56	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0003-r9-server-authoritative-access-decisions.md	59	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0004-r10-cache-remains-fail-open-acceleration.md	49	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0005-r11-evidence-profile-persistence-boundary.md	69	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0006-r12-cv-document-model.md	61	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0007-r13-workspaces-become-campaigns.md	60	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0008-r14-registry-gated-discovery.md	58	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0009-r15-queue-prepares-submission-stays-human.md	74	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/0010-r16-per-source-authorized-submission.md	66	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/adr/README.md	53	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/agents/domain.md	18	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/agents/issue-tracker.md	33	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/agents/ticket-runner.md	70	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/agents/triage-labels.md	15	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/architecture.md	459	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/decisions.md	152	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/handoff-2026-09-25.md	225	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/handoff-2026-09-29.md	106	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/handoff-2026-09-30.md	36	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/handoff-frontend-overhaul-prompt.md	275	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/launch-checklist.md	0	34	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+docs/product-direction.md	289	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/qa-checklist.md	0	37	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+docs/roadmap.md	72	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/spec-legacy.md	0	1489	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+docs/spec.md	147	178	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/state.md	145	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+docs/superpowers/specs/2026-04-03-tool-input-page-redesign.md	0	114	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+docs/superpowers/specs/2026-04-06-tool-pages-premium-redesign.md	0	90	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+docs/threat-model.md	1503	0	selected canonical instructions and contracts read	No exhaustive manual line review attested
+frontend/.dockerignore	27	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/.env.example	8	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/Dockerfile	10	11	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/e2e/accessibility-mobile.spec.ts	399	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/auth-ownership.spec.ts	215	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/browser-data-clearing.spec.ts	137	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/cv-studio-preview.spec.ts	88	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/exports-retries.spec.ts	248	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/global-setup.ts	15	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/guest-tools.spec.ts	224	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/helpers/identity.ts	20	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/helpers/sticker-fidelity.ts	212	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/history-lifecycle.spec.ts	180	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/polish-journeys.spec.ts	189	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/resume-tracer.spec.ts	79	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/screenshot-utils.d.mts	35	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/screenshot-utils.mjs	74	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/screenshots-env.d.mts	12	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/screenshots-env.mjs	47	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/screenshots.spec.ts	473	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/sticker-fidelity.spec.ts	1924	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/e2e/workflow-context.spec.ts	164	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/package.json	33	14	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/playwright.config.ts	76	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/playwright.screenshots.config.ts	71	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/pnpm-lock.yaml	1019	1100	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/.gitignore	0	1	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/final-career.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/final-cover-letter.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/final-interview.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/final-job-match.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/final-portfolio.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/final-resume.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/ai-generated/carousel/hero-resume-analyzer.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/apple-touch-icon.png	-	-	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/favicon.ico	-	-	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/favicon.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/favicon.svg	1	0	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/generated/tool-career.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/generated/tool-cover-letter.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/generated/tool-interview.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/generated/tool-job-match.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/generated/tool-portfolio.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/generated/tool-resume.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/google-g.svg	1	0	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/hero-gradient.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/hero-gradient.svg	0	38	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/public/logo-maskable-512.png	-	-	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/logo192.png	-	-	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/logo512.png	-	-	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/manifest.json	10	4	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/og-image.png	-	-	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/robots.txt	1	1	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/sitemap.xml	11	0	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/public/sw.js	1	1	production build/browser checks or dependency audit; representative inspection	No exhaustive manual line review attested
+frontend/railway.toml	3	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/schemas.bundle.mjs	15206	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/scripts/run-e2e.mjs	40	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/scripts/run-screenshots.mjs	43	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/scripts/seed-demo.mjs	106	0	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/serve.mjs	397	42	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/src/assets/branding/career-workbench-mark.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/branding/career-workbench-mark.svg	0	8	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/branding/career-workbench-mark.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/branding/career-workbench-wordmark.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/branding/career-workbench-wordmark.svg	0	60	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/branding/career-workbench-wordmark.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/dashboard-workspace.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/dashboard-workspace.svg	0	104	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/dashboard-workspace.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/empty-planning-desk.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/empty-planning-desk.svg	0	66	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/empty-planning-desk.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/landing-control-room.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/landing-control-room.svg	0	114	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/landing-control-room.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/login-workflow.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/login-workflow.svg	0	96	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/scenes/login-workflow.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/career.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/career.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/cover-letter.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/cover-letter.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/interview.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/interview.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/job-match.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/job-match.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/portfolio.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/portfolio.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/preview-application.jpg	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/preview-planning.jpg	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/preview-primary.jpg	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/resume.png	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/assets/tools/resume.webp	-	-	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/account/ChangePasswordDialog.tsx	222	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/account/EditNameDialog.tsx	99	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AccountMenu.tsx	71	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AdminOnlyToast.tsx	24	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AppBrandLockup.tsx	23	17	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AppNotFound.tsx	78	14	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AppRouteError.tsx	21	28	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AppShell.tsx	118	35	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AppSidebar.tsx	130	116	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AppStatePanel.tsx	81	53	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/AuthDialogMount.tsx	30	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/ChunkBoundary.tsx	27	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/CommandPalette.tsx	84	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/CommandPaletteDialog.tsx	398	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/ConfirmDeleteDialog.tsx	49	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/CookieConsent.tsx	150	19	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/ErrorBoundary.tsx	1	11	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/MobileNav.tsx	109	39	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/PageFrame.tsx	0	16	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/app/ServiceBanner.tsx	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/SidebarUserMenu.tsx	107	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/Topbar.tsx	49	104	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/AdminOnlyToast.test.tsx	28	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/AppNotFound.test.tsx	92	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/AppShell.test.tsx	260	14	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/AppSidebar.test.tsx	258	71	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/AppStatePanel.test.tsx	60	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/CommandPalette.test.tsx	285	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/ConfirmDeleteDialog.test.tsx	45	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/CookieConsent.test.tsx	208	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/LoginPage.test.tsx	311	9	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/MobileNav.test.tsx	102	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/ServiceBanner.test.tsx	98	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/SidebarProvider.test.tsx	73	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/Topbar.test.tsx	68	85	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/chrome-css.test.ts	101	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/app/__tests__/lazyDialogMounts.test.tsx	60	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/AddApplicationDialog.tsx	180	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/ApplicationDetailsCard.tsx	239	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/ApplicationHeader.tsx	159	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/ApplicationPage.tsx	259	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/ApplicationPanel.tsx	35	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/ApplicationSections.tsx	606	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/ApplyPanel.tsx	516	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/DocumentChecks.tsx	484	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/PrepareForMePanel.tsx	222	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/StageMenu.tsx	87	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/WhatsWorkingPanel.tsx	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/__tests__/ApplicationDetailsCard.test.tsx	178	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/__tests__/ApplicationPage.test.tsx	765	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/__tests__/DocumentChecks.test.tsx	454	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/__tests__/deadlines.test.ts	79	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/__tests__/stages.test.ts	46	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/applicationsApi.ts	27	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/deadlines.ts	76	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/interviewHandoff.ts	32	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/applications/stages.ts	133	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/AuthAside.tsx	29	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/AuthDialog.tsx	31	42	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/AuthIntentNotice.tsx	62	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/AuthShell.tsx	36	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/AuthStamp.tsx	16	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/AuthSurface.tsx	46	40	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/FormFailureNotice.tsx	77	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/GoogleButton.tsx	11	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/LoginForm.tsx	192	177	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/PasswordInput.tsx	30	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/RegisterForm.tsx	162	130	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/SessionMenu.tsx	0	78	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/auth/SignInGate.tsx	37	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/__tests__/AuthDialog.test.tsx	210	8	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/__tests__/LoginForm.test.tsx	267	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/__tests__/RegisterForm.test.tsx	259	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/__tests__/auth-errors.test.ts	53	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/auth-copy.ts	24	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/auth-errors.ts	6	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/auth-validation.ts	34	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/devResetLink.ts	16	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/auth/useGoogleEnabled.ts	16	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CreateCvDocumentDialog.tsx	174	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvAtsPanel.tsx	165	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvDesignPanel.tsx	69	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvDesk.tsx	44	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvExportMoment.tsx	74	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvImportDialog.tsx	290	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvOutline.tsx	165	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvPaperPreview.tsx	233	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvSaveStatus.tsx	79	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvSectionEditor.tsx	281	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvStudio.tsx	768	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvTailorDialog.tsx	302	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvVersionPreviewDialog.tsx	98	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/CvVersionsPanel.tsx	131	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/CvImportDialog.test.tsx	151	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/CvStudio.safety.test.tsx	454	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/CvStudio.signoff2.test.tsx	233	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/CvStudio.test.tsx	771	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/CvTailorDialog.test.tsx	258	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/CvVersionPreviewDialog.test.tsx	48	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/cv-studio-css.test.ts	40	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/__tests__/versionDiff.test.ts	29	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/cvApi.ts	43	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/importReview.ts	103	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/useCvDraft.ts	293	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/versionDiff.ts	37	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/cv-studio/versionNames.ts	21	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardActivityFooter.tsx	0	35	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardCv.tsx	52	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardHero.tsx	0	45	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardPipeline.tsx	108	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardResumeUpload.tsx	91	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardShowcaseCard.tsx	0	43	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardShowcaseGrid.tsx	0	56	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/dashboard/DashboardToday.tsx	608	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/DateStamp.tsx	8	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/FavoriteRuns.tsx	11	8	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/FirstSteps.tsx	132	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/RecentRuns.tsx	11	6	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/RunList.tsx	64	118	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/RunRow.tsx	58	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/DashboardCv.test.tsx	66	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/DashboardHero.test.tsx	0	70	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/DashboardPipeline.test.tsx	124	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/DashboardResumeUpload.test.tsx	126	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/DashboardToday.test.tsx	593	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/FirstSteps.test.tsx	74	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/RunList.test.tsx	144	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/greeting.test.ts	89	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/__tests__/useDashboardCv.test.tsx	105	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/dashboardLayoutHint.ts	49	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/greeting.ts	80	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/dashboard/useDashboardCv.ts	47	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/discovery/HiddenJobsSheet.tsx	111	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/discovery/JobParts.tsx	97	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/discovery/hiddenJobs.ts	14	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/discovery/useAddToApplications.ts	62	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/history/HistoryPage.tsx	478	600	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/history/HistoryRow.tsx	285	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/history/__tests__/HistoryPage.test.tsx	438	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/history/__tests__/HistoryPage.workflowContinued.test.tsx	125	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/illustrations/ProofCard.tsx	0	109	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/illustrations/SceneEvidence.tsx	0	23	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/illustrations/SceneVisual.tsx	0	113	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/illustrations/WorkbenchArt.tsx	0	212	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/badge.test.tsx	171	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/button.test.tsx	238	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/card-actions-touch.test.ts	33	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/chip.test.tsx	54	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/choice.test.tsx	123	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/dialog.test.tsx	414	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/disclosure.test.tsx	135	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/field.test.tsx	170	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/file-input.test.tsx	136	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/gallery.test.tsx	66	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/inputs.test.tsx	217	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/jump-nav.test.tsx	215	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-account-admin-gap.test.ts	55	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-consistency.test.tsx	131	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-css.test.ts	336	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-dialogs-regression.test.ts	29	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-fix-apps-r2.test.tsx	112	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-fix-apps.test.tsx	188	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-fix-r3.test.tsx	191	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-fix2.test.tsx	155	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-fixes.test.tsx	219	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/kit-tool-inputs.test.tsx	147	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/menu.test.tsx	292	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/overlay-css.test.ts	88	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/panel-surface.test.tsx	52	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/radio.test.tsx	127	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/seal.test.tsx	203	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/segmented.test.tsx	172	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/sheet.test.tsx	87	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/sticker.test.tsx	106	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/structure-data.test.tsx	327	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/structure-page.test.tsx	250	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/structure-row.test.tsx	434	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/structure-state.test.tsx	283	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/structure-surface.test.tsx	302	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/structure-table.test.tsx	296	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/structure-toolbar.test.tsx	255	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/t18-refinements.test.tsx	84	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/t22-polish.test.tsx	90	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/tabs.test.tsx	130	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/tiles.test.tsx	200	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/__tests__/toast.test.tsx	370	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/avatar.tsx	54	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/badge.tsx	79	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/button.tsx	106	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/card.tsx	82	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/checkbox.tsx	155	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/chip.tsx	41	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/date-field.tsx	20	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/dialog.tsx	180	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/disclosure.tsx	63	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/dropdown-menu.tsx	130	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/empty-state.tsx	168	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/field.tsx	155	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/file-input.tsx	241	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/fit-stamp.tsx	54	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/highlight.tsx	10	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/index.ts	139	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/input.tsx	125	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/jump-nav.tsx	176	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/key-value.tsx	86	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/meta-row.tsx	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/notice.tsx	67	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/number-disc.tsx	33	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/page.tsx	157	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/pagination.tsx	113	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/panel-surface.tsx	84	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/panel.tsx	228	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/popover.tsx	34	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/radio.tsx	207	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/round-stamp.tsx	41	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/row.tsx	283	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/score-bar.tsx	119	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/seal.tsx	133	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/section.tsx	77	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/segmented.tsx	202	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/select.tsx	63	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/sheet.tsx	93	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/skeleton.tsx	308	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/skill-pips.tsx	38	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/stack.tsx	42	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/stage-mark.tsx	50	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/stat.tsx	42	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/sticker.tsx	51	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/stretched-link.tsx	56	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/table.tsx	348	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/tabs.tsx	54	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/textarea.tsx	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/toast.tsx	329	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/tone-dot.tsx	29	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/tone.ts	9	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/tool-tile.tsx	53	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/toolbar.tsx	203	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/tooltip.tsx	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/kit/utils.ts	19	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/HeroCollage.tsx	67	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingCTA.tsx	33	54	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingExperimentHero.tsx	37	129	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingFaqsSection.tsx	17	72	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingFeatureStepsDemo.tsx	64	56	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingFooter.tsx	10	21	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingNavbar.tsx	238	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingSocialProof.tsx	22	19	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingToolGridBase.tsx	39	155	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/LandingTubelightNavbar.tsx	0	275	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/LandingCTA.test.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/LandingExperimentHero.test.tsx	27	23	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/LandingFeatureStepsDemo.test.tsx	28	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/LandingFooter.test.tsx	32	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/LandingNavbar.test.tsx	139	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/LandingSocialProof.test.tsx	24	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/LandingToolGridBase.test.tsx	31	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/__tests__/useLandingPageSetup.test.tsx	46	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/landingContent.ts	67	204	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/landing/useLandingPageSetup.ts	12	1	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/legal/LegalLayout.tsx	99	40	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/legal/SiteHeader.tsx	41	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/legal/StorageInventory.tsx	42	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/legal/__tests__/LegalLayout.test.tsx	135	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/legal/__tests__/storageCatalogue.test.ts	80	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/legal/storageCatalogue.ts	86	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/mobile/ToolGridSheet.tsx	155	18	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/mobile/__tests__/ToolGridSheet.test.tsx	105	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/onboarding/OnboardingDialog.tsx	183	157	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/onboarding/OnboardingProgress.tsx	0	24	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/onboarding/OnboardingTour.tsx	177	102	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/onboarding/__tests__/OnboardingDialog.test.tsx	130	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/onboarding/__tests__/OnboardingTour.test.tsx	232	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/AccountDeletedToast.tsx	40	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/AddFactDialog.tsx	127	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/ClaimPromotionSection.tsx	83	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/CompleteSkillDialog.tsx	113	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/DataControls.tsx	308	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/EditDevelopmentItemDialog.tsx	92	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/EditFactDialog.tsx	108	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/EvidenceProfilePage.tsx	851	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/FactRow.tsx	63	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/PromoteClaimButton.tsx	86	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/SkillsToBuildSection.tsx	349	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/__tests__/ClaimPromotionSection.test.tsx	87	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/__tests__/EvidenceProfilePage.test.tsx	560	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/__tests__/PromoteClaimButton.test.tsx	74	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/profile/__tests__/SkillsToBuildSection.test.tsx	317	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/AdCountdownTimer.tsx	0	65	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/AdGatedLock.tsx	0	73	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/CareerToolPage.tsx	41	179	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/CinematicLoader.tsx	176	84	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/CoverLetterToolPage.tsx	53	184	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/DropzoneHero.tsx	0	241	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/GuestSaveBanner.tsx	29	22	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/InterviewPracticeMode.tsx	340	148	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/InterviewToolPage.tsx	54	192	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/JobImportCard.tsx	334	35	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/JobMatchToolPage.tsx	43	167	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/PortfolioToolPage.tsx	38	184	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/ResultParts.tsx	445	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/ResumeSource.tsx	486	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/ResumeToolPage.tsx	72	188	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/ScoreHelp.tsx	75	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/ScoreTooltip.tsx	0	32	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/ToolFullScreen.tsx	0	54	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/ToolHeroIllustration.tsx	0	256	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/ToolResultScreen.tsx	737	302	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/TrackJob.tsx	276	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/WorkflowHandoffBanner.tsx	116	30	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/CinematicLoader.test.tsx	194	1	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/DropzoneHero.test.tsx	0	82	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/GuestSaveBanner.test.tsx	41	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/InterviewPracticeMode.test.tsx	218	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/JobImportCard.test.tsx	334	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/RecentToolRuns.test.tsx	256	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ResultParts.test.tsx	86	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ResumeSource.test.tsx	470	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolForm.test.tsx	44	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolFullScreen.test.tsx	0	64	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolPageLoading.test.tsx	66	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolPageShell.test.tsx	75	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolResultScreen.adRemoval.test.tsx	141	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolResultScreen.guestActions.test.tsx	104	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolResultScreen.states.test.tsx	492	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolResultScreen.t18.test.tsx	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/ToolRouteScreen.test.tsx	217	99	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/TrackJob.test.tsx	150	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/WorkflowHandoffBanner.test.tsx	178	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/letterAutosave.test.tsx	97	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/seededFieldNote.test.ts	36	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/__tests__/useToolPageState.test.tsx	39	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/sampleResume.ts	50	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/tooling/toolPageShared.tsx	474	139	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/ui/accordion.tsx	0	71	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/avatar.tsx	0	110	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/badge.tsx	0	73	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/button.tsx	0	135	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/dialog.tsx	0	174	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/dropdown-menu.tsx	0	292	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/faq-animated.tsx	0	82	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/feature-section.tsx	0	195	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/input.tsx	0	42	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/label.tsx	0	26	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/motion.tsx	0	481	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/separator.tsx	0	28	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/sheet.tsx	0	158	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/sidebar.tsx	215	583	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/components/ui/skeleton.tsx	0	20	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/stagger-testimonials.tsx	0	229	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/tabs.tsx	0	125	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/textarea.tsx	0	42	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/components/ui/tooltip.tsx	0	67	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/hooks/__tests__/tool-draft-hydration.test.tsx	50	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/__tests__/use-resume-carry.test.tsx	55	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/__tests__/use-reveal-once.test.tsx	71	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/__tests__/useToolDraft.test.tsx	39	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/__tests__/useToolMutation.test.tsx	99	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-breakpoint.ts	24	22	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-coarse-pointer.ts	22	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-count-up.ts	38	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-media-query.ts	19	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-mobile.ts	0	10	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/hooks/use-mod-key.ts	34	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-prefers-reduced-motion.ts	19	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-resume-carry.ts	14	39	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-reveal-once.ts	59	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/use-scroll-edges.ts	35	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/useAccountQueriesEnabled.ts	13	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/useAd.ts	0	100	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/hooks/useAdUnlock.ts	0	30	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/hooks/useCarousel.ts	0	73	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/hooks/useCountUp.ts	0	28	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/hooks/useHistory.ts	15	5	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/useSpotlight.ts	0	23	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/hooks/useToday.ts	16	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/useToolDraft.ts	56	6	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/useToolMutation.ts	89	35	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/useWorkflowBridge.ts	20	4	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/hooks/useWorkspaces.ts	0	17	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/abort-signal-fallback.test.ts	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/admin-errors.test.ts	61	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/application-schemas.test.ts	122	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/auth-request-schemas.test.ts	61	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/client.test.ts	111	25	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/cv-document-schemas.test.ts	77	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/cv-import-schemas.test.ts	31	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/delete-account.test.ts	35	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/discovery-schemas.test.ts	65	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/gap-classification-schemas.test.ts	69	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/gap-response-schemas.test.ts	51	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/job-match-result-schema.test.ts	37	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/request-failures.test.ts	418	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/__tests__/tool-request-schemas.test.ts	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/admin.ts	48	48	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/client.ts	670	115	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/development.ts	40	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/developmentSchemas.ts	52	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/discoverySchemas.ts	60	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/errors.ts	318	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/gapClassificationSchemas.ts	33	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/gapResponseSchemas.ts	22	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/schemas.ts	1051	57	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/api/signals.ts	32	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/__tests__/currentUser.test.ts	104	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/__tests__/guards.test.ts	164	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/__tests__/session.test.tsx	294	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/__tests__/sessionHint.test.ts	66	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/adminGuard.ts	21	13	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/currentUser.ts	54	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/session.tsx	107	43	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/sessionHint.ts	58	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/storage.ts	13	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/auth/userGuard.ts	49	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/consent.ts	19	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cv-studio/__tests__/editor.test.ts	79	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cv-studio/__tests__/header.test.ts	51	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cv-studio/__tests__/preview.test.ts	45	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cv-studio/__tests__/styleCatalog.fixture.ts	24	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cv-studio/editor.ts	167	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cv-studio/header.ts	71	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cv-studio/preview.ts	101	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/cva.ts	0	50	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/lib/development/plan.ts	126	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/flags/featureFlags.ts	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/navigation/__tests__/redirect.test.ts	43	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/navigation/__tests__/routeMeta.test.ts	0	50	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/lib/navigation/navGroups.ts	69	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/navigation/publicRoutes.ts	2	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/navigation/redirect.ts	40	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/navigation/routeMeta.ts	0	86	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/lib/privacy/__tests__/browserData.test.ts	104	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/privacy/browserData.ts	19	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/profile/__tests__/evidence.test.ts	106	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/profile/evidence.ts	233	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/query/__tests__/queryClient.test.ts	62	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/query/__tests__/routePrefetch.test.ts	47	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/query/applicationCaches.ts	20	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/query/discoveryQueries.ts	28	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/query/evidenceCaches.ts	32	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/query/queryClient.ts	11	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/query/routePrefetch.ts	88	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/site-url.ts	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/telemetry/__tests__/client.test.ts	108	4	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/telemetry/__tests__/toolIdContract.test.ts	45	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/telemetry/client.ts	84	30	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/applicationHandoff.test.ts	15	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/demoRuns.test.ts	110	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/drafts.test.ts	31	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/exports-filename.test.ts	67	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/exports.test.ts	89	1	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/fileHandoff.test.ts	0	34	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/historyToolLabel.test.ts	43	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/promotableClaims.test.ts	82	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/regenerateSeed.test.ts	67	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/registry.test.ts	32	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/resultDefinitions.test.tsx	613	4	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/runErrors.test.ts	52	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/runLabel.test.ts	80	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/workflowConfigs.test.ts	37	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/__tests__/workflowContext.test.ts	64	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/applicationHandoff.ts	13	5	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/demoRuns.ts	93	7	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/drafts.ts	61	12	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/exports.ts	24	14	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/fileHandoff.ts	0	20	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/lib/tools/historyToolLabel.ts	77	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/promotableClaims.ts	100	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/regenerateSeed.ts	95	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/registry.ts	80	14	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/resultDefinitions.tsx	1166	1179	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/resumeCarryStore.ts	122	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/runErrors.ts	20	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/runLabel.ts	75	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/styleUtils.ts	0	5	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/lib/tools/uploadErrors.ts	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/workflowConfigs.tsx	22	89	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/tools/workflowContext.ts	83	6	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/lib/utils.ts	3	3	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/account-page.test.tsx	253	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/applications-page.test.tsx	745	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/cookie-policy-page.test.tsx	81	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/dashboard-page.test.tsx	261	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/discovery-page.test.tsx	639	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/landing-experiment-page.test.tsx	19	4	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/reset-password-page.test.tsx	260	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/__tests__/settings-privacy-controls.test.tsx	313	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/account-page.tsx	214	151	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/__tests__/AdminDashboardPage.test.tsx	146	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/__tests__/AdminDiscoverySourcesPage.test.tsx	302	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/__tests__/AdminLayout.test.tsx	72	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/__tests__/AdminRunsPage.test.tsx	138	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/__tests__/AdminUsersPage.test.tsx	214	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/__tests__/toolLabel.test.ts	53	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/admin-dashboard-page.tsx	257	79	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/admin-discovery-sources-page.tsx	360	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/admin-layout.tsx	151	34	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/admin-load-error.tsx	18	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/admin-runs-page.tsx	150	141	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/admin-users-page.tsx	269	104	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/breakable-email.tsx	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/count-meta.tsx	15	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/run-sparkline.tsx	37	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/runs-by-day.ts	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/admin/toolLabel.ts	52	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/application-page.tsx	9	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/applications-page.tsx	705	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/cv-studio-page.tsx	14	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/dashboard-page.tsx	178	37	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/discovery-page.tsx	927	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/history-page.tsx	2	1	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit-page.tsx	38	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/badge-section.tsx	292	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/button-section.tsx	353	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/choice-section.tsx	293	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/composition-section.tsx	156	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/data-section.tsx	249	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/dialog-section.tsx	384	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/disclosure-section.tsx	131	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/field-section.tsx	358	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/floating-section.tsx	134	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/gallery-parts.tsx	87	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/jumpnav-section.tsx	28	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/list-section.tsx	743	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/menu-section.tsx	235	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/page-section.tsx	318	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/panel-section.tsx	92	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/sample-data.ts	96	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/seal-section.tsx	79	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/sections.ts	55	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/segmented-section.tsx	160	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/sheet-section.tsx	272	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/state-section.tsx	331	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/sticker-section.tsx	153	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/surface-section.tsx	310	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/table-section.tsx	338	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/tabs-section.tsx	118	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/tiles-section.tsx	175	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/toast-section.tsx	218	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/kit/toolbar-section.tsx	153	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/landing-experiment-page.tsx	14	26	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/legal/CookiePolicyPage.tsx	103	74	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/legal/ImprintPage.tsx	0	19	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/legal/PrivacyPolicyPage.tsx	19	30	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/legal/TermsOfServicePage.tsx	10	4	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/login-page.tsx	146	51	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/profile-page.tsx	14	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/reset-password-page.tsx	185	143	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/settings-page.tsx	129	319	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/pages/tool-pages.tsx	7	12	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routeTree.gen.ts	379	211	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/router.tsx	3	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/[_]kit.tsx	11	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/__root.tsx	64	116	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/__tests__/-history-search.test.tsx	69	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/__tests__/-index.test.tsx	19	1	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/__tests__/-root-head.test.tsx	51	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/account.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/admin.tsx	5	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/admin/discovery-sources.tsx	9	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/admin/index.tsx	3	5	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/admin/runs.tsx	3	5	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/admin/users.tsx	3	5	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/campaigns.$campaignId.tsx	7	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/campaigns.index.tsx	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/career.tsx	5	3	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/career_.result.$historyId.tsx	8	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/cookies.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/cover-letter.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/cover-letter_.result.$historyId.tsx	8	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/cv-studio.tsx	22	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/dashboard.tsx	24	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/discovery.tsx	19	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/history.tsx	58	14	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/imprint.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/index.tsx	38	5	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/interview.tsx	5	3	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/interview_.result.$historyId.tsx	8	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/job-match.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/job-match_.result.$historyId.tsx	8	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/login.tsx	4	3	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/portfolio.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/portfolio_.result.$historyId.tsx	8	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/privacy.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/profile.tsx	17	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/queue.tsx	9	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/reset-password.tsx	4	3	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/resume.tsx	5	3	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/resume_.result.$historyId.tsx	8	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/settings.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/routes/terms.tsx	3	2	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles.css	11	6	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/admin.css	210	493	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/animations.css	0	383	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/styles/applications.css	511	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/auth.css	144	317	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/base.css	23	1100	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/cv-studio.css	1335	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/dashboard.css	384	1890	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/design-system.css	0	534	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/styles/discovery.css	233	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/history.css	106	293	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/avatar.css	46	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/badge.css	247	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/button.css	326	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/check.css	237	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/chip.css	94	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/control.css	350	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/dialog.css	78	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/disclosure.css	237	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/field.css	53	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/file.css	179	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/foundation.css	198	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/gallery.css	692	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/index.css	37	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/jump-nav.css	90	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/menu.css	221	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/meta.css	389	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/overlay.css	187	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/page.css	372	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/panel-surface.css	89	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/radio.css	278	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/row.css	546	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/seal.css	163	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/section.css	502	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/segmented.css	233	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/sheet.css	146	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/skeleton.css	329	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/stamps.css	137	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/state.css	219	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/sticker.css	101	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/table.css	565	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/tabs.css	130	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/tiles.css	177	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/toast.css	262	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/kit/toolbar.css	253	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/landing.css	803	1585	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/legal.css	223	231	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/profile.css	240	0	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/responsive.css	0	346	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/styles/results.css	517	5160	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/settings.css	39	315	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/shell.css	1121	725	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/theme.css	279	179	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/tooling-fullscreen.css	0	2998	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+frontend/src/styles/tooling.css	345	303	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/styles/typography.css	92	41	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/src/test/setup.ts	6	4	frontend typecheck/build/unit/browser area checks; per-file runtime coverage not measured	No exhaustive manual line review attested
+frontend/tests/fonts.test.mjs	55	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/tests/production-smoke.mjs	273	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/tests/screenshot-utils.test.mjs	83	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/tests/serve.test.mjs	526	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/tests/server-process.mjs	70	0	test area exercised; selected harness/regression inspection, no per-file execution attestation	No exhaustive manual line review attested
+frontend/vercel.json	1	1	inventoried; no individual review attested	No exhaustive manual line review attested
+frontend/vite.config.ts	10	9	inventoried; no individual review attested	No exhaustive manual line review attested
+scripts/gen_carousel.py	0	144	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+scripts/gen_carousel_v3.py	0	154	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+scripts/gen_thumbs.py	0	86	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+scripts/gen_tool_cards.py	0	128	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+scripts/generate_vertex_brand_assets.py	0	641	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+scripts/generate_vertex_brand_logo_review_set.py	0	300	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+scripts/generate_vertex_icon_review_set.py	0	197	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested
+scripts/local-release.sh	94	0	inventoried; no individual review attested	No exhaustive manual line review attested
+skills-lock.json	0	40	removed from candidate; inventoried, no removed-code execution claimed	No exhaustive manual line review attested

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToolMutation } from '#/hooks/useToolMutation'
+import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 import { readWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolDraftState } from '#/lib/tools/drafts'
 import { tools } from '#/lib/tools/registry'
@@ -46,6 +47,25 @@ describe('useToolMutation', () => {
     toastMock.mockReset()
   })
   afterEach(() => sessionStorage.clear())
+
+  it('does not restore private context or cache after logout while a run is pending', async () => {
+    let finish!: (value: Record<string, unknown>) => void
+    const tool = toolWith('career', () => new Promise((resolve) => { finish = resolve }))
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    const { result: hook, unmount } = renderHook(() => useToolMutation(tool), {
+      wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    })
+    act(() => hook.current.mutate({ payload: {}, draft: { resumeText: RESUME } as ToolDraftState }))
+    await waitFor(() => expect(tool.submit).toHaveBeenCalled())
+    unmount()
+    clearSensitiveBrowserData()
+    client.clear()
+    await act(async () => finish({ history_id: 'old-owner-run', saved: true }))
+    expect(readWorkflowContext()).toBeNull()
+    expect(client.getQueryData(['tool-run', 'old-owner-run'])).toBeUndefined()
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(toastMock).not.toHaveBeenCalled()
+  })
 
   it('keeps the job description Job Match carried when Career Path (no job field) runs next', async () => {
     await run('job-match', { resumeText: RESUME, jobDescription: JOB })

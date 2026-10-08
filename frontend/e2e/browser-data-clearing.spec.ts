@@ -15,7 +15,10 @@ import { uniqueEmail } from './helpers/identity'
  * product, sign out, and read the keys back.
  */
 
-const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
+const apiPort = process.env.E2E_PRODUCTION === '1'
+  ? (process.env.E2E_FRONTEND_PORT ?? '3000')
+  : (process.env.E2E_BACKEND_PORT ?? '8000')
+const apiUrl = `http://127.0.0.1:${apiPort}/api/v1`
 const password = 'correct-horse-battery-staple'
 
 const resumeText = `

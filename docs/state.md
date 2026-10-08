@@ -1,13 +1,29 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-09-30 (Sept 2026 reset; integration branch `integration/chapter2-narrowing`, PR #402)
-**Confidence:** code- and local-verification-informed; no deployed environment
+**Snapshot date:** 2026-10-07 (release-readiness review of frozen `f3164de3`)
+**Confidence:** local verification and selected manual review; no deployed or container evidence
 
 This file records current posture, blockers, and risks. GitHub Issues, pull
 requests, and Git history own implementation detail. Direction and phases live
 in `docs/roadmap.md` (umbrella issue #319).
 
 ## Current Posture
+
+- The owner requested pre-launch readiness verification on 2026-10-07. Fixes and
+  evidence are isolated in `codex/release-readiness` from `f3164de3`; concurrent
+  `cv-studio/templates` work is outside that reviewed candidate. No deployment or
+  branch promotion has been authorized or performed.
+- The [readiness report](reviews/release-readiness-2026-10-07.md) records coverage,
+  corrected defects and release gaps. All 1,074 files against thesis-era `main`
+  were inventoried; this is not an exhaustive manual review of every changed line.
+- Launch still needs a hosting/staging target, real-provider and email/OAuth checks,
+  deployment-container verification and a production backup/migration rehearsal.
+  Docker is unavailable on this review host.
+- Documentation drift remains: the frozen `scripts/local-release.sh` has no
+  runtime/container preflight or separate authorization database option despite
+  older instructions describing them. Feasible checks ran individually; a complete
+  documented release gate is not claimed. `design.md` also retains historical
+  navy/Geist tokens while executable UI uses Sticker/Bricolage/Onest.
 
 - The owner reset direction on 2026-09-24: local-only, feature-first, keep every
   built feature but make it real and visually consistent with the original design.
@@ -16,7 +32,7 @@ in `docs/roadmap.md` (umbrella issue #319).
 - The R-series issues were closed as superseded; only #208 (owner PostHog console
   deletion) remains from the old set.
 - `main` and `deploy` are untouched thesis-era branches; Railway is not paid for.
-  No release or promotion is planned in this run.
+  Local release-readiness work is authorized; promotion remains an owner decision.
 - All product areas are always on (R11–R17 outcome flags removed, #351); only
   `AUTOPILOT_EXPERIMENT_ENABLED` and `ATS_INGESTION_ENABLED` remain off by default.
 - Vertex AI is not configured locally (placeholder project id); local AI runs use
@@ -39,10 +55,11 @@ in `docs/roadmap.md` (umbrella issue #319).
 - GitHub Actions is intentionally manual-dispatch only to conserve hosted quota.
   Pushes and pull-request updates do not run CI; all feasible gates run locally,
   and only the owner may request a hosted dispatch.
-- `scripts/local-release.sh` is the canonical local release gate. It verifies the
-  declared runtimes, builds and inspects both deployment images when Docker is
-  available, and requires explicit guarded disposable PostgreSQL URLs for database
-  mutation phases without dispatching Actions.
+- `scripts/local-release.sh` is the checked-in local runner. At `f3164de3` it
+  accepts one disposable database URL and runs application gates, but does not
+  supply the runtime/container or authorization-concurrency phases described in
+  earlier operating guidance. See the readiness report before treating it as a
+  complete release gate.
 - Backend dependency resolution is locked: intent lives in `requirements.in`, and
   generated `requirements.txt` pins the complete graph so CI, local development,
   and deployment resolve the same versions (#288).

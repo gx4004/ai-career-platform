@@ -2,7 +2,10 @@ import { expect, test, type Page } from '@playwright/test'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { uniqueEmail } from './helpers/identity'
 
-const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
+const apiPort = process.env.E2E_PRODUCTION === '1'
+  ? (process.env.E2E_FRONTEND_PORT ?? '3000')
+  : (process.env.E2E_BACKEND_PORT ?? '8000')
+const apiUrl = `http://127.0.0.1:${apiPort}/api/v1`
 const password = 'correct-horse-battery-staple'
 
 const resumeText = `
@@ -112,7 +115,7 @@ test('owner Cover Letter PDF download contains the generated fixture content', a
   const expectedOpening = (await detail.json()).result_payload.opening.text as string
 
   const pdf = await readDownloadedPdfText(page)
-  expect(pdf.filename).toBe(`result-${historyId}.pdf`)
+  expect(pdf.filename).toMatch(/^cover-letter-[a-z0-9-]+\.pdf$/)
   expect(pdf.text).toContain('Cover Letter')
   expect(normalizeWhitespace(pdf.text)).toContain(normalizeWhitespace(expectedOpening))
 })
@@ -127,7 +130,7 @@ test('owner Interview PDF download contains the generated fixture content', asyn
   const expectedQuestion = (await detail.json()).result_payload.questions[0].question as string
 
   const pdf = await readDownloadedPdfText(page)
-  expect(pdf.filename).toBe(`result-${historyId}.pdf`)
+  expect(pdf.filename).toMatch(/^interview-prep-[a-z0-9-]+\.pdf$/)
   expect(pdf.text).toContain('Interview Q&A')
   expect(normalizeWhitespace(pdf.text)).toContain(normalizeWhitespace(expectedQuestion))
 })

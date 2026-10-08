@@ -94,7 +94,7 @@ describe('the pending edit survives leaving the studio (cv-studio-d04)', () => {
     fireEvent.change(await screen.findByLabelText('Document name'), { target: { value: 'Quick change' } })
     expect(api.updateCvDocument).not.toHaveBeenCalled()
     unmount()
-    await waitFor(() => expect(api.updateCvDocument).toHaveBeenCalledWith('d1', expect.objectContaining({ name: 'Quick change' })))
+    await waitFor(() => expect(api.updateCvDocument).toHaveBeenCalledWith('d1', expect.objectContaining({ name: 'Quick change', expected_updated_at: document.updated_at })))
   })
 
   it('sends a pending edit as a keepalive request when the page is being closed', async () => {
@@ -107,7 +107,7 @@ describe('the pending edit survives leaving the studio (cv-studio-d04)', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toContain('/cv-documents/d1')
     expect(init).toMatchObject({ method: 'PATCH', keepalive: true, credentials: 'include' })
-    expect(JSON.parse(init.body as string)).toMatchObject({ name: 'Quick change' })
+    expect(JSON.parse(init.body as string)).toMatchObject({ name: 'Quick change', expected_updated_at: document.updated_at })
     // The debounce timer is spent: the edit is not sent a second time.
     await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 800)) })
     expect(api.updateCvDocument).not.toHaveBeenCalled()
@@ -228,10 +228,12 @@ describe('two tabs never overwrite each other silently (cv-studio-d03)', () => {
     const name = await screen.findByLabelText('Document name')
     fireEvent.change(name, { target: { value: 'One' } })
     await waitFor(() => expect(saveStatus().textContent).toContain('Saved'), { timeout: 2500 })
+    expect(lastPatch().expected_updated_at).toBe(document.updated_at)
     // The server now holds this tab's save: asking again must not raise a conflict.
     api.getCvDocument.mockResolvedValue({ ...document, name: 'One', updated_at: '2026-07-12T10:05:00Z' })
     fireEvent.change(name, { target: { value: 'Two' } })
     await waitFor(() => expect(api.updateCvDocument).toHaveBeenCalledTimes(2), { timeout: 2500 })
+    expect(lastPatch().expected_updated_at).toBe('2026-07-12T10:05:00Z')
     expect(screen.queryByText('This CV was saved somewhere else')).toBeNull()
   })
 })

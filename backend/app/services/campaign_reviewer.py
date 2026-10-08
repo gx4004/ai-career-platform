@@ -26,11 +26,21 @@ REQUIREMENT_STOPWORDS = {"seeking", "expertise", "experience", "required", "pref
 
 def _flatten_sections(sections: list[dict]) -> str:
     return "\n".join(
-        entry["body"]
+        text
         for section in sorted(sections, key=lambda item: item.get("position", 0))
         if section.get("visible", True)
         for entry in sorted(section.get("entries", []), key=lambda item: item.get("position", 0))
-        if isinstance(entry.get("body"), str)
+        for text in (
+            section.get("title"),
+            entry.get("heading"),
+            entry.get("subheading") if entry.get("heading") else None,
+            entry.get("location") if entry.get("heading") else None,
+            entry.get("start_date") if entry.get("heading") else None,
+            entry.get("end_date") if entry.get("heading") else None,
+            *((entry.get("bullets") or []) if entry.get("heading") else ()),
+            entry.get("body") if not entry.get("heading") or not entry.get("bullets") else None,
+        )
+        if isinstance(text, str) and text.strip()
     )
 
 

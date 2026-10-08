@@ -475,8 +475,14 @@ def _best_match_page(
     similar applications (equal skills fit only, so it can never outrank fit),
     then newest first.
     """
-    head = list(db.scalars(matching.order_by(*_NEWEST_FIRST).limit(MAX_SCORED_CANDIDATES)))
-    scores = _scores(db, profile, head)
+    candidates = db.execute(
+        matching.with_only_columns(
+            DiscoveredListing.id, DiscoveredListing.title, DiscoveredListing.company,
+            DiscoveredListing.location, DiscoveredListing.remote,
+        ).order_by(*_NEWEST_FIRST).limit(MAX_SCORED_CANDIDATES)
+    ).all()
+    head = [row.id for row in candidates]
+    scores = _scores(db, profile, head, revisions={row.id: tuple(row) for row in candidates})
     titles: dict[str, str] = {}
     if odds.segments:
         titles = dict(
@@ -613,9 +619,9 @@ def _live(db: Session, now: datetime):
 
 
 # Scores depend only on the owner's confirmed items and the listing's immutable
-# text (a canonical listing's text is its content hash), so they are cached per
+# text plus mutable title/company/location/remote fields, so they are cached per
 # profile fingerprint. Bounded to the most recently used profiles.
-_SCORE_CACHE: OrderedDict[str, dict[str, Match]] = OrderedDict()
+_SCORE_CACHE: OrderedDict[str, dict[tuple, Match]] = OrderedDict()
 _SCORE_CACHE_PROFILES = 128
 # Scoring a cold cache is seconds of CPU that holds the GIL. One caller per
 # profile computes while the others wait for its result instead of repeating it
@@ -634,7 +640,23 @@ def _scores(
     listing_ids: list[str],
     *,
     loaded: dict[str, DiscoveredListing] | None = None,
+    revisions: dict[str, tuple] | None = None,
 ) -> dict[str, Match]:
+    # Ingestion can revise location/remote without changing the canonical text.
+    # Check the small mutable projection even on a warm cache; fetch descriptions
+    # only for misses, keeping keyword extraction and scoring cached.
+    rows = () if revisions is not None else (
+        [loaded[listing_id] for listing_id in listing_ids if listing_id in loaded]
+        if loaded is not None
+        else db.execute(
+            select(DiscoveredListing.id, DiscoveredListing.title, DiscoveredListing.company,
+                   DiscoveredListing.location, DiscoveredListing.remote)
+            .where(DiscoveredListing.id.in_(listing_ids))
+        )
+    )
+    keys = revisions if revisions is not None else {
+        row.id: (row.id, row.title, row.company, row.location, row.remote) for row in rows
+    }
     with _SCORE_GUARD:
         cache = _SCORE_CACHE.get(profile.fingerprint)
         if cache is None:
@@ -644,11 +666,9 @@ def _scores(
                 _SCORE_LOCKS.pop(evicted, None)
         else:
             _SCORE_CACHE.move_to_end(profile.fingerprint)
-        if all(listing_id in cache for listing_id in listing_ids):
-            return {listing_id: cache[listing_id] for listing_id in listing_ids if listing_id in cache}
         profile_lock = _SCORE_LOCKS.setdefault(profile.fingerprint, threading.Lock())
     with profile_lock:
-        missing = [listing_id for listing_id in listing_ids if listing_id not in cache]
+        missing = [listing_id for listing_id, key in keys.items() if key not in cache]
         if missing:
             listings = (
                 [loaded[listing_id] for listing_id in missing]
@@ -656,8 +676,11 @@ def _scores(
                 else db.scalars(select(DiscoveredListing).where(DiscoveredListing.id.in_(missing)))
             )
             for listing in listings:
-                cache[listing.id] = score_listing(profile, listing)
-    return {listing_id: cache[listing_id] for listing_id in listing_ids if listing_id in cache}
+                for old_key in list(cache):
+                    if old_key[0] == listing.id:
+                        del cache[old_key]
+                cache[keys[listing.id]] = score_listing(profile, listing)
+        return {listing_id: cache[key] for listing_id, key in keys.items() if key in cache}
 
 
 def _words(value: str) -> set[str]:

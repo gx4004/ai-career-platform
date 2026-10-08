@@ -1254,11 +1254,11 @@ test.describe('motion (6)', () => {
           spinner: getComputedStyle(document.querySelector('.kit-button__spinner')!).animationDuration,
         }
       })
-      expect(state.dur1).toBe('0.01ms')
-      expect(state.dur2).toBe('0.01ms')
-      expect(state.dur3).toBe('0.01ms')
-      expect(state.stamp).toBe('0.01ms')
-      expect(state.slap).toBe('0.01ms')
+      // Production CSS minification spells 0.01ms as .01ms; compare the duration, not its spelling.
+      for (const duration of [state.dur1, state.dur2, state.dur3, state.stamp, state.slap]) {
+        expect(duration.endsWith('ms')).toBe(true)
+        expect(Number.parseFloat(duration)).toBe(0.01)
+      }
       expect(state.scroll).toBe('auto')
       expect(state.transition).toBe('none')
       expect(state.spinner).toBe('2s')

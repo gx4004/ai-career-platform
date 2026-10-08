@@ -118,7 +118,7 @@ export function CvStudio({
   const [actionError, setActionError] = useState('')
   const {
     listQuery, documentQuery, catalogQuery, documentId, draft, dirty, saveState, edit: editDraft, open, replace, retrySave,
-    conflict, lastSavedAt, lastCheckedAt, reloadNewer, keepMine,
+    conflict, lastSavedAt, lastCheckedAt, reloadNewer, keepMine, isCurrentOwner,
   } = useCvDraft(authenticated)
   /**
    * A line under the bar, with the version it is about when there is one (a freshly tailored version). It is news
@@ -385,6 +385,7 @@ export function CvStudio({
   }
 
   function openDocument(created: CvDocument) {
+    if (!isCurrentOwner()) return
     queryClient.setQueryData<{ items: CvDocument[] }>(LIST_KEY, (current) => ({
       items: [created, ...(current?.items ?? []).filter((item) => item.id !== created.id)],
     }))
@@ -412,6 +413,7 @@ export function CvStudio({
     await run('The CV could not be deleted.', async () => {
       if (all) await deleteAllCvDocuments()
       else await deleteCvDocument(draft.id)
+      if (!isCurrentOwner()) return
       // Closed now, before the studio unmounts it: if the next CV loads before the list refetches, the dialog must not
       // come back open over it.
       setConfirmOpen(false)

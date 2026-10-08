@@ -4,9 +4,10 @@ import { useNavigate } from '@tanstack/react-router'
 import { getHistory } from '#/lib/api/client'
 import { boundedIdentifierSchema } from '#/lib/api/schemas'
 import { useSession } from '#/hooks/useSession'
+import { CURRENT_USER_QUERY_KEY } from '#/lib/auth/currentUser'
 import { useToast } from '#/components/kit'
 import { markRevealPending } from '#/hooks/use-reveal-once'
-import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
+import { draftClearCount, readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolDraftState } from '#/lib/tools/drafts'
 import { setTransientResult } from '#/lib/tools/demoRuns'
 import { deriveRunMetadata } from '#/lib/tools/runMetadata'
@@ -68,6 +69,13 @@ export function useToolMutation(tool: ToolDefinition) {
       // Preload the result page chunk while the LLM call runs (15-60s)
       void import('#/pages/tool-result-pages').catch(() => {})
 
+      const privacyGeneration = draftClearCount()
+      const ownerId = queryClient.getQueryData<{ id: string } | null>(CURRENT_USER_QUERY_KEY)?.id
+      const isCurrent = () => privacyGeneration === draftClearCount() &&
+        (!ownerId || queryClient.getQueryData<{ id: string } | null>(CURRENT_USER_QUERY_KEY)?.id === ownerId)
+      const assertCurrent = () => {
+        if (!isCurrent()) throw new DOMException('The session changed while this run was pending.', 'AbortError')
+      }
       const currentStatus = statusRef.current
       const accessMode = currentStatus === 'authenticated' ? 'authenticated' : 'guest_demo'
 
@@ -120,6 +128,7 @@ export function useToolMutation(tool: ToolDefinition) {
         if (abortRef.current === controller) abortRef.current = null
       }
 
+      assertCurrent()
       let historyId = extractHistoryId(result)
       let saved = typeof result.saved === 'boolean' ? result.saved : Boolean(historyId)
 
@@ -129,6 +138,7 @@ export function useToolMutation(tool: ToolDefinition) {
           page: 1,
           page_size: 1,
         })
+        assertCurrent()
         historyId = latest.items[0]?.id || null
       }
 
@@ -178,9 +188,10 @@ export function useToolMutation(tool: ToolDefinition) {
         saved,
       })
 
-      return { historyId, result, saved }
+      return { historyId, result, saved, isCurrent }
     },
-    onSuccess: ({ historyId, result, saved }, variables) => {
+    onSuccess: ({ historyId, result, saved, isCurrent }, variables) => {
+      if (!isCurrent()) return
       // Synchronously populate the query cache with a complete ToolRunDetail shape
       queryClient.setQueryData(['tool-run', historyId], {
         id: historyId,
