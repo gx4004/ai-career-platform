@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.1",
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.63.0",
     "@tanstack/devtools-vite": "^0.5.3",
     "@tanstack/react-devtools": "^0.9.10",
     "@tanstack/react-router-devtools": "^1.167.1",
