@@ -40,6 +40,7 @@ from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
 from app.services.ats_providers import PROVIDERS, provider_for_endpoint
+from app.services.cv_fit import clear_fit_caches
 from app.services.discovered_listings import listing_content_sha256
 
 TEST_DB_URL = "sqlite://"
@@ -55,6 +56,8 @@ TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 @pytest.fixture(autouse=True)
 def setup_db():
     limiter.reset()
+    # A PDF or fit cached by one test must never answer for another (the pool may be faked).
+    clear_fit_caches()
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)

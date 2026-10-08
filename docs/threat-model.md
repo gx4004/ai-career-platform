@@ -1104,17 +1104,45 @@ one shared headless Chromium per worker. Each render gets a fresh browser contex
 with service workers blocked, and every request the page makes is aborted unless it
 is a `data:` or `about:` URL: fonts and CSS are inlined, so a render has no network
 access, cannot reach internal services and cannot leak CV text to a third party.
-Two render slots and a 15 s budget (queueing included) bound concurrency; a crashed
-browser is relaunched; a missing one is a 503, not a fallback. The preview endpoint
+A crashed browser is relaunched (a render that was on it retries once on the new
+one); a missing one is a 503, not a fallback. The preview endpoint
 (`POST /cv-documents/{id}/preview`) requires the owner's session, scopes the
 document first, accepts the same validated draft fields as a save (1 MiB JSON cap),
-stores nothing, answers `private, no-store`, and is limited to 60/min per client; fit
-to one page spends at most six renders inside the same budget. The plain-text export
+stores nothing, answers `private, no-store`, and is limited to 60/min per client.
+
+Render capacity model (per worker process; `cv_chromium`, `cv_render_lanes`, `cv_fit`):
+
+- *Slots.* One shared Chromium prints at most two pages at once
+  (`MAX_CONCURRENT_RENDERS`). A render waits at most 5 s for a slot
+  (`QUEUE_TIMEOUT_SECONDS`), then answers 503 with "The PDF renderer is busy right
+  now. Please try again in a moment."; a render runs at most 15 s (queueing included).
+- *Per user.* Preview, template-gallery and quality renders go through a per-user
+  lane: one at a time per user, so one person can hold at most one of the two slots
+  and a second person is never starved by the first. A request waits at most 5 s for
+  its lane, then is "busy" (503). A newer preview from the same user cancels the older
+  one, which stops at its next render boundary (checked before every render) and
+  answers 409; a client that disconnects is noticed between renders the same way. The
+  gallery holds the lane per tile it has to draw, never for the whole gallery; cached
+  tiles need no lane. Exports (10/min per client) use the slots but not the lane.
+- *Renders per request.* Fit to one page spends at most four renders in a preview and
+  six in an export or quality check, inside one 15 s budget; a further attempt starts
+  only with 3 s left, and a later attempt that fails or times out returns the best
+  result so far (`reason: "time"`) instead of an error. The scale found for an exact
+  render model (content, header, template and every style token, hashed) is kept in an
+  in-process LRU (128 entries), so the export or quality check after a preview prints
+  once instead of searching; the final PDF of an export or quality check is kept in a
+  16-entry LRU, so an autosave rerun on an unchanged CV prints nothing.
+- *Memory.* The browser is about 150-300 MB plus about 50-100 MB per open render
+  context (two at most); the caches add a few MB (16 PDFs of about 50-150 KB, the
+  gallery's 256 tiles of about 7 KB). Measured locally at about 0.5-0.8 GB RSS under
+  load; not yet measured in the container.
+
+The plain-text export
 (`artifacts/txt`, document and variant) is owner-scoped, 10/min, `text/plain;
 charset=utf-8` and built from the render model only. The remaining risk is capacity,
-not data: a single Railway replica holds a browser per worker (measured locally at
-about 0.5-0.8 GB RSS under load; not yet measured in the container), so a burst of
-previews within the rate limits can pressure memory. The hosted load test is an
+not data: a single Railway replica holds a browser per worker, so many people
+previewing at once queue for two slots and some get "busy" answers, and memory is
+unmeasured in the container. The hosted load test is an
 open pre-launch item. PDF/DOCX generators consume only that normalized render model, set private
 no-store responses, and validate text, links, page boundaries, and own-parser
 re-import before evidence is reported. The parser boundary remains subprocess-

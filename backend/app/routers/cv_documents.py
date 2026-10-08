@@ -1,4 +1,7 @@
+import asyncio
+import contextlib
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -47,6 +50,7 @@ from app.schemas.cv_documents import (
     CvVariantResponse,
     CvVariantUpdate,
 )
+from app.services.cv_chromium import RenderCancelledError
 from app.services.cv_documents import (
     CvDocumentConflictError,
     CvDocumentNotFoundError,
@@ -77,6 +81,7 @@ from app.services.cv_html import available_template_ids
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
 from app.services.cv_preview import MAX_PREVIEW_WIDTH, MIN_PREVIEW_WIDTH, render_preview
 from app.services.cv_quality import analyze_cv_quality
+from app.services.cv_render_lanes import RenderTicket, render_lanes
 from app.services.cv_rendering import (
     build_render_model,
     render_docx,
@@ -108,6 +113,49 @@ _INVALID_IMPORT = (
 _IMPORT_LIMIT = "The uploaded file is larger than the 10 MB limit."
 _IMPORT_ARCHIVE_LIMIT = "The DOCX expands beyond safe processing limits. Try a simpler document."
 _IMPORT_TIMEOUT = "Import took too long. Try a smaller or simpler document."
+
+
+async def _cancel_when_gone(request: Request, ticket: RenderTicket, done: asyncio.Event) -> None:
+    """Cancel ``ticket`` when the client disconnects, so an abandoned request stops before its
+    next render instead of rendering to the end. Stops when ``done`` is set (task cancellation
+    alone is not enough: the cancel scope inside ``is_disconnected`` can absorb it)."""
+    while not ticket.cancelled and not done.is_set():
+        try:
+            if await request.is_disconnected():
+                ticket.cancel()
+                return
+        except Exception:  # noqa: BLE001  (a transport that cannot tell: keep rendering)
+            return
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(done.wait(), 0.25)
+
+
+@contextlib.asynccontextmanager
+async def _watch_disconnect(request: Request, ticket: RenderTicket):
+    done = asyncio.Event()
+    watcher = asyncio.create_task(_cancel_when_gone(request, ticket, done))
+    try:
+        yield
+    finally:
+        done.set()
+        await asyncio.wait({watcher}, timeout=1)
+        watcher.cancel()
+
+
+async def _in_lane(request: Request, user_id: str, kind: str, work: Callable, *, supersede: bool = False):
+    """Run blocking render ``work(ticket)`` off the event loop in the user's render lane (one
+    render at a time per user; see cv_render_lanes). A superseded or abandoned request is a 409."""
+    ticket = RenderTicket(kind)
+
+    def run():
+        with render_lanes.hold(user_id, kind, supersede=supersede, ticket=ticket):
+            return work(ticket)
+
+    try:
+        async with _watch_disconnect(request, ticket):
+            return await run_in_threadpool(run)
+    except RenderCancelledError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error.message) from error
 
 
 def _not_found(error: Exception):
@@ -228,8 +276,20 @@ async def template_thumbnails(
         if not wanted or unknown:
             raise HTTPException(status_code=422, detail="Unknown template in templates.")
     style = CvStyle(accent_color=accent_color, font_id=font_id, density=density, page_size=page_size)
-    # Cached tiles return at once; a miss prints one template at a time, off the event loop.
-    result = await run_in_threadpool(lambda: render_thumbnails(style, template_ids=wanted))
+    # Cached tiles return at once; a miss prints one template at a time, off the event loop, in
+    # the user's render lane (held per tile, so a preview never waits behind the whole gallery).
+    ticket = RenderTicket("thumbnails")
+
+    def hold():
+        return render_lanes.hold(current_user.id, "thumbnails", ticket=ticket)
+
+    try:
+        async with _watch_disconnect(request, ticket):
+            result = await run_in_threadpool(
+                lambda: render_thumbnails(style, template_ids=wanted, hold=hold)
+            )
+    except RenderCancelledError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error.message) from error
     response.headers["Cache-Control"] = "private, max-age=3600"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return CvTemplateThumbnailsResponse(
@@ -438,8 +498,13 @@ async def preview(
     draft = _draft_source(document, body)
     style = body.style if body.style is not None else saved_style
     model = with_fit_option(build_render_model(draft, style.template_id, style), style.fit_one_page)
-    # Chromium, PyMuPDF and WebP encoding block; keep them off the event loop.
-    result = await run_in_threadpool(lambda: render_preview(model, width=width))
+    # Chromium, PyMuPDF and WebP encoding block; keep them off the event loop. A newer preview
+    # from the same person supersedes this one at its next render.
+    result = await _in_lane(
+        request, current_user.id, "preview",
+        lambda ticket: render_preview(model, width=width, check_cancelled=ticket.check),
+        supersede=True,
+    )
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     warnings = []
@@ -495,8 +560,12 @@ async def quality(
     # run_tool_pipeline() so autosave-driven checks never write ToolRuns (#362).
     _, style, source = _renderable(db, document_id, current_user.id, variant_id)
     model = with_fit_option(build_render_model(source, style.template_id, style), style.fit_one_page)
-    # Chromium and fitz work blocks; keep it off the event loop.
-    evidence = await run_in_threadpool(lambda: validate_artifact(model, render_pdf_fitted(model)[0]))
+    # Chromium and fitz work blocks; keep it off the event loop. The PDF (and its fit) is cached
+    # by model, so an autosave rerun on an unchanged CV prints nothing.
+    evidence = await _in_lane(
+        request, current_user.id, "quality",
+        lambda _ticket: validate_artifact(model, render_pdf_fitted(model)[0]),
+    )
     result = analyze_cv_quality(source.sections, style, evidence)
     return CvQualityResponse(**result)
 

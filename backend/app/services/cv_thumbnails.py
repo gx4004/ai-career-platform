@@ -35,13 +35,14 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 
 import fitz
 from PIL import Image, ImageFilter
 
 from app.schemas.cv_documents import CvStyle
-from app.services.cv_chromium import ChromiumUnavailableError, print_pdf
+from app.services.cv_chromium import ChromiumUnavailableError, RenderCancelledError, print_pdf
 from app.services.cv_html import available_template_ids, render_cv_html
 from app.services.cv_rendering import build_render_model
 from app.services.cv_sample import SAMPLE_VERSION, TRIM_ORDER, trimmed_sample
@@ -179,8 +180,8 @@ def _raster(template_id: str, pdf: bytes) -> Thumbnail:
     )
 
 
-def _render_one(template_id: str, style: CvStyle, remaining: Callable[[], float]) -> Thumbnail:
-    key = (
+def _thumbnail_key(template_id: str, style: CvStyle) -> tuple:
+    return (
         template_id,
         style.accent_color,
         style.font_id,
@@ -188,6 +189,10 @@ def _render_one(template_id: str, style: CvStyle, remaining: Callable[[], float]
         style.page_size,
         SAMPLE_VERSION,
     )
+
+
+def _render_one(template_id: str, style: CvStyle, remaining: Callable[[], float]) -> Thumbnail:
+    key = _thumbnail_key(template_id, style)
     cached = _thumbnails.get(key)
     if cached is not None:
         return cached
@@ -202,9 +207,13 @@ def render_thumbnails(
     *,
     budget: float = THUMBNAIL_BUDGET_SECONDS,
     template_ids: list[str] | None = None,
+    hold: Callable[[], AbstractContextManager] | None = None,
 ) -> list[Thumbnail]:
     """Page 1 of the sample CV in every available template (or those of ``template_ids``), in
-    catalog order. Raises ``ChromiumUnavailableError`` (HTTP 503) when the renderer cannot start."""
+    catalog order. Raises ``ChromiumUnavailableError`` (HTTP 503) when the renderer cannot start.
+
+    ``hold`` is entered around each tile that has to be drawn (not around cached ones): the
+    caller's per-user render lane, so a gallery never holds it for longer than one template."""
     deadline = time.monotonic() + budget
 
     def remaining() -> float:
@@ -218,11 +227,15 @@ def render_thumbnails(
     for template_id in available_template_ids():
         if wanted is not None and template_id not in wanted:
             continue
+        tile_style = gallery_style(style, template_id)
         try:
-            thumbnails.append(
-                _render_one(template_id, gallery_style(style, template_id), remaining)
-            )
-        except ChromiumUnavailableError:
+            cached = _thumbnails.get(_thumbnail_key(template_id, tile_style))
+            if cached is not None:
+                thumbnails.append(cached)
+                continue
+            with hold() if hold is not None else nullcontext():
+                thumbnails.append(_render_one(template_id, tile_style, remaining))
+        except (ChromiumUnavailableError, RenderCancelledError):
             raise
         except TimeoutError:
             thumbnails.append(Thumbnail(template_id=template_id, error=TIMEOUT_MESSAGE))
