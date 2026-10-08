@@ -116,7 +116,8 @@ which the PDF, the preview and the DOCX render deterministically from the same
 structured document. **ATS-safe** templates are single-column and read in section
 order (Classic, the default; Scholar; Frame); **less ATS-safe** templates use a
 sidebar, rail or two-column body and may be read out of order by a job portal
-(Lagoon, Rail, Lilac, Slate), so they carry a warning and ATS mode never offers them.
+(Lagoon, Rail, Lilac, Slate), so they carry a warning and ATS mode never offers them (it prints Classic instead,
+and keeps a chosen ATS-safe template).
 Nine further ids are accepted but not built and print as Classic. A style picks a
 template plus an optional typeface override, an accent (null means the template's own
 colour), density, page size and fit to one page. The backend style catalog is the

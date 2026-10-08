@@ -4,9 +4,14 @@
 design values: both exporters read them here, and the browser preview reads them
 through ``style_catalog()`` (``GET /cv-documents/style-catalog``).
 
-PDF bytes are stable through ReportLab's invariant mode. DOCX semantic content is
-deterministic; ZIP member timestamps/order are canonicalized so bytes are stable
+The PDF is printed by headless Chromium from the template's HTML (``cv_chromium``),
+with its dates patched to a fixed value so the bytes are stable. DOCX semantic content
+is deterministic; ZIP member timestamps/order are canonicalized so bytes are stable
 with a fixed python-docx version.
+
+ATS-friendly mode keeps the chosen template when it is ATS-safe (single column) and
+prints the default template otherwise; it uses the template's own typeface pair (no
+override) in both the PDF and the DOCX, forces normal density and keeps the accent.
 """
 
 from __future__ import annotations
@@ -122,11 +127,17 @@ DENSITIES: dict[str, tuple[str, float, float]] = {
     "spacious": ("Roomy", 1.15, 1.4),
 }
 
-# What ATS-friendly mode forces, whatever the saved style says.
+# ATS-friendly mode: a template that is not ATS-safe prints as this one; an ATS-safe one is
+# kept. Density is forced; the typefaces are the template's own pair (no override), and the
+# accent is kept.
 ATS_TEMPLATE_ID = DEFAULT_TEMPLATE_ID
 ATS_DENSITY = "normal"
-ATS_ACCENT = "#111827"
-ATS_CSS_FAMILY = "Helvetica, Arial, 'Liberation Sans', sans-serif"
+
+
+def ats_layout_id(template_id: str) -> str:
+    """The template ATS mode prints for ``template_id``."""
+    layout_id = html_template_id(template_id)
+    return layout_id if TEMPLATES[layout_id].ats_safe else ATS_TEMPLATE_ID
 
 
 def template_sizes(template: Template, density: str) -> CvStyleSizes:
@@ -176,8 +187,8 @@ def style_catalog() -> CvStyleCatalog:
             template_id=ATS_TEMPLATE_ID,
             offered_template_ids=sorted(ATS_SAFE_TEMPLATES, key=list(TEMPLATES).index),
             density=ATS_DENSITY,
-            accent=ATS_ACCENT,
-            css_family=ATS_CSS_FAMILY,
+            fonts="template",
+            accent="kept",
         ),
     )
 
@@ -201,23 +212,21 @@ class EffectiveStyle:
 def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
     """Resolve template + style into the concrete tokens both renderers consume."""
     ats = style.ats_mode
-    layout_id = ATS_TEMPLATE_ID if ats else html_template_id(template_id)
+    layout_id = ats_layout_id(template_id) if ats else html_template_id(template_id)
     template = TEMPLATES[layout_id]
-    if ats:
-        font_docx = font_docx_heading = "Helvetica"
-        accent = ATS_ACCENT
-    else:
-        plan = font_plan(layout_id, style.font_id or None)
-        font_docx, font_docx_heading = plan.body.name, plan.heading.name
-        # Null is the template's own colour; a palette colour (Ink too) is the person's choice.
-        accent = style.accent_color or template.default_accent
+    # ATS mode drops the typeface override: PDF and DOCX both use the template's own pair.
+    font_override = "" if ats else (style.font_id or "")
+    plan = font_plan(layout_id, font_override or None)
+    # Null is the template's own colour; a palette colour (Ink too) is the person's choice.
+    # ATS mode keeps it.
+    accent = style.accent_color or template.default_accent
     density = ATS_DENSITY if ats else style.density
     sizes = template_sizes(template, density)
     return EffectiveStyle(
         layout_template_id=layout_id,
-        font_override="" if ats else (style.font_id or ""),
-        font_docx_name=font_docx,
-        font_docx_heading_name=font_docx_heading,
+        font_override=font_override,
+        font_docx_name=plan.body.name,
+        font_docx_heading_name=plan.heading.name,
         accent=accent,
         density=density,
         ats_mode=ats,

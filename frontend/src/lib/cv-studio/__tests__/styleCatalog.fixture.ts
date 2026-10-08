@@ -29,5 +29,5 @@ export const styleCatalogFixture: CvStyleCatalog = cvStyleCatalogSchema.parse({
     { value: '#B45309', name: 'Amber' },
   ],
   densities: [{ id: 'compact', name: 'Compact' }, { id: 'normal', name: 'Balanced' }, { id: 'spacious', name: 'Roomy' }],
-  ats_mode: { template_id: 'classic', offered_template_ids: ['classic', 'executive'], density: 'normal', accent: '#111827', css_family: 'Helvetica, sans-serif' },
+  ats_mode: { template_id: 'classic', offered_template_ids: ['classic', 'executive'], density: 'normal', fonts: 'template', accent: 'kept' },
 })

@@ -295,21 +295,21 @@ fallback (D-059).
 - Tailoring writes only diff-reviewed changes with requirement/evidence provenance;
   unsupported claims need an explicit user confirmation step (D-073).
 - Preview, DOCX, and PDF render deterministically from one document plus one of
-  one of five declarative templates (ATS Essential, Professional Editorial,
-  Technical Portfolio, Modern Two-Column, Minimal Serif), gated by visual, text-layer, link, page-break, and
-  own-parser re-import validation (D-074).
+  seven declarative HTML/CSS templates printed by headless Chromium (D-132,
+  ADR 0011), gated by visual, text-layer, link, page-break, and own-parser
+  re-import validation.
   `cv-render/v1` is the normalized source for all three targets. Its canonical hash
   covers normalized visible content, ordering, page geometry, and template tokens.
-  ReportLab invariant mode makes PDF byte-stable; DOCX core dates, ZIP member order,
+  The Chromium-printed PDF has its dates patched to a fixed value, so it is byte-stable; DOCX core dates, ZIP member order,
   timestamps, compression, and permissions are normalized for byte stability with
   the pinned runtime dependency set. Cross-runtime compatibility is defined as
   canonical render-hash equality plus equivalent own-parser section-entry content,
   because different office/PDF engines may serialize equivalent packages differently.
   The ATS checks run against the PDF rendered from the saved style and report
   pass/fail with a fix hint; they never produce a score (D-126).
-  Browser preview embeds that same authenticated PDF artifact rather than
-  reimplementing template layout in CSS, so multi-page boundaries and links are
-  identical to the downloaded PDF. Automated PDF snapshots compare text-block
+  The browser preview shows page images of the unsaved draft from the same
+  Chromium print pass rather than reimplementing template layout in CSS, so
+  multi-page boundaries are identical to the downloaded PDF. Automated PDF snapshots compare text-block
   coordinates at 0.1-point tolerance and fixed-DPI rendered pixel hashes. DOCX
   package semantics plus mandatory LibreOffice/Poppler pagination inspection in
   the local release gate cover the editable artifact.

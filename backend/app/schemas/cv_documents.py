@@ -734,14 +734,18 @@ class CvStyleCatalogDensity(BaseModel):
 
 
 class CvStyleCatalogAtsMode(BaseModel):
-    """What ATS-friendly mode forces, whatever the saved template/font/accent/density."""
+    """What ATS-friendly mode prints, whatever the saved style says."""
 
+    # The template printed when the chosen one is not ATS-safe.
     template_id: CvTemplateId
-    # The templates still offered while ATS mode is on (the ATS-safe ones).
+    # The templates offered while ATS mode is on (the ATS-safe ones); a chosen one is kept.
     offered_template_ids: list[CvTemplateId]
+    # Forced.
     density: CvDensity
-    accent: str
-    css_family: str
+    # "template": the template's own typeface pair, in the PDF and the DOCX (no override).
+    fonts: Literal["template"]
+    # "kept": the person's accent (or the template's own colour when it is null).
+    accent: Literal["kept"]
 
 
 class CvStyleCatalog(BaseModel):

@@ -622,9 +622,10 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     const toggle = within(design).getByRole('switch', { name: 'ATS-friendly mode' })
     fireEvent.click(toggle)
     expect((toggle as HTMLInputElement).checked).toBe(true)
-    expect(within(design).getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
+    expect(within(design).getByText('Only one-column templates while ATS-friendly mode is on.')).toBeTruthy()
     expect((within(design).getByRole('radio', { name: /Source Serif 4/ }) as HTMLInputElement).disabled).toBe(true)
-    // The server applies the ATS template, accent and density; the preview just sends the flag.
+    // The server applies the ATS template (Classic for a layout that is not ATS-safe), the template's own
+    // fonts and normal density, and keeps the accent; the preview just sends the flag.
     await previewShows((draft) => expect(draft.style.ats_mode).toBe(true))
     await waitFor(() => expect(lastPatch()?.style).toMatchObject({ ats_mode: true }), { timeout: 1500 })
   })

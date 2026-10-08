@@ -37,7 +37,9 @@ contract is `docs/cv-templates-spec.md`.
   face can draw is reported, never drawn in a fallback face.
 - Each template is labelled: single-column templates are ATS-safe; sidebar, rail and
   two-column templates are "less ATS-safe" with a one-line warning. ATS mode offers
-  only the safe set and forces Classic.
+  only the safe set: a chosen safe template is kept and any other prints as Classic,
+  in the template's own typefaces (PDF and DOCX alike), normal spacing and the
+  person's accent.
 - Scope (owner, 2026-10-07): seven templates ship, `classic` (default), `scholar`,
   `frame` (ATS-safe) and `lagoon`, `rail`, `lilac`, `slate` (less safe). The other
   nine ids (`executive`, `academic`, `manuscript`, `meadow`, `almanac`, `violet`,

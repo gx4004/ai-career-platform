@@ -113,17 +113,48 @@ def test_unstyled_cv_exports_in_the_font_its_preview_shows(client, auth_headers,
     assert f'w:ascii="{family}"' in styles_xml and "Source Serif 4" in styles_xml
 
 
-def test_ats_mode_forces_single_column_standard_font_neutral_accent():
-    # A legacy id still parses (it maps to lagoon); ATS mode forces classic whatever it is.
+def test_ats_mode_falls_back_to_classic_for_a_template_that_is_not_ats_safe():
+    # A legacy id still parses (it maps to lagoon, which is not ATS-safe): it prints as classic.
     style = CvStyle(
-        template_id="modern-two-column", font_id="crimson-text", accent_color="#B91C1C", ats_mode=True
+        template_id="modern-two-column", font_id="crimson-text", accent_color="#B91C1C",
+        density="compact", ats_mode=True,
     )
     assert style.template_id == "lagoon"
     effective = resolve_effective_style("lagoon", style)
     assert effective.layout_template_id == "classic"
-    assert effective.font_docx_name == "Helvetica"
-    assert effective.accent == "#111827"
+    # The template's own pair (no override, no Helvetica), the person's accent, normal density.
+    classic = load_manifest("classic").typefaces
+    assert (effective.font_docx_name, effective.font_docx_heading_name) == (classic["body"], classic["heading"])
+    assert effective.font_override == ""
+    assert effective.accent == "#B91C1C"
+    assert effective.density == "normal"
     assert effective.two_column is False
+
+
+def test_ats_mode_keeps_a_chosen_ats_safe_template_and_its_own_fonts():
+    for template_id in ("classic", "scholar", "frame"):
+        assert TEMPLATES[template_id].ats_safe
+        effective = resolve_effective_style(template_id, CvStyle(template_id=template_id, font_id="lora", ats_mode=True))
+        assert effective.layout_template_id == template_id
+        own = load_manifest(template_id).typefaces
+        assert (effective.font_docx_name, effective.font_docx_heading_name) == (own["body"], own["heading"])
+        # A null accent is still the template's own colour.
+        assert effective.accent == TEMPLATES[template_id].default_accent
+
+
+def test_ats_mode_docx_uses_the_same_fonts_as_the_pdf(db, test_user):
+    document = _structured_document(db, test_user)
+    for template_id in ("lagoon", "scholar"):
+        style = CvStyle(template_id=template_id, font_id="eb-garamond", ats_mode=True)
+        model = build_render_model(document, template_id, style)
+        pdf_families = {f.name.split("+")[-1].split("-")[0] for f in embedded_fonts(render_pdf(model))}
+        with zipfile.ZipFile(io.BytesIO(render_docx(model))) as archive:
+            styles_xml = archive.read("word/styles.xml").decode()
+        docx_families = {model.tokens["font_docx"], model.tokens["font_docx_heading"]}
+        assert "Helvetica" not in styles_xml
+        for family in docx_families:
+            assert f'w:ascii="{family}"' in styles_xml
+        assert {family.replace(" ", "") for family in docx_families} == pdf_families, template_id
 
 
 def test_density_scales_type_and_gap_size():
@@ -233,12 +264,23 @@ def test_style_catalog_is_the_single_source_of_design_values(client, auth_header
                 "section_gap_pt": effective.section_gap,
             }
             assert template["margin_mm"] == effective.margin_mm
-    ats = resolve_effective_style("lagoon", CvStyle(ats_mode=True))
-    assert body["ats_mode"]["template_id"] == ats.layout_template_id == "classic"
-    assert body["ats_mode"]["offered_template_ids"] == [
-        tid for tid, t in templates.items() if t["ats_safe"]
-    ]
-    assert body["ats_mode"]["accent"] == ats.accent
+    # ATS mode, as described, is what prints: a template that is not ATS-safe falls back to
+    # the named one, an offered one is kept, density is forced, fonts and accent are kept.
+    ats = body["ats_mode"]
+    assert set(ats) == {"template_id", "offered_template_ids", "density", "fonts", "accent"}
+    assert ats["offered_template_ids"] == [tid for tid, t in templates.items() if t["ats_safe"]]
+    assert (ats["fonts"], ats["accent"]) == ("template", "kept")
+    for template_id in templates:
+        effective = resolve_effective_style(
+            template_id, CvStyle(template_id=template_id, font_id="lora", accent_color="#B91C1C",
+                                 density="spacious", ats_mode=True)
+        )
+        expected = template_id if template_id in ats["offered_template_ids"] else ats["template_id"]
+        assert effective.layout_template_id == expected
+        assert effective.density == ats["density"]
+        assert effective.font_override == "" and effective.accent == "#B91C1C"
+        own = templates[expected]["typefaces"]
+        assert (effective.font_docx_name, effective.font_docx_heading_name) == (own["body"], own["heading"])
 
 
 def test_style_catalog_requires_authentication(client):
