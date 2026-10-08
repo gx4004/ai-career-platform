@@ -69,3 +69,11 @@ frontend/e2e/screenshots/
 # Legacy / archived
 frontend-legacy/
 .agents/
+
+# Local-only AI tooling and handoff notes (kept on disk, never committed)
+CLAUDE.md
+AGENTS.md
+docs/agents/
+docs/handoff-*.md
+docs/reviews/
+frontend/docs/visual-prompt-pack.md
