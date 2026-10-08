@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Field as FormField, Input, Notice, Section, Skeleton, useToast } from '#/components/kit'
 import { getApplicationDetails, saveApplicationDetails } from '#/lib/api/client'
 import type { ApplicationDetails, ApplicationDetailsUpdate } from '#/lib/api/schemas'
 import { APPLICATION_DETAILS_QUERY_KEY } from '#/lib/query/applicationCaches'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 type Field = {
   name: keyof ApplicationDetailsUpdate
@@ -153,7 +154,7 @@ function DetailsForm({ initial, accountName }: { initial: ApplicationDetailsUpda
   const [values, setValues] = useState<ApplicationDetailsUpdate>(initial)
   const [invalid, setInvalid] = useState<FieldName[]>([])
   const inputs = useRef<Partial<Record<FieldName, HTMLInputElement | null>>>({})
-  const save = useMutation({
+  const save = useOwnerMutation({
     mutationFn: (payload: ApplicationDetailsUpdate) => saveApplicationDetails(payload),
     onSuccess: (saved) => {
       queryClient.setQueryData(APPLICATION_DETAILS_QUERY_KEY, saved)

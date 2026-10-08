@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { bumpOwnerGeneration } from './ownerGeneration'
 import type { ReactNode } from 'react'
 import {
   useQuery,
@@ -92,6 +93,7 @@ function purgeOwnerScopedQueryData(queryClient: QueryClient) {
     },
   })
   queryClient.getMutationCache().clear()
+  bumpOwnerGeneration()
 }
 
 const SessionContext = createContext<SessionState | null>(null)

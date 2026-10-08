@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import {
   Button, DateField, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogForm,
   DialogHeader, DialogTitle, Field, Input, Notice, Stack, Textarea,
@@ -8,6 +7,7 @@ import {
 import { describeFailure } from '#/lib/api/errors'
 import type { ApplicationDetail } from '#/lib/api/schemas'
 import { createApplication } from './applicationsApi'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 type FieldName = 'role' | 'company' | 'source_url' | 'description' | 'deadline'
 type Errors = Partial<Record<FieldName, string>>
@@ -55,7 +55,7 @@ export function AddApplicationDialog({
   // The first field to fix gets focus, whether the browser or the server caught it; its message is announced
   // with it. Focus waits for the render that re-enables the fields after a submit.
   const [focusField, setFocusField] = useState<FieldName | null>(null)
-  const create = useMutation({
+  const create = useOwnerMutation({
     mutationFn: () =>
       createApplication({
         role: values.role.trim(),

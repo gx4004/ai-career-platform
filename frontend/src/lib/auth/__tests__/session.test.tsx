@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '#/lib/api/errors'
 import { useSession } from '#/hooks/useSession'
 import { SessionProvider } from '#/lib/auth/session'
+import { currentOwnerGeneration } from '#/lib/auth/ownerGeneration'
 import { fetchSessionUser } from '#/lib/auth/currentUser'
 import { readPendingIntent, writePendingIntent } from '#/lib/auth/pendingIntent'
 import { clearSessionHint, hasSessionHint, markSessionHint } from '#/lib/auth/sessionHint'
@@ -177,12 +178,15 @@ describe('signing in and out', () => {
     renderSession()
     await waitFor(() => expect(status()).toBe('authenticated'))
     fireEvent.click(screen.getByRole('button', { name: 'Type' }))
+    const generationBefore = currentOwnerGeneration()
 
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
 
     await waitFor(() => expect(status()).toBe('guest'))
     expect(hasSessionHint()).toBe(false)
     expect(screen.getByTestId('draft').textContent).toBe('')
+    // In-flight writes started by the previous owner are dropped from here on (ownerScoped).
+    expect(currentOwnerGeneration()).toBeGreaterThan(generationBefore)
   })
 
   it('follows a pending intent after sign-in only when it is an in-app path', async () => {

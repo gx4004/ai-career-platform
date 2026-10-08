@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Check, CircleAlert, CircleDashed, ListPlus } from 'lucide-react'
 import {
@@ -26,6 +26,7 @@ import { DEVELOPMENT_PLAN_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { KIND_LABELS, PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
 import type { EvidenceKind } from '#/lib/api/schemas'
 import { ApplicationPanel } from './ApplicationPanel'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 type Finding = Awaited<ReturnType<typeof reviewApplication>>['findings'][number]
 
@@ -118,8 +119,8 @@ export function DocumentChecks({
       writeHidden(applicationId, next)
       return next
     })
-  const classify = useMutation({ mutationFn: () => classifyApplicationGaps(applicationId) })
-  const review = useMutation({
+  const classify = useOwnerMutation({ mutationFn: () => classifyApplicationGaps(applicationId) })
+  const review = useOwnerMutation({
     mutationFn: () => reviewApplication(applicationId),
     onSuccess: () => classify.reset(),
   })
@@ -392,8 +393,8 @@ function FindingNextStep({
 
 function ClassifiedNextStep({ applicationId, classification }: { applicationId: string; classification: GapClassification }) {
   const queryClient = useQueryClient()
-  const response = useMutation({ mutationFn: () => getApplicationGapResponse(applicationId, classification.id) })
-  const addToPlan = useMutation({
+  const response = useOwnerMutation({ mutationFn: () => getApplicationGapResponse(applicationId, classification.id) })
+  const addToPlan = useOwnerMutation({
     mutationFn: () => createDevelopmentItem({ gap_classification_id: classification.id }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: DEVELOPMENT_PLAN_QUERY_KEY })

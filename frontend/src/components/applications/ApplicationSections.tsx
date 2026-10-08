@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CalendarClock, Check, Copy, ExternalLink, Trash2 } from 'lucide-react'
 import {
@@ -38,6 +38,7 @@ import { ApplicationPanel } from './ApplicationPanel'
 import { listApplicationEvents } from './applicationsApi'
 import { dueText, daysUntil, SOON_DAYS } from './deadlines'
 import { STATUS_LABELS, formatDate, sentRecordedLate, timeAgo } from './stages'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 type Props = { application: ApplicationDetail }
 
@@ -46,7 +47,7 @@ const SAVED_NOTE_MS = 2500
 
 function useApplicationUpdate(applicationId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
+  return useOwnerMutation({
     mutationFn: (payload: ApplicationUpdate) => updateApplication(applicationId, payload),
     onSuccess: (detail) => {
       queryClient.setQueryData(applicationQueryKey(applicationId), detail)
@@ -277,7 +278,7 @@ export function TasksPanel({ application }: Props) {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
   const [deadline, setDeadline] = useState('')
-  const write = useMutation({
+  const write = useOwnerMutation({
     mutationFn: (run: () => Promise<unknown>) => run(),
     onSuccess: () => { void invalidateApplications(queryClient) },
   })
@@ -478,7 +479,7 @@ export function ActivityPanel({ application }: Props) {
   const events = mergeEvents(application.events, older)
   const total = Math.max(application.events_total, events.length)
   const hidden = total - events.length
-  const loadOlder = useMutation({
+  const loadOlder = useOwnerMutation({
     mutationFn: () => listApplicationEvents(application.id, events.length, OLDER_PAGE),
     onSuccess: (page) => setOlder((current) => mergeEvents(current, application.events, page.items)),
   })

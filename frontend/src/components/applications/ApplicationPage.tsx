@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, CircleAlert, LogIn, SearchX, Trash2 } from 'lucide-react'
 import {
@@ -29,6 +29,7 @@ import { ApplyPanel } from './ApplyPanel'
 import { DocumentChecks } from './DocumentChecks'
 import { StageMenu } from './StageMenu'
 import { STATUS_LABELS, applicationTitle, roleOnly, stageOf } from './stages'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 /** One application on one page: apply, documents, job, tasks, notes, activity. */
 export function ApplicationPage({ applicationId }: { applicationId: string }) {
@@ -41,14 +42,14 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   const authenticated = status === 'authenticated'
   const queryKey = applicationQueryKey(applicationId)
   const query = useQuery({ queryKey, queryFn: () => getApplication(applicationId), enabled: authenticated })
-  const stage = useMutation({
+  const stage = useOwnerMutation({
     mutationFn: (next: ApplicationStatus) => updateApplication(applicationId, { status: next }),
     onSuccess: (detail) => {
       queryClient.setQueryData(queryKey, detail)
       void invalidateApplications(queryClient)
     },
   })
-  const remove = useMutation({
+  const remove = useOwnerMutation({
     mutationFn: () => deleteApplication(applicationId),
     onSuccess: () => {
       const detail = queryClient.getQueryData<ApplicationDetail>(queryKey)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Badge, Button, Cluster, Disclosure, Field, KeyValue, Lead, MetaRow, Notice, ScoreSeal, Section, Stack, Textarea } from '#/components/kit'
@@ -21,6 +21,7 @@ import { APPLICATION_DETAILS_QUERY_KEY, applicationQueryKey, invalidateApplicati
 import { ApplicationPanel } from './ApplicationPanel'
 import { carryApplicationToInterview } from './interviewHandoff'
 import { STATUS_LABELS, applyLink, formatDate, roleOnly, applicationTitle, sentRecordedLate, stageOf } from './stages'
+import { useOwnerMutation } from '#/hooks/useOwnerMutation'
 
 function errorMessage(error: unknown, fallback: string) {
   // The server's 409 details are written for the owner ("Answer the open questions…").
@@ -38,18 +39,18 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
     queryClient.setQueryData(applicationQueryKey(application.id), detail)
     void invalidateApplications(queryClient)
   }
-  const prepare = useMutation({
+  const prepare = useOwnerMutation({
     mutationFn: () => prepareApplication(application.id),
     onSuccess: onDetail,
     // A 409 here is "already being prepared" (another tab, a double click): its drafts arrive with the next read.
     onError: () => { void invalidateApplications(queryClient) },
   })
-  const answers = useMutation({
+  const answers = useOwnerMutation({
     mutationFn: (map: Record<string, string>) => saveApplicationAnswers(application.id, map),
     onSuccess: onDetail,
   })
-  const applied = useMutation({ mutationFn: () => markApplicationApplied(application.id), onSuccess: onDetail })
-  const noReply = useMutation({
+  const applied = useOwnerMutation({ mutationFn: () => markApplicationApplied(application.id), onSuccess: onDetail })
+  const noReply = useOwnerMutation({
     mutationFn: () => updateApplication(application.id, { status: 'no_reply' }),
     onSuccess: onDetail,
   })
@@ -345,8 +346,8 @@ function AutofillBlock({ applicationId, blocked }: { applicationId: string; bloc
     refetchInterval: (query) => (['running', 'review'].includes(query.state.data?.state ?? '') ? 2000 : false),
   })
   const store = (next: AutofillRunStatus) => queryClient.setQueryData(key, next)
-  const start = useMutation({ mutationFn: () => autofillApplication(applicationId), onSuccess: store })
-  const cancel = useMutation({ mutationFn: () => cancelAutofill(applicationId), onSuccess: store })
+  const start = useOwnerMutation({ mutationFn: () => autofillApplication(applicationId), onSuccess: store })
+  const cancel = useOwnerMutation({ mutationFn: () => cancelAutofill(applicationId), onSuccess: store })
 
   const run = status.data
   const state = run?.state ?? 'idle'
@@ -426,11 +427,11 @@ function NextSteps({ application }: { application: ApplicationDetail }) {
   const replyTask = application.tasks.find((task) => /reply to the offer/i.test(task.title) && !task.completed)
   const dueDate = new Date(Date.now() + WEEK_MS)
   dueDate.setHours(12, 0, 0, 0)
-  const add = useMutation({
+  const add = useOwnerMutation({
     mutationFn: () => createApplicationTask(application.id, { title: `Follow up on ${role}`, deadline: dueDate.toISOString() }),
     onSuccess: () => invalidateApplications(queryClient),
   })
-  const addReply = useMutation({
+  const addReply = useOwnerMutation({
     mutationFn: () =>
       createApplicationTask(application.id, {
         title: application.company ? `Reply to the offer from ${application.company}` : `Reply to the offer for ${role}`,
