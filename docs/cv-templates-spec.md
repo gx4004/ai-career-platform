@@ -64,6 +64,19 @@ its letters read after the contact lines and never inside a section.
 - `density`: compact, normal, spacious, implemented as CSS custom property scales.
 - New `page_size`: `a4` (default) or `letter`.
 - New `fit_one_page`: boolean. The service tries scales from 1.0 down to a floor (body 9pt, margins 12mm) and reports "fits" or "runs to N pages".
+- *Adaptive page balance (2026-10-08, automatic, no style field):* a one-page CV whose ink stops short of
+  86% of the printable height is spread down the page by spacing only (`app/services/cv_balance.py`):
+  section and entry gaps and the space under headings (`--flow-*`, times `--fill`), header and in-entry
+  gaps (`--soft-*`, half as far), body line height (+ at most 0.2) and the top and bottom page margins
+  (up to +36%); never type size, side margins, chips or box paddings. Target 90% +-4%. `--fill` is capped
+  by the manifest's `balance_max` (2.2; Lagoon and Lilac 2.5, which balance their main column only,
+  `balance_main_from_mm`) scaled by density (compact half the headroom, spacious two thirds), so a very
+  short CV stops at the cap short of the target rather than looking gappy. A full CV, a CV of two or more
+  pages and one that fit to one page had to shrink print exactly as before (fit shrinks, balance widens,
+  never both). Base print, a prior-slope guess, a secant step and a bracketed step: at most three extra
+  renders, each verified on the real PDF (one page, fill read back); a failed or late render falls back
+  to the plain print. Same solver (`cv_fit.solve_layout`) and layout cache for preview, export and
+  quality check. Thumbnails, DOCX and plain text are not balanced.
 - Catalog (`GET /style-catalog`) stays the single source for the picker; add `ats_safe`, `columns`, `photo_slot`, `group`.
 
 ### 3.5 Frontend
