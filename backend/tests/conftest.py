@@ -22,6 +22,7 @@ for _name, _field in _Settings.model_fields.items():
     os.environ.setdefault(_name, str(_field.default))
 os.environ["ATS_INGESTION_ENABLED"] = "false"
 os.environ["AUTOPILOT_EXPERIMENT_ENABLED"] = "false"
+os.environ["CV_THUMBNAILS_WARM_ON_START"] = "false"
 
 from datetime import UTC, datetime, timedelta
 

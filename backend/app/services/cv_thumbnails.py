@@ -15,10 +15,10 @@ Because the content is constant, the thumbnails themselves are cached in-process
 ``SAMPLE_VERSION``): a second request is served without touching Chromium, and a phone that
 changes colour gets cached tiles back at once.
 
-Budget (owner, 2026-10-08, mobile first): about 8 KB of WebP a thumbnail and 80 KB for the gallery.
-320 px wide, sharp at 2x in a tile of up to 160 CSS px (the kit caps tiles there): the page is drawn
-at twice that, scaled down (smooth strokes) and softened a little; text this small cannot be read,
-and the softening halves the size of a dense page.
+Budget (owner, 2026-10-08, sharper than the first mobile-first cut of 8 KB): about 20 KB of WebP a
+thumbnail. 400 px wide, sharp at 2x in a tile of up to 200 CSS px: the page is drawn at twice that,
+scaled down (smooth strokes) and softened only slightly; text this small cannot be read, but the
+section structure and the header band stay crisp.
 
 Cost: the templates print one after another, so a gallery request holds at most one of the shared
 Chromium slots and the live preview always has the other. The request shares one time budget; a
@@ -49,11 +49,11 @@ from app.services.cv_sample import SAMPLE_VERSION, TRIM_ORDER, trimmed_sample
 
 logger = logging.getLogger(__name__)
 
-THUMBNAIL_WIDTH = 320
+THUMBNAIL_WIDTH = 400
 THUMBNAIL_SUPERSAMPLE = 2
-THUMBNAIL_BLUR = 0.8
-THUMBNAIL_QUALITY = 50
-THUMBNAIL_MAX_BYTES = 8 * 1024
+THUMBNAIL_BLUR = 0.3
+THUMBNAIL_QUALITY = 60
+THUMBNAIL_MAX_BYTES = 20 * 1024
 # Under the renderer's own 15s per-print limit, so a slow request ends with what it has.
 THUMBNAIL_BUDGET_SECONDS = 12.0
 CACHE_SIZE = 256
@@ -200,6 +200,24 @@ def _render_one(template_id: str, style: CvStyle, remaining: Callable[[], float]
     thumbnail = _raster(template_id, pdf)
     _thumbnails.put(key, thumbnail)
     return thumbnail
+
+
+def warm_default_thumbnails() -> int:
+    """Draw the default-look gallery (the template's own pairing, the default accent, normal spacing) once,
+    one template at a time, so the first Design tab opens from the cache. Returns how many tiles were drawn;
+    a renderer that cannot start or a tile that fails is skipped (the request path reports those)."""
+    drawn = 0
+    for template_id in available_template_ids():
+        try:
+            style = gallery_style(CvStyle(), template_id)
+            if _thumbnails.get(_thumbnail_key(template_id, style)) is None:
+                _render_one(template_id, style, lambda: 15.0)
+                drawn += 1
+        except (ChromiumUnavailableError, RenderCancelledError):
+            break
+        except Exception as error:
+            logger.warning("cv thumbnail warm-up failed for %s: %s", template_id, type(error).__name__)
+    return drawn
 
 
 def render_thumbnails(

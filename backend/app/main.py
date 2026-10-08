@@ -50,6 +50,7 @@ from app.services.ats_ingestion import run_ats_ingestion_scheduler
 from app.services.cv_chromium import CvRenderUnavailableError, shutdown_chromium
 from app.services.observability import configure_logging
 from app.services.retention import run_discovered_listing_expiry_scheduler
+from app.services.cv_thumbnails import warm_default_thumbnails
 from app.startup_checks import redacted_config_summary, validate_startup_config
 
 configure_logging()
@@ -119,9 +120,16 @@ async def lifespan(app: FastAPI):
     # every later one (CON-2).
     await asyncio.to_thread(dummy_password_hash)
     scheduler_task = asyncio.create_task(_run_schedulers_when_leader())
+    warm_task = (
+        asyncio.create_task(asyncio.to_thread(warm_default_thumbnails))
+        if settings.CV_THUMBNAILS_WARM_ON_START
+        else None
+    )
     try:
         yield
     finally:
+        if warm_task is not None:
+            warm_task.cancel()
         scheduler_task.cancel()
         with suppress(asyncio.CancelledError):
             await scheduler_task

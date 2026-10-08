@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     # the backend, fills an approved application form, and stops before submit.
     # Local-only: `validate_autopilot_config` refuses it outside development.
     AUTOPILOT_EXPERIMENT_ENABLED: bool = False
+    # Draw the template gallery's default-look thumbnails once at startup (background, one print at a time),
+    # so the first person to open the Design tab is served from the in-process cache.
+    CV_THUMBNAILS_WARM_ON_START: bool = True
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""

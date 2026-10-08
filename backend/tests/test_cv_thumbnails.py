@@ -126,22 +126,22 @@ def test_every_catalog_template_has_a_page_one_thumbnail(client, auth_headers):
     assert [t["template_id"] for t in body["thumbnails"]] == list(available_template_ids())
     for thumbnail in body["thumbnails"]:
         assert thumbnail["error"] is None
-        # A4, 320 px wide.
-        assert _image(thumbnail).size == (thumbnail["width"], thumbnail["height"]) == (320, 453)
+        # A4, 400 px wide.
+        assert _image(thumbnail).size == (thumbnail["width"], thumbnail["height"]) == (400, 566)
 
 
 def test_letter_page_size_changes_the_thumbnail_shape(client, auth_headers):
     body = _get(client, auth_headers, page_size="letter").json()
-    assert {(t["width"], t["height"]) for t in body["thumbnails"]} == {(320, 414)}
+    assert {(t["width"], t["height"]) for t in body["thumbnails"]} == {(400, 518)}
 
 
 @pytest.mark.parametrize(
     "params", [{}, {"accent_color": "#9D174D", "font_id": "eb-garamond", "density": "spacious"}]
 )
-def test_the_gallery_stays_within_the_mobile_budget(client, auth_headers, params):
-    """Owner budget: about 8 KB of WebP a thumbnail and 80 KB for the whole response."""
+def test_the_gallery_stays_within_the_budget(client, auth_headers, params):
+    """Owner budget: about 20 KB of WebP a thumbnail (28 KB each as base64 in the JSON response)."""
     response = _get(client, auth_headers, **params)
-    assert len(response.content) <= 80 * 1024
+    assert len(response.content) <= 28 * 1024 * len(response.json()["thumbnails"])
     for thumbnail in response.json()["thumbnails"]:
         size = len(base64.b64decode(thumbnail["url"][len(WEBP) :]))
         assert size <= cv_thumbnails.THUMBNAIL_MAX_BYTES, (thumbnail["template_id"], size)
