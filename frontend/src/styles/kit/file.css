@@ -125,7 +125,7 @@
 
 /*
  * Dropzone with an icon: a compact target. Lemon disc, then the hint (body type, the instruction), then the
- * trigger, grouped at the start; the trigger wraps under the text when the area is narrow. The DOM order
+ * trigger at the end of the row; the trigger wraps under the text when the area is narrow. The DOM order
  * stays input, trigger (the focus ring rule needs them adjacent), so the order is set here.
  */
 .kit-file[data-icon] {
@@ -153,11 +153,10 @@
   height: 1.25rem;
 }
 
-/* An 8rem basis keeps the hint on the disc's line on a phone (the trigger wraps under them); it grows only to its own width, so on a wide area the trigger sits right after the words. */
+/* An 8rem basis keeps the hint on the disc's line on a phone (the trigger wraps under them); it grows to fill the row, so on a wide area the trigger sits at the right edge. */
 .kit-file[data-icon] .kit-file__info {
   flex: 1 1 8rem;
   order: -1;
-  max-width: max-content;
 }
 
 .kit-file[data-icon] .kit-file__hint {
