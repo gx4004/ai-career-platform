@@ -124,17 +124,16 @@ const backend = createServer((request, response) => {
     return
   }
 
-  if (request.method === 'GET' && request.url === '/api/v1/auth/me') {
+  if (request.method === 'GET' && ['/api/v1/auth/me', '/api/v1/auth/refresh/session'].includes(request.url)) {
+    const user = {
+      id: 'production-smoke-user',
+      email: 'production-smoke@example.invalid',
+      full_name: 'Production Smoke',
+      is_active: true,
+      is_admin: false,
+    }
     response.writeHead(200, fixtureHeaders(request))
-    response.end(
-      JSON.stringify({
-        id: 'production-smoke-user',
-        email: 'production-smoke@example.invalid',
-        full_name: 'Production Smoke',
-        is_active: true,
-        is_admin: false,
-      }),
-    )
+    response.end(JSON.stringify(request.url.endsWith('/me') ? user : { user, refreshable: false }))
     return
   }
 
@@ -187,7 +186,7 @@ try {
   )
 
   const html = await root.text()
-  assert.match(html, /<title>Career Workbench<\/title>/)
+  assert.match(html, /<title>Career Workbench: find your resume’s blind spots<\/title>/)
   assert.match(html, /id="\$tsr-stream-barrier"/)
   assert.match(html, /self\.\$_TSR=/)
   assert.match(html, /<script[^>]*type="module"[^>]*src="\/assets\/[^\"]+\.js"/)
@@ -227,7 +226,7 @@ try {
 
   await page.goto(frontendOrigin, { waitUntil: 'domcontentloaded' })
   await page.locator('html[data-hydrated="true"]').waitFor()
-  assert.equal(await page.title(), 'Career Workbench')
+  assert.equal(await page.title(), 'Career Workbench: find your resume’s blind spots')
   await page.waitForLoadState('networkidle')
 
   const healthResponsePromise = page.waitForResponse(

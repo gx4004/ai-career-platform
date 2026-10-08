@@ -17,6 +17,8 @@ import {
   ToolTile,
 } from '#/components/kit'
 import type { BadgeTone, SectionProps, Tone } from '#/components/kit'
+import { draftClearCount } from '#/lib/tools/drafts'
+import { editedLetterTexts, letterFlushers } from '#/lib/tools/letterState'
 import { request } from '#/lib/api/client'
 import { isDemoHistoryId } from '#/lib/tools/demoRuns'
 import { tools } from '#/lib/tools/registry'
@@ -314,8 +316,6 @@ export type LetterDraft = { opening: string; body: string[]; closing: string }
 export type LetterSaveState = 'idle' | 'saving' | 'saved' | 'saved-local' | 'error'
 
 const LETTER_KEY = 'cw:letter-edit:'
-const editedLetterTexts = new Map<string, string>()
-const letterFlushers = new Map<string, () => Promise<void>>()
 
 export function readLetterDraft(runId: string): LetterDraft | null {
   try {
@@ -375,6 +375,7 @@ const AUTOSAVE_MS = 900
  */
 export function useLetterAutosave(runId: string | undefined, draft: LetterDraft, edited: boolean, persistToServer: boolean) {
   const [state, setState] = useState<LetterSaveState>('idle')
+  const privacyGeneration = useRef(draftClearCount())
   const latest = useRef(draft)
   latest.current = draft
   const dirty = useRef(false)
@@ -385,7 +386,7 @@ export function useLetterAutosave(runId: string | undefined, draft: LetterDraft,
 
   const save = useCallback(async () => {
     while (inFlight.current) await inFlight.current
-    if (!runId || !dirty.current) return
+    if (privacyGeneration.current !== draftClearCount() || !runId || !dirty.current) return
     dirty.current = false
     const snapshot = latest.current
     writeLetterDraft(runId, snapshot)
@@ -397,9 +398,11 @@ export function useLetterAutosave(runId: string | undefined, draft: LetterDraft,
     const attempt = (async () => {
       try {
         await saveLetterToServer(runId, snapshot)
+        if (privacyGeneration.current !== draftClearCount()) return
         clearLetterDraft(runId)
         setState('saved')
       } catch (error) {
+        if (privacyGeneration.current !== draftClearCount()) return
         const status = (error as { status?: number } | null)?.status
         // No save endpoint on this server: the edit stays on this device and says so.
         const unsupported = status === 404 || status === 405 || status === 501

@@ -52,7 +52,9 @@ step "Audit production Python dependencies"
 python3 -m pip_audit --version >/dev/null 2>&1 || python3 -m pip install pip-audit==2.10.1
 # PYSEC-2026-1325 has no fixed ecdsa release; JWTs are constrained to HS256, so
 # that optional EC code path is unreachable.
-(cd "$repository_root/backend" && python3 -m pip_audit -r requirements.txt --ignore-vuln PYSEC-2026-1325)
+# CVE-2026-85394 requires accepting asymmetric keys as HMAC secrets; this app
+# decodes only HS256 with its private shared secret, never a public key.
+(cd "$repository_root/backend" && python3 -m pip_audit -r requirements.txt --ignore-vuln PYSEC-2026-1325 --ignore-vuln CVE-2026-85394)
 
 step "Backend Ruff"
 (cd "$repository_root/backend" && python3 -m ruff check app)

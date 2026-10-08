@@ -48,6 +48,7 @@ def build_materials(details: ApplicationDetailsResponse, content: dict) -> Autof
             id=variant.get("document_id") or content.get("application_id") or "cv",
             name=variant.get("name") or "CV",
             sections=variant["sections"],
+            header=variant.get("header"),
         )
         resume_pdf = render_pdf(
             build_render_model(document, ATS_TEMPLATE_ID, CvStyle(ats_mode=True))

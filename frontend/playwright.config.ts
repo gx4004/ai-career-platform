@@ -59,7 +59,9 @@ export default defineConfig({
       },
     },
     {
-      command: `pnpm dev --host 127.0.0.1 --port ${frontendPort}`,
+      command: process.env.E2E_PRODUCTION === '1'
+        ? 'node serve.mjs'
+        : `pnpm dev --host 127.0.0.1 --port ${frontendPort}`,
       cwd: frontendDir,
       url: frontendUrl,
       reuseExistingServer: false,
@@ -69,6 +71,8 @@ export default defineConfig({
         // GitHub Actions injects CI=true. The test runner remains in CI mode;
         // only the interactive app server needs normal development semantics.
         CI: '',
+        PORT: frontendPort,
+        API_PROXY_TARGET: backendUrl,
         VITE_API_URL: `${backendUrl}/api/v1`,
       },
     },

@@ -779,6 +779,7 @@ def test_fills_with_the_applications_chosen_materials_and_answers(
     calls: list = []
     monkeypatch.setattr("app.routers.applications.start_autofill", _fake_start(calls))
     application = _ready(db, test_user.id)
+    application.selected_cv_variant.document.header = {"name": "Ada King Lovelace", "email": "ada@example.com"}
     application.open_questions = [
         {"key": "q-1", "question": "What are your salary expectations?", "category": "salary"}
     ]
@@ -824,6 +825,11 @@ def test_fills_with_the_applications_chosen_materials_and_answers(
     assert materials.cover_letter == "Original cover letter."
     assert materials.answers == [("What is your notice period?", "Two weeks.")]
     assert materials.owner_answers == [("What are your salary expectations?", "90k EUR")]
+    import fitz
+    with fitz.open(stream=materials.resume_pdf, filetype="pdf") as pdf:
+        resume_text = "\n".join(page.get_text() for page in pdf)
+    assert "Ada King Lovelace" in resume_text
+    assert "ada@example.com" in resume_text
     assert materials.resume_pdf.startswith(b"%PDF")
     assert materials.resume_filename == "Ada-King-Lovelace-CV.pdf"
 

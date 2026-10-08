@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import { resultDefinitions } from '#/lib/tools/resultDefinitions'
@@ -19,6 +20,17 @@ describe('InterviewPracticeMode', () => {
   beforeEach(() => {
     feedbackMock.mockReset()
     window.sessionStorage.clear()
+  })
+
+  it('does not repopulate cleared private practice answers after a late response', async () => {
+    let finish!: (value: ReturnType<typeof feedback>) => void
+    feedbackMock.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    const { unmount } = render(<InterviewPracticeMode runId="private-run" questions={questions} onExit={() => {}} />)
+    await submit('Private work history.')
+    clearSensitiveBrowserData()
+    unmount()
+    await act(async () => finish(feedback()))
+    expect(sessionStorage.getItem('cw:practice:private-run')).toBeNull()
   })
 
   it('starts at the question, and the answer box is named', () => {

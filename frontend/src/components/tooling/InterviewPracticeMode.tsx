@@ -27,6 +27,8 @@ import { Lines, Prose, ResultList } from '#/components/tooling/ResultParts'
 import { runInterviewPracticeFeedback } from '#/lib/api/client'
 import type { InterviewPracticeFeedback } from '#/lib/api/schemas'
 
+import { draftClearCount } from '#/lib/tools/drafts'
+
 const MAX_ATTEMPTS = 3
 
 interface Question {
@@ -184,6 +186,7 @@ export function InterviewPracticeMode({
 
   const handleSubmit = async () => {
     if (!answer.trim()) return
+    const privacyGeneration = draftClearCount()
     setLoading(true)
     setError(null)
 
@@ -199,6 +202,7 @@ export function InterviewPracticeMode({
         user_answer: answer,
         model_answer: modelAnswer,
       })
+      if (privacyGeneration !== draftClearCount()) return
       // Only consume an attempt once the LLM successfully responded: a network blip or 5xx must not
       // burn one of three attempts on a request the user never got feedback for.
       record({ ...attempts, [currentIndex]: [...done, { answer, feedback: result }] })

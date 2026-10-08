@@ -54,7 +54,9 @@ export default defineConfig({
       },
     },
     {
-      command: `pnpm dev --host 127.0.0.1 --port ${env.frontendPort}`,
+      command: process.env.E2E_PRODUCTION === '1'
+        ? 'node serve.mjs'
+        : `pnpm dev --host 127.0.0.1 --port ${env.frontendPort}`,
       cwd: env.frontendDir,
       url: env.frontendUrl,
       reuseExistingServer: false,
@@ -63,6 +65,8 @@ export default defineConfig({
         // TanStack Start's Vite dev server suppresses client hydration when
         // GitHub Actions injects CI=true (see playwright.config.ts).
         CI: '',
+        PORT: env.frontendPort,
+        API_PROXY_TARGET: env.backendUrl,
         E2E_BACKEND_PORT: env.backendPort,
         VITE_API_URL: `${env.backendUrl}/api/v1`,
       },
