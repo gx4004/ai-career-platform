@@ -41,7 +41,7 @@
     "react-dom": "^19.2.0",
     "react-i18next": "^15.4.1",
     "tailwindcss": "^4.3.3",
-    "zod": "^4.3.6"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.1",
